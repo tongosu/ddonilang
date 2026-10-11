@@ -22,6 +22,13 @@ export class DdnWasmVmClient {
     this.vm.update_logic(source);
   }
 
+  exportSavedProjectArtifact(parentHex, revisionHex) {
+    if (typeof this.vm.export_saved_project_artifact_json !== "function") {
+      throw new Error("E_PROJECT_RUNTIME_SAVE_API_MISSING: 실행 저장 기능이 없습니다.");
+    }
+    return this.vm.export_saved_project_artifact_json(parentHex, revisionHex);
+  }
+
   updateLogicWithMode(source, mode) {
     if (typeof this.vm.update_logic_with_mode !== "function") {
       throw new Error("update_logic_with_mode is not available in this wasm build");

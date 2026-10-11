@@ -1,4 +1,4 @@
-const SESSION_METHODS = ["updateLogic", "reset", "getStateJson", "step", "setParam"];
+const SESSION_METHODS = ["updateLogic", "reset", "getStateJson", "step", "setParam", "exportSavedProjectArtifact", "close"];
 const ADAPTER_METHODS = [
   "authoredProjectOperation",
   "bindLogicalSource",

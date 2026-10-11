@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use ddonirang_lang::ast::{
     ArgBinding, BindingReason, Body, Expr, ExprKind, Literal, SeedDef, SeedKind, Stmt,
+    TensorProviderExpr,
 };
 use ddonirang_lang::{
     canonicalize, normalize, parse, LintWarning, NormalizationLevel, TopLevelItem,
@@ -403,6 +404,12 @@ fn collect_calls_from_expr(expr: &Expr, out: &mut Vec<CallDet>) {
             collect_calls_from_expr(target, out);
             collect_calls_from_expr(index, out);
         }
+        ExprKind::Tensor(provider) => collect_calls_from_expr(provider.input(), out),
+        ExprKind::MultiAxisSelection(selection) => {
+            for child in selection.children() {
+                collect_calls_from_expr(child, out);
+            }
+        }
         ExprKind::FieldAccess { target, .. } => collect_calls_from_expr(target, out),
         ExprKind::SeedLiteral { body, .. } => collect_calls_from_expr(body, out),
         ExprKind::Infix { left, right, .. } => {
@@ -483,6 +490,11 @@ fn expr_fingerprint(expr: &Expr) -> String {
             format!("collection_constructor:{}", elements.len())
         }
         ExprKind::SelectionPlace { .. } => "selection_place".to_string(),
+        ExprKind::Tensor(TensorProviderExpr::FromCollection { .. }) => "tensor_from_collection".into(),
+        ExprKind::Tensor(TensorProviderExpr::ToCollection { .. }) => "tensor_to_collection".into(),
+        ExprKind::MultiAxisSelection(selection) => {
+            format!("multi_axis_selection:{}", selection.selectors.len())
+        }
         ExprKind::Infix { op, .. } => format!("infix:{}", op),
         ExprKind::Suffix { at, .. } => format!("suffix:{:?}", at),
         ExprKind::Thunk(_) => "thunk".to_string(),
@@ -505,6 +517,46 @@ fn expr_fingerprint(expr: &Expr) -> String {
         ExprKind::TemplateRender { inject, .. } => format!("template_render:{}", inject.len()),
         ExprKind::FormulaEval { inject, .. } => format!("formula_eval:{}", inject.len()),
         ExprKind::Nuance { level, .. } => format!("nuance:{}", level),
+    }
+}
+
+#[cfg(test)]
+mod tensor_dump_tests {
+    use super::*;
+    use ddonirang_lang::ast::{MultiAxisSelection, Span, TensorAxisSelector};
+
+    fn expr(kind: ExprKind) -> Expr {
+        Expr { id: 0, span: Span::new(0, 0), kind }
+    }
+
+    fn call(name: &str) -> Expr {
+        expr(ExprKind::Call { func: name.into(), args: vec![] })
+    }
+
+    #[test]
+    fn tensor_provider_visits_its_input_without_becoming_a_collection_alias() {
+        let tensor = expr(ExprKind::Tensor(TensorProviderExpr::ToCollection {
+            input: Box::new(call("텐서값")),
+        }));
+        let mut calls = vec![];
+        collect_calls_from_expr(&tensor, &mut calls);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].func, "텐서값");
+        assert_eq!(expr_fingerprint(&tensor), "tensor_to_collection");
+    }
+
+    #[test]
+    fn multi_axis_dump_visits_target_and_dynamic_index_in_order() {
+        let selected = expr(ExprKind::MultiAxisSelection(MultiAxisSelection {
+            target: Box::new(call("판")),
+            selectors: vec![TensorAxisSelector::Index(Box::new(call("축"))),
+                TensorAxisSelector::Range { start: 0, end: 2 }, TensorAxisSelector::Full],
+            writable: false,
+        }));
+        let mut calls = vec![];
+        collect_calls_from_expr(&selected, &mut calls);
+        assert_eq!(calls.iter().map(|c| c.func.as_str()).collect::<Vec<_>>(), ["판", "축"]);
+        assert_eq!(expr_fingerprint(&selected), "multi_axis_selection:3");
     }
 }
 

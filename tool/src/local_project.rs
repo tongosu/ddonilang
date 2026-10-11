@@ -3186,6 +3186,7 @@ pub(crate) fn validate_project_module_boundary_for_authoring(
 
 /// Bounded authored preparation reuses the product linker without execution.
 /// Its byte map is private provenance, not a new public source-map wire.
+#[derive(Debug)]
 pub(crate) struct AuthoredPreparation {
     pub source: String,
     pub target_path: String,

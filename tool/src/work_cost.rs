@@ -591,6 +591,8 @@ pub fn stmt_registry_key(stmt: &Stmt) -> &'static str {
 
 pub fn expr_registry_key(expr: &ExprKind) -> &'static str {
     match expr {
+        ExprKind::Tensor(_) => "expr.tensor",
+        ExprKind::MultiAxisSelection(_) => "expr.tensor_selection",
         ExprKind::Literal(_) => "expr.literal",
         ExprKind::Var(_) => "expr.var",
         ExprKind::FieldAccess { .. } => "expr.field_access",
@@ -729,8 +731,16 @@ pub fn connection_mode_registry_key(mode: &ConnectionMode) -> &'static str {
 
 pub const STDLIB_SIGNATURE_ROW_COUNT_V1: usize = 256;
 pub const STDLIB_SIGNATURE_ROW_COUNT_ALPHA2: usize = 268;
+pub const STDLIB_SIGNATURE_ROW_COUNT_ALPHA3: usize = 272;
+// A3-TIME-P1: RD-136 typed time constructors plus optional time pins.
+// Keep the Alpha2 and closed V1 seals as historical boundaries.
+pub const VIEW_SIGNATURE_LEDGER_SHA256_ALPHA3: &str =
+    "a2aa371782b9817188cbb969c1a99e6573e99e6bcb32a55bd37ebe13701bd980";
 pub const LOGICAL_INPUT_SIGNATURE_LEDGER_SHA256_ALPHA2: &str =
     "a7c266477fa661dcdcf48e2143528afc9d3b531ff1c3d6bc36e1930faf9d17ab";
+// A3-P4 provisional explicit channel-to-alert binding; no Alpha2 seal change.
+pub const LOGICAL_INPUT_SIGNATURE_LEDGER_SHA256_ALPHA3: &str =
+    "dacd6eafea5a2cb8de4256176855c57a300e7946c39efe8f34bbaa06560e43d9";
 // 기존 V1 봉인을 유지한 채 RD-123/RD-520 생성자를 별도로 봉인한다.
 pub const VIEW_SIGNATURE_LEDGER_SHA256_ALPHA2: &str =
     "3b59752370ca506e9517deacb8fa106c057f639d2cde1af675df40de5f2b25e3";
@@ -877,13 +887,13 @@ fn verify_stdlib_registry_totality_uncached() -> Result<(), WorkCostFailure> {
     let view_count = view_rows.len();
     let actual_hash = hex::encode(Sha256::digest(signature_ledger_rows(base_rows).as_bytes()));
     let view_hash = hex::encode(Sha256::digest(signature_ledger_rows(view_rows).as_bytes()));
-    if signatures.len() != STDLIB_SIGNATURE_ROW_COUNT_ALPHA2
+    if signatures.len() != STDLIB_SIGNATURE_ROW_COUNT_ALPHA3
         || base_count != STDLIB_SIGNATURE_ROW_COUNT_V1
-        || view_count != 11
+        || view_count != 14
         || actual_hash != STDLIB_SIGNATURE_LEDGER_SHA256_V1
-        || view_hash != VIEW_SIGNATURE_LEDGER_SHA256_ALPHA2
-        || logical_count != 1
-        || logical_hash != LOGICAL_INPUT_SIGNATURE_LEDGER_SHA256_ALPHA2
+        || view_hash != VIEW_SIGNATURE_LEDGER_SHA256_ALPHA3
+        || logical_count != 2
+        || logical_hash != LOGICAL_INPUT_SIGNATURE_LEDGER_SHA256_ALPHA3
     {
         return Err(WorkCostMeter::default().failure(
             E_WORK_COST_REGISTRY_MISSING_CANDIDATE,
@@ -894,7 +904,7 @@ fn verify_stdlib_registry_totality_uncached() -> Result<(), WorkCostFailure> {
                 view_hash
             ),
             signatures.len() as u64,
-            Some(STDLIB_SIGNATURE_ROW_COUNT_ALPHA2 as u64),
+            Some(STDLIB_SIGNATURE_ROW_COUNT_ALPHA3 as u64),
         ));
     }
     Ok(())
@@ -1293,7 +1303,7 @@ mod tests {
         verify_stdlib_registry_totality().unwrap();
         assert_eq!(
             ddonirang_lang::stdlib::minimal_stdlib_sigs().len(),
-            STDLIB_SIGNATURE_ROW_COUNT_ALPHA2
+            STDLIB_SIGNATURE_ROW_COUNT_ALPHA3
         );
         assert_eq!(
             hex::encode(Sha256::digest(signature_ledger_rows(stdlib_signature_rows()
@@ -1302,7 +1312,7 @@ mod tests {
         );
         // RD-520 composition and Owner-approved Alpha2 event query; V1 unchanged.
         // RD-520 adds 겹 and 곁 to the existing registry; the V1 base seal stays fixed.
-        assert_eq!(registered_stdlib_names().unwrap().len(), 263);
+        assert_eq!(registered_stdlib_names().unwrap().len(), 267);
         for sig in ddonirang_lang::stdlib::minimal_stdlib_sigs() {
             let canonical = ddonirang_lang::stdlib::canonicalize_stdlib_alias(sig.name);
             assert!(
@@ -1328,9 +1338,11 @@ mod tests {
         for name in alpha2_names {
             assert!(dispatch_names.contains(name), "missing approved Alpha2 function: {name}");
         }
-        assert_eq!(dispatch_names.iter().filter(|name| !alpha2_names.contains(&name.as_str())).count(),
+        let alpha3_names = ["입력사상.알림결속", "표준시간.고정마디", "표준시간.상대마디"];
+        for name in alpha3_names { assert!(dispatch_names.contains(name)); }
+        assert_eq!(dispatch_names.iter().filter(|name| !alpha2_names.contains(&name.as_str()) && !alpha3_names.contains(&name.as_str())).count(),
             228, "base eval_call dispatch ledger drift");
-        assert_eq!(dispatch_names.len(), 240, "alpha2 eval_call dispatch ledger drift");
+        assert_eq!(dispatch_names.len(), 243, "alpha3 eval_call dispatch ledger drift");
         let missing = dispatch_names
             .into_iter()
             .filter_map(|name| {
@@ -1350,7 +1362,7 @@ mod tests {
     #[test]
     fn every_stdlib_overload_row_has_an_exact_cost_ledger_entry() {
         let ledger = builtin_work_cost_ledger().expect("sealed stdlib ledger");
-        assert_eq!(ledger.len(), STDLIB_SIGNATURE_ROW_COUNT_ALPHA2);
+        assert_eq!(ledger.len(), STDLIB_SIGNATURE_ROW_COUNT_ALPHA3);
         assert!(ledger.iter().all(|row| !row.group.is_empty()));
         assert!(ledger.iter().all(|row| !row.name.is_empty()));
         assert!(ledger.iter().all(|row| !row.canonical_name.is_empty()));
@@ -1366,7 +1378,7 @@ mod tests {
                 )
             })
             .collect::<BTreeSet<_>>();
-        assert_eq!(identities.len(), STDLIB_SIGNATURE_ROW_COUNT_ALPHA2);
+        assert_eq!(identities.len(), STDLIB_SIGNATURE_ROW_COUNT_ALPHA3);
     }
 
     #[test]

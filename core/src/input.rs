@@ -11,6 +11,7 @@ pub struct LogicalInputQuery<C> {
     channels: BTreeMap<C, LogicalChannelKind>,
     events: Vec<LogicalInputEvent<C>>,
     held: BTreeMap<C, bool>,
+    initial_held: Option<BTreeMap<C, bool>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -41,6 +42,8 @@ pub enum LogicalInputQueryError {
     UnknownChannel,
     ChannelKindMismatch,
     MissingHeldState,
+    InvalidEventPrefix,
+    InconsistentHeldState,
 }
 
 impl<C: Ord> LogicalInputQuery<C> {
@@ -94,6 +97,7 @@ impl<C: Ord> LogicalInputQuery<C> {
             channels,
             events,
             held,
+            initial_held: None,
         })
     }
 
@@ -128,6 +132,45 @@ impl<C: Ord> LogicalInputQuery<C> {
             .events
             .iter()
             .filter(move |event| &event.channel == channel))
+    }
+}
+
+impl<C: Ord + Clone> LogicalInputQuery<C> {
+    /// A3-P4: the ingress supplies the previous committed state. Never infer it
+    /// backwards from Press/Release (repeated Press need not invert a state).
+    pub fn with_initial_held(mut self, initial: BTreeMap<C, bool>) -> Result<Self, LogicalInputQueryError> {
+        if initial.keys().ne(self.held.keys()) {
+            return Err(LogicalInputQueryError::MissingHeldState);
+        }
+        let mut settled = initial.clone();
+        for event in &self.events {
+            let state = settled.get_mut(&event.channel);
+            match &event.kind {
+                LogicalInputEventKind::Press => *state.ok_or(LogicalInputQueryError::MissingHeldState)? = true,
+                LogicalInputEventKind::Release => *state.ok_or(LogicalInputQueryError::MissingHeldState)? = false,
+                LogicalInputEventKind::Repeat if state.copied() != Some(true) => return Err(LogicalInputQueryError::InconsistentHeldState),
+                _ => {}
+            }
+        }
+        if settled != self.held { return Err(LogicalInputQueryError::InconsistentHeldState); }
+        self.initial_held = Some(initial);
+        Ok(self)
+    }
+
+    /// Keep the non-consuming complete event list; only held-state observation
+    /// advances with the event being dispatched. Final madi sees final held.
+    pub fn at_event_prefix(&self, count: usize) -> Result<Self, LogicalInputQueryError> {
+        if count > self.events.len() { return Err(LogicalInputQueryError::InvalidEventPrefix); }
+        let mut result = self.clone();
+        result.held = self.initial_held.clone().ok_or(LogicalInputQueryError::MissingHeldState)?;
+        for event in self.events.iter().take(count) {
+            match event.kind {
+                LogicalInputEventKind::Press => { result.held.insert(event.channel.clone(), true); }
+                LogicalInputEventKind::Release => { result.held.insert(event.channel.clone(), false); }
+                _ => {}
+            }
+        }
+        Ok(result)
     }
 }
 
@@ -226,6 +269,23 @@ mod tests {
             query.events()[1].kind,
             LogicalInputEventKind::Repeat
         ));
+    }
+
+    #[test]
+    fn a3_p4_event_prefix_uses_explicit_initial_state_and_preserves_events() {
+        let query = LogicalInputQuery::from_projection(3, controls(), vec![
+            control_event(0, LogicalInputEventKind::Press),
+            control_event(1, LogicalInputEventKind::Press),
+            control_event(2, LogicalInputEventKind::Release),
+        ], BTreeMap::from([(Channel(0), false)])).unwrap();
+        assert_eq!(query.at_event_prefix(0).unwrap_err(), LogicalInputQueryError::MissingHeldState);
+        let query = query.with_initial_held(BTreeMap::from([(Channel(0), true)])).unwrap();
+        for (count, held) in [(0,true),(1,true),(2,true),(3,false)] {
+            let prefix = query.at_event_prefix(count).unwrap();
+            assert_eq!(prefix.is_held(&Channel(0)).unwrap(), held);
+            assert_eq!(prefix.events(), query.events());
+        }
+        assert_eq!(query.at_event_prefix(4).unwrap_err(), LogicalInputQueryError::InvalidEventPrefix);
     }
 
     #[test]

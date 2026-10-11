@@ -61,6 +61,12 @@ class RuntimeSessionV1 {
     return this.#adapterSession.getStateJson();
   }
 
+  exportSavedProjectArtifact(parentHex, revisionHex) {
+    return this.#adapterSession.exportSavedProjectArtifact(parentHex, revisionHex);
+  }
+
+  close() { return this.#adapterSession.close(); }
+
   step(options) {
     return this.#adapterSession.step(options);
   }

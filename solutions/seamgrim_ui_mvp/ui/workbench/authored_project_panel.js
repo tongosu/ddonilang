@@ -1,6 +1,6 @@
 // Persistent IDs are supplied only by the common Rust codec after an explicit
 // user operation. Local storage keys and download names are locators, not IDs.
-export function installAuthoredProjectPanel({root, bridge, host, capture, apply}) {
+export function installAuthoredProjectPanel({root, bridge, host, capture, apply, saveRuntime, reopenRuntime}) {
   const status=root.querySelector('[data-authored-status]');
   const identity=root.querySelector('[data-authored-identity]');
   const contents=root.querySelector('[data-authored-contents]');
@@ -69,6 +69,13 @@ export function installAuthoredProjectPanel({root, bridge, host, capture, apply}
     baseline=token;
     show(text,'이 기기에 저장했습니다. 다시 열어도 같은 ID를 사용합니다.');
   });
+  for(const [selector,operation] of [['[data-authored-runtime-save]',saveRuntime],['[data-authored-runtime-reopen]',reopenRuntime]]) {
+    root.querySelector(selector)?.addEventListener('click',()=>perform(async()=>{
+      if(!artifactText || JSON.stringify(capture())!==baseline)throw new Error('먼저 현재 작품 원문을 갱신 저장하세요.');
+      if(!operation)throw new Error('E_PROJECT_RUNTIME_UI_UNSUPPORTED');
+      status.textContent=await operation(artifactText);
+    }));
+  }
   root.querySelector('[data-authored-register]').onclick=()=>perform(async()=>{
     if(!artifactText) throw new Error('먼저 작품 정체를 만들거나 저장 자료를 여세요.');
     const captured=capture(), token=JSON.stringify(captured), prior=JSON.parse(baseline);
@@ -158,6 +165,13 @@ export function installAuthoredProjectPanel({root, bridge, host, capture, apply}
   });
   return {
     getArtifactText:()=>artifactText,
+    getRunProjectArtifact:()=>{
+      if(!artifactText) return '';
+      const artifact=JSON.parse(artifactText), current=capture(), prior=JSON.parse(baseline);
+      if(current.selected_project!==prior.selected_project || !artifact.source_snapshot?.root_path) return '';
+      if(JSON.stringify(current)!==baseline) throw new Error('E_PROJECT_RUNTIME_SOURCE_CHANGED: 원문이 바뀌었습니다. 작품 원문을 갱신 저장한 뒤 실행하세요.');
+      return artifactText;
+    },
     getRunArtifact:()=>{
       if(!artifactText) return '';
       const artifact=JSON.parse(artifactText), current=capture(), prior=JSON.parse(baseline);

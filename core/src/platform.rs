@@ -256,6 +256,8 @@ pub struct ResourceMapEntry {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ResourceValue {
+    /// RD-674 exact carrier, admitted by shared unit_wire; not a List/Map alias.
+    BasicTensorV1(Vec<u8>),
     None,
     Bool(bool),
     Fixed64(Fixed64),
@@ -324,6 +326,7 @@ impl ResourceValue {
 
     fn canon_string(&self) -> String {
         match self {
+            ResourceValue::BasicTensorV1(carrier) => format!("basic-tensor-v1:{}", crate::commit_canon::carrier_base64url(carrier)),
             ResourceValue::None => "없음".to_string(),
             ResourceValue::Bool(true) => "참".to_string(),
             ResourceValue::Bool(false) => "거짓".to_string(),
@@ -400,6 +403,7 @@ impl ResourceValue {
 
     pub fn encode_canon(&self, out: &mut Vec<u8>) {
         match self {
+            ResourceValue::BasicTensorV1(carrier) => { out.push(0x0e); out.extend_from_slice(carrier); }
             ResourceValue::None => {
                 out.push(0x00);
             }

@@ -72,7 +72,7 @@ export class LogicalActionInput {
     return true;
   }
 
-  attach(target) {
+  attach(target, { controls = [] } = {}) {
     if (!target || typeof target.addEventListener !== "function" || this.detach) {
       throw new Error("E_LOGICAL_INPUT_TARGET: 입력 받을 화면을 한 번만 연결해야 합니다.");
     }
@@ -82,23 +82,33 @@ export class LogicalActionInput {
     };
     const down = onEvent(false), up = onEvent(true);
     const lost = () => { this.loseInput("입력 화면의 초점을 잃었습니다. 다시 시작하세요."); };
+    // One explicit input region may include the main playback controls.
+    // Editors, project menus and arbitrary document nodes remain outside it.
+    const candidates = [...new Set([target, ...controls.filter(Boolean)])];
+    // Listen once at the outermost admitted node; bubbling must not duplicate
+    // a Press when an explicit view stage contains the primary canvas.
+    const regions = candidates.filter(node => !candidates.some(other => other !== node && other.contains?.(node)));
     const focusOut = event => {
       // Moving among controls in this input region is not lost input.
-      if (!event.relatedTarget || !target.contains?.(event.relatedTarget)) lost();
+      if (!event.relatedTarget || !regions.some(region => region === event.relatedTarget || region.contains?.(event.relatedTarget))) lost();
     };
     const window = target.ownerDocument?.defaultView;
     const document = target.ownerDocument;
     const visibility = () => { if (document.visibilityState === "hidden") lost(); };
-    target.addEventListener("keydown", down);
-    target.addEventListener("keyup", up);
-    target.addEventListener("focusout", focusOut);
+    for (const region of regions) {
+      region.addEventListener("keydown", down);
+      region.addEventListener("keyup", up);
+      region.addEventListener("focusout", focusOut);
+    }
     window?.addEventListener("blur", lost);
     window?.addEventListener("pagehide", lost);
     document?.addEventListener("visibilitychange", visibility);
     this.detach = () => {
-      target.removeEventListener("keydown", down);
-      target.removeEventListener("keyup", up);
-      target.removeEventListener("focusout", focusOut);
+      for (const region of regions) {
+        region.removeEventListener("keydown", down);
+        region.removeEventListener("keyup", up);
+        region.removeEventListener("focusout", focusOut);
+      }
       window?.removeEventListener("blur", lost);
       window?.removeEventListener("pagehide", lost);
       document?.removeEventListener("visibilitychange", visibility);

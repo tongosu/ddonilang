@@ -47,7 +47,38 @@ impl Normalizer {
     pub fn normalize_program(&mut self, program: &CanonProgram) -> String {
         self.source_epoch = program.source_epoch;
         self.call_signatures = collect_call_signatures(program);
+        // A3-P3: parser relocation is execution plumbing, not an authored
+        // change of scope. Preserve top-level setup in saved V25 source.
+        if program.source_epoch == SourceEpoch::V25 {
+            for item in &program.items {
+                let TopLevelItem::SeedDef(seed) = item;
+                if let Some(body) = &seed.body {
+                    for statement in &body.stmts {
+                        if seed.is_relocated_top_level_setup(statement) {
+                            self.normalize_stmt(statement);
+                            self.write("\n\n");
+                        }
+                    }
+                }
+            }
+        }
         for item in &program.items {
+            if program.source_epoch == SourceEpoch::V25 {
+                let TopLevelItem::SeedDef(seed) = item;
+                if let Some(body) = &seed.body {
+                    if body.stmts.iter().any(|stmt| seed.is_relocated_top_level_setup(stmt)) {
+                        let synthetic = seed.span == body.span
+                            && body.stmts.iter().all(|stmt| seed.is_relocated_top_level_setup(stmt));
+                        if synthetic { continue; }
+                        let mut authored_seed = seed.clone();
+                        authored_seed.body.as_mut().unwrap().stmts
+                            .retain(|stmt| !seed.is_relocated_top_level_setup(stmt));
+                        self.normalize_seed_def(&authored_seed);
+                        self.write("\n\n");
+                        continue;
+                    }
+                }
+            }
             self.normalize_top_level_item(item);
             self.write("\n\n");
         }
@@ -189,6 +220,17 @@ impl Normalizer {
 
     fn normalize_type(&mut self, type_ref: &TypeRef) {
         match type_ref {
+            TypeRef::Tensor { element, shape } => {
+                self.write("(원소씨=");
+                self.normalize_type(element);
+                self.write(", 모양=(");
+                for (index, axis) in shape.iter().enumerate() {
+                    if index > 0 { self.write(", "); }
+                    self.write(&axis.to_string());
+                }
+                if shape.len() == 1 { self.write(","); }
+                self.write(")) 텐서씨");
+            }
             TypeRef::Named(name) => self.write(name),
             TypeRef::Applied { name, args } => {
                 self.write("(");
@@ -279,8 +321,16 @@ impl Normalizer {
                 name,
                 type_ref,
                 value,
+                reaction,
                 ..
             } => {
+                if let Some(registration)=reaction {
+                    self.write("(");self.normalize_param(&registration.payload);self.write(") ");
+                    self.write(name);self.write(":움직씨 {");self.write(&registration.alert_type);
+                    self.write("를 받으면} := ");self.normalize_expr(value);
+                    self.write_stmt_terminator(stmt);
+                    return;
+                }
                 self.write(name);
                 if !matches!(type_ref, TypeRef::Infer) {
                     self.write(":");
@@ -658,6 +708,39 @@ impl Normalizer {
 
     fn normalize_expr(&mut self, expr: &Expr) {
         match &expr.kind {
+            ExprKind::MultiAxisSelection(value) => {
+                self.normalize_expr(&value.target);
+                self.write("[");
+                for (i, selector) in value.selectors.iter().enumerate() {
+                    if i > 0 { self.write(", "); }
+                    match selector {
+                        TensorAxisSelector::Index(e) => self.normalize_expr(e),
+                        TensorAxisSelector::Range {start,end} => self.write(&format!("{start}..{end}")),
+                        TensorAxisSelector::Full => self.write(":"),
+                    }
+                }
+                self.write("]");
+            }
+            ExprKind::Tensor(value) => match value {
+                TensorProviderExpr::FromCollection { input, element_type, shape } => {
+                    self.write("(차림=");
+                    self.normalize_expr(input);
+                    self.write(", 원소씨=");
+                    self.normalize_type(element_type);
+                    self.write(", 모양=(");
+                    for (index, axis) in shape.iter().enumerate() {
+                        if index > 0 { self.write(", "); }
+                        self.write(&axis.to_string());
+                    }
+                    if shape.len() == 1 { self.write(","); }
+                    self.write(")) 텐서로");
+                }
+                TensorProviderExpr::ToCollection { input } => {
+                    self.write("(텐서=");
+                    self.normalize_expr(input);
+                    self.write(") 차림으로");
+                }
+            },
             ExprKind::Literal(lit) => self.normalize_literal(lit),
             ExprKind::Var(name) => self.write(name),
             ExprKind::FieldAccess { target, field, .. } => {

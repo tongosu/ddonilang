@@ -245,8 +245,34 @@ pub fn canonical_execution_binding_hash(record: &CanonicalExecutionBindingRecord
     )
 }
 
+pub fn carrier_base64url(bytes: &[u8]) -> String {
+    const ABC: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let mut out = String::with_capacity((bytes.len() * 4 + 2) / 3);
+    for chunk in bytes.chunks(3) {
+        let a = chunk[0] as usize;
+        let b = chunk.get(1).copied().unwrap_or(0) as usize;
+        let c = chunk.get(2).copied().unwrap_or(0) as usize;
+        out.push(ABC[a >> 2] as char);
+        out.push(ABC[((a & 3) << 4) | (b >> 4)] as char);
+        if chunk.len() > 1 { out.push(ABC[((b & 15) << 2) | (c >> 6)] as char); }
+        if chunk.len() > 2 { out.push(ABC[c & 63] as char); }
+    }
+    out
+}
+
 fn resource_value(value: &ResourceValue) -> String {
     match value {
+        ResourceValue::BasicTensorV1(carrier) => {
+            use sha2::{Digest, Sha256};
+            let mut saved = vec![0x0e]; saved.extend_from_slice(carrier);
+            object(vec![
+                ("carrier_base64url", json_string(&carrier_base64url(carrier))),
+                ("carrier_sha256", json_string(&format!("{:x}", Sha256::digest(carrier)))),
+                ("kind", json_string("basic-tensor-v1")),
+                ("resource_value_sha256", json_string(&format!("{:x}", Sha256::digest(&saved)))),
+                ("resource_value_tag", json_string("0e")),
+            ])
+        }
         ResourceValue::None => "null".to_string(),
         ResourceValue::Bool(value) => value.to_string(),
         ResourceValue::Fixed64(value) => fixed64_value(*value),

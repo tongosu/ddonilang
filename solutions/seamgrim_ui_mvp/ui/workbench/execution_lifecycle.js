@@ -48,6 +48,7 @@ export const EXECUTION_EVENTS = Object.freeze({
   HISTORY_OPENED: "history_opened",
   PROJECT_SWITCHED: "project_switched",
   REOPENED: "reopened",
+  RESTORED: "restored",
 });
 
 const STATUS_LABELS = Object.freeze({
@@ -117,6 +118,19 @@ export function transitionExecutionLifecycle(currentInput, event, payload = {}) 
   const current = createExecutionLifecycle(currentInput ?? {});
   const status = current.status;
   const mode = normalizedMode(current.mode);
+
+  // A3-P12: invoked only after the separate Rust candidate is verified.
+  // Restoration is not a fabricated START/STEP and does not execute a madi.
+  if (event === EXECUTION_EVENTS.RESTORED) {
+    if (![EXECUTION_STATES.IDLE,EXECUTION_STATES.PAUSED,EXECUTION_STATES.DONE,EXECUTION_STATES.FAILED].includes(status))
+      return reject(current,event,'E_EXECUTION_RESTORE_NOT_ALLOWED');
+    const restoredMode=normalizedMode(payload.mode);
+    if(restoredMode==='unknown' || !payload.runId)return reject(current,event,'E_EXECUTION_RESTORE_MODE_REQUIRED');
+    const done=restoredMode==='oneshot' || payload.completed===true;
+    return accept(current,event,{status:done?EXECUTION_STATES.DONE:EXECUTION_STATES.PAUSED,
+      mode:restoredMode,run_id:String(payload.runId),generation:Number(current.generation??0)+1,
+      reason:'verified_runtime_restore',final_status:done?'completed':'',history_origin_status:''});
+  }
 
   if (event === EXECUTION_EVENTS.PROJECT_SWITCHED || event === EXECUTION_EVENTS.REOPENED) {
     return accept(current, event, {

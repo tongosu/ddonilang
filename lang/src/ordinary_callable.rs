@@ -178,6 +178,9 @@ enum TypeRelation {
 }
 
 fn type_relation(left: &TypeRef, right: &TypeRef) -> TypeRelation {
+    if let (TypeRef::Tensor { element: a, shape: sa }, TypeRef::Tensor { element: b, shape: sb }) = (left, right) {
+        return if sa == sb && a == b { TypeRelation::Overlap } else { TypeRelation::Disjoint };
+    }
     let left = runtime_shape(left);
     let right = runtime_shape(right);
     match (left, right) {
@@ -196,6 +199,7 @@ pub fn proven_same_input_domain(left: &TypeRef, right: &TypeRef) -> bool {
 
 fn runtime_shape(type_ref: &TypeRef) -> Option<&'static str> {
     let name = match type_ref {
+        TypeRef::Tensor { .. } => return Some("tensor"),
         TypeRef::Named(name) => canonicalize_type_alias(name),
         TypeRef::Applied { name, .. } => canonicalize_type_alias(name),
         TypeRef::Function { .. } | TypeRef::Infer => return None,

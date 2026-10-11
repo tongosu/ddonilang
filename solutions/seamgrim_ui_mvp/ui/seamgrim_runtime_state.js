@@ -133,6 +133,10 @@ export function normalizeWasmStatePayload(payload) {
     state_hash: stateHash,
     input,
     input_receipt: obj.input_receipt ?? nestedState.input_receipt ?? null,
+    // A3-P1: pass through Rust's typed, non-world presentation separately.
+    ...((obj.output_display ?? nestedState.output_display) ? {
+      output_display: obj.output_display ?? nestedState.output_display,
+    } : {}),
     // Preserve Rust-owned authored projection and committed observation table.
     // Neither belongs in world resources, input records or JS-derived hashes.
     ...((obj.bogae_projection ?? nestedState.bogae_projection) ? {

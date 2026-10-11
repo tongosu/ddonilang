@@ -1,0 +1,179 @@
+{
+  "binding": {
+    "source_profile": "v1-core-v25-logical-alpha2",
+    "input_schema": "alpha2.tetris.controls@1",
+    "channel_registry": "alpha2.tetris.channels@1",
+    "source_revision": "sha256:75e3890e43bc085f6250a8da25d3d3979e68f75aec8ab830a01a941e9c1335b4",
+    "initial_world": "blake3:352bd266dae53c6e6a29244011cfa029813d0ab8434b2a2b830a487d882832ba",
+    "initial_rng": 7,
+    "recording_policy": "alpha2.tetris.recording@1",
+    "integrity_policy": "ddn.logical_input_tape.v1",
+    "madi_hz": 60,
+    "dt_raw": 4294967296,
+    "channels": {
+      "왼쪽": "Control",
+      "오른쪽": "Control",
+      "아래": "Control",
+      "회전": "Control",
+      "떨어뜨리기": "Control",
+      "다시시작": "Control"
+    },
+    "initial_held": {
+      "왼쪽": false,
+      "오른쪽": false,
+      "아래": false,
+      "회전": false,
+      "떨어뜨리기": false,
+      "다시시작": false
+    }
+  },
+  "snapshots": [
+    {
+      "madi": 0,
+      "events": [],
+      "held": {
+        "왼쪽": false,
+        "오른쪽": false,
+        "아래": false,
+        "회전": false,
+        "떨어뜨리기": false,
+        "다시시작": false
+      }
+    },
+    {
+      "madi": 1,
+      "events": [
+        {
+          "ordinal": 0,
+          "channel": "오른쪽",
+          "event": {
+            "kind": "Press"
+          }
+        },
+        {
+          "ordinal": 1,
+          "channel": "오른쪽",
+          "event": {
+            "kind": "Release"
+          }
+        }
+      ],
+      "held": {
+        "왼쪽": false,
+        "오른쪽": false,
+        "아래": false,
+        "회전": false,
+        "떨어뜨리기": false,
+        "다시시작": false
+      }
+    },
+    {
+      "madi": 2,
+      "events": [
+        {
+          "ordinal": 0,
+          "channel": "오른쪽",
+          "event": {
+            "kind": "Press"
+          }
+        },
+        {
+          "ordinal": 1,
+          "channel": "오른쪽",
+          "event": {
+            "kind": "Release"
+          }
+        }
+      ],
+      "held": {
+        "왼쪽": false,
+        "오른쪽": false,
+        "아래": false,
+        "회전": false,
+        "떨어뜨리기": false,
+        "다시시작": false
+      }
+    },
+    {
+      "madi": 3,
+      "events": [
+        {
+          "ordinal": 0,
+          "channel": "떨어뜨리기",
+          "event": {
+            "kind": "Press"
+          }
+        },
+        {
+          "ordinal": 1,
+          "channel": "떨어뜨리기",
+          "event": {
+            "kind": "Release"
+          }
+        }
+      ],
+      "held": {
+        "왼쪽": false,
+        "오른쪽": false,
+        "아래": false,
+        "회전": false,
+        "떨어뜨리기": false,
+        "다시시작": false
+      }
+    },
+    {
+      "madi": 4,
+      "events": [
+        {
+          "ordinal": 0,
+          "channel": "왼쪽",
+          "event": {
+            "kind": "Press"
+          }
+        },
+        {
+          "ordinal": 1,
+          "channel": "왼쪽",
+          "event": {
+            "kind": "Release"
+          }
+        }
+      ],
+      "held": {
+        "왼쪽": false,
+        "오른쪽": false,
+        "아래": false,
+        "회전": false,
+        "떨어뜨리기": false,
+        "다시시작": false
+      }
+    },
+    {
+      "madi": 5,
+      "events": [
+        {
+          "ordinal": 0,
+          "channel": "떨어뜨리기",
+          "event": {
+            "kind": "Press"
+          }
+        },
+        {
+          "ordinal": 1,
+          "channel": "떨어뜨리기",
+          "event": {
+            "kind": "Release"
+          }
+        }
+      ],
+      "held": {
+        "왼쪽": false,
+        "오른쪽": false,
+        "아래": false,
+        "회전": false,
+        "떨어뜨리기": false,
+        "다시시작": false
+      }
+    }
+  ]
+}

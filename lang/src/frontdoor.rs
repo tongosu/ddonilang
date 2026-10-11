@@ -225,6 +225,11 @@ fn source_span_text(source: &str, span: crate::Span) -> Option<&str> {
 
 fn type_ref_label(type_ref: &crate::TypeRef) -> String {
     match type_ref {
+        crate::TypeRef::Tensor { element, shape } => {
+            let mut axes = shape.iter().map(u64::to_string).collect::<Vec<_>>().join(",");
+            if shape.len() == 1 { axes.push(','); }
+            format!("(원소씨={},모양=({axes}))텐서씨", type_ref_label(element))
+        }
         crate::TypeRef::Named(name) => name.clone(),
         crate::TypeRef::Applied { name, args } => {
             let args = args

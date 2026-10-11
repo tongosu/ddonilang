@@ -19,7 +19,7 @@ mod canonical_decimal_tests {
     fn composition_type_is_not_a_plain_list_or_relation() {
         assert_eq!(BogaeCompositionValue::from_relations(vec![]).unwrap_err(),
             "E_BOGAE_PRIMARY_COUNT: 보개짜임에는 으뜸 관계가 정확히 하나 있어야 합니다");
-        let relation = BogaeRelationValue::Primary { view: ViewValue::ResultTable, source_location: None };
+        let relation = BogaeRelationValue::Primary { view: ViewValue::ResultTable, source_location: None, time_override: None };
         let carrier = BogaeCompositionValue::from_relations(vec![relation.clone()]).unwrap();
         assert_eq!(carrier.relations(), &[relation.clone()]);
         let ty = TypeRef::Named("보개짜임값".into());
@@ -71,6 +71,7 @@ impl PartialEq for LambdaValue {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
+    Tensor(TensorValue),
     None,
     Bool(bool),
     Fixed64(Fixed64),
@@ -88,10 +89,31 @@ pub enum Value {
     Regex(RegexLiteral),
     Lambda(LambdaValue),
     View(ViewValue),
+    TimePolicy(BogaeTimePolicy),
     SceneElement(PlaneElement),
     Scene(PlaneScene),
     BogaeRelation(BogaeRelationValue),
     BogaeComposition(BogaeCompositionValue),
+}
+
+/// Immutable admitted Tensor projection; the common saved-value owner issues bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TensorValue {
+    element_identity: Vec<u8>,
+    shape: Vec<u64>,
+    elements: Vec<Fixed64>,
+    saved: Vec<u8>,
+}
+
+impl TensorValue {
+    #[doc(hidden)]
+    pub fn from_admitted_parts(element_identity: Vec<u8>, shape: Vec<u64>, elements: Vec<Fixed64>, saved: Vec<u8>) -> Self {
+        Self { element_identity, shape, elements, saved }
+    }
+    pub fn element_identity(&self) -> &[u8] { &self.element_identity }
+    pub fn shape(&self) -> &[u64] { &self.shape }
+    pub fn elements(&self) -> &[Fixed64] { &self.elements }
+    pub fn saved_bytes(&self) -> &[u8] { &self.saved }
 }
 
 /// RD-123의 명시 결과표. 세계 자원이 아니라 보개가 해소할 typed 보기값이다.
@@ -99,6 +121,31 @@ pub enum Value {
 pub enum ViewValue {
     ResultTable,
     Scene(PlaneScene),
+    Timed { view: Box<ViewValue>, policy: BogaeTimePolicy },
+}
+
+/// RD-136: exact scene-madi references, never wall-clock durations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BogaeTimePolicy { Common, Fixed(u64), Relative(i64) }
+
+impl BogaeTimePolicy {
+    /// Distinct typed values must not collapse to the same canonical map key.
+    pub fn canonical_text(self) -> String {
+        match self {
+            Self::Common => "<보개시간값:공통>".into(),
+            Self::Fixed(madi) => format!("<보개시간값:고정마디:{madi}>"),
+            Self::Relative(offset) => format!("<보개시간값:상대마디:{offset}>"),
+        }
+    }
+}
+
+impl ViewValue {
+    pub fn time_policy(&self) -> BogaeTimePolicy {
+        match self { Self::Timed {policy,..} => *policy, _ => BogaeTimePolicy::Common }
+    }
+    pub fn without_time(&self) -> &ViewValue {
+        match self { Self::Timed {view,..} => view.without_time(), _ => self }
+    }
 }
 
 /// RD-538 closed scene roles. Exact Fixed64 geometry is authored, not fitted by UI.
@@ -119,12 +166,12 @@ pub struct PlaneScene {
 /// RD-520 작성 관계의 내용. 정체는 짜임 해소 시 별도로 결속한다.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BogaeRelationValue {
-    Primary { view: ViewValue, source_location: Option<[u32; 4]> },
+    Primary { view: ViewValue, source_location: Option<[u32; 4]>, time_override: Option<BogaeTimePolicy> },
     Overlay { view: ViewValue, basis_location: Option<[u32; 4]>, order: i64,
-        source_location: Option<[u32; 4]> },
-    Side { view: ViewValue, placement: SidePlacement, source_location: Option<[u32; 4]> },
+        source_location: Option<[u32; 4]>, time_override: Option<BogaeTimePolicy> },
+    Side { view: ViewValue, placement: SidePlacement, source_location: Option<[u32; 4]>, time_override: Option<BogaeTimePolicy> },
     Magnifier { target: Box<Value>, recipe: SealedViewRecipe, view: ViewValue,
-        source_location: Option<[u32; 4]> },
+        source_location: Option<[u32; 4]>, time_override: Option<BogaeTimePolicy> },
 }
 
 /// Product seal of an authored typed named callable, never a renderer callback.
@@ -164,6 +211,15 @@ impl BogaeRelationValue {
     pub fn view(&self) -> &ViewValue {
         match self { Self::Primary {view,..} | Self::Overlay {view,..} | Self::Side {view,..}
             | Self::Magnifier {view,..} => view }
+    }
+    pub fn time_policy(&self) -> BogaeTimePolicy {
+        let policy=match self { Self::Primary {time_override,..} | Self::Overlay {time_override,..}
+            | Self::Side {time_override,..} | Self::Magnifier {time_override,..} => *time_override };
+        policy.unwrap_or_else(||self.view().time_policy())
+    }
+    pub fn time_override(&self) -> Option<BogaeTimePolicy> {
+        match self { Self::Primary {time_override,..} | Self::Overlay {time_override,..}
+            | Self::Side {time_override,..} | Self::Magnifier {time_override,..} => *time_override }
     }
 }
 
@@ -309,6 +365,7 @@ pub fn map_get(map: &BTreeMap<String, MapEntry>, key: &Value) -> Value {
 
 pub fn map_key_canon(value: &Value) -> String {
     match value {
+        Value::Tensor(value) => format!("<Tensor:{:02x?}>", value.saved_bytes()),
         Value::None => "없음".to_string(),
         Value::Bool(true) => "참".to_string(),
         Value::Bool(false) => "거짓".to_string(),
@@ -421,7 +478,8 @@ pub fn map_key_canon(value: &Value) -> String {
             }
         }
         Value::Lambda(lambda) => format!("<씨앗#{}>", lambda.id),
-        Value::View(view) => match view { ViewValue::ResultTable => "<보기값:결과표>", ViewValue::Scene(_) => "<보기값:장면>" }.to_string(),
+        Value::View(view) => match view.without_time() { ViewValue::ResultTable => "<보기값:결과표>", _ => "<보기값:장면>" }.to_string(),
+        Value::TimePolicy(policy) => policy.canonical_text(),
         Value::SceneElement(_) => "<장면요소값>".to_string(),
         Value::Scene(_) => "<장면값>".to_string(),
         Value::BogaeRelation(relation) => format!("<{}>", relation.kind_name()),
@@ -675,6 +733,11 @@ const NUMERIC_KIND_FACTOR: &str = "곱수";
 
 pub fn check_value_type(value: &Value, type_ref: &TypeRef) -> Result<(), TypeMismatchDetail> {
     match type_ref {
+        TypeRef::Tensor { element, shape } => match value {
+            Value::Tensor(tensor) if tensor.shape() == shape.as_slice()
+                && matches!(element.as_ref(), TypeRef::Named(name) if name == "셈수") => Ok(()),
+            _ => Err(type_mismatch_detail(&format_type_ref(type_ref), value)),
+        },
         TypeRef::Infer => Ok(()),
         TypeRef::Named(name) => check_named_type(value, name),
         TypeRef::Applied { name, args } => check_applied_type(value, name, args),
@@ -758,6 +821,7 @@ fn check_named_type(value: &Value, name: &str) -> Result<(), TypeMismatchDetail>
             Value::View(_) => Ok(()),
             _ => Err(type_mismatch_detail(&canonical, value)),
         },
+        "보개시간값" => match value { Value::TimePolicy(_) => Ok(()), _ => Err(type_mismatch_detail(&canonical,value)) },
         "장면요소값" => match value { Value::SceneElement(_) => Ok(()), _ => Err(type_mismatch_detail(&canonical, value)) },
         "장면값" => match value { Value::Scene(_) => Ok(()), _ => Err(type_mismatch_detail(&canonical, value)) },
         "으뜸보개관계값" | "겹보개관계값" | "곁보개관계값" | "돋보개관계값" | "보개관계값" => match value {
@@ -887,11 +951,13 @@ fn check_unit_type(value: &Value, base: &str, unit: &str) -> Result<(), TypeMism
     if canonical_base != "수" {
         return Err(type_mismatch_detail(&canonical_base, value));
     }
-    let Some(spec) = unit_spec_from_symbol(unit) else {
-        return Err(type_mismatch_detail(&format!("수@{}", unit), value));
-    };
     match value {
-        Value::Unit(unit_value) if unit_value.dim == spec.dim => Ok(()),
+        // A3-P2: inferred compound dimensions are produced by UnitDim::format,
+        // not necessarily a registered input unit (for example m^2). Preserve
+        // that exact existing dimension; do not admit a new scale or conversion.
+        Value::Unit(unit_value)
+            if unit_spec_from_symbol(unit).map(|spec| spec.dim == unit_value.dim)
+                .unwrap_or_else(|| unit_value.dim.format() == unit) => Ok(()),
         _ => Err(type_mismatch_detail(&format!("수@{}", unit), value)),
     }
 }
@@ -902,6 +968,11 @@ fn canonical_type_name(name: &str) -> String {
 
 fn format_type_ref(type_ref: &TypeRef) -> String {
     match type_ref {
+        TypeRef::Tensor { element, shape } => {
+            let mut axes = shape.iter().map(u64::to_string).collect::<Vec<_>>().join(", ");
+            if shape.len() == 1 { axes.push(','); }
+            format!("(원소씨={}, 모양=({axes})) 텐서씨", format_type_ref(element))
+        }
         TypeRef::Named(name) => canonical_type_name(name),
         TypeRef::Applied { name, args } => {
             let name = canonical_type_name(name);
@@ -940,6 +1011,7 @@ fn numeric_pack_kind(value: &Value) -> Option<&str> {
 
 pub fn value_type_name(value: &Value) -> String {
     match value {
+        Value::Tensor(_) => "텐서씨".to_string(),
         Value::None => "없음".to_string(),
         Value::Bool(_) => "참거짓".to_string(),
         Value::Fixed64(n) => {
@@ -975,6 +1047,7 @@ pub fn value_type_name(value: &Value) -> String {
         Value::Regex(_) => "정규식".to_string(),
         Value::Lambda(_) => "씨앗".to_string(),
         Value::View(_) => "보기값".to_string(),
+        Value::TimePolicy(_) => "보개시간값".to_string(),
         Value::SceneElement(_) => "장면요소값".to_string(),
         Value::Scene(_) => "장면값".to_string(),
         Value::BogaeRelation(relation) => relation.kind_name().to_string(),

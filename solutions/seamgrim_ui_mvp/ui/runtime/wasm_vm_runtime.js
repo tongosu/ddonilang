@@ -106,6 +106,7 @@ export class WasmVmHandle {
     projectEntryName = "",
     bogaeEntryName = "",
     authoredArtifactText = "",
+    sourceBoundProject = false,
   } = {}) {
     this.loader = loader;
     this.defaultSourceText = String(defaultSourceText ?? "");
@@ -114,6 +115,7 @@ export class WasmVmHandle {
     this.projectEntryName = String(projectEntryName ?? "");
     this.bogaeEntryName = String(bogaeEntryName ?? "");
     this.authoredArtifactText = String(authoredArtifactText ?? "");
+    this.sourceBoundProject = sourceBoundProject;
     this.client = null;
     this.lastSourceText = "";
     this.lastBodyText = "";
@@ -166,6 +168,7 @@ export class WasmVmHandle {
   }
 
   async ensureClient(sourceText) {
+    if(this.closed)throw new Error('E_RUNTIME_SESSION_CLOSED: 닫힌 실행은 다시 사용할 수 없습니다.');
     const pre = this.preprocess(sourceText);
     // A supported-profile VM must be constructed from the loader's inert
     // fallback, then explicitly populated through the same Rust V25 path as
@@ -213,7 +216,9 @@ export class WasmVmHandle {
     const fallbackConfiguredMadi = typeof client?.configuredMadi === "function"
       ? Number(client.configuredMadi())
       : 0;
-    if (typeof executionEnvelope !== "function") {
+    // A3-P11: the project frontdoor already owns the admitted source closure.
+    // Re-parsing its text here would allocate a different source admission.
+    if (this.sourceBoundProject || typeof executionEnvelope !== "function") {
       return {
         decision: this.readExecutionModeDecision(client),
         configuredMadi: Number.isFinite(fallbackConfiguredMadi) ? Math.max(0, Math.floor(fallbackConfiguredMadi)) : 0,
@@ -294,6 +299,14 @@ export class WasmVmHandle {
       "E_WASM_UPDATE_ENSURE_FAILED",
       "updateLogic 진입을 위한 wasm client 준비에 실패했습니다.",
     );
+    if (this.sourceBoundProject) {
+      if (String(ddnSourceText ?? "") !== this.defaultSourceText) {
+        throw new Error("E_PROJECT_RUNTIME_SOURCE_CHANGED: 원문이 바뀌었습니다. 갱신한 명시 작품으로 새 실행을 시작하세요.");
+      }
+      // The Rust project frontdoor already compiled the exact captured closure.
+      // A second text compilation here would discard its saved source owner.
+      return client.getStateParsed();
+    }
     try {
       if (this.sourceProfileIdentity) {
         if (typeof client.updateLogicWithSourceProfile !== "function") {
@@ -549,6 +562,18 @@ export class WasmVmHandle {
     }
   }
 
+  async exportSavedProjectArtifact(parentHex, revisionHex) {
+    const client = this.client ?? await this.ensureClient(this.defaultSourceText);
+    return client.exportSavedProjectArtifact(parentHex, revisionHex);
+  }
+
+  close() {
+    this.client?.vm?.free();
+    this.client=null;
+    this.closed=true;
+    return null;
+  }
+
   getParseWarnings() {
     return Array.isArray(this.lastParseWarnings) ? [...this.lastParseWarnings] : [];
   }
@@ -608,6 +633,10 @@ export async function createWasmVm({
   projectEntryName = "",
   bogaeEntryName = "",
   authoredArtifactText = "",
+  projectRuntimeArtifactText = "",
+  savedProjectArtifactText = "",
+  expectedParentRevisionHex = "",
+  historyRevisionHex = "",
   cacheBust = Date.now(),
   setStatus = null,
   clearStatusError = null,
@@ -615,8 +644,25 @@ export async function createWasmVm({
   formatReadyStatus = null,
   formatFallbackStatus = null,
 } = {}) {
+  if (projectRuntimeArtifactText && savedProjectArtifactText) {
+    throw new Error("E_PROJECT_RUNTIME_MODE: 새 실행과 저장 실행을 함께 지정할 수 없습니다.");
+  }
+  if (savedProjectArtifactText && seedU64 !== undefined) {
+    throw new Error("E_PROJECT_RUNTIME_SEED_OVERRIDE: 복원 실행의 난수 씨앗을 바꿀 수 없습니다.");
+  }
+  const sourceBoundProject = Boolean(projectRuntimeArtifactText || savedProjectArtifactText);
+  const vmFactory = !sourceBoundProject ? null : (module) => {
+    const name = savedProjectArtifactText ? "from_saved_project_artifact_json" : "from_authored_project_json";
+    if (typeof module.DdnWasmVm?.[name] !== "function") {
+      throw new Error("E_PROJECT_RUNTIME_RESTORE_API_MISSING: 이 WASM에는 명시 작품 실행 저장 기능이 없습니다.");
+    }
+    return savedProjectArtifactText
+      ? module.DdnWasmVm[name](savedProjectArtifactText, expectedParentRevisionHex, historyRevisionHex)
+      : module.DdnWasmVm[name](projectRuntimeArtifactText);
+  };
   const modulePath = normalizeWasmModulePath(wasmUrl);
   const loader = createWasmLoader({
+    vmFactory,
     cacheBust,
     modulePath,
     wrapperPath: "./wasm_ddn_wrapper.js",
@@ -638,8 +684,9 @@ export async function createWasmVm({
     projectEntryName,
     bogaeEntryName,
     authoredArtifactText,
+    sourceBoundProject,
   });
-  if (String(ddnSourceText ?? "").trim()) {
+  if (sourceBoundProject || String(ddnSourceText ?? "").trim()) {
     await handle.ensureClient(ddnSourceText);
   }
   return handle;

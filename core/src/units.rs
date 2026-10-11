@@ -313,7 +313,9 @@ fn push_unit(target: &mut Vec<String>, denom: &mut Vec<String>, symbol: &str, ex
     if exp == 0 {
         return;
     }
-    let abs = exp.abs();
+    // A dimension exponent is a full i8: -128 is valid. Widen before abs so
+    // formatting cannot panic in debug or wrap in release.
+    let abs = i16::from(exp).abs();
     let text = if abs == 1 {
         symbol.to_string()
     } else {
@@ -834,6 +836,16 @@ fn try_kelvin_to_temperature(value: Fixed64, symbol: &str) -> Result<Fixed64, Un
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dimension_format_handles_minimum_exponent_without_overflow() {
+        let symbols=["m","s","kg","rad","px","K","KRW","USD","mol"];
+        for (axis,symbol) in symbols.iter().enumerate() {
+            let mut exponents=[0;UnitDim::AXIS_COUNT];exponents[axis]=i8::MIN;
+            let dim=UnitDim::from_exponents(exponents);
+            assert_eq!(dim.format(),format!("1/{symbol}^128"));
+        }
+    }
 
     #[test]
     fn unit_add_cm_and_m_is_ok() {

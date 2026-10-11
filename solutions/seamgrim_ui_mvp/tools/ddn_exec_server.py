@@ -2374,14 +2374,16 @@ class DdnExecHandler(BaseHTTPRequestHandler):
         if path == "/lessons/index.json":
             json_response(self, 200, build_public_lesson_index_payload(RUNTIME_CATALOG_MODE))
             return
-        if path.startswith("/first_steps/"):
-            course_root = (UI_DIR.parent / "first_steps").resolve()
-            course_path = (course_root / path[len("/first_steps/"):]).resolve()
-            if course_root in course_path.parents:
-                send_file(self, course_path)
+        for course in ("first_steps", "first_steps_alpha2", "first_steps_alpha3"):
+            prefix = f"/{course}/"
+            if path.startswith(prefix):
+                course_root = (UI_DIR.parent / course).resolve()
+                course_path = (course_root / path[len(prefix):]).resolve()
+                if course_root in course_path.parents:
+                    send_file(self, course_path)
+                    return
+                self.send_error(404)
                 return
-            self.send_error(404)
-            return
         if path.startswith("/lessons_v25_alpha1/"):
             lesson_path = (ALPHA1_LESSON_DIR / path[len("/lessons_v25_alpha1/"):]).resolve()
             if ALPHA1_LESSON_DIR in lesson_path.parents:
@@ -2450,6 +2452,11 @@ class DdnExecHandler(BaseHTTPRequestHandler):
                 send_file(self, schema_path)
                 return
         if path.startswith("/samples/"):
+            if path in ("/samples/alpha3_logical_reaction.ddn", "/samples/alpha3_basic_tensor.ddn"):
+                # These released course assets live in the repository samples,
+                # not the UI samples. Do not expose the whole repository tree.
+                send_file(self, ROOT / path.lstrip("/"))
+                return
             sample_path = (SAMPLES_DIR / path[len("/samples/"):]).resolve()
             if SAMPLES_DIR in sample_path.parents or sample_path == SAMPLES_DIR:
                 send_file(self, sample_path)

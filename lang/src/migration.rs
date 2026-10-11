@@ -183,6 +183,8 @@ fn collect_stmt(stmt: &Stmt, source: &str, out: &mut Vec<HistoricalAsyncMigratio
 
 fn collect_expr(expr: &Expr, source: &str, out: &mut Vec<HistoricalAsyncMigrationEvidence>) {
     match &expr.kind {
+        ExprKind::Tensor(value) => collect_expr(value.input(), source, out),
+        ExprKind::MultiAxisSelection(value) => { for child in value.children() { collect_expr(child, source, out); } }
         ExprKind::FieldAccess { target, .. } => collect_expr(target, source, out),
         ExprKind::SeedLiteral { body, .. } => collect_expr(body, source, out),
         ExprKind::Call { args, .. } => {

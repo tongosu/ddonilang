@@ -5,13 +5,13 @@ import { createAuthoredCompositionHost, renderAuthoredBogae } from './authored_b
 
 // Explicit, run-local Alpha2 contract intake. No source sniffing, project
 // metadata defaults, new persisted schema, or Alpha1 execution replacement.
-export function installLogicalInputPanel({ parent, readSource, openExample }) {
+export function installLogicalInputPanel({ parent, readSource, openExample, onStateChange = () => {}, playbackControls = [], inputRegion = null, viewControls = [], onPresentation = null }) {
   const panel = document.createElement('details');
   panel.id = 'logical-input-panel';
   panel.style.cssText = 'margin:12px;padding:12px;border:1px solid #888;border-radius:8px';
   panel.innerHTML = `<summary>키보드로 실행 · 알파2 논리 입력</summary>
-    <p>현재 편집 원문을 별도로 실행합니다. 승인된 논리 입력 계약과 행동 사상을 명시하세요.
-    일반 실행·알파1 기록과는 별개입니다. 글자 입력과 반응 훅은 아직 지원하지 않습니다.</p>
+    <p>입력 계약과 행동 사상을 선택한 뒤 상단 ▶로 실행하세요.
+    논리 입력 기록과 알파1 기록은 서로 다른 형식입니다. 글자 입력은 아직 지원하지 않습니다. 알림 반응은 원문에서 알림씨와 받는이를 명시해 결속합니다.</p>
     <button data-action="open-tetris" ${typeof openExample==='function'?'':'hidden'}>실행을 닫고 새 테트리스 작업 열기</button>
     <button data-action="tetris-contract">실행을 닫고 테트리스 입력 계약 선택</button>
     <button data-action="bind-source">실행을 닫고 현재 원문에 다시 결속</button>
@@ -43,12 +43,18 @@ export function installLogicalInputPanel({ parent, readSource, openExample }) {
   panel.querySelectorAll('textarea').forEach(node => { node.style.cssText = 'display:block;width:100%;box-sizing:border-box'; });
   parent.append(panel);
   const field = name => panel.querySelector(`[data-field="${name}"]`);
+  if (onPresentation) {
+    for (const name of ['view-stage','view-list','view-toolbar']) field(name).style.display='none';
+    field('region').querySelector('p').textContent='메인 보개와 실행 제어에서 지정한 키를 누르세요. 편집기로 초점을 옮기면 입력 손실로 중단됩니다.';
+  }
   const bridge = createRuntimeBridgeV1();
   let host = null, session = null, source = '', bindingJson = '', actionsJson = '', capacityText = '';
-  let timer = null, running = false, busy = false, generation = 0, inFlightPump = null;
+  let timer = null, running = false, busy = false, settling = false, generation = 0, inFlightPump = null;
+  let boundSource = null;
   let committedView = null;
   const compositionHost = createAuthoredCompositionHost(() => renderView(committedView));
   function renderView(value) {
+    if (onPresentation) { onPresentation(value, generation); return; }
     const canvas = field('canvas');
     if (value?.bogae_projection) {
       canvas.hidden = false;
@@ -75,14 +81,16 @@ export function installLogicalInputPanel({ parent, readSource, openExample }) {
     if (value?.frame || acceptedSummary) { committedView = value; renderView(value); }
     else {
       compositionHost.reset(); committedView = null;
+      onPresentation?.(null, generation);
       field('canvas').hidden = true;
       field('canvas').dataset.renderSource = '';
     }
   };
-  function pause() { running = false; clearTimeout(timer); timer = null; }
+  function pause() { running = false; clearTimeout(timer); timer = null; onStateChange(); }
   async function pauseAndSettle() {
-    pause();
-    if(inFlightPump) await inFlightPump;
+    settling = true;
+    try { pause(); if(inFlightPump) await inFlightPump; }
+    finally { settling = false; onStateChange(); }
   }
   function unchanged() {
     if (readSource() !== source || field('binding').value !== bindingJson
@@ -94,6 +102,7 @@ export function installLogicalInputPanel({ parent, readSource, openExample }) {
   async function close() {
     pause(); generation++;
     compositionHost.reset(); committedView = null;
+    onPresentation?.(null, generation);
     host?.detach?.(); host = null;
     const old = session; session = null;
     if (old) await old.close();
@@ -152,9 +161,10 @@ export function installLogicalInputPanel({ parent, readSource, openExample }) {
         }
         const bound = JSON.parse(prepared);
         field('binding').value = JSON.stringify(bound, null, 2);
+        boundSource = chosenSource;
         if (chosenActions !== null) {field('actions').value=chosenActions;field('capacity').value='128';}
         field('contract-summary').textContent = `${bound.source_profile} · 화면 ${bound.madi_hz}마디/초 · 세계 dt=1 · 원문 ${bound.source_revision}`;
-        show('현재 원문에 결속했습니다. 입력 영역의 새로 시작을 누르세요. 아직 세계 마디는 실행하지 않았습니다.');
+        show('현재 원문에 결속했습니다. 상단 ▶로 실행하세요. 아직 세계 마디는 실행하지 않았습니다.');
       } else if (action === 'start') {
         await close();
         source = readSource(); bindingJson = field('binding').value;
@@ -166,7 +176,9 @@ export function installLogicalInputPanel({ parent, readSource, openExample }) {
         try {
           unchanged();
           host = new LogicalActionInput({ session, channels:binding.channels, initialHeld:binding.initial_held, actionMap, maxEvents });
-          host.attach(field('region'));
+          host.attach(inputRegion ?? field('region'), { controls: [...playbackControls,...viewControls,
+            panel.querySelector('summary'), panel.querySelector('[data-action="seal"]'),
+            ...(inputRegion ? [field('region')] : [])] });
         } catch (error) { await close(); throw error; }
         const summary = await session.summary();
         unchanged();
@@ -186,7 +198,7 @@ export function installLogicalInputPanel({ parent, readSource, openExample }) {
         const link = document.createElement('a'); link.href = url; link.download = 'logical-input.tape'; link.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000); show(record.summary);
       } else if (action === 'stop') { await close(); show('실행을 닫았습니다.'); }
-    } finally { busy = false; }
+    } finally { busy = false; onStateChange(); }
   }
   panel.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => {
     execute(button.dataset.action).catch(error => { pause(); show(String(error)); });
@@ -210,10 +222,41 @@ export function installLogicalInputPanel({ parent, readSource, openExample }) {
       requireCurrent();
       show(summary);
     } catch (error) { show(String(error)); }
-    finally { field('replay').value = ''; busy = false; }
+    finally { field('replay').value = ''; busy = false; onStateChange(); }
   });
   panel.addEventListener('toggle', () => {
     if (!panel.open && host) { pause(); host.loseInput('입력 영역을 접었습니다. 새로 시작하세요.'); show('입력 영역을 접어 실행이 중단됐습니다.'); }
   });
+  panel.logicalExecution = {
+    async selectContract({bindingJson,actionsJson,capacity,reveal=true}) {
+      await close();
+      field('binding').value=bindingJson;
+      field('actions').value=actionsJson;
+      field('capacity').value=String(capacity);
+      panel.open=reveal;
+      await execute('bind-source');
+    },
+    ownsCurrentSource: () => boundSource !== null && readSource() === boundSource,
+    status: () => ({ running, busy:busy || settling, started: Boolean(host), failed: Boolean(host?.failure) }),
+    async command(action) {
+      if (!onPresentation) panel.open = true;
+      try {
+        // Move focus within the admitted region before disabling a clicked
+        // playback button; disabling a focused node may emit focusout(null).
+        if (host) (inputRegion ?? field('region')).focus();
+        if (action === 'primary') {
+          if (running) return await execute('pause');
+          if (!host || host.failure) await execute('start');
+          if (inputRegion) inputRegion.focus();
+          else field('canvas').hidden ? field('region').focus() : field('canvas').focus();
+          await execute('play');
+        } else await execute(action);
+      } catch (error) { pause(); show(String(error)); }
+      finally { onStateChange(); }
+    },
+  };
+  if (playbackControls.length) {
+    for (const action of ['start','play','pause','step','stop']) panel.querySelector(`[data-action="${action}"]`).hidden = true;
+  }
   return panel;
 }

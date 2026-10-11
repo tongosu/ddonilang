@@ -1,0 +1,13 @@
+{
+  "source_profile":"v1-core-v25-logical-alpha2",
+  "input_schema":"alpha3.first-steps.reaction@1",
+  "channel_registry":"alpha3.first-steps.channels@1",
+  "source_revision":"sha256:6ddde88cabf4a4213dfd2459d4d475a11a373987d56bbc3b805ed68faff83a52",
+  "initial_world":"blake3:352bd266dae53c6e6a29244011cfa029813d0ab8434b2a2b830a487d882832ba",
+  "initial_rng":7,
+  "recording_policy":"alpha3.first-steps.recording@1",
+  "integrity_policy":"ddn.logical_input_tape.v1",
+  "madi_hz":60,"dt_raw":4294967296,
+  "channels":{"더함":"Control","곱함":"Control"},
+  "initial_held":{"더함":false,"곱함":false}
+}

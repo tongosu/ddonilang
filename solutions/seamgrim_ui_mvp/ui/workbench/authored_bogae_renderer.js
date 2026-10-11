@@ -41,7 +41,7 @@ export function pickAuthoredTarget(view, relations, width, height, px, py) {
   }
   return tied ? null : best;
 }
-function renderPlane(ctx,width,height,view) {
+function renderPlane(ctx,width,height,view,style = null) {
   // Conversion is display-only. Rust supplies exact geometry and authored bounds.
   const [xmin,xmax] = view.horizontal.map(BigInt), [ymin,ymax] = view.vertical.map(BigInt);
   const xspan=Number(xmax-xmin), yspan=Number(ymax-ymin);
@@ -51,7 +51,8 @@ function renderPlane(ctx,width,height,view) {
   const x = value => (width-xspan*scale)/2 + Number(BigInt(value)-xmin)*scale;
   const y = value => (height+yspan*scale)/2-Number(BigInt(value)-ymin)*scale;
   ctx.save(); ctx.beginPath(); ctx.rect(18,18,width-36,height-36); ctx.clip();
-  ctx.strokeStyle="#215b8b"; ctx.fillStyle="#132018";
+  ctx.strokeStyle=style?.color ?? "#215b8b"; ctx.fillStyle=style?.color ?? "#132018";
+  ctx.lineWidth=style?.color ? 2 : 1.5;
   for (const element of view.elements) {
     if (element.kind === "circle") {
       ctx.beginPath(); ctx.ellipse(x(element.center[0]),y(element.center[1]),
@@ -69,6 +70,34 @@ function renderPlane(ctx,width,height,view) {
     }
   }
   ctx.restore();
+}
+
+// Current observation is a local presentation filter. Keep every authored row
+// from the latest committed madi (including multiple events in that madi).
+// Tables without time metadata are not guessed to be time series.
+export function observationRowsForDisplay(table, mode = "current") {
+  const rows=table.rows ?? [];
+  if(mode==="history" || !rows.length || rows.some(row=>!Number.isSafeInteger(row.committed_madi))) return rows;
+  const latest=rows.reduce((madi,row)=>Math.max(madi,row.committed_madi),-1);
+  return rows.filter(row=>row.committed_madi===latest);
+}
+
+// A3-P1: format only a typed Fixed64's exact canonical decimal. BigInt keeps
+// ties-to-even exact; strings, rationals and integers are never reinterpreted.
+export function observationCellDisplay(cell, column) {
+  if (cell.status !== "present") return cell.reason ?? cell.status;
+  if (column?.dtype !== "fixed64") return cell.value_text;
+  const match=/^(-?)(\d+)(?:\.(\d+))?$/.exec(cell.value_canon ?? "");
+  if (!match) return cell.value_text;
+  const fraction=match[3] ?? "";
+  const denominator=10n**BigInt(fraction.length);
+  const exact=BigInt(match[2])*denominator+BigInt(fraction || "0");
+  const scaled=exact*1000000n;
+  let rounded=scaled/denominator;
+  const remainder=scaled%denominator;
+  if (remainder*2n>denominator || (remainder*2n===denominator && rounded%2n===1n)) rounded++;
+  const digits=(rounded%1000000n).toString().padStart(6,"0").replace(/0+$/,"");
+  return `${match[1] && rounded ? "-" : ""}${rounded/1000000n}${digits ? `.${digits}` : ""}`;
 }
 
 export function renderAuthoredBogae(ctx, width, height, wasmState, local = null) {
@@ -99,13 +128,13 @@ export function renderAuthoredBogae(ctx, width, height, wasmState, local = null)
   if (isPlane) {
     model.family = "scene"; model.spatial_profile="plane2";
     model.element_count=view.elements.length;
-    renderPlane(ctx,width,height,view);
+    renderPlane(ctx,width,height,view,local?.overlayStyle);
     const overlays=(model.relations ?? []).filter(r=>r.kind==="overlay"&&!local?.hidden?.has(r.relation_id)).sort((a,b)=>a.order-b.order);
     model.active_overlay_ids=overlays.map(r=>r.relation_id);
     for (const overlay of overlays) {
       const overlayState={...wasmState,bogae_projection:{...projection,candidates:[{...candidate,
         artifact:{...candidate.artifact,view:overlay.view,relations:[]}}]}};
-      renderAuthoredBogae(ctx,width,height,overlayState);
+      renderAuthoredBogae(ctx,width,height,overlayState,{...local,overlayStyle:{color:"#b45309"}});
     }
     // Selection is local presentation state, never a new world element.
     const selected=(model.relations ?? []).filter(r=>local?.selectedRelationIds?.has(r.relation_id));
@@ -122,7 +151,14 @@ export function renderAuthoredBogae(ctx, width, height, wasmState, local = null)
     ctx.restore();
     return model;
   }
-  const tableProjection = wasmState.public_observation_table_projection;
+  const tableProjection = view.table_projection ?? (candidate.artifact?.resolved_madi === undefined
+    ? wasmState.public_observation_table_projection : null);
+  if (!tableProjection && candidate.artifact?.resolved_madi !== undefined) {
+    model.status = "invalid";
+    model.diagnostic = {code:"E_BOGAE_TIME_OUT_OF_RANGE"};
+    ctx.fillText("지정 마디의 결과표가 없습니다.",18,58,width-36);
+    return model;
+  }
   const tables = tableProjection?.tables ?? [];
   model.table_projection_hash = tableProjection?.projection_hash ?? null;
   model.row_count = tables.reduce((sum, table) => sum + table.rows.length, 0);
@@ -135,8 +171,7 @@ export function renderAuthoredBogae(ctx, width, height, wasmState, local = null)
     ctx.font = "14px sans-serif";
     for (const row of table.rows) {
       if (y > height - 24) break;
-      const cells = row.cells.map(cell => cell.status === "present" ? cell.value_text :
-        cell.reason ?? cell.status);
+      const cells = row.cells.map((cell,index) => observationCellDisplay(cell,table.columns[index]));
       ctx.fillText(cells.join(" | "), 18, y, width - 36);
       y += 22;
     }
@@ -156,8 +191,10 @@ export function renderAuthoredBogae(ctx, width, height, wasmState, local = null)
     // Result-table overlays are tables, not invented world-space vectors.
     // Their placement/colour is a local display-plane choice.
     ctx.fillStyle = "#215b8b";
-    const rows = tables.flatMap(table => table.rows.map(row => row.cells.map(cell => cell.value_text ?? cell.reason ?? cell.status).join(" | ")));
-    ctx.fillText(`겹 ${relation.order}: ${rows.join(" / ") || "공개 관찰 없음"}`, 18, Math.min(height - 18, y + 22), width - 36);
+    const overlayTables = relation.view?.table_projection?.tables ??
+      (relation.resolved_madi === undefined ? tables : []);
+    const rows = overlayTables.flatMap(table => table.rows.map(row => row.cells.map((cell,index) => observationCellDisplay(cell,table.columns[index])).join(" | ")));
+    ctx.fillText(`겹 · ${relation.authored_name ?? "추가 표시"}: ${rows.join(" / ") || "공개 관찰 없음"}`, 18, Math.min(height - 18, y + 22), width - 36);
     y += 22;
   }
   return model;
@@ -185,6 +222,7 @@ export function createAuthoredCompositionHost(onChange) {
     docks = new Map();
     if (layoutStage) {
       delete layoutStage.dataset.authoredLayout;
+      delete layoutStage.dataset.authoredPrimaryKind;
       layoutStage.style.removeProperty("--authored-left");
       layoutStage.style.removeProperty("--authored-right");
       layoutStage = null;
@@ -195,7 +233,7 @@ export function createAuthoredCompositionHost(onChange) {
     reset,
     closeAllSides() {
       if (!scope) return false;
-      for (const id of sidePanels.keys()) hidden.add(id);
+      for (const [id,panel] of sidePanels) { hidden.add(id); panel.hidden=true; }
       onChange();
       return true;
     },
@@ -220,6 +258,7 @@ export function createAuthoredCompositionHost(onChange) {
         list.replaceChildren();
       }
       // Reconcile Rust-supplied relation identities on every committed frame.
+      stage.dataset.authoredPrimaryKind=candidate.artifact?.view?.kind ?? "";
       // Preserve local state only for identities that still exist in this scope.
       const relations = candidate.artifact.relations ?? [];
       const relationById = new Map(relations.map(relation => [relation.relation_id, relation]));
@@ -330,7 +369,7 @@ export function createAuthoredCompositionHost(onChange) {
           button = document.createElement("button");
           button.type = "button"; button.dataset.authoredRelationToggle = relation.relation_id;
           button.dataset.relationKind = relation.kind;
-          button.textContent = relation.kind === "side" ? `곁 ${relation.placement}` : `겹 ${relation.order}`;
+          button.textContent = `${relation.kind === "side" ? "곁" : "겹"} · ${relation.authored_name ?? (relation.placement ?? relation.order)}`;
           button.addEventListener("click", () => {
             if (hidden.has(relation.relation_id)) hidden.delete(relation.relation_id);
             else hidden.add(relation.relation_id);
@@ -338,7 +377,7 @@ export function createAuthoredCompositionHost(onChange) {
           });
           controls.append(button);
           }
-          button.textContent = relation.kind === "side" ? `곁 ${relation.placement}` : `겹 ${relation.order}`;
+          button.textContent = `${relation.kind === "side" ? "곁" : "겹"} · ${relation.authored_name ?? (relation.placement ?? relation.order)}`;
           if (relation.kind !== "side") continue;
           let panel = sidePanels.get(relation.relation_id);
           if (!panel) {
@@ -348,12 +387,28 @@ export function createAuthoredCompositionHost(onChange) {
           const title = document.createElement("strong"); title.textContent = `곁보기 · ${relation.placement}`;
           const close = document.createElement("button"); close.type="button"; close.textContent="닫기";
           close.dataset.authoredSideClose=relation.relation_id;
-          close.addEventListener("click",()=>{hidden.add(relation.relation_id); onChange();});
+          close.addEventListener("click",()=>{
+            hidden.add(relation.relation_id);
+            panel.hidden=true;
+            button.focus();
+            onChange();
+          });
           const canvas = document.createElement("canvas"); canvas.width=360; canvas.height=220;
-          panel.append(title, close, canvas); sidePanels.set(relation.relation_id,panel);
+          const header=document.createElement("div"); header.className="side-view-instance-header";
+          const history=document.createElement("button");history.type="button";history.hidden=true;
+          history.dataset.authoredTableMode="current";
+          panel.authoredTableModeButton=history;
+          history.addEventListener("click",()=>{
+            history.dataset.authoredTableMode=history.dataset.authoredTableMode==="current"?"history":"current";
+            onChange();
+          });
+          const table=document.createElement("div");table.className="authored-side-table";
+          table.dataset.testid="authored-side-table";table.hidden=true;
+          panel.authoredTableElement=table;
+          header.append(title,history,close); panel.append(header,canvas,table); sidePanels.set(relation.relation_id,panel);
           }
           panel.dataset.placement = relation.placement;
-          panel.querySelector("strong").textContent = `곁보기 · ${relation.placement}`;
+          panel.querySelector("strong").textContent = `곁 · ${relation.authored_name ?? relation.placement}`;
           // RD-134 owns authored position hints; pixel sizes and the Auto choice
           // are local layout. Auto currently uses the right dock, not a new role.
           const dockPosition = {"왼쪽":"left","오른쪽":"right","위":"top","아래":"bottom","자동":"right"}[relation.placement];
@@ -364,7 +419,9 @@ export function createAuthoredCompositionHost(onChange) {
             dock.dataset.authoredDock = dockPosition;
             stage.append(dock); docks.set(dockPosition,dock);
           }
-          dock.append(panel);
+          // Re-inserting a live panel between pointer-down and pointer-up can
+          // cancel its Close click. Keep the same node attached across madis.
+          if ((panel.parentElement ?? panel.parent) !== dock) dock.append(panel);
       }
       let sideCount = 0;
       for (const [id,panel] of sidePanels) {
@@ -375,6 +432,47 @@ export function createAuthoredCompositionHost(onChange) {
         ctx.clearRect(0,0,canvas.width,canvas.height);
         ctx.fillStyle="#f8fbf7"; ctx.fillRect(0,0,canvas.width,canvas.height);
         const sideRelation=relationById.get(id);
+        const tableElement=panel.authoredTableElement;
+        const isTable=sideRelation.view?.kind === "result_table";
+        const history=panel.authoredTableModeButton;
+        history.hidden=!isTable;
+        panel.dataset.authoredViewKind=sideRelation.view.kind;
+        canvas.hidden=isTable;tableElement.hidden=!isTable;
+        if(isTable) {
+          // A narrow side is a readable field/value list, not a nine-column
+          // bitmap compressed to fit. Use only Rust's authored projection.
+          // Typed exact display rounding only; no resource fallback or edits to evidence.
+          tableElement.replaceChildren();
+          const tableProjection=sideRelation.view.table_projection ??
+            (sideRelation.resolved_madi===undefined ? wasmState.public_observation_table_projection : null);
+          const mode=history.dataset.authoredTableMode;
+          const total=(tableProjection?.tables ?? []).reduce((count,table)=>count+(table.rows?.length??0),0);
+          history.textContent=mode==="current"?`기록 보기 (${total})`:"현재 값";
+          history.setAttribute("aria-pressed",String(mode==="history"));
+          tableElement.dataset.displayMode=mode;
+          tableElement.dataset.totalRows=String(total);
+          if(!tableProjection) {
+            tableElement.textContent="이 시점의 결과표가 없습니다.";
+          } else {
+            for(const table of tableProjection.tables ?? []) {
+              for(const row of observationRowsForDisplay(table,mode)) {
+                const group=document.createElement("dl");
+                if(row.committed_madi!==undefined) group.dataset.committedMadi=String(row.committed_madi);
+                for(let index=0;index<row.cells.length;index++) {
+                  const label=document.createElement("dt"),value=document.createElement("dd");
+                  const column=table.columns[index],cell=row.cells[index];
+                  label.textContent=column?.label ?? column?.name ?? String(index+1);
+                  value.textContent=observationCellDisplay(cell,column);
+                  group.append(label,value);
+                }
+                tableElement.append(group);
+              }
+            }
+          }
+          tableElement.dataset.committedStateHash=wasmState.state_hash ?? "";
+          canvas.dataset.committedStateHash=wasmState.state_hash ?? "";
+          continue;
+        }
         const sideState = {...wasmState,bogae_projection:{...projection,candidates:[{...candidate,
           artifact:{...candidate.artifact,view:sideRelation.view,relations:[]}}]}};
         renderAuthoredBogae(ctx,canvas.width,canvas.height,sideState);

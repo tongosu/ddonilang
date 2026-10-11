@@ -46,12 +46,24 @@ export class DdnWasmVm {
      * after installing a replacement program; no filename or name inference.
      */
     configure_project_entry(name: string): void;
+    export_saved_project_artifact_json(expected_parent_hex: string, revision_hex: string): string;
     /**
      * Canonical textual admission for a Workbench frame duration.  JavaScript
      * carries only this decimal text and the returned Q31.32 pair; the
      * numeric conversion itself remains owned by Fixed64.
      */
     fixed64_from_decimal_v1(decimal: string): any;
+    /**
+     * Explicit project execution retains exactly the captures that this VM
+     * executes. Saving does not reread source or allocate replacement ordinals.
+     */
+    static from_authored_project_json(artifact_json: string): DdnWasmVm;
+    /**
+     * Restores into a separate candidate. The host supplies the revision pair
+     * selected from its storage lineage; neither value is taken from the file.
+     * A failure leaves every existing VM untouched.
+     */
+    static from_saved_project_artifact_json(artifact_json: string, expected_parent_hex: string, revision_hex: string): DdnWasmVm;
     get_build_info(): string;
     get_configured_madi(): bigint;
     get_debug_source_identity_json(): string;
@@ -284,7 +296,10 @@ export interface InitOutput {
     readonly ddnwasmvm_configure_debug_plan: (a: number, b: number, c: number, d: number) => void;
     readonly ddnwasmvm_configure_project_assets: (a: number, b: number, c: number, d: number) => void;
     readonly ddnwasmvm_configure_project_entry: (a: number, b: number, c: number, d: number) => void;
+    readonly ddnwasmvm_export_saved_project_artifact_json: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly ddnwasmvm_fixed64_from_decimal_v1: (a: number, b: number, c: number, d: number) => void;
+    readonly ddnwasmvm_from_authored_project_json: (a: number, b: number, c: number) => void;
+    readonly ddnwasmvm_from_saved_project_artifact_json: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly ddnwasmvm_get_build_info: (a: number, b: number) => void;
     readonly ddnwasmvm_get_configured_madi: (a: number) => bigint;
     readonly ddnwasmvm_get_debug_source_identity_json: (a: number, b: number) => void;

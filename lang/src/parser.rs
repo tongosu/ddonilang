@@ -830,6 +830,11 @@ impl Parser {
     }
 
     fn parse_type_operand(&mut self) -> Result<ParsedTypeOperand, ParseError> {
+        if let Some(end) = self.find_matching_rparen_after_current_lparen() {
+            if self.tokens.get(end + 1).is_some_and(|token| token.raw == "텐서씨") {
+                return self.parse_tensor_type().map(ParsedTypeOperand::Single);
+            }
+        }
         if self.check(&TokenKind::LParen) {
             self.advance();
             let mut args = Vec::new();
@@ -982,6 +987,9 @@ impl Parser {
 
     fn parse_stmt(&mut self, allow_implicit_terminator: bool) -> Result<Stmt, ParseError> {
         let s = self.current_span();
+        if let Some(provider)=self.try_parse_reaction_provider()? {
+            return Ok(provider);
+        }
         if matches!(self.current().kind, TokenKind::Pragma(_)) {
             return Err(ParseError {
                 span: s,
@@ -1324,7 +1332,7 @@ impl Parser {
                 ));
             }
             let mood = self.consume_stmt_terminator()?;
-            if !matches!(destination.kind, ExprKind::SelectionPlace { .. }) {
+            if !matches!(destination.kind, ExprKind::SelectionPlace { .. } | ExprKind::MultiAxisSelection(_)) {
                 return Err(ParseError {
                     span: destination.span,
                     message: "E_RESULT_FLOW_DESTINATION_PLACE_REQUIRED: `->`의 대상은 indexed writable SelectionPlace여야 합니다".to_string(),
@@ -2466,7 +2474,59 @@ impl Parser {
             name,
             type_ref,
             value,
+            reaction: None,
         })
+    }
+
+    fn try_parse_reaction_provider(&mut self) -> Result<Option<Stmt>,ParseError> {
+        // A3-P4 physical placement: closed RD-445 registration before :=.
+        if self.source_epoch!=SourceEpoch::V25 || !self.check(&TokenKind::LParen) {
+            return Ok(None);
+        }
+        let mut depth=0;
+        let mut header_end=None;
+        for (index,token) in self.tokens.iter().enumerate().skip(self.pos) {
+            match token.kind {
+                TokenKind::LParen=>depth+=1,
+                TokenKind::RParen=>{depth-=1;if depth==0 {header_end=Some(index);break;}},
+                TokenKind::Dot|TokenKind::Eof=>break,
+                _=>{}
+            }
+        }
+        let Some(end)=header_end else {return Ok(None)};
+        let is_provider=self.tokens.get(end+2).is_some_and(|t|matches!(t.kind,TokenKind::Colon))
+            && self.tokens.get(end+3).is_some_and(|t|t.raw=="움직씨")
+            && self.tokens.get(end+4).is_some_and(|t|matches!(t.kind,TokenKind::LBrace));
+        if !is_provider {return Ok(None)}
+        if !self.in_imja_seed_body() {return Err(self.error("E_REACTION_OWNER: 반응 움직씨는 임자 정의 안에서만 선언합니다"));}
+        let start=self.current_span();
+        let params=self.parse_params()?;
+        if params.len()!=1 {return Err(self.error("E_REACTION_PAYLOAD: 반응에는 형을 밝힌 알림 받는자리 하나가 필요합니다"));}
+        let payload=params.into_iter().next().unwrap();
+        let name=self.expect_ident("반응 움직씨 이름")?.raw.clone();
+        self.expect(&TokenKind::Colon,":")?;
+        self.parse_seed_kind()?;
+        self.expect(&TokenKind::LBrace,"{")?;
+        let alert_type=self.expect_ident("알림씨 이름")?.raw.clone();
+        let particle=self.advance();
+        if !matches!(&particle.kind,TokenKind::Josa(josa) if josa=="을"||josa=="를") {
+            return Err(self.error("E_REACTION_REGISTRATION: 알림씨 뒤에는 을/를 받으면이 필요합니다"));
+        }
+        if !Self::token_text_is(&self.current().kind,"받으면") {return Err(self.error("E_REACTION_REGISTRATION: 받으면이 필요합니다"));}
+        self.advance();self.expect(&TokenKind::RBrace,"}")?;
+        if payload.type_ref!=TypeRef::Named(alert_type.clone()) || payload.default_value.is_some() || payload.optional {
+            return Err(self.error("E_REACTION_PAYLOAD: 등록 알림씨와 받는자리 씨가 같아야 합니다"));
+        }
+        self.expect(&TokenKind::Define,":=")?;
+        self.enter_scope();self.declare_typed_name(&payload.pin_name,&payload.type_ref);
+        self.declare_name("받는이");
+        let body=self.parse_body();self.exit_scope();
+        let body=body?;
+        let value=Expr::new(self.next_id(),body.span,ExprKind::Thunk(body));
+        let mood=self.consume_optional_terminator()?;
+        Ok(Some(Stmt::Definition {id:self.next_id(),span:start.merge(&self.previous_span()),mood,
+            name,type_ref:TypeRef::Named("움직씨".into()),value,
+            reaction:Some(ReactionRegistration{alert_type,payload})}))
     }
 
     fn consume_decl_item_control_suffix_if_present(&mut self) -> Result<(), ParseError> {
@@ -3175,6 +3235,13 @@ impl Parser {
         self.parse_primary_inner(true)
     }
     fn parse_primary_inner(&mut self, allow_bare_bound_call: bool) -> Result<Expr, ParseError> {
+        if let Some(end) = self.find_matching_rparen_after_current_lparen() {
+            if let Some(provider) = self.tokens.get(end + 1).map(|token| token.raw.clone()) {
+                if provider == "텐서로" || provider == "차림으로" {
+                    return self.parse_tensor_provider(&provider);
+                }
+            }
+        }
         if self.check(&TokenKind::LParen) && self.peek_tagged_template() {
             return self.parse_tagged_template();
         }
@@ -3776,6 +3843,16 @@ impl Parser {
         false
     }
 
+    fn indexed_root(mut expr: &Expr) -> &Expr {
+        loop {
+            match &expr.kind {
+                ExprKind::Call {func,args} if func == "차림.값" && args.len() == 2 => expr = &args[0].expr,
+                ExprKind::MultiAxisSelection(value) => expr = &value.target,
+                _ => return expr,
+            }
+        }
+    }
+
     fn build_mutate_stmt_from_assignment(
         &mut self,
         stmt_start: Span,
@@ -3785,15 +3862,22 @@ impl Parser {
         deferred: bool,
         deferred_span: Option<Span>,
     ) -> Result<Stmt, ParseError> {
+        if let ExprKind::MultiAxisSelection(selection) = &target.kind {
+            let root = Self::indexed_root(&selection.target);
+            if !matches!(root.kind, ExprKind::Var(_)) {
+                return Err(ParseError {span:root.span,message:"E_TENSOR_TEMPORARY_UPDATE: 임시 텐서에는 다시결속할 수 없습니다".into()});
+            }
+            self.ensure_root_declared_for_write(root)?;
+            let mut selection = selection.clone();
+            selection.writable = true;
+            return Ok(Stmt::Mutate {id:self.next_id(),span:stmt_start.merge(&self.previous_span()),mood,
+                target:Expr::new(self.next_id(),target.span,ExprKind::MultiAxisSelection(selection)),value,deferred,deferred_span});
+        }
         if let ExprKind::Call { func, args } = &target.kind {
             if func == "차림.값" && args.len() == 2 {
                 let target_expr = args[0].expr.clone();
                 let index_expr = args[1].expr.clone();
-                let mut root = &target_expr;
-                while let ExprKind::Call { func, args } = &root.kind {
-                    if func != "차림.값" || args.len() != 2 { break; }
-                    root = &args[0].expr;
-                }
+                let root = Self::indexed_root(&target_expr);
                 if !matches!(root.kind, ExprKind::Var(_)) {
                     return Err(ParseError {
                         span: root.span,
@@ -3839,6 +3923,15 @@ impl Parser {
     }
 
     fn build_result_flow_destination(&mut self, destination: Expr) -> Result<Expr, ParseError> {
+        if let ExprKind::MultiAxisSelection(selection) = &destination.kind {
+            if !matches!(selection.target.kind, ExprKind::Var(_)) {
+                return Err(ParseError {span:selection.target.span,message:"E_RESULT_FLOW_ROOT_REQUIRED: 결과흐름의 텐서 root는 이름이어야 합니다".into()});
+            }
+            self.ensure_root_declared_for_write(&selection.target)?;
+            let mut selection = selection.clone();
+            selection.writable = true;
+            return Ok(Expr::new(self.next_id(),destination.span,ExprKind::MultiAxisSelection(selection)));
+        }
         if let ExprKind::Call { func, args } = &destination.kind {
             if func == "차림.값" && args.len() == 2 {
                 let target = args[0].expr.clone();
@@ -4276,13 +4369,52 @@ impl Parser {
                 );
                 continue;
             }
-            let index_expr = self.parse_expr()?;
+            if self.check(&TokenKind::RBracket) {
+                return Err(self.error("E_TENSOR_SELECTION: 비어 있는 축 선택은 허용되지 않습니다"));
+            }
+            let mut selectors = Vec::new();
+            loop {
+                if self.check(&TokenKind::Colon) {
+                    self.advance();
+                    selectors.push(TensorAxisSelector::Full);
+                } else {
+                    let index = self.parse_expr()?;
+                    let range = match &index.kind {
+                        ExprKind::Call {func,args} if func == "표준.범위" && args.len() == 3 => Some(args),
+                        _ => None,
+                    };
+                    if let Some(args) = range {
+                        let static_integer = |expr: &Expr| -> Option<u64> {
+                            match &expr.kind {
+                                ExprKind::Literal(Literal::Int(n)) => u64::try_from(*n).ok(),
+                                ExprKind::Literal(Literal::Fixed64(n)) if n.raw_i64() >= 0 && n.frac_part() == 0 => u64::try_from(n.int_part()).ok(),
+                                _ => None,
+                            }
+                        };
+                        let (Some(start),Some(end),Some(0)) = (static_integer(&args[0].expr),static_integer(&args[1].expr),static_integer(&args[2].expr)) else {
+                            return Err(ParseError {span:index.span,message:"E_TENSOR_STATIC_RANGE: 축 범위는 0 이상의 정적 half-open 정수 범위여야 합니다".into()});
+                        };
+                        if start > end { return Err(ParseError {span:index.span,message:"E_TENSOR_STATIC_RANGE: 범위 시작은 끝을 넘을 수 없습니다".into()}); }
+                        selectors.push(TensorAxisSelector::Range {start,end});
+                    } else { selectors.push(TensorAxisSelector::Index(Box::new(index))); }
+                }
+                if !self.check(&TokenKind::Comma) { break; }
+                self.advance();
+                if self.check(&TokenKind::RBracket) { return Err(self.error("축 선택")); }
+            }
             let close = self.expect(&TokenKind::RBracket, "]")?;
             let span = expr.span.merge(&self.to_ast_span(close.span));
+            if selectors.len() != 1 || !matches!(selectors[0], TensorAxisSelector::Index(_)) {
+                expr = Expr::new(self.next_id(), span, ExprKind::MultiAxisSelection(MultiAxisSelection {
+                    target: Box::new(expr), selectors, writable: false,
+                }));
+                continue;
+            }
+            let TensorAxisSelector::Index(index_expr) = selectors.pop().unwrap() else { unreachable!() };
             let mut arg_target = self.new_arg_binding(expr);
             arg_target.resolved_pin = Some("대상".to_string());
             arg_target.binding_reason = BindingReason::UserFixed;
-            let mut arg_index = self.new_arg_binding(index_expr);
+            let mut arg_index = self.new_arg_binding(*index_expr);
             arg_index.resolved_pin = Some("i".to_string());
             arg_index.binding_reason = BindingReason::UserFixed;
             expr = Expr::new(
@@ -5304,6 +5436,110 @@ impl Parser {
             resolved_pin: suffix.fixed_pin,
             binding_reason: suffix.binding_reason,
         })
+    }
+
+    fn parse_tensor_type(&mut self) -> Result<TypeRef, ParseError> {
+        self.expect(&TokenKind::LParen, "텐서씨 (")?;
+        let mut pins = HashSet::new();
+        let mut element = None;
+        let mut shape = None;
+        while !self.check(&TokenKind::RParen) {
+            let token = self.expect_ident("텐서씨 이름 핀")?;
+            let pin = self.source.get(token.span.start..token.span.end)
+                .ok_or_else(|| self.error("텐서씨 핀 원문 범위"))?.to_owned();
+            if !pins.insert(pin.clone()) { return Err(self.error("중복 텐서씨 핀")); }
+            self.expect(&TokenKind::Equals, "텐서씨 핀 =")?;
+            match pin.as_str() {
+                "원소씨" => {
+                    let kind = self.parse_type_ref()?;
+                    if !matches!(&kind, TypeRef::Named(name) if name == "셈수") {
+                        return Err(self.error("V1 Tensor 원소씨는 정본 셈수만 허용됩니다"));
+                    }
+                    element = Some(Box::new(kind));
+                }
+                "모양" => shape = Some(self.parse_tensor_static_shape()?),
+                _ => return Err(self.error("등록되지 않은 텐서씨 핀")),
+            }
+            if !self.check(&TokenKind::Comma) { break; }
+            self.advance();
+        }
+        self.expect(&TokenKind::RParen, "텐서씨 )")?;
+        if self.advance().raw != "텐서씨" { return Err(self.error("정본 텐서씨가 필요합니다")); }
+        Ok(TypeRef::Tensor {
+            element: element.ok_or_else(|| self.error("텐서씨 원소씨 누락"))?,
+            shape: shape.ok_or_else(|| self.error("텐서씨 모양 누락"))?,
+        })
+    }
+
+    fn parse_tensor_static_shape(&mut self) -> Result<Vec<u64>, ParseError> {
+        self.expect(&TokenKind::LParen, "정적 모양 (")?;
+        let mut axes = Vec::new();
+        if self.check(&TokenKind::RParen) { self.advance(); return Ok(axes); }
+        loop {
+            let token = self.advance();
+            if !matches!(token.kind, TokenKind::Integer(_)) || !token.raw.bytes().all(|b| b.is_ascii_digit()) {
+                return Err(self.error("Tensor 축은 정적인 음이 아닌 정수여야 합니다"));
+            }
+            let axis = token.raw.parse::<u64>().map_err(|_| self.error("Tensor 축 범위 초과"))?;
+            axes.push(axis);
+            if self.check(&TokenKind::Comma) {
+                self.advance();
+                if self.check(&TokenKind::RParen) { self.advance(); break; }
+            } else {
+                if axes.len() == 1 { return Err(self.error("rank-1 모양은 (d,)로 적어야 합니다")); }
+                self.expect(&TokenKind::RParen, "정적 모양 )")?;
+                break;
+            }
+        }
+        if !axes.contains(&0) {
+            axes.iter().try_fold(1u64, |n, axis| n.checked_mul(*axis))
+                .ok_or_else(|| self.error("Tensor 원소 수 곱셈 범위 초과"))?;
+        }
+        Ok(axes)
+    }
+
+    fn parse_tensor_provider(&mut self, provider: &str) -> Result<Expr, ParseError> {
+        let start_token = self.expect(&TokenKind::LParen, "(")?;
+        let start = self.to_ast_span(start_token.span);
+        let mut pins = HashSet::new();
+        let mut input = None;
+        let mut element_type = None;
+        let mut shape = None;
+        while !self.check(&TokenKind::RParen) {
+            let pin_token = self.expect_ident("Tensor 이름 핀")?;
+            // RD-510 pins are exact authored spellings, not dialect aliases.
+            let pin = self.source.get(pin_token.span.start..pin_token.span.end)
+                .ok_or_else(|| self.error("Tensor 핀 원문 범위를 확인할 수 없습니다"))?
+                .to_owned();
+            if !pins.insert(pin.clone()) { return Err(self.error("중복 Tensor 핀")); }
+            self.expect(&TokenKind::Equals, "Tensor 핀 =")?;
+            match (provider, pin.as_str()) {
+                ("텐서로", "차림") | ("차림으로", "텐서") => input = Some(Box::new(self.parse_expr()?)),
+                ("텐서로", "원소씨") => {
+                    let kind = self.parse_type_ref()?;
+                    if !matches!(&kind, TypeRef::Named(name) if name == "셈수") {
+                        return Err(self.error("V1 Tensor 원소씨는 정본 셈수만 허용됩니다"));
+                    }
+                    element_type = Some(kind);
+                }
+                ("텐서로", "모양") => shape = Some(self.parse_tensor_static_shape()?),
+                _ => return Err(self.error(&format!("등록되지 않은 Tensor 핀: {provider} / {pin}"))),
+            }
+            if !self.check(&TokenKind::Comma) { break; }
+            self.advance();
+        }
+        self.expect(&TokenKind::RParen, ")")?;
+        let end = self.advance();
+        if end.raw != provider { return Err(self.error("정확한 Tensor provider가 필요합니다")); }
+        let input = input.ok_or_else(|| self.error("Tensor 입력 핀 누락"))?;
+        let value = if provider == "텐서로" {
+            TensorProviderExpr::FromCollection {
+                input,
+                element_type: element_type.ok_or_else(|| self.error("원소씨 핀 누락"))?,
+                shape: shape.ok_or_else(|| self.error("모양 핀 누락"))?,
+            }
+        } else { TensorProviderExpr::ToCollection { input } };
+        Ok(Expr::new(self.next_id(), start.merge(&self.to_ast_span(end.span)), ExprKind::Tensor(value)))
     }
 
     fn parse_injection_fields(
@@ -6380,6 +6616,14 @@ impl Parser {
 
     fn infer_expr_dim(&self, expr: &Expr) -> Result<DimState, ParseError> {
         match &expr.kind {
+            ExprKind::Tensor(value) => {
+                self.infer_expr_dim(value.input())?;
+                Ok(DimState::Unknown)
+            }
+            ExprKind::MultiAxisSelection(value) => {
+                for child in value.children() { self.infer_expr_dim(child)?; }
+                Ok(DimState::Unknown)
+            }
             ExprKind::Literal(lit) => match lit {
                 Literal::Int(_) | Literal::Fixed64(_) => Ok(DimState::Known(UnitDim::NONE)),
                 _ => Ok(DimState::Unknown),
@@ -7865,6 +8109,14 @@ fn validate_field_expr(
     env: &HashMap<String, FieldShape>,
 ) -> Result<FieldShape, ParseError> {
     match &expr.kind {
+        ExprKind::Tensor(value) => {
+            validate_field_expr(value.input(), env)?;
+            Ok(FieldShape::Unknown)
+        }
+        ExprKind::MultiAxisSelection(value) => {
+            for child in value.children() { validate_field_expr(child, env)?; }
+            Ok(FieldShape::Unknown)
+        }
         ExprKind::Literal(_) | ExprKind::Formula(_) | ExprKind::Template(_) => Ok(FieldShape::Scalar),
         ExprKind::Var(name) => Ok(env.get(name).cloned().unwrap_or(FieldShape::Unknown)),
         ExprKind::FieldAccess { target, field, field_span } => match validate_field_expr(target, env)? {

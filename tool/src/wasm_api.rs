@@ -837,6 +837,7 @@ fn build_wasm_state_snapshot_v2(
     param_overrides: JsonValue,
     public_observation_frames: Vec<JsonValue>,
     next_tick_id: u64,
+    scene_history: JsonValue,
 ) -> JsonValue {
     json!({
         "schema": WASM_STATE_SNAPSHOT_SCHEMA_V2,
@@ -846,6 +847,7 @@ fn build_wasm_state_snapshot_v2(
         "param_overrides": param_overrides,
         "public_observation_frames": public_observation_frames,
         "next_tick_id": next_tick_id,
+        "scene_history": scene_history,
     })
 }
 
@@ -947,6 +949,7 @@ fn append_wasm_public_observation_surface(
 #[wasm_bindgen]
 pub struct DdnWasmVm {
     runner: DdnRunner,
+    saved_project_owner: Option<Arc<crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1>>,
     world: DetNuri,
     defaults: HashMap<String, Value>,
     param_overrides: BTreeMap<String, Value>,
@@ -960,6 +963,7 @@ pub struct DdnWasmVm {
     input_dt: Fixed64,
     last_patch: Option<Patch>,
     last_bogae_projection: Option<JsonValue>,
+    display_outputs: Vec<crate::output_display::OutputDisplay>,
     pending_ai_injections: Vec<(String, String)>,
     lang_mode: ParseMode,
     parse_warnings: Vec<DdnParseWarning>,
@@ -999,6 +1003,7 @@ fn update_wasm_logic_with_supported_source_profile(
     vm.execution_mode_decision = program.execution_mode_decision();
     vm.parse_warnings = program.parse_warnings().to_vec();
     vm.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME).with_bogae_activation();
+    vm.saved_project_owner = None;
     vm.runner
         .set_project_asset_registry(vm.project_asset_registry.clone());
     vm.source_bytes_sha256 = runtime_surface::sha256_hex(source.as_bytes());
@@ -1067,6 +1072,7 @@ fn refresh_wasm_public_observation_surface(vm: &mut DdnWasmVm) -> Result<(), Str
 
 fn reset_wasm_public_observation_surface(vm: &mut DdnWasmVm) -> Result<(), String> {
     vm.last_bogae_projection = None;
+    vm.display_outputs.clear();
     vm.last_public_observations.clear();
     vm.public_observation_frames.clear();
     refresh_wasm_public_observation_surface(vm)
@@ -1089,6 +1095,8 @@ struct StagedWasmStateRestore {
     public_observation_frames: Vec<JsonValue>,
     last_public_observations: Vec<JsonValue>,
     observation_surface: PublicObservationSurface,
+    scene_history: crate::bogae_time::SceneHistory,
+    bogae_projection: Option<JsonValue>,
 }
 
 fn require_schema(
@@ -1217,6 +1225,12 @@ fn stage_wasm_state_restore(
         .and_then(json_to_u64)
         .ok_or_else(|| "E_WASM_STATE_TICK_INVALID: next_tick_id가 필요합니다".to_string())?;
     let input = parse_restored_input(state.get("input"))?;
+    let scene_history = crate::bogae_time::SceneHistory::from_snapshot(snapshot.get("scene_history"),tick_id)?;
+    let mut bogae_projection=scene_history.restored_projection(tick_id.checked_sub(1))?;
+    if let Some(projection)=bogae_projection.as_mut() {
+        crate::bogae_time::resolve_result_tables(projection,&public_observation_frames,
+            &format!("sha256:{source_bytes_sha256}"),&format!("sha256:{canonical_ddn_sha256}"))?;
+    }
     let observation_surface = build_wasm_public_observation_surface(
         source_path,
         source_bytes_sha256,
@@ -1238,20 +1252,26 @@ fn stage_wasm_state_restore(
         public_observation_frames,
         last_public_observations,
         observation_surface,
+        scene_history,
+        bogae_projection,
     })
 }
 
-#[wasm_bindgen]
-impl DdnWasmVm {
-    #[wasm_bindgen(constructor)]
-    pub fn new(source: &str) -> Result<DdnWasmVm, JsValue> {
-        let source_path = "<wasm>";
-        let (program, execution_mode_decision) =
-            parse_program_for_wasm(source, source_path, ParseMode::Strict)?;
+fn build_wasm_vm_from_program(
+    program: DdnProgram,
+    source: &str,
+    source_path: &str,
+    execution_mode_decision: ExecutionModeDecision,
+) -> Result<DdnWasmVm, JsValue> {
         let configured_madi = program.configured_madi().unwrap_or(0);
         let parse_warnings = program.parse_warnings().to_vec();
-        let prepared = runtime_surface::prepare_source_for_execution(source)
-            .map_err(|err| JsValue::from_str(&format!("WASM preprocess 실패: {err}")))?;
+        let prepared = if program.sealed_project_sources().is_some() {
+            runtime_surface::prepare_supported_source_for_execution_with_program(source,source_path,&program)
+                .map_err(|error|JsValue::from_str(&format!("{}: {}",error.code,error.message)))?
+        } else {
+            runtime_surface::prepare_source_for_execution(source)
+                .map_err(|err|JsValue::from_str(&format!("WASM preprocess 실패: {err}")))?
+        };
         let source_bytes_sha256 = runtime_surface::sha256_hex(source.as_bytes());
         let canonical_ddn_sha256 = runtime_surface::sha256_hex(prepared.canonical_ddn.as_bytes());
         let observation_surface = build_wasm_public_observation_surface(
@@ -1265,6 +1285,7 @@ impl DdnWasmVm {
         seed_bogae_defaults(&mut defaults);
         Ok(DdnWasmVm {
             runner: DdnRunner::new(program, DEFAULT_UPDATE_NAME).with_bogae_activation(),
+            saved_project_owner: None,
             world: DetNuri::new(),
             defaults,
             param_overrides: BTreeMap::new(),
@@ -1281,6 +1302,7 @@ impl DdnWasmVm {
             input_dt: crate::input_receipt::alpha_host_dt(),
             last_patch: None,
             last_bogae_projection: None,
+            display_outputs: Vec::new(),
             pending_ai_injections: Vec::new(),
             lang_mode: ParseMode::Strict,
             parse_warnings,
@@ -1298,6 +1320,152 @@ impl DdnWasmVm {
             public_observation_table_projection: observation_surface.table_projection,
             project_asset_registry: None,
         })
+}
+
+/// Internal candidate restore: no public JSON admission or live-VM mutation.
+/// The saved-source owner supplies the typed capture after revision admission.
+pub(crate) fn restore_saved_v25_candidate(
+    capture: crate::source_snapshot_admission::SourceCapture,
+    source_path: &str,
+    state_json: &str,
+    resource_snapshot_json: &str,
+) -> Result<DdnWasmVm, JsValue> {
+    crate::unit_wire::project_runtime_attachment::check_runtime_resource_binding(
+        state_json, resource_snapshot_json,
+    ).map_err(|err| JsValue::from_str(&err))?;
+    let source_path = require_wasm_source_path(source_path)?;
+    let program = DdnProgram::from_sealed_supported_source_profile_with_mode(
+        capture.clone(), source_path, ParseMode::Strict,
+        crate::ddn_runtime::SupportedSourceProfile::V1CoreV25,
+        crate::ddn_runtime::default_age_target(),
+    ).map_err(|err| JsValue::from_str(&err))?;
+    source_analysis::validate_program_for_execution(program.canonical_program())
+        .map_err(|err| JsValue::from_str(&err))?;
+    let prepared = runtime_surface::prepare_source_for_execution(capture.text())
+        .map_err(|err| JsValue::from_str(&err))?;
+    let mut candidate = build_wasm_vm_from_program(
+        program, capture.text(), source_path, prepared.execution_mode_decision,
+    )?;
+    candidate.restore_state(state_json)?;
+    crate::source_snapshot_admission::retain_verified_replay(&[&capture])
+        .map_err(|error|JsValue::from_str(&format!("E_SOURCE_ADMISSION_CUSTODY: {error:?}")))?;
+    Ok(candidate)
+}
+
+/// Project restore uses the linked execution unit and the root-resolved start.
+/// The public artifact entrypoint calls this only after source, payload and
+/// revision/PESI checks. No existing VM is mutated while building a candidate.
+pub(crate) fn restore_saved_v25_project_candidate(
+    context: &crate::unit_wire::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>,
+) -> Result<DdnWasmVm, JsValue> {
+    let owned=context.owned();
+    let state_json=context.runtime_state();
+    let resource_snapshot_json=context.resource_snapshot();
+    crate::unit_wire::project_runtime_attachment::check_runtime_resource_binding(
+        state_json,resource_snapshot_json,
+    ).map_err(|err|JsValue::from_str(&err))?;
+    let mut candidate=build_saved_authored_project_vm(Arc::new(owned.clone()))?;
+    candidate.restore_state(state_json)?;
+    let captures=owned.sources().captures().iter().map(|(_,capture)|capture).collect::<Vec<_>>();
+    crate::source_snapshot_admission::retain_verified_replay(&captures)
+        .map_err(|error|JsValue::from_str(&format!("E_SOURCE_ADMISSION_CUSTODY: {error:?}")))?;
+    Ok(candidate)
+}
+
+fn build_saved_authored_project_vm(
+    owned:Arc<crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1>,
+) -> Result<DdnWasmVm,JsValue> {
+    // Prove the supported local-only closure before publishing any candidate.
+    crate::project_snapshot_identity::current::issue_saved_local_project(&owned)
+        .map_err(|error|JsValue::from_str(&error))?;
+    let saved=owned.sources();
+    let program=DdnProgram::from_saved_v25_project_with_mode(
+        saved.clone(),ParseMode::Strict,crate::ddn_runtime::default_age_target(),
+    ).map_err(|err|JsValue::from_str(&err))?;
+    source_analysis::validate_program_for_execution(program.canonical_program())
+        .map_err(|err|JsValue::from_str(&err))?;
+    let source=&saved.preparation().source;
+    let source_path=require_wasm_source_path(&saved.preparation().target_path)?;
+    let prepared=runtime_surface::prepare_supported_source_for_execution_with_program(source,source_path,&program)
+        .map_err(|error|JsValue::from_str(&format!("{}: {}",error.code,error.message)))?;
+    let mut candidate=build_wasm_vm_from_program(
+        program,source,source_path,prepared.execution_mode_decision,
+    )?;
+    candidate.configure_project_entry(saved.entry_declaration().name())?;
+    let project=owned.project();
+    if project.schema==crate::authored_project::SCHEMA_V2
+        || project.authored_identity.modules.iter().any(|module|!module.compositions.is_empty()) {
+        let artifact=project.save().map_err(|err|JsValue::from_str(&err))?;
+        candidate.configure_authored_bogae(&artifact)?;
+    }
+    candidate.saved_project_owner=Some(owned);
+    Ok(candidate)
+}
+
+fn decode_storage_lineage(text:&str,allow_empty:bool) -> Result<Vec<u8>,JsValue> {
+    if (text.is_empty()&&!allow_empty) || text.len()>8192 || text.len()%2!=0
+        || !text.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)) {
+        return Err(JsValue::from_str("E_PROJECT_RUNTIME_STORAGE_LINEAGE: 저장 이력 정체가 정본이 아닙니다"));
+    }
+    hex::decode(text).map_err(|_|JsValue::from_str("E_PROJECT_RUNTIME_STORAGE_LINEAGE"))
+}
+
+#[wasm_bindgen]
+impl DdnWasmVm {
+    /// Explicit project execution retains exactly the captures that this VM
+    /// executes. Saving does not reread source or allocate replacement ordinals.
+    pub fn from_authored_project_json(artifact_json:&str) -> Result<DdnWasmVm,JsValue> {
+        let owner=crate::project_revision_envelope_supply::admit_fresh_authored_project(artifact_json.as_bytes())
+            .map_err(|error|JsValue::from_str(&error))?;
+        build_saved_authored_project_vm(Arc::new(owner))
+    }
+
+    pub fn export_saved_project_artifact_json(
+        &self,expected_parent_hex:&str,revision_hex:&str,
+    ) -> Result<String,JsValue> {
+        if !self.pending_ai_injections.is_empty() {
+            return Err(JsValue::from_str("E_PROJECT_RUNTIME_PENDING_INPUT: 아직 처리하지 않은 입력이 있어 실행 상태를 저장할 수 없습니다."));
+        }
+        let owner=self.saved_project_owner.as_ref()
+            .ok_or_else(||JsValue::from_str("E_PROJECT_RUNTIME_OWNER_REQUIRED: 명시 작품으로 실행한 상태만 저장할 수 있습니다"))?;
+        let parent=decode_storage_lineage(expected_parent_hex,true)?;
+        let revision=decode_storage_lineage(revision_hex,false)?;
+        let runtime=self.get_state_json().as_string()
+            .ok_or_else(||JsValue::from_str("E_PROJECT_RUNTIME_STATE_ENCODING"))?;
+        let parsed=crate::unit_wire::parse_snapshot_json(&runtime)
+            .map_err(|error|JsValue::from_str(&error))?;
+        let resources=parsed.pointer("/state/snapshot_v2/resources")
+            .ok_or_else(||JsValue::from_str("E_PROJECT_RUNTIME_RESOURCE_SCHEMA"))?;
+        let resources=serde_json::to_string(resources).map_err(|error|JsValue::from_str(&error.to_string()))?;
+        crate::unit_wire::project_runtime_attachment::encode_saved_runtime_artifact(
+            owner,&runtime,&resources,&parent,&revision,
+        ).map_err(|error|JsValue::from_str(&error))
+    }
+
+    /// Restores into a separate candidate. The host supplies the revision pair
+    /// selected from its storage lineage; neither value is taken from the file.
+    /// A failure leaves every existing VM untouched.
+    pub fn from_saved_project_artifact_json(
+        artifact_json: &str, expected_parent_hex: &str, revision_hex: &str,
+    ) -> Result<DdnWasmVm,JsValue> {
+        let parent=decode_storage_lineage(expected_parent_hex,true)?;
+        let revision=decode_storage_lineage(revision_hex,false)?;
+        let attachment=crate::unit_wire::project_runtime_attachment::check_bytes(artifact_json.as_bytes())
+            .map_err(|error|JsValue::from_str(&error))?;
+        let owned=crate::unit_wire::project_runtime_attachment::restore_saved_runtime_payload(&attachment)
+            .map_err(|error|JsValue::from_str(&error))?;
+        let context=crate::unit_wire::project_runtime_attachment::check_saved_revision_context(
+            &attachment,&owned,&parent,&revision,
+        ).map_err(|error|JsValue::from_str(&error))?;
+        restore_saved_v25_project_candidate(&context)
+    }
+
+    #[wasm_bindgen(constructor)]
+    pub fn new(source: &str) -> Result<DdnWasmVm, JsValue> {
+        let source_path = "<wasm>";
+        let (program, execution_mode_decision) =
+            parse_program_for_wasm(source, source_path, ParseMode::Strict)?;
+        build_wasm_vm_from_program(program, source, source_path, execution_mode_decision)
     }
 
     pub fn new_with_mode(source: &str, mode: &str) -> Result<DdnWasmVm, JsValue> {
@@ -1321,6 +1489,7 @@ impl DdnWasmVm {
         seed_bogae_defaults(&mut defaults);
         Ok(DdnWasmVm {
             runner: DdnRunner::new(program, DEFAULT_UPDATE_NAME).with_bogae_activation(),
+            saved_project_owner: None,
             world: DetNuri::new(),
             defaults,
             param_overrides: BTreeMap::new(),
@@ -1337,6 +1506,7 @@ impl DdnWasmVm {
             input_dt: crate::input_receipt::alpha_host_dt(),
             last_patch: None,
             last_bogae_projection: None,
+            display_outputs: Vec::new(),
             pending_ai_injections: Vec::new(),
             lang_mode: mode,
             parse_warnings,
@@ -1390,6 +1560,7 @@ impl DdnWasmVm {
         self.execution_mode_decision = execution_mode_decision;
         self.parse_warnings = program.parse_warnings().to_vec();
         self.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME).with_bogae_activation();
+        self.saved_project_owner = None;
         self.runner
             .set_project_asset_registry(self.project_asset_registry.clone());
         self.source_path = source_path.to_string();
@@ -1408,6 +1579,11 @@ impl DdnWasmVm {
     /// Bind the entry selected by the explicit work-root linker. Call again
     /// after installing a replacement program; no filename or name inference.
     pub fn configure_project_entry(&mut self, name: &str) -> Result<(), JsValue> {
+        if let Some(owner) = &self.saved_project_owner {
+            if name != owner.sources().entry_declaration().name() {
+                return Err(JsValue::from_str("E_PROJECT_RUNTIME_ENTRY_CHANGED: 저장 원문의 시작 정의를 바꿀 수 없습니다."));
+            }
+        }
         self.runner.configure_project_entry(name).map_err(|err| JsValue::from_str(&err))
     }
 
@@ -1416,6 +1592,12 @@ impl DdnWasmVm {
     }
 
     pub fn configure_authored_bogae(&mut self, artifact_json: &str) -> Result<(), JsValue> {
+        if let Some(owner) = &self.saved_project_owner {
+            let expected = owner.project().save().map_err(|err|JsValue::from_str(&err))?;
+            if artifact_json != expected {
+                return Err(JsValue::from_str("E_PROJECT_RUNTIME_OWNER_CHANGED: 실행 중인 저장 작품의 보개 정체를 다른 작품으로 바꿀 수 없습니다."));
+            }
+        }
         if self.tick_id != 0 {
             return Err(JsValue::from_str("E_AUTHORED_BOGAE_LIFECYCLE: 실행을 시작한 뒤 정체를 교체할 수 없습니다"));
         }
@@ -1436,6 +1618,7 @@ impl DdnWasmVm {
         self.execution_mode_decision = execution_mode_decision;
         self.parse_warnings = program.parse_warnings().to_vec();
         self.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME).with_bogae_activation();
+        self.saved_project_owner = None;
         self.runner
             .set_project_asset_registry(self.project_asset_registry.clone());
         self.lang_mode = mode;
@@ -1873,13 +2056,17 @@ impl DdnWasmVm {
 
         let output = self
             .runner
-            .run_update_with_param_overrides(
+            .run_update_diagnostic_with_control_edges(
                 self.world.world(),
                 &input,
                 &self.defaults,
-                &self.param_overrides,
+                None,
+                Some(&self.param_overrides),
             )
-            .map_err(|err| JsValue::from_str(&err))?;
+            .map_err(|error| {
+                let diagnostic = runtime_surface::execution_error_diagnostic(error, &self.source_path);
+                JsValue::from_str(&diagnostic.to_json_value().to_string())
+            })?;
         let public_observations = public_observation_events_json(&output.public_observations)
             .map_err(|err| JsValue::from_str(&err))?;
 
@@ -1889,8 +2076,10 @@ impl DdnWasmVm {
 
         self.last_patch = Some(output.patch);
         self.last_bogae_projection = output.bogae_projection;
+        self.display_outputs.extend(output.display_outputs);
         let state_hash = current_state_hash(&self.world, &self.view_prefixes);
         let resources = serialize_world_resources(self.world.world());
+        crate::output_display::retain_current(&mut self.display_outputs, &resources);
         let (columns, row) = collect_columns_and_row(self.world.world());
         let streams = collect_streams(self.world.world());
         let view_meta = build_view_meta(self.world.world());
@@ -1925,6 +2114,11 @@ impl DdnWasmVm {
         if let Err(err) = refresh_wasm_public_observation_surface(self) {
             self.public_observation_frames.pop();
             return Err(JsValue::from_str(&err));
+        }
+        if let Some(projection)=self.last_bogae_projection.as_mut() {
+            crate::bogae_time::resolve_result_tables(projection,&self.public_observation_frames,
+                &format!("sha256:{}",self.source_bytes_sha256),&format!("sha256:{}",self.canonical_ddn_sha256))
+                .map_err(|err|JsValue::from_str(&err))?;
         }
         let observation_columns = self
             .public_observation_trace
@@ -1994,6 +2188,7 @@ impl DdnWasmVm {
                     snapshot_params,
                     self.public_observation_frames.clone(),
                     self.tick_id,
+                    self.runner.scene_history_snapshot(),
                 )
             },
             "view_meta": view_meta,
@@ -2001,6 +2196,7 @@ impl DdnWasmVm {
             "primary_view_decision": primary_view_decision,
         });
         crate::bogae_projection::attach(&mut payload, self.last_bogae_projection.as_ref());
+        crate::output_display::attach(&mut payload, &self.display_outputs);
         Ok(JsValue::from_str(&payload.to_string()))
     }
 
@@ -2054,6 +2250,9 @@ impl DdnWasmVm {
             self.world
                 .apply_patch(&output.patch, input.tick_id, &mut sink);
             self.last_patch = Some(output.patch);
+            self.display_outputs.extend(output.display_outputs);
+            crate::output_display::retain_current(&mut self.display_outputs,
+                &serialize_world_resources(self.world.world()));
             state = self.get_state_json();
         }
         Ok(state)
@@ -2149,6 +2348,7 @@ impl DdnWasmVm {
                     snapshot_params,
                     self.public_observation_frames.clone(),
                     self.tick_id,
+                    self.runner.scene_history_snapshot(),
                 )
             },
             "view_meta": view_meta,
@@ -2156,6 +2356,12 @@ impl DdnWasmVm {
             "primary_view_decision": primary_view_decision,
         });
         crate::bogae_projection::attach(&mut payload, self.last_bogae_projection.as_ref());
+        crate::output_display::attach(&mut payload, &self.display_outputs);
+        // A3-P11: outside the closed resource/snapshot wire; full u64 text.
+        payload["runner_input_history"] = json!({
+            "schema": "ddn.runner_input_history.v1",
+            "consumed_keys_decimal": self.runner.consumed_keys_pressed().to_string(),
+        });
         JsValue::from_str(&payload.to_string())
     }
 
@@ -2164,8 +2370,26 @@ impl DdnWasmVm {
     }
 
     pub fn restore_state(&mut self, state_json: &str) -> Result<JsValue, JsValue> {
-        let payload: JsonValue = serde_json::from_str(state_json)
+        let payload: JsonValue = crate::unit_wire::parse_snapshot_json(state_json)
             .map_err(|err| JsValue::from_str(&format!("restore_state: JSON 파싱 실패: {err}")))?;
+        // Validate before publishing any staged world. Source-bound projects
+        // cannot resume an older private artifact that omitted this history.
+        let consumed_keys = match payload.get("runner_input_history") {
+            Some(value) => {
+                let invalid = || JsValue::from_str("E_PROJECT_RUNTIME_INPUT_HISTORY: 처리한 입력 이력이 올바르지 않습니다.");
+                let object = value.as_object().ok_or_else(invalid)?;
+                if object.len() != 2 || value["schema"] != "ddn.runner_input_history.v1" {
+                    return Err(invalid());
+                }
+                let text = value["consumed_keys_decimal"].as_str().ok_or_else(invalid)?;
+                let keys = text.parse::<u64>().map_err(|_| invalid())?;
+                if keys.to_string() != text { return Err(invalid()); }
+                keys
+            }
+            None if self.saved_project_owner.is_some() => return Err(JsValue::from_str(
+                "E_PROJECT_RUNTIME_INPUT_HISTORY: 저장 작품에 처리한 입력 이력이 없습니다.")),
+            None => 0,
+        };
         let schema = payload
             .get("schema")
             .and_then(|v| v.as_str())
@@ -2188,6 +2412,12 @@ impl DdnWasmVm {
         let state_hash = current_state_hash(&staged.world, &self.view_prefixes);
         let view_hash = hash_json_string(&build_view_meta(staged.world.world()));
         let diag = restore_hash_diags(&payload, &state_hash, &view_hash);
+        let display_outputs = crate::output_display::restore(&payload)
+            .map_err(|err| JsValue::from_str(&err))?;
+        if payload.get("output_display").is_some()
+            && payload["output_display"]["world_state_hash"] != state_hash {
+            return Err(JsValue::from_str("E_OUTPUT_DISPLAY_SNAPSHOT: 표시 정보가 복원한 세계와 다릅니다."));
+        }
 
         self.world = staged.world;
         self.param_overrides = staged.param_overrides;
@@ -2204,6 +2434,11 @@ impl DdnWasmVm {
         self.debug_evaluator = None;
         self.last_debug_evidence = json!({"triggered": false, "reasons": []});
         self.last_public_observations = staged.last_public_observations;
+        self.runner.restore_consumed_keys_pressed(consumed_keys);
+        self.runner.restore_scene_history(staged.scene_history);
+        self.last_bogae_projection=staged.bogae_projection;
+        // Restore the explicitly stored non-world projection, never guess from text.
+        self.display_outputs = display_outputs;
         self.public_observation_frames = staged.public_observation_frames;
         self.public_observation_trace = staged.observation_surface.trace;
         self.public_observation_trace_hash = staged.observation_surface.trace_hash;
@@ -4413,6 +4648,7 @@ a.기준점 <- b.꼭짓점.
                     json!({"속도": {"raw_i64": "2"}}),
                     Vec::new(),
                     7,
+                    crate::bogae_time::SceneHistory::default().snapshot(),
                 ),
             },
         })
@@ -5230,6 +5466,7 @@ fn resource_value_to_json(value: &ResourceValue) -> JsonValue {
         });
     }
     match value {
+        ResourceValue::BasicTensorV1(_) => crate::unit_wire::resource_value_to_detjson(value),
         ResourceValue::None => JsonValue::Null,
         ResourceValue::Bool(v) => JsonValue::Bool(*v),
         ResourceValue::Fixed64(v) => json!(fixed64_to_f64(*v)),

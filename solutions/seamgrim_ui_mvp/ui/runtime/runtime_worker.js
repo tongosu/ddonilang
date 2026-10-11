@@ -8,7 +8,7 @@ const logicalOperations = new Map([
   ["logicalStep", "step"], ["logicalSummary", "summary"],
   ["logicalSeal", "seal"], ["logicalAbort", "abort"], ["logicalClose", "close"],
 ]);
-const sessionOperations = new Set(["updateLogic", "reset", "getStateJson", "step", "setParam"]);
+const sessionOperations = new Set(["updateLogic", "reset", "getStateJson", "step", "setParam", "exportSavedProjectArtifact", "close"]);
 const adapterOperations = new Set([
   "authoredProjectOperation",
   "canonMaegimPlan", "sourceAnalysis", "moduleDirectiveAnalysis", "sharedCompletion",
@@ -50,6 +50,7 @@ async function dispatch({ operation, args, sessionId }) {
     const session = sessions.get(sessionId);
     if (!session || !sessionOperations.has(operation)) throw new Error("E_RUNTIME_SESSION_INVALID");
     const result = await session[operation](...args);
+    if (operation === "close") sessions.delete(sessionId);
     if (operation === "step") requireSafeWorkbenchResult(result);
     return { result, metadata: metadata(session) };
   }

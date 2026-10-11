@@ -3153,6 +3153,7 @@ export function createWasmLoader({
   artifactManifestRequired = canRequireWasmArtifactManifest(),
   moduleFactory = null,
   wrapperFactory = null,
+  vmFactory = null,
   fallbackSource = "매틱:움직씨 = { 프레임수 <- 0. 프레임수 <- (프레임수 + 1). }.",
   setStatus,
   clearStatusError,
@@ -3315,7 +3316,7 @@ export function createWasmLoader({
       throw new Error("DdnWasmVmClient export missing");
     }
     const needsSource = DdnWasmVm.length > 0;
-    const sourceText = stripMetaHeader(source);
+    const sourceText = vmFactory ? String(source ?? "") : stripMetaHeader(source);
     const prepareSourceText = (rawSource) => {
       const text = String(rawSource ?? "");
       if (typeof wasmModule.wasm_preprocess_source !== "function") {
@@ -3342,11 +3343,11 @@ export function createWasmLoader({
         return text;
       }
     };
-    const preparedSource = prepareSourceText(sourceText);
+    const preparedSource = vmFactory ? sourceText : prepareSourceText(sourceText);
     const cleaned = preparedSource.trim();
 
     let vm;
-    if (needsSource && !cleaned) {
+    if (!vmFactory && needsSource && !cleaned) {
       try {
         vm = new DdnWasmVm(fallbackSource);
       } catch (err) {
@@ -3381,7 +3382,7 @@ export function createWasmLoader({
     }
 
     try {
-      vm = needsSource ? new DdnWasmVm(cleaned) : new DdnWasmVm();
+      vm = vmFactory ? await vmFactory(wasmModule) : (needsSource ? new DdnWasmVm(cleaned) : new DdnWasmVm());
     } catch (err) {
       lastInitDiag = {
         code: "E_WASM_LOADER_VM_CONSTRUCT_FAILED",
@@ -3403,7 +3404,7 @@ export function createWasmLoader({
     vmClient.wasmModule = wasmModule;
     lastInitDiag = null;
     vmClient.prepareSourceText = prepareSourceText;
-    if (!needsSource && cleaned) {
+    if (!vmFactory && !needsSource && cleaned) {
       try {
         vmClient.updateLogic(cleaned);
       } catch (err) {

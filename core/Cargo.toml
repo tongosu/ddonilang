@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 blake3 = "1.5"
+sha2 = "0.10"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 unicode-normalization = "0.1"
 rayon = "1.8"

@@ -636,6 +636,8 @@ fn walk_expr(
 ) {
     use ddonirang_lang::ExprKind;
     match &expression.kind {
+        ExprKind::Tensor(value) => walk_expr(value.input(), caller_identity, tokens, calls),
+        ExprKind::MultiAxisSelection(value) => { for child in value.children() { walk_expr(child, caller_identity, tokens, calls); } }
         ExprKind::Call { args, func } => {
             if let Some(range) = call_name_range(tokens, expression.span, func) {
                 calls.push(CallHierarchyCall {
@@ -826,6 +828,11 @@ fn seed_kind_surface(kind: &SeedKind) -> &str {
 
 pub(crate) fn type_surface(type_ref: &TypeRef) -> String {
     match type_ref {
+        TypeRef::Tensor { element, shape } => {
+            let mut axes = shape.iter().map(u64::to_string).collect::<Vec<_>>().join(", ");
+            if shape.len() == 1 { axes.push(','); }
+            format!("(원소씨={}, 모양=({axes})) 텐서씨", type_surface(element))
+        }
         TypeRef::Named(name) => name.clone(),
         TypeRef::Applied { name, args } => format!(
             "{}({})",

@@ -1202,15 +1202,19 @@ fn pretty_json(value: &ddonirang_tool::serde_json::Value) -> Result<String, Exec
 }
 
 fn human_run_output(summary: &ddonirang_tool::serde_json::Value) -> Result<String, ExecutionError> {
+    let display = summary.get("output_display").filter(|projection|
+        projection["schema"] == "ddn.output-display.v1");
     let output_log = summary
         .get("output_log_texts")
         .and_then(ddonirang_tool::serde_json::Value::as_array)
         .ok_or_else(|| ExecutionError::runtime("E_CLI_OUTPUT_LOG_INVALID"))?;
     let mut output = String::new();
-    for value in output_log {
-        let text = value
+    for (index, value) in output_log.iter().enumerate() {
+        let original = value
             .as_str()
             .ok_or_else(|| ExecutionError::runtime("E_CLI_OUTPUT_LOG_INVALID"))?;
+        let text = display.and_then(|projection| projection["texts"].get(index))
+            .and_then(ddonirang_tool::serde_json::Value::as_str).unwrap_or(original);
         output.push_str(text);
         output.push('\n');
     }
@@ -1919,6 +1923,16 @@ mod tests {
         let error = human_run_output(&malformed).expect_err("malformed output log");
         assert_eq!(error.exit_code, 1);
         assert_eq!(error.message, "E_CLI_OUTPUT_LOG_INVALID");
+    }
+
+    #[test]
+    fn a3_p1_human_output_uses_typed_projection_without_mutating_log() {
+        let summary = ddonirang_tool::serde_json::json!({
+            "output_log_texts": ["19.019999999", "19.019999999"],
+            "output_display": {"schema":"ddn.output-display.v1", "texts":["19.02", "19.019999999"]}
+        });
+        assert_eq!(human_run_output(&summary).unwrap(), "19.02\n19.019999999\n");
+        assert_eq!(summary["output_log_texts"][0], "19.019999999");
     }
 
     #[test]

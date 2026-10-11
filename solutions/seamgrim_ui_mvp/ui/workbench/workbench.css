@@ -260,6 +260,9 @@ a:focus-visible {
   text-decoration: none;
 }
 
+.my-work-row { display:grid; grid-template-columns:minmax(0,1fr); gap:3px; }
+.my-work-row > button:last-child { justify-self:end; padding:3px 7px; font-size:12px; }
+
 .workbench {
   min-width: 0;
   display: grid;
@@ -965,6 +968,10 @@ p {
 
 .bogae-panel {
   background: #fcfefa;
+  /* View controls share the title row; only the actual stage expands. */
+  grid-template-rows: auto minmax(240px, 1fr);
+  grid-auto-rows: auto;
+  align-content: start;
 }
 
 .view-roles {
@@ -974,9 +981,25 @@ p {
   justify-content: flex-end;
 }
 
-.authored-view-toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
+.view-roles[hidden] { display: none; }
+
+.authored-view-toolbar { display:flex; flex-wrap:wrap; gap:4px; align-items:center; align-self:start; margin:0; }
+.authored-view-toolbar button { padding:3px 7px; min-height:26px; font-size:12px; }
 .authored-view-toolbar [data-testid="authored-view-controls"] { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 .authored-view-toolbar button[hidden] { display:none; }
+.authored-view-toolbar [data-authored-relation-controls] { display:flex; flex-wrap:wrap; gap:4px; }
+.bogae-panel > .panel-header { flex-wrap:wrap; gap:6px; align-content:start; }
+.bogae-panel > .panel-header .authored-view-toolbar { margin-left:auto; }
+.authored-side-table { max-height:360px; overflow:auto; font-size:13px; }
+.authored-side-table dl { display:grid; grid-template-columns:minmax(80px,1fr) minmax(100px,1.5fr); gap:6px 12px; margin:8px 0 12px; }
+.authored-side-table dt { font-weight:600; overflow-wrap:anywhere; }
+.authored-side-table dd { margin:0; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.side-view-instance canvas[hidden], .authored-side-table[hidden] { display:none; }
+.exploration-presets { display:flex; align-items:center; flex-wrap:wrap; gap:8px; font-size:13px; }
+.exploration-presets[hidden] { display:none; }
+.exploration-presets button { padding:3px 7px; margin-right:4px; }
+.exploration-presets details { flex-basis:100%; }
+.exploration-presets details p { margin:6px 0; }
 .canvas-wrap { position:relative; }
 .authored-magnifier-popover { position:absolute; z-index:4; width:230px; max-width:calc(100% - 8px); max-height:calc(100% - 8px); overflow:auto; pointer-events:none; padding:8px; border:2px solid #e6a600; border-radius:8px; background:#fffef5; box-shadow:0 3px 12px #0003; box-sizing:border-box; }
 .authored-magnifier-popover canvas { display:block; width:100%; height:70px; }
@@ -1055,6 +1078,16 @@ p {
 .workbench-layout[data-mode] .bogae-stage[data-authored-layout="true"] {
   grid-template-columns: var(--authored-left, 0px) minmax(0, 1fr) var(--authored-right, 0px);
   grid-template-areas: "top top top" "left primary right" "bottom bottom bottom";
+  grid-template-rows: max-content minmax(0, 1fr) max-content;
+  align-content: start;
+}
+.bogae-stage[data-authored-primary-kind="scene"] > .canvas-wrap {
+  min-height: clamp(360px, 48vh, 560px);
+}
+@container (max-width: 900px) {
+  .workbench-layout[data-mode] .bogae-panel .bogae-stage[data-authored-layout="true"] {
+    grid-template-rows: repeat(5, max-content);
+  }
 }
 .bogae-stage[data-authored-layout="true"] > .canvas-wrap { grid-area: primary; }
 #logical-input-panel .bogae-stage[data-authored-layout="true"] {
@@ -1089,6 +1122,8 @@ p {
   gap: 8px;
   font-size: 12px;
 }
+.side-view-instance-header strong { flex: 1; }
+.side-view-instance-header button { padding: 3px 6px; font-size: 12px; white-space: nowrap; }
 
 .side-view-instance canvas {
   display: block;
@@ -1442,6 +1477,15 @@ p {
 }
 .source-editor-shell {
   position: relative;
+  min-height: 0;
+}
+.source-panel { grid-template-rows: auto minmax(0, 1fr); }
+.source-panel .source-editor-shell textarea { height: 100%; box-sizing: border-box; }
+
+/* Compact comparison scenes leave room for live readouts on narrow work panes. */
+.side-view-instance[data-authored-view-kind="scene"] canvas { height: 160px; }
+@container (max-width: 900px) {
+  .authored-side-dock { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
 }
 
 .completion-popup {

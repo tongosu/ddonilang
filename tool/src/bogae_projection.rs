@@ -5,6 +5,13 @@ use ddonirang_lang::{CanonProgram, ExprKind, Stmt};
 use serde_json::{json, Value as Json};
 use std::collections::HashMap;
 
+pub fn project_time(policy: ddonirang_lang::runtime::BogaeTimePolicy) -> Json {
+    use ddonirang_lang::runtime::BogaeTimePolicy;
+    match policy { BogaeTimePolicy::Common=>json!({"kind":"common"}),
+        BogaeTimePolicy::Fixed(madi)=>json!({"kind":"fixed","madi":madi}),
+        BogaeTimePolicy::Relative(offset)=>json!({"kind":"relative","offset":offset}) }
+}
+
 pub fn attach(state: &mut Json, projection: Option<&Json>) {
     if let (Some(object), Some(projection)) = (state.as_object_mut(), projection) {
         object.insert("bogae_projection".into(), projection.clone());
@@ -98,7 +105,21 @@ pub fn resolve_selected(
                     let mut projected=json!({"identity":identity, "relation_id":relation_id,
                         "kind":kind, "order":order, "basis_location":basis, "placement":placement,
                         "view":crate::scene_value::project_view(relation.view()),
-                        "time_policy":{"kind":"common"}});
+                        "time_policy":project_time(relation.time_policy())});
+                    if let Some(policy)=relation.time_override() {
+                        projected["time_override"]=project_time(policy);
+                    }
+                    // Presentation label only: exact authored root binding,
+                    // never a source of identity or automatic view selection.
+                    if let Some(label) = program.root_stmts.iter().find_map(|stmt| {
+                        let Stmt::Definition {name,..}=stmt else {return None;};
+                        match resources.get(name) {
+                            Some(Value::BogaeRelation(bound)) if bound.source_location()==Some(location) => Some(name),
+                            _ => None,
+                        }
+                    }) {
+                        projected["authored_name"]=json!(label);
+                    }
                     if let BogaeRelationValue::Magnifier {target,recipe,..}=relation {
                         let target=match crate::bogae_recipe::project_target(target) {
                             Ok(target)=>target,
@@ -137,9 +158,13 @@ pub fn resolve_selected(
                 .find(|relation| matches!(relation,BogaeRelationValue::Primary {..})).expect("validated primary").view()),
             _ => unreachable!(),
         };
+        let primary_time=match value {Value::View(view)=>view.time_policy(),
+            Value::BogaeComposition(composition)=>composition.relations().iter()
+                .find(|relation|matches!(relation,BogaeRelationValue::Primary {..})).expect("validated primary").time_policy(),
+            _=>unreachable!()};
         let artifact = json!({"schema":"ddn.authored_bogae_projection.v1", "identity":identity,
             "view":primary_view, "relations":relations,
-            "time_policy":{"kind":"common"},
+            "time_policy":project_time(primary_time),
             "lock":{"schema":"ddn.authored_bogae_projection.v1", "adapter":if primary_view["kind"] == "scene" {"scene_plane2.v1"} else {"result_table.v1"},
                 "time":"common.v1", "diagnostic":"bogae.v1", "module_source":source_identity}});
         let digest = crate::runtime_surface::sha256_hex(
@@ -169,6 +194,40 @@ pub fn resolve_selected(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a3_rd136_time_policy_values_are_typed_and_not_world_resources() {
+        // RD-136; A3-TIME-P1 optional constructor time pin is provisional.
+        let source="기준 := (번호=0) 표준시간.고정마디. 차이 := (차이=-1) 표준시간.상대마디. 공통 := () 표준시간.공통.";
+        let output=run(source,"time-values.ddn");
+        assert!(output.patch.ops.is_empty());
+    }
+    #[test]
+    fn a3_rd136_view_default_and_relation_override_have_distinct_owners() {
+        let source="시간값 := (번호=0) 표준시간.고정마디. 보기 := (시간=시간값) 표준보기.결과표. 기본 := (보기=보기,시간=(() 표준시간.공통)) 표준보개.으뜸. 곁 := (보기=보기,자리=#오른쪽) 표준보개.곁. 짜임 := (관계들=차림[기본,곁]) 표준보개.짜임.";
+        let output=run(source,"time-owners.ddn");
+        let projection=output.bogae_projection.unwrap();
+        assert_eq!(projection["status"],"selection_required","value creation must not auto-activate one of two candidates");
+        let candidate=projection["candidates"].as_array().unwrap().iter().find(|candidate|candidate["label"]=="짜임").unwrap();
+        let rows=&candidate["artifact"]["relations"];
+        assert_eq!(rows[0]["time_policy"],json!({"kind":"common"}));
+        assert_eq!(rows[0]["time_override"],json!({"kind":"common"}));
+        assert_eq!(rows[1]["time_policy"],json!({"kind":"fixed","madi":0}));
+        assert!(rows[1].get("time_override").is_none());
+    }
+    #[test]
+    fn a3_rd136_policy_rejects_fraction_negative_fixed_and_plain_pack() {
+        use crate::ddn_runtime::{DdnProgram,DdnRunner};
+        for source in ["시간 := (번호=-1) 표준시간.고정마디.",
+            "시간 := (차이=0.5) 표준시간.상대마디.",
+            "보기 := (시간=(종류:\"common\")) 표준보기.결과표."] {
+            let program=DdnProgram::from_v25_source(source,"invalid-time.ddn").unwrap();
+            let mut runner=DdnRunner::new(program,"매마디");
+            let input=InputSnapshot {tick_id:0,dt:Fixed64::ONE,keys_pressed:0,last_key_name:String::new(),
+                pointer_x_i32:0,pointer_y_i32:0,ai_injections:vec![],net_events:vec![],frame_source:InputSource::Person,rng_seed:0};
+            let error=runner.run_update(&NuriWorld::new(),&input,&HashMap::new()).err().expect("invalid time must fail");
+            assert!(error.contains("E_BOGAE_TIME_POLICY_INVALID"),"{error}");
+        }
+    }
     use crate::ddn_runtime::{DdnProgram, DdnRunner};
     use ddonirang_core::platform::NuriWorld;
     use ddonirang_core::{Fixed64, InputSnapshot, InputSource};
@@ -313,6 +372,8 @@ mod tests {
         let relations = projection["candidates"][0]["artifact"]["relations"].as_array().unwrap();
         assert_eq!(relations.iter().map(|r| r["kind"].as_str().unwrap()).collect::<Vec<_>>(),vec!["primary","overlay","side"]);
         assert_eq!(relations[2]["placement"],"오른쪽");
+        assert_eq!(relations[1]["authored_name"],"겹");
+        assert_eq!(relations[2]["authored_name"],"곁");
         assert_ne!(relations[0]["relation_id"],relations[2]["relation_id"]);
     }
 

@@ -354,7 +354,9 @@ pub struct LogicalInputSession {
     receipts: Vec<serde_json::Value>,
     failure: Option<String>,
     last_bogae_projection: Option<serde_json::Value>,
+    display_outputs: Vec<crate::output_display::OutputDisplay>,
     last_observation_table: Option<serde_json::Value>,
+    observation_frames: Vec<serde_json::Value>,
 }
 
 impl LogicalInputSession {
@@ -400,6 +402,8 @@ impl LogicalInputSession {
             runner: crate::ddn_runtime::DdnRunner::new(program, "매마디").with_bogae_activation(),
             world, frames: Vec::new(), receipts: Vec::new(), failure: None,
             last_bogae_projection: None, last_observation_table: None,
+            display_outputs: Vec::new(),
+            observation_frames: Vec::new(),
         })
     }
 
@@ -459,7 +463,7 @@ impl LogicalInputSession {
             ));
         }
         let (output, receipt) =
-            self.runner.run_update_logical(self.world.world(), &self.binding, input, &std::collections::HashMap::new())?;
+            self.runner.run_update_logical_with_initial_held(self.world.world(), &self.binding, input, &std::collections::HashMap::new(), Some(&self.settled))?;
         // Patch publication is delayed until both the runtime and replay hash
         // comparison succeed. No external signal sink is called while staged.
         let mut candidate = ddonirang_core::platform::DetNuri::new();
@@ -481,27 +485,37 @@ impl LogicalInputSession {
         // 세계 해시에는 넣지 않으며 CLI/WASM이 같은 원문에서 다시 만든다.
         let run_id = format!("logical:{}", self.binding.source_revision);
         let observations = crate::deterministic_debug::public_observation_events_json(&output.public_observations)?;
+        let observation_frame=serde_json::json!({"committed_madi":input.madi,"state_hash":frame.accepted_world_digest,
+            "input_snapshot":input,"public_observations":observations});
         let trace = crate::deterministic_debug::build_public_observation_trace(&serde_json::json!({
             "run_id":run_id,"source_identity":self.binding.source_revision,
             "revision_identity":self.binding.source_revision,"run_status":"completed",
-            "frames":[{"committed_madi":input.madi,"state_hash":frame.accepted_world_digest,
-                "input_snapshot":input,"public_observations":observations}]
+            "frames":[observation_frame]
         }))?;
         let table = crate::deterministic_debug::build_public_observation_table_projection(&trace["trace"], &run_id)?;
+        let mut bogae_projection=output.bogae_projection;
+        if let Some(projection)=bogae_projection.as_mut().filter(|projection|projection["schema"]=="ddn.bogae_projection.v2") {
+            let mut frames=self.observation_frames.clone();frames.push(observation_frame.clone());
+            crate::bogae_time::resolve_result_tables(projection,&frames,&self.binding.source_revision,&self.binding.source_revision)?;
+        }
         let mut result = serde_json::json!({
             "frame": frame, "input_receipt": receipt,
             "resources": crate::runtime_surface::serialize_world_resources(candidate.world()),
-            "reaction_support": false,
+            "reaction_support": self.runner.public_provider_source_ingress_count() > 0,
             "state_hash":frame.accepted_world_digest,
             "public_observation_table_projection":table,
         });
-        crate::bogae_projection::attach(&mut result, output.bogae_projection.as_ref());
-        self.last_bogae_projection = output.bogae_projection;
+        crate::bogae_projection::attach(&mut result, bogae_projection.as_ref());
+        self.display_outputs.extend(output.display_outputs);
+        crate::output_display::retain_current(&mut self.display_outputs, &result["resources"]);
+        crate::output_display::attach(&mut result, &self.display_outputs);
+        self.last_bogae_projection = bogae_projection;
         self.last_observation_table = Some(table);
         self.world = candidate;
         self.settled = settled;
         self.frames.push(frame);
         self.receipts.push(receipt);
+        self.observation_frames.push(observation_frame);
         Ok(result)
     }
 
@@ -514,9 +528,10 @@ impl LogicalInputSession {
         "input_receipts": self.receipts,
         "frames": self.frames,
         "resources": crate::runtime_surface::serialize_world_resources(self.world.world()),
-        "reaction_support": false,
+        "reaction_support": self.runner.public_provider_source_ingress_count() > 0,
         });
         crate::bogae_projection::attach(&mut summary, self.last_bogae_projection.as_ref());
+        crate::output_display::attach(&mut summary, &self.display_outputs);
         if let Some(table) = &self.last_observation_table { summary["public_observation_table_projection"] = table.clone(); }
         if let Some(failure) = &self.failure {
             summary["outcome"] = serde_json::json!("ABORTED");
@@ -571,6 +586,26 @@ pub fn replay_source(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a3_rd136_logical_session_preserves_historical_tables_in_record_and_replay() {
+        // A3-TIME-P1: same projector; no new input tape or source lowering.
+        let source=include_str!("../../solutions/seamgrim_ui_mvp/samples/alpha3_table_time.ddn");
+        let mut request=request(source,false);
+        request.snapshots=(0..3).map(|madi|LogicalSnapshot {madi,events:vec![],held:request.binding.initial_held.clone()}).collect();
+        let (bytes,summary)=record_source(source,&request).unwrap();
+        let relations=&summary["bogae_projection"]["candidates"][0]["artifact"]["relations"];
+        assert_eq!(relations[1]["resolved_madi"],0);
+        assert_eq!(relations[1]["view"]["table_projection"]["tables"][0]["rows"].as_array().unwrap().len(),1);
+        assert_eq!(relations[1]["view"]["table_projection"]["tables"][0]["rows"][0]["cells"][0]["value_text"],"1");
+        assert_eq!(replay_source(source,&bytes,&request.binding).unwrap(),summary);
+        let mut live=LogicalInputSession::new(source,request.binding.clone()).unwrap();
+        for input in &request.snapshots {
+            live.step(input).unwrap();
+        }
+        assert_eq!(live.summary(),summary,"live historical tables differ from batch recording");
+        assert_eq!(live.seal().unwrap(),bytes,"presentation history changed input tape bytes");
+    }
 
     fn tape() -> LogicalTape {
         let binding = LogicalInputBinding {
@@ -829,6 +864,91 @@ mod tests {
             summary["input_receipts"][0]["input_snapshot_sha256"],
             reversed["input_receipts"][0]["input_snapshot_sha256"]
         );
+    }
+
+    fn a3_p4_reaction_source() -> &'static str {
+        r#"
+            채비 { 계산값:수 := 2. }.
+            (채널:글, 사건:글, 순서:수, 마디번호:수) 조작알림:알림씨 := { 없음. }.
+            계산받는이:임자 := {
+                (받은:조작알림) 계산반응:움직씨 {조작알림을 받으면} := {
+                    { 받은.채널 == "더함" }이면 { 계산값 <- 계산값 + 1. }
+                    아니면 { 계산값 <- 계산값 * 2. }.
+                }.
+            }.
+            ("더함", "조작알림", "계산받는이") 입력사상.알림결속.
+            ("곱함", "조작알림", "계산받는이") 입력사상.알림결속.
+            (매마디)마다 { 마디결과 <- 계산값. }.
+        "#
+    }
+
+    #[test]
+    fn a3_p4_authored_reactions_follow_event_order_before_madi_and_replay() {
+        // A3-P4: actual source frontdoor, existing logical tape, not harness lowering.
+        let source = a3_p4_reaction_source();
+        for (reverse, expected) in [(false, "6"), (true, "5")] {
+            let input = request(source, reverse);
+            let (bytes, summary) = record_source(source, &input).unwrap();
+            assert_eq!(summary["resources"]["fixed64"]["계산값"], expected);
+            assert_eq!(summary["resources"]["fixed64"]["마디결과"], expected);
+            assert_eq!(replay_source(source, &bytes, &input.binding).unwrap(), summary);
+        }
+    }
+
+    #[test]
+    fn a3_p4_wrong_alert_pin_discards_the_entire_logical_madi() {
+        // RD-293/RD-445: valid earlier event work cannot survive typed admission failure.
+        let source = format!(r#"
+(값:수) 오류알림:알림씨 := {{ 없음. }}.
+오류받는이:임자 := {{
+  (받은:오류알림) 오류반응:움직씨 {{오류알림을 받으면}} := {{ 게시값 <- 7. }}.
+}}.
+{}"#, a3_p4_reaction_source()).replace(
+            "마디결과 <- 계산값.",
+            r#"마디결과 <- 계산값. (철수)의 ((값="틀린씨") 오류알림) ~> 오류받는이."#);
+        let input = request(&source, false);
+        let mut session = LogicalInputSession::new(&source, input.binding).unwrap();
+        let before = session.summary();
+        assert!(session.step(&input.snapshots[0]).unwrap_err().contains("E_TYPE_MISMATCH"));
+        let after = session.summary();
+        for key in ["state_hash", "resources", "frames", "input_receipts", "madi_count", "bogae_projection", "public_observation_table_projection"] {
+            assert_eq!(before[key], after[key], "wrong alert pin published {key}");
+        }
+        assert_eq!(after["outcome"], "ABORTED");
+        assert!(session.seal().unwrap_err().contains("SESSION_ABORTED"));
+    }
+
+    #[test]
+    fn a3_p4_second_reaction_failure_publishes_nothing_and_cannot_seal() {
+        let source = a3_p4_reaction_source().replace("계산값 * 2", "1 / 0");
+        let input = request(&source, false);
+        let mut session = LogicalInputSession::new(&source, input.binding).unwrap();
+        let before = session.summary();
+        assert!(session.step(&input.snapshots[0]).is_err());
+        let after = session.summary();
+        for key in ["state_hash", "resources", "frames", "input_receipts", "madi_count", "bogae_projection", "public_observation_table_projection"] {
+            assert_eq!(before[key], after[key], "failed reaction published {key}");
+        }
+        assert_eq!(after["outcome"], "ABORTED");
+        assert!(session.seal().unwrap_err().contains("SESSION_ABORTED"));
+    }
+
+    #[test]
+    fn a3_p4_reaction_reads_event_prefix_state_without_consuming_events() {
+        let source = a3_p4_reaction_source().replace("계산값 <- 계산값 + 1.", r#"
+            계산값 <- 계산값 + 1.
+            조작맵 <- () 입력사상.만들기.
+            중간눌림 <- (조작맵, "곱함") 입력사상.동작.
+            읽은사건들 <- () 입력사상.사건들.
+        "#);
+        for (reverse, held) in [(false, "거짓"), (true, "참")] {
+            let input = request(&source, reverse);
+            let (bytes, summary) = record_source(&source, &input).unwrap();
+            assert_eq!(summary["resources"]["value_json"]["중간눌림"], held);
+            assert_eq!(summary["resources"]["value_json"]["읽은사건들"].as_array().unwrap().len(), 2);
+            assert_eq!(replay_source(&source, &bytes, &input.binding).unwrap(), summary);
+            assert_eq!(summary["frames"][0]["input"]["events"].as_array().unwrap().len(), 2);
+        }
     }
 
     #[test]

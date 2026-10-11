@@ -1513,26 +1513,29 @@ pub fn view_function_sigs() -> Vec<FunctionSig> {
     FunctionSig { name:"표준장면.다각형", params:&["꼭짓점들"], ret:"장면요소값" },
     FunctionSig { name:"표준장면.글", params:&["자리","내용"], ret:"장면요소값" },
     FunctionSig { name:"표준장면.평면", params:&["요소들","가로범위","세로범위"], ret:"장면값" },
-    FunctionSig { name:"표준보기.장면", params:&["장면"], ret:"보기값" },
+    FunctionSig { name:"표준시간.공통", params:&[], ret:"보개시간값" },
+    FunctionSig { name:"표준시간.고정마디", params:&["번호"], ret:"보개시간값" },
+    FunctionSig { name:"표준시간.상대마디", params:&["차이"], ret:"보개시간값" },
+    FunctionSig { name:"표준보기.장면", params:&["장면","시간"], ret:"보기값" },
     FunctionSig {
         name: "표준보기.결과표",
-        params: &[],
+        params: &["시간"],
         ret: "보기값",
     }, FunctionSig {
         name: "표준보개.으뜸",
-        params: &["보기"],
+        params: &["보기","시간"],
         ret: "으뜸보개관계값",
     }, FunctionSig {
         name: "표준보개.겹",
-        params: &["보기", "기준", "순서"],
+        params: &["보기", "기준", "순서","시간"],
         ret: "겹보개관계값",
     }, FunctionSig {
         name: "표준보개.곁",
-        params: &["보기", "자리"],
+        params: &["보기", "자리","시간"],
         ret: "곁보개관계값",
     }, FunctionSig {
         name: "표준보개.돋",
-        params: &["대상", "보기법"],
+        params: &["대상", "보기법","시간"],
         ret: "돋보개관계값",
     }, FunctionSig {
         name: "표준보개.짜임",
@@ -1543,7 +1546,9 @@ pub fn view_function_sigs() -> Vec<FunctionSig> {
 
 /// Alpha2 logical snapshot query. Legacy physical input signatures are unchanged.
 pub fn logical_input_function_sigs() -> Vec<FunctionSig> {
-    vec![FunctionSig { name: "입력사상.사건들", params: &[], ret: "(묶음)차림" }]
+    vec![FunctionSig { name: "입력사상.사건들", params: &[], ret: "(묶음)차림" },
+        // A3-P4 PROVISIONAL explicit source-owned logical delivery bridge.
+        FunctionSig {name:"입력사상.알림결속",params:&["채널","알림씨","받는이"],ret:"없음"}]
 }
 
 pub fn minimal_stdlib_sigs() -> Vec<FunctionSig> {

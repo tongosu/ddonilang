@@ -37,6 +37,19 @@ use crate::unit_wire::{
 };
 use crate::work_cost::{StandardResourceLimitsV1, WorkCostFailure};
 
+/// One typed runtime diagnostic projection for CLI and persistent WASM steps.
+pub(crate) fn execution_error_diagnostic(error: crate::ddn_runtime::EvalError, file_path: &str) -> ExecutionDiagnostic {
+    let (code, message, span) = error.diagnostic_parts();
+    let phase = error.diagnostic_phase();
+    let (offending_field, expected, actual) = match &error {
+        crate::ddn_runtime::EvalError::TypeMismatch { pin, expected, actual } =>
+            (Some(pin.clone()), Some(expected.clone()), Some(actual.clone())),
+        _ => (None, None, None),
+    };
+    ExecutionDiagnostic { code, message, source_path: file_path.to_string(), span,
+        phase, cause: None, offending_field, expected, actual }
+}
+
 #[cfg(test)]
 thread_local! {
     static RUN_SUMMARY_DIAGNOSTIC_INVOCATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
@@ -1494,6 +1507,7 @@ fn run_summary_from_source_with_authored_bogae(
     let mut live_records = Vec::new();
     let mut input_receipts = Vec::new();
     let mut last_bogae_projection = None;
+    let mut display_outputs = Vec::new();
     let mut observation_frames = preflight_observation_frames(&runner, effective_ticks as usize)
         .map_err(|failure| {
             work_cost_failure_diagnostic(failure, file_path, "resource_preflight")
@@ -1544,33 +1558,7 @@ fn run_summary_from_source_with_authored_bogae(
         };
         let output = runner
             .run_update_diagnostic_with_control_edges(world.world(), &input, &defaults, control_edges, param_overrides)
-            .map_err(|error| {
-                let (code, message, span) = error.diagnostic_parts();
-                let phase = error.diagnostic_phase();
-                let (offending_field, expected, actual) = match &error {
-                    crate::ddn_runtime::EvalError::TypeMismatch {
-                        pin,
-                        expected,
-                        actual,
-                    } => (
-                        Some(pin.clone()),
-                        Some(expected.clone()),
-                        Some(actual.clone()),
-                    ),
-                    _ => (None, None, None),
-                };
-                ExecutionDiagnostic {
-                    code,
-                    message,
-                    source_path: file_path.to_string(),
-                    span,
-                    phase,
-                    cause: None,
-                    offending_field,
-                    expected,
-                    actual,
-                }
-            })?;
+            .map_err(|error| execution_error_diagnostic(error, file_path))?;
         if input_tape.is_some_and(|tape| tape.version == 1) {
             crate::input_receipt::validate_tape_v1_reads(&output.input_reads)
                 .map_err(|message| run_summary_diagnostic(
@@ -1587,6 +1575,10 @@ fn run_summary_from_source_with_authored_bogae(
             })?;
         let mut sink = ddonirang_core::signals::VecSignalSink::default();
         world.apply_patch(&output.patch, input.tick_id, &mut sink);
+        display_outputs.extend(output.display_outputs);
+        if !display_outputs.is_empty() {
+            crate::output_display::retain_current(&mut display_outputs, &serialize_world_resources(world.world()));
+        }
         let input_json = serialize_input_snapshot(&input, Some(rng_base_seed));
         input_receipts.push(crate::input_receipt::receipt(&input, &output.input_reads));
         observation_frames.push(json!({
@@ -1617,8 +1609,13 @@ fn run_summary_from_source_with_authored_bogae(
             frame["run_id"] = json!(run_id);
         }
     }
+    if let Some(projection)=last_bogae_projection.as_mut() {
+        crate::bogae_time::resolve_result_tables(projection,&observation_frames,&source_identity,&revision_identity)
+            .map_err(|message|run_summary_diagnostic("E_BOGAE_TIME_PROJECTION",message,file_path,"observation_projection"))?;
+    }
     let mut state = build_engine_state_json(&world, tick_id, last_input, &last_patch);
     crate::bogae_projection::attach(&mut state, last_bogae_projection.as_ref());
+    crate::output_display::attach(&mut state, &display_outputs);
     let trace_bundle = build_public_observation_trace(&json!({
         "project_id": "",
         "run_id": run_id,
@@ -1830,6 +1827,7 @@ fn run_summary_from_source_with_authored_bogae(
         output_log_texts.into_iter().map(JsonValue::String).collect());
     summary["engine_state"] = state;
     crate::bogae_projection::attach(&mut summary, last_bogae_projection.as_ref());
+    crate::output_display::attach(&mut summary, &display_outputs);
     if let Some(age_target) = age_target {
         summary.as_object_mut().expect("summary object").insert(
             "age_target_identity".to_string(),
@@ -2763,6 +2761,7 @@ fn resource_value_to_json(value: &ResourceValue) -> JsonValue {
         });
     }
     match value {
+        ResourceValue::BasicTensorV1(_) => crate::unit_wire::resource_value_to_detjson(value),
         ResourceValue::None => JsonValue::Null,
         ResourceValue::Bool(v) => JsonValue::Bool(*v),
         ResourceValue::Fixed64(v) => json!(fixed64_to_f64(*v)),
@@ -3475,6 +3474,24 @@ mod tests {
     }
 
     #[test]
+    fn a3_p1_summary_projects_numbers_without_rewriting_world_output() {
+        let summary = super::run_summary_from_supported_source_profile(
+            "(매마디)마다 { 값 <- 20 - 9.8 * 0.1. 값 보여주기. \"19.019999999\" 보여주기. }.",
+            "display-summary.ddn", Some(2), Some("v1-core-v25"),
+        ).unwrap();
+        let rows = summary["output_display"]["rows"].as_array().unwrap();
+        assert_eq!(rows.len(), 4);
+        assert_eq!(rows[0]["text"], "19.02");
+        assert_eq!(rows[1]["text"], "19.019999999");
+        assert_eq!(rows[2]["madi"], 1);
+        assert_eq!(rows[2]["line_no"], 3);
+        assert_eq!(summary["engine_state"]["output_display"], summary["output_display"]);
+        assert_eq!(summary["output_display"]["world_hash_participation"], false);
+        assert_ne!(summary["output_log_texts"][0], rows[0]["text"]);
+        assert_eq!(summary["output_log_texts"][1], "19.019999999");
+    }
+
+    #[test]
     fn json_byte_counter_is_non_allocating_and_overflow_is_atomic() {
         use std::io::Write;
         assert_eq!(std::mem::size_of::<super::JsonByteCounter>(), std::mem::size_of::<usize>());
@@ -3798,8 +3815,6 @@ mod tests {
         for (source, code) in [
             ("\u{feff}값 <- 1.", "E_SOURCE_UTF8_BOM_FORBIDDEN"),
             ("만약 참 이라면 { 1 보여주기. }.", "E_V25_IF_SURFACE"),
-            ("시간 := (마디=2) 표준시간.고정마디.", "E_BOGAE_TIME_POLICY_UNSUPPORTED"),
-            ("시간 := (차이=-1) 표준시간.상대마디.", "E_BOGAE_TIME_POLICY_UNSUPPORTED"),
         ] {
             let error = run_summary_from_supported_source_profile_diagnostic(
                 source, "review.ddn", Some(1), Some(P1A_V1_CORE_PROFILE),

@@ -90,7 +90,8 @@ fn scene_clone_visits(scene:&PlaneScene)->usize {
         PlaneElement::Polygon{vertices}=>1+vertices.len(),_=>1}).sum()
 }
 pub fn view_clone_visits(view:&ViewValue)->usize {
-    match view {ViewValue::Scene(scene)=>scene_clone_visits(scene),ViewValue::ResultTable=>0}
+    match view {ViewValue::Scene(scene)=>scene_clone_visits(scene),ViewValue::ResultTable=>0,
+        ViewValue::Timed {view,..}=>view_clone_visits(view)}
 }
 
 pub fn construct(name: &str, args: &[Value]) -> Result<Value, String> {
@@ -131,6 +132,7 @@ pub fn project_element(element: &PlaneElement) -> Json {
 }
 pub fn project_view(view: &ViewValue) -> Json {
     match view {
+        ViewValue::Timed {view,..} => project_view(view),
         ViewValue::ResultTable => json!({"kind":"result_table"}),
         ViewValue::Scene(scene) => json!({"kind":"scene","spatial_profile":"plane2",
             "coordinate_encoding":"fixed64_raw_decimal.v1", "horizontal":raw_pair(&scene.horizontal),

@@ -1,0 +1,41 @@
+{
+  "schema": "ddn.input_action_map.v1",
+  "actions": [
+    {
+      "action_id": "왼쪽",
+      "input_snapshot": {
+        "last_key": "ArrowLeft"
+      }
+    },
+    {
+      "action_id": "오른쪽",
+      "input_snapshot": {
+        "last_key": "ArrowRight"
+      }
+    },
+    {
+      "action_id": "아래",
+      "input_snapshot": {
+        "last_key": "ArrowDown"
+      }
+    },
+    {
+      "action_id": "회전",
+      "input_snapshot": {
+        "last_key": "ArrowUp"
+      }
+    },
+    {
+      "action_id": "떨어뜨리기",
+      "input_snapshot": {
+        "last_key": " "
+      }
+    },
+    {
+      "action_id": "다시시작",
+      "input_snapshot": {
+        "last_key": "r"
+      }
+    }
+  ]
+}

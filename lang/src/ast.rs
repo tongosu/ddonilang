@@ -117,6 +117,20 @@ pub struct SeedDef {
 }
 
 impl SeedDef {
+    /// Authored top-level setup relocated by the parser into the tick seed.
+    /// Ordinary callable-local declarations retain their own scope.
+    pub fn is_relocated_top_level_setup(&self, statement: &Stmt) -> bool {
+        if !matches!(self.seed_kind, SeedKind::Umjikssi)
+            || !matches!(self.canonical_name.as_str(), "매마디" | "매틱") {
+            return false;
+        }
+        let Some(body) = &self.body else { return false; };
+        let Stmt::DeclBlock { span, .. } = statement else { return false; };
+        let synthetic = self.span == body.span
+            && body.stmts.iter().all(|stmt| matches!(stmt, Stmt::DeclBlock { .. }));
+        synthetic || span.start < self.span.start || span.end > self.span.end
+    }
+
     /// Exact source spellings admitted for calls.
     ///
     /// A definition without an explicit set preserves the predecessor Korean
@@ -161,6 +175,8 @@ pub struct ParamPin {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeRef {
+    /// RD-386·510: 씨 정체에는 원소씨와 정적인 순서 있는 모양이 들어간다.
+    Tensor { element: Box<TypeRef>, shape: Vec<u64> },
     Named(String),
     Applied {
         name: String,
@@ -207,6 +223,12 @@ pub enum MetaBlockKind {
 }
 
 #[derive(Debug, Clone)]
+pub struct ReactionRegistration {
+    pub alert_type: String,
+    pub payload: ParamPin,
+}
+
+#[derive(Debug, Clone)]
 pub enum Stmt {
     DeclBlock {
         id: NodeId,
@@ -222,6 +244,8 @@ pub enum Stmt {
         name: String,
         type_ref: TypeRef,
         value: Expr,
+        /// RD-445 owned named provider; never inferred from a thunk's body.
+        reaction: Option<ReactionRegistration>,
     },
     Mutate {
         id: NodeId,
@@ -442,6 +466,10 @@ pub struct Expr {
 
 #[derive(Debug, Clone)]
 pub enum ExprKind {
+    /// RD-510: 원소씨와 모양은 실행 값이 아닌 정적 인자다.
+    Tensor(TensorProviderExpr),
+    /// RD-388: one authored bracket group; never flattened into A[i][j].
+    MultiAxisSelection(MultiAxisSelection),
     Literal(Literal),
     Var(String),
     FieldAccess {
@@ -506,6 +534,57 @@ pub enum ExprKind {
         level: String,
         expr: Box<Expr>,
     },
+}
+
+#[derive(Debug, Clone)]
+pub struct MultiAxisSelection {
+    pub target: Box<Expr>,
+    pub selectors: Vec<TensorAxisSelector>,
+    /// SelectionPlace role, set only by assignment/result-flow parsing.
+    pub writable: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum TensorAxisSelector {
+    Index(Box<Expr>),
+    Range { start: u64, end: u64 },
+    Full,
+}
+
+impl MultiAxisSelection {
+    pub fn children(&self) -> impl Iterator<Item = &Expr> {
+        std::iter::once(self.target.as_ref()).chain(self.selectors.iter().filter_map(|s| match s {
+            TensorAxisSelector::Index(e) => Some(e.as_ref()), _ => None,
+        }))
+    }
+    pub fn children_mut(&mut self) -> impl Iterator<Item = &mut Expr> {
+        std::iter::once(self.target.as_mut()).chain(self.selectors.iter_mut().filter_map(|s| match s {
+            TensorAxisSelector::Index(e) => Some(e.as_mut()), _ => None,
+        }))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum TensorProviderExpr {
+    FromCollection {
+        input: Box<Expr>,
+        element_type: TypeRef,
+        shape: Vec<u64>,
+    },
+    ToCollection { input: Box<Expr> },
+}
+
+impl TensorProviderExpr {
+    pub fn input(&self) -> &Expr {
+        match self {
+            Self::FromCollection { input, .. } | Self::ToCollection { input } => input,
+        }
+    }
+    pub fn input_mut(&mut self) -> &mut Expr {
+        match self {
+            Self::FromCollection { input, .. } | Self::ToCollection { input } => input,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -1,0 +1,4 @@
+{"schema":"ddn.input_action_map.v1","actions":[
+  {"action_id":"더함","input_snapshot":{"last_key":"ArrowLeft"}},
+  {"action_id":"곱함","input_snapshot":{"last_key":"ArrowRight"}}
+]}

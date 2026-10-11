@@ -237,6 +237,7 @@ dependencies = [
  "blake3",
  "rayon",
  "serde",
+ "sha2",
  "unicode-normalization",
  "xxhash-rust",
 ]

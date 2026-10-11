@@ -333,6 +333,8 @@ fn collect_expr(expression: &Expr, candidates: &mut Vec<ByteRange>) {
         ByteRange::new(expression.span.start, expression.span.end),
     );
     match &expression.kind {
+        ExprKind::Tensor(value) => collect_expr(value.input(), candidates),
+        ExprKind::MultiAxisSelection(value) => { for child in value.children() { collect_expr(child, candidates); } }
         ExprKind::Call { args, .. } => {
             for arg in args {
                 push_range(candidates, ByteRange::new(arg.span.start, arg.span.end));

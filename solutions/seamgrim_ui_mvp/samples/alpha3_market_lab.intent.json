@@ -1,0 +1,16 @@
+{
+  "id": "alpha3_market_lab", "decision": "A3-P5 PROVISIONAL", "source": "alpha3_market_lab.ddn",
+  "goals": ["단리와 복리의 차이를 설명한다", "세금과 소비자·생산자 가격의 차이를 구별한다", "거래 수량·세수·부담을 연결한다"],
+  "assumptions": ["고정된 선형 수요 Qd=100-5Pc와 공급 Qs=20+3Ps", "단위 세금 Pc-Ps=t", "실제 시장 예측이나 금융 조언이 아닌 교육 모형"],
+  "parameters": {"세금":{"min":0,"max":16,"integer":true},"이자율":{"min":0,"max":0.1},"해수":{"min":0,"max":10,"integer":true}},
+  "required_views":{"primary":"기준그림","overlay":"비교표시","side":"금액과부담"},
+  "checks":[
+    {"resource":"소비가격","oracle":"10+3*t/8"},
+    {"resource":"생산가격","oracle":"10-5*t/8"},
+    {"resource":"거래수량","oracle":"50-15*t/8"},
+    {"resource":"복리결과","oracle":"1000*(1+r)^years","tolerance":0.00001}
+  ],
+  "boundary_checks":[{"tax":0,"rate":0,"years":0},{"tax":16,"rate":0.1,"years":10}],
+  "interpretations":["시장", "단리·복리 연도별 비교"],
+  "scope":"교육 의도와 독립 계산 기대식. 제품 wire나 언어 표면 아님. 두 해석의 세계 해시 같음, 연도별 그림 좌표를 독립 복리·단리 식으로 검사."
+}

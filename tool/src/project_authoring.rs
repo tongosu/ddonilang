@@ -2537,6 +2537,15 @@ impl<'a> DefinitionCollector<'a> {
 
     fn collect_expr(&mut self, expr: &Expr, scope_id: &str, write: bool) {
         match &expr.kind {
+            ExprKind::Tensor(value) => self.collect_expr(value.input(), scope_id, false),
+            ExprKind::MultiAxisSelection(value) => {
+                self.collect_expr(&value.target, scope_id, write && value.writable);
+                for selector in &value.selectors {
+                    if let ddonirang_lang::ast::TensorAxisSelector::Index(index) = selector {
+                        self.collect_expr(index, scope_id, false);
+                    }
+                }
+            }
             ExprKind::Thunk(body) => self.collect_body(body, scope_id, true),
             ExprKind::SeedLiteral { body, .. }
             | ExprKind::Nuance { expr: body, .. }
@@ -2907,6 +2916,11 @@ fn line_column_utf16(source: &str, byte_offset: usize) -> Option<(usize, usize)>
 
 fn type_ref_label(type_ref: &TypeRef) -> String {
     match type_ref {
+        TypeRef::Tensor { element, shape } => {
+            let mut axes = shape.iter().map(u64::to_string).collect::<Vec<_>>().join(", ");
+            if shape.len() == 1 { axes.push(','); }
+            format!("(원소씨={}, 모양=({axes})) 텐서씨", type_ref_label(element))
+        }
         TypeRef::Named(name) => name.clone(),
         TypeRef::Applied { name, args } => format!(
             "({}){}",

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>셈그림 결정적 작업대 · 1.0.0-alpha.2 · 알파 후보</title>
+    <title>셈그림 결정적 작업대 · 1.0.0-alpha.3 · 알파 후보</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./workbench.css" />
   </head>
@@ -14,7 +14,7 @@
           <span class="brand-mark" aria-hidden="true">DDN</span>
           <span>
             <strong>셈그림 작업대</strong>
-            <small data-testid="product-version" style="display: block">1.0.0-alpha.2 · 알파 후보</small>
+            <small data-testid="product-version" style="display: block">1.0.0-alpha.3 · 알파 후보</small>
           </span>
         </div>
         <nav class="global-nav" aria-label="전역 탐색">
@@ -24,7 +24,7 @@
           <button type="button" class="global-nav-btn active" data-global-entry="ddn-search" data-testid="global-ddn-search" title="DDN 찾기">
             DDN 찾기
           </button>
-          <button type="button" class="global-nav-btn" data-global-entry="first-steps" data-testid="global-first-steps" title="정의 중심 10차시 첫걸음">
+          <button type="button" class="global-nav-btn" data-global-entry="first-steps" data-testid="global-first-steps" title="정의 중심 입문과 알파2 보기·입력 첫걸음">
             첫걸음
           </button>
           <button type="button" class="global-nav-btn" data-global-entry="official-collection" data-testid="global-official-collection" title="공식 모음">
@@ -79,6 +79,7 @@
                   </div>
                   <button type="button" class="panel-action" data-testid="first-steps-previous">이전 활동</button>
                   <button type="button" class="panel-action" data-testid="first-steps-next">다음 활동</button>
+                  <button type="button" class="panel-action" data-testid="first-steps-input-contract" hidden>이 활동의 논리 입력 계약 선택</button>
                   <details data-testid="first-steps-expected">
                     <summary>먼저 예상한 뒤 결과·해설 확인</summary>
                     <pre></pre>
@@ -97,6 +98,8 @@
               <details class="project-more-menu" data-testid="project-more-menu">
                 <summary title="프로젝트 세부 도구">세부</summary>
                 <div class="project-more-actions">
+                  <button type="button" class="panel-action" data-testid="source-file-open" title="파일의 글판을 v25로 명시하여 열기">v25 원문 열기</button>
+                  <input type="file" class="hidden-file-input" data-testid="source-file-input" accept=".ddn,.또니" aria-label="v25 단일 원문 파일 선택" />
                   <button type="button" class="panel-action" data-testid="project-storage-open">저장·리비전</button>
                   <button type="button" class="panel-action" data-testid="authored-project-open">작성 정체 자료</button>
                   <button type="button" class="panel-action" data-testid="project-history-open">기록</button>
@@ -305,8 +308,8 @@
                   <button type="button" class="view-role" data-view-action="open-magnifier" data-testid="view-role-magnifier" title="선택한 대상 돋보기 열기" disabled hidden>돋보기</button>
                   <button type="button" class="panel-action bogae-source-access" data-testid="bogae-source-access" title="DDN 원문으로 이동">DDN</button>
                 </div>
+                <div class="authored-view-toolbar" aria-label="겹·곁·돋 제어"><div data-testid="authored-view-controls"></div><button type="button" data-testid="authored-close-sides" hidden>곁 모두 닫기</button></div>
               </div>
-              <div class="authored-view-toolbar" aria-label="겹·곁·돋 제어"><div data-testid="authored-view-controls"></div><button type="button" data-testid="authored-close-sides" hidden>곁 모두 닫기</button></div>
               <div class="bogae-stage" data-testid="bogae-stage" data-side-open="false">
                 <div class="canvas-wrap" data-testid="bogae-canvas-wrap">
                   <canvas id="canvas-bogae" data-testid="bogae-canvas" width="900" height="540" tabindex="0" aria-label="결정적 보개 미리보기"></canvas>
@@ -324,6 +327,10 @@
                 <summary>문자 출력</summary>
                 <pre data-testid="bogae-text-output-lines"></pre>
               </details>
+              <section class="exploration-presets" data-testid="exploration-presets" hidden>
+                <strong>상황 바꾸기</strong><span data-testid="exploration-preset-buttons"></span>
+                <details><summary>예상 → 실행 → 비교</summary><p></p></details>
+              </section>
               <section class="control-grid" data-testid="control-grid" aria-label="현재 프로젝트 조절과 행동" hidden>
                 <div class="control-card" data-testid="setup-controls" hidden>
                   <div class="control-title">
@@ -484,6 +491,8 @@
         <button type="button" data-authored-create>현재 작품에 정체 만들기</button>
         <button type="button" data-authored-save>이 기기에 저장</button>
         <button type="button" data-authored-reopen>저장 자료 다시 열기</button>
+        <button type="button" data-authored-runtime-save>실행 상태 저장</button>
+        <button type="button" data-authored-runtime-reopen>실행 상태 다시 열기</button>
         <button type="button" data-authored-clone>새 ID로 복제</button>
         <button type="button" data-authored-export>파일 내보내기</button>
         <button type="button" data-authored-import>파일 가져오기</button>

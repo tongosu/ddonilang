@@ -211,10 +211,16 @@ fn canonicalize_stmt(
             type_ref,
             value,
             span,
+            reaction,
             ..
         } => {
             canonicalize_ident(name, *span, warnings)?;
             canonicalize_type_ref(type_ref, *span, warnings)?;
+            if let Some(registration)=reaction {
+                canonicalize_ident(&mut registration.alert_type,*span,warnings)?;
+                canonicalize_ident(&mut registration.payload.pin_name,registration.payload.span,warnings)?;
+                canonicalize_type_ref(&mut registration.payload.type_ref,registration.payload.span,warnings)?;
+            }
             canonicalize_expr(value, signatures, warnings)?;
         }
         Stmt::Mutate { target, value, .. } => {
@@ -367,6 +373,10 @@ fn canonicalize_expr(
     warnings: &mut Vec<LintWarning>,
 ) -> Result<(), ParseError> {
     match &mut expr.kind {
+        ExprKind::Tensor(value) => canonicalize_expr(value.input_mut(), signatures, warnings)?,
+        ExprKind::MultiAxisSelection(value) => {
+            for child in value.children_mut() { canonicalize_expr(child, signatures, warnings)?; }
+        }
         ExprKind::Var(name) => canonicalize_ident(name, expr.span, warnings)?,
         ExprKind::FieldAccess { target, field, .. } => {
             canonicalize_expr(target, signatures, warnings)?;
@@ -508,6 +518,7 @@ fn canonicalize_type_ref(
     warnings: &mut Vec<LintWarning>,
 ) -> Result<(), ParseError> {
     match type_ref {
+        TypeRef::Tensor { element, .. } => canonicalize_type_ref(element, span, warnings)?,
         TypeRef::Named(name) => {
             canonicalize_ident(name, span, warnings)?;
             if let Some(mapped) = canonical_type_alias(name.as_str()) {
@@ -781,6 +792,10 @@ fn lint_tailless_expr(
     warnings: &mut Vec<LintWarning>,
 ) {
     match &expr.kind {
+        ExprKind::Tensor(value) => lint_tailless_expr(value.input(), known_seeds, stdlib_names, warnings),
+        ExprKind::MultiAxisSelection(value) => {
+            for child in value.children() { lint_tailless_expr(child, known_seeds, stdlib_names, warnings); }
+        }
         ExprKind::Call { args, func } => {
             if known_seeds.contains(func) && !stdlib_names.contains(func) && !has_call_tail(func) {
                 warnings.push(LintWarning {

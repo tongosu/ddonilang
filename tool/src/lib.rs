@@ -11,6 +11,8 @@ pub mod bogae_playback_workflow;
 pub mod canon;
 pub mod bogae_composition;
 pub mod bogae_projection;
+pub mod bogae_time;
+pub mod output_display;
 pub mod bogae_recipe;
 pub mod scene_value;
 pub mod authored_project;
@@ -117,6 +119,14 @@ pub mod nurigym_workflow;
 pub mod preprocess;
 pub mod primary_view;
 pub mod project_authoring;
+// RD-663 shared identity owner, selected from its fixed predecessor lineage.
+pub mod project_snapshot_identity;
+pub(crate) mod project_revision_envelope_supply;
+pub(crate) mod project_revision_envelope;
+pub(crate) mod source_snapshot_admission;
+pub(crate) mod saved_definition_identity;
+pub(crate) mod snapshot_v2_durable_transaction;
+pub(crate) mod snapshot_v2_host_bridge;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod patch_workflow;
 pub mod runtime_surface;
@@ -135,6 +145,7 @@ pub mod social_workflow;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod test_workflow;
 pub mod unit_wire;
+mod basic_tensor_element_type_identity;
 pub mod work_cost;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod workbench_host;

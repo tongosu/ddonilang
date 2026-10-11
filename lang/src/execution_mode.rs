@@ -208,6 +208,8 @@ fn scan_stmt(stmt: &Stmt, counts: &mut LiveHookCounts) {
 
 fn scan_expr(expr: &Expr, counts: &mut LiveHookCounts) {
     match &expr.kind {
+        ExprKind::Tensor(value) => scan_expr(value.input(), counts),
+        ExprKind::MultiAxisSelection(value) => { for child in value.children() { scan_expr(child, counts); } }
         ExprKind::FieldAccess { target, .. } => scan_expr(target, counts),
         ExprKind::SeedLiteral { body, .. } => scan_expr(body, counts),
         ExprKind::Call { args, .. } => {

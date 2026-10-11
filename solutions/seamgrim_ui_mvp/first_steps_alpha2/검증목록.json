@@ -1,0 +1,646 @@
+{
+  "purpose": "11~16차시 교육 자산 목록. 제품 입력 wire나 언어 규격이 아님.",
+  "lessons": [
+    {
+      "id": 11,
+      "title": "모양과 매마디"
+    },
+    {
+      "id": 12,
+      "title": "보기값 셈씨와 장면"
+    },
+    {
+      "id": 13,
+      "title": "보개짜임"
+    },
+    {
+      "id": 14,
+      "title": "물체 돋"
+    },
+    {
+      "id": 15,
+      "title": "논리 입력 작은 게임"
+    },
+    {
+      "id": 16,
+      "title": "기록과 재생"
+    }
+  ],
+  "cases": [
+    {
+      "id": "11A",
+      "lesson": 11,
+      "title": "원의자리",
+      "file": "예제/11A_원의자리.ddn",
+      "source_sha256": "29299b622240ae7f6491d4d81822bbd91b3c70d9b076453f0215bc7beb804505",
+      "ticks": 1,
+      "expected": [
+        "2",
+        "1",
+        "0.5"
+      ],
+      "view": {
+        "kinds": [
+          "primary"
+        ],
+        "center": [
+          2,
+          1
+        ],
+        "radius": [
+          1,
+          2
+        ]
+      },
+      "profile": "v1-core-v25"
+    },
+    {
+      "id": "11B",
+      "lesson": 11,
+      "title": "두칸씩전진",
+      "file": "예제/11B_두칸씩전진.ddn",
+      "source_sha256": "b93841ad0d93cb13b0682d981ef2ac94e201a2eeec5e663be83f5f9180041216",
+      "ticks": 4,
+      "expected": [
+        "2",
+        "4",
+        "6",
+        "8"
+      ],
+      "per_tick": [
+        [
+          "2"
+        ],
+        [
+          "4"
+        ],
+        [
+          "6"
+        ],
+        [
+          "8"
+        ]
+      ],
+      "resources": {
+        "위치": "8",
+        "차례": "4"
+      },
+      "view": {
+        "kinds": [
+          "primary"
+        ],
+        "center": [
+          8,
+          0
+        ]
+      },
+      "profile": "v1-core-v25"
+    },
+    {
+      "id": "12A",
+      "lesson": 12,
+      "title": "계산한크기",
+      "file": "예제/12A_계산한크기.ddn",
+      "source_sha256": "2db0e959a82b35c2e59e165769a481908908334936ac48637ed6f4b8a1db2a9d",
+      "ticks": 1,
+      "expected": [
+        "1.5"
+      ],
+      "resources": {
+        "반지름": "1.5"
+      },
+      "view": {
+        "kinds": [
+          "primary"
+        ],
+        "center": [
+          0,
+          0
+        ],
+        "radius": [
+          3,
+          2
+        ]
+      },
+      "profile": "v1-core-v25"
+    },
+    {
+      "id": "12B",
+      "lesson": 12,
+      "title": "삼각형넓이",
+      "file": "예제/12B_삼각형넓이.ddn",
+      "source_sha256": "67d8efceee4505992668a2ed14ecee727a3950467894c4a22027f5dc3abb7ba8",
+      "ticks": 1,
+      "expected": [
+        "12"
+      ],
+      "view": {
+        "kinds": [
+          "primary"
+        ],
+        "vertices": [
+          [
+            0,
+            0
+          ],
+          [
+            6,
+            0
+          ],
+          [
+            0,
+            4
+          ]
+        ]
+      },
+      "profile": "v1-core-v25"
+    },
+    {
+      "id": "13A",
+      "lesson": 13,
+      "title": "겹쳐비교",
+      "file": "예제/13A_겹쳐비교.ddn",
+      "source_sha256": "ceea02dc99ecc222167d8314e886ef8d86479b8bb459c11421cd03b9899d9bae",
+      "ticks": 1,
+      "expected": [
+        "4"
+      ],
+      "view": {
+        "kinds": [
+          "primary",
+          "overlay"
+        ],
+        "center": [
+          -2,
+          0
+        ],
+        "overlay_center": [
+          2,
+          0
+        ]
+      },
+      "profile": "v1-core-v25"
+    },
+    {
+      "id": "13B",
+      "lesson": 13,
+      "title": "그림과결과표",
+      "file": "예제/13B_그림과결과표.ddn",
+      "source_sha256": "46b82e6ede391b1fbe151312b49f827ff6339ddc8ee6058aef53fc96f0f99d57",
+      "ticks": 1,
+      "expected": [
+        "2",
+        "5"
+      ],
+      "resources": {
+        "가로": "2",
+        "세로": "5"
+      },
+      "view": {
+        "kinds": [
+          "primary",
+          "side"
+        ],
+        "center": [
+          2,
+          5
+        ]
+      },
+      "profile": "v1-core-v25"
+    },
+    {
+      "id": "14A",
+      "lesson": 14,
+      "title": "공자세히",
+      "file": "예제/14A_공자세히.ddn",
+      "source_sha256": "4f98ea0ee95f9c7582f81ccc779e81cb089fa0cb9d42dcbbb5a2c7e7207522dc",
+      "ticks": 1,
+      "expected": [
+        "1",
+        "2"
+      ],
+      "view": {
+        "kinds": [
+          "primary",
+          "magnifier"
+        ],
+        "center": [
+          1,
+          2
+        ]
+      },
+      "profile": "v1-core-v25"
+    },
+    {
+      "id": "14B",
+      "lesson": 14,
+      "title": "움직이는공돋",
+      "file": "예제/14B_움직이는공돋.ddn",
+      "source_sha256": "dc7c9d0938d12066d1854237f393d5b76220a818ab23885d1aa1267195b38aeb",
+      "ticks": 3,
+      "expected": [
+        "1",
+        "2",
+        "3"
+      ],
+      "per_tick": [
+        [
+          "1"
+        ],
+        [
+          "2"
+        ],
+        [
+          "3"
+        ]
+      ],
+      "resources": {
+        "위치": "3"
+      },
+      "view": {
+        "kinds": [
+          "primary",
+          "magnifier"
+        ],
+        "center": [
+          3,
+          0
+        ]
+      },
+      "profile": "v1-core-v25"
+    },
+    {
+      "id": "15A",
+      "lesson": 15,
+      "title": "세칸이동게임",
+      "file": "예제/15A_세칸이동게임.ddn",
+      "source_sha256": "872e8cd5485ffe8677534f20b4932f604185a9d7655af0684dbce52d3f4f7d10",
+      "expected": [
+        "1",
+        "0",
+        "2",
+        "0",
+        "3",
+        "0",
+        "3",
+        "10",
+        "2",
+        "10",
+        "2",
+        "10"
+      ],
+      "per_tick": [
+        [
+          "1",
+          "0"
+        ],
+        [
+          "2",
+          "0"
+        ],
+        [
+          "3",
+          "0"
+        ],
+        [
+          "3",
+          "10"
+        ],
+        [
+          "2",
+          "10"
+        ],
+        [
+          "2",
+          "10"
+        ]
+      ],
+      "resources": {
+        "위치": "2",
+        "점수": "10"
+      },
+      "view": {
+        "kinds": [
+          "primary"
+        ],
+        "center": [
+          2,
+          0
+        ]
+      },
+      "binding_file": "입력/15A.binding.json",
+      "request_file": "입력/15A.request.json",
+      "profile": "v1-core-v25-logical-alpha2",
+      "ticks": 6
+    },
+    {
+      "id": "15B",
+      "lesson": 15,
+      "title": "순서가중요한게임",
+      "file": "예제/15B_순서가중요한게임.ddn",
+      "source_sha256": "aaf95ca488b027117ac78cd1f894beacaec26d6636b36dbf0c42a9ae47705d5a",
+      "expected": [
+        "6",
+        "20",
+        "0",
+        "0"
+      ],
+      "per_tick": [
+        [
+          "6"
+        ],
+        [
+          "20"
+        ],
+        [
+          "0"
+        ],
+        [
+          "0"
+        ]
+      ],
+      "resources": {
+        "점수": "0"
+      },
+      "binding_file": "입력/15B.binding.json",
+      "request_file": "입력/15B.request.json",
+      "profile": "v1-core-v25-logical-alpha2",
+      "ticks": 4
+    },
+    {
+      "id": "16A",
+      "lesson": 16,
+      "title": "누름과반복기록",
+      "file": "예제/16A_누름과반복기록.ddn",
+      "source_sha256": "39089efed2550f7cf4adce3851f2ff09adbf9405f7792e6788768c41b268a426",
+      "expected": [
+        "1",
+        "2",
+        "2"
+      ],
+      "per_tick": [
+        [
+          "1"
+        ],
+        [
+          "2"
+        ],
+        [
+          "2"
+        ]
+      ],
+      "resources": {
+        "이동수": "2"
+      },
+      "binding_file": "입력/16A.binding.json",
+      "request_file": "입력/16A.request.json",
+      "profile": "v1-core-v25-logical-alpha2",
+      "ticks": 3
+    },
+    {
+      "id": "16B",
+      "lesson": 16,
+      "title": "같은입력다른규칙",
+      "file": "예제/16B_같은입력다른규칙.ddn",
+      "source_sha256": "d737743a409ed17c1bf174986d4c09a24c493a340883ab1e76902a73da51cb5d",
+      "expected": [
+        "1",
+        "1",
+        "1"
+      ],
+      "per_tick": [
+        [
+          "1"
+        ],
+        [
+          "1"
+        ],
+        [
+          "1"
+        ]
+      ],
+      "resources": {
+        "이동수": "1"
+      },
+      "binding_file": "입력/16B.binding.json",
+      "request_file": "입력/16B.request.json",
+      "profile": "v1-core-v25-logical-alpha2",
+      "ticks": 3
+    }
+  ],
+  "modifications": [
+    {
+      "id": "MOD11",
+      "lesson": 11,
+      "title": "세칸씩전진",
+      "file": "수정실습/MOD11_세칸씩전진.ddn",
+      "source_sha256": "708c88c75c6a7be34cff4e1828e13448e8a7dd56947645e43e40463df3ea3bfd",
+      "ticks": 4,
+      "expected": [
+        "3",
+        "6",
+        "9",
+        "12"
+      ],
+      "per_tick": [
+        [
+          "3"
+        ],
+        [
+          "6"
+        ],
+        [
+          "9"
+        ],
+        [
+          "12"
+        ]
+      ],
+      "resources": {
+        "위치": "12",
+        "차례": "4"
+      },
+      "view": {
+        "kinds": [
+          "primary"
+        ],
+        "center": [
+          12,
+          0
+        ]
+      },
+      "profile": "v1-core-v25"
+    },
+    {
+      "id": "MOD12",
+      "lesson": 12,
+      "title": "배율네배",
+      "file": "수정실습/MOD12_배율네배.ddn",
+      "source_sha256": "271b8e7a49590a6f5f8cb3fc4f2eba428e01afb19a445e318af1849ab390c5f2",
+      "ticks": 1,
+      "expected": [
+        "2"
+      ],
+      "resources": {
+        "반지름": "2"
+      },
+      "view": {
+        "kinds": [
+          "primary"
+        ],
+        "center": [
+          0,
+          0
+        ],
+        "radius": [
+          2,
+          1
+        ]
+      },
+      "profile": "v1-core-v25"
+    },
+    {
+      "id": "MOD13",
+      "lesson": 13,
+      "title": "겹의자리",
+      "file": "수정실습/MOD13_겹의자리.ddn",
+      "source_sha256": "82eacef2ff569ac740010820a18b7038596e4fdff48fcb59969e52da243c9b8b",
+      "ticks": 1,
+      "expected": [
+        "3"
+      ],
+      "view": {
+        "kinds": [
+          "primary",
+          "overlay"
+        ],
+        "center": [
+          -2,
+          0
+        ],
+        "overlay_center": [
+          1,
+          0
+        ]
+      },
+      "profile": "v1-core-v25"
+    },
+    {
+      "id": "MOD14",
+      "lesson": 14,
+      "title": "대상의자리",
+      "file": "수정실습/MOD14_대상의자리.ddn",
+      "source_sha256": "9ca0a352163fbfab10aa84d929cd34ab62056becc75537c51463c798bac095ea",
+      "ticks": 1,
+      "expected": [
+        "-1",
+        "2"
+      ],
+      "view": {
+        "kinds": [
+          "primary",
+          "magnifier"
+        ],
+        "center": [
+          -1,
+          2
+        ]
+      },
+      "profile": "v1-core-v25"
+    },
+    {
+      "id": "MOD15",
+      "lesson": 15,
+      "title": "보상바꾸기",
+      "file": "수정실습/MOD15_보상바꾸기.ddn",
+      "source_sha256": "75e3890e43bc085f6250a8da25d3d3979e68f75aec8ab830a01a941e9c1335b4",
+      "expected": [
+        "1",
+        "0",
+        "2",
+        "0",
+        "3",
+        "0",
+        "3",
+        "20",
+        "2",
+        "20",
+        "2",
+        "20"
+      ],
+      "per_tick": [
+        [
+          "1",
+          "0"
+        ],
+        [
+          "2",
+          "0"
+        ],
+        [
+          "3",
+          "0"
+        ],
+        [
+          "3",
+          "20"
+        ],
+        [
+          "2",
+          "20"
+        ],
+        [
+          "2",
+          "20"
+        ]
+      ],
+      "resources": {
+        "위치": "2",
+        "점수": "20"
+      },
+      "view": {
+        "kinds": [
+          "primary"
+        ],
+        "center": [
+          2,
+          0
+        ]
+      },
+      "binding_file": "입력/MOD15.binding.json",
+      "request_file": "입력/MOD15.request.json",
+      "profile": "v1-core-v25-logical-alpha2",
+      "ticks": 6
+    },
+    {
+      "id": "MOD16",
+      "lesson": 16,
+      "title": "같은기록두칸",
+      "file": "수정실습/MOD16_같은기록두칸.ddn",
+      "source_sha256": "c43200497fe3949bf1be2d76cc6d9464f6cfebd7ba575d67e85704207f468874",
+      "expected": [
+        "2",
+        "2",
+        "2"
+      ],
+      "per_tick": [
+        [
+          "2"
+        ],
+        [
+          "2"
+        ],
+        [
+          "2"
+        ]
+      ],
+      "resources": {
+        "이동수": "2"
+      },
+      "binding_file": "입력/MOD16.binding.json",
+      "request_file": "입력/MOD16.request.json",
+      "profile": "v1-core-v25-logical-alpha2",
+      "ticks": 3
+    }
+  ]
+}

@@ -402,6 +402,8 @@ fn collect_stmt_calls<'a>(stmt: &'a Stmt, calls: &mut Vec<CallCandidate<'a>>) {
 
 fn collect_expr_calls<'a>(expr: &'a Expr, calls: &mut Vec<CallCandidate<'a>>) {
     match &expr.kind {
+        ExprKind::Tensor(value) => collect_expr_calls(value.input(), calls),
+        ExprKind::MultiAxisSelection(value) => { for child in value.children() { collect_expr_calls(child, calls); } }
         ExprKind::Call { args, func } => {
             calls.push(CallCandidate { expr, func, args });
             for arg in args {

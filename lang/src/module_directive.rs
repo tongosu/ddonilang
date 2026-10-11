@@ -127,7 +127,7 @@ pub fn parse_module_directive_prefix(
         }
     }
 
-    if imports.is_none() && exports.is_none() {
+    if imports.is_none() && exports.is_none() && !cursor.starts_callable_declaration() {
         if matches!(cursor.current().kind, TokenKind::Ident(ref name) if matches!(name.as_str(), "쓰임" | "드러냄" | "공개"))
             && matches!(cursor.peek().kind, TokenKind::LBrace)
         {
@@ -210,6 +210,20 @@ mod tests {
     }
 
     #[test]
+    fn module_directive_prefix_preserves_callable_lexical_registration() {
+        // RD-326 lexical forms belong to the definition, not an import record.
+        let tail = "(값:수) 돕다{도우~도와}:수:셈씨 := { 돕다 <- 값 + 1. }.";
+        for source in [tail.to_owned(), format!("(도움=돕다) 드러냄.\n{tail}")] {
+            let context=ModuleDirectiveContext::default().with_public_definitions(["돕다"]);
+            let prefix=parse_module_directive_prefix(&source,"lib.ddn",&context).unwrap();
+            assert_eq!(prefix.declaration_source,tail);
+            let program=crate::parse_v25(&prefix.declaration_source,"lib.ddn").unwrap();
+            let crate::TopLevelItem::SeedDef(seed)=&program.items[0];
+            assert_eq!(seed.alternate_forms,["도우","도와"]);
+        }
+    }
+
+    #[test]
     fn module_directive_prefix_still_rejects_malformed_following_directive() {
         let context = ModuleDirectiveContext::default().with_public_definitions(["누적"]);
         let error = parse_module_directive_prefix(
@@ -254,8 +268,25 @@ impl<'a> DirectiveCursor<'a> {
                         None => return false,
                     };
                     if depth == 0 {
-                        return matches!(self.tokens.get(index + 1).map(|t| &t.kind), Some(TokenKind::Ident(_)))
-                            && matches!(self.tokens.get(index + 2).map(|t| &t.kind), Some(TokenKind::Colon));
+                        if !matches!(self.tokens.get(index + 1).map(|t| &t.kind), Some(TokenKind::Ident(_))) {
+                            return false;
+                        }
+                        let mut after_name = index + 2;
+                        // RD-326: a named callable can register lexical forms
+                        // before its colon. This is still the declaration tail,
+                        // never an RD-457 record of module imports/exports.
+                        // The ordinary parser owns validation of the forms.
+                        if matches!(self.tokens.get(after_name).map(|t| &t.kind), Some(TokenKind::LBrace)) {
+                            after_name += 1;
+                            while let Some(token) = self.tokens.get(after_name) {
+                                match token.kind {
+                                    TokenKind::RBrace => { after_name += 1; break; }
+                                    TokenKind::Eof | TokenKind::LBrace => return false,
+                                    _ => after_name += 1,
+                                }
+                            }
+                        }
+                        return matches!(self.tokens.get(after_name).map(|t| &t.kind), Some(TokenKind::Colon));
                     }
                 }
                 TokenKind::Eof => return false,

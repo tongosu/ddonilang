@@ -15,13 +15,6 @@ pub const STRICT_SOURCE_PROFILE_IDENTITY: &str = "strict";
 pub const REPAIR_PROPOSAL_SCHEMA: &str = "ddn.source_analysis_repair_proposal.candidate.v1";
 pub const REMOVE_SETUP_COLON_FIX_ID: &str = "FIX_SOURCE_REMOVE_SETUP_COLON";
 
-pub(crate) fn unsupported_bogae_time_policy(name: &str) -> bool {
-    matches!(name, "표준시간.고정마디" | "표준시간.상대마디")
-}
-
-pub(crate) const BOGAE_TIME_POLICY_UNSUPPORTED: &str =
-    "알파2 보개는 공통 마디만 지원합니다. 고정·상대 마디(RD-136)는 알파3 작업입니다";
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum StaticType {
     Number,
@@ -158,10 +151,6 @@ fn infer_expr(
             Ok(StaticType::Unknown)
         }
         ExprKind::Call { args, func } => {
-            if unsupported_bogae_time_policy(func) {
-                return Err(static_error("E_BOGAE_TIME_POLICY_UNSUPPORTED",
-                    BOGAE_TIME_POLICY_UNSUPPORTED, expr));
-            }
             for (index,arg) in args.iter().enumerate() {
                 // RD-520: the recipe pin refers to an authored named callable,
                 // not a world variable. Only this exact pin admits a definition
@@ -617,6 +606,20 @@ fn validate_minimal_root_program(program: &CanonProgram) -> Result<(), StaticDia
         })
         .collect::<BTreeMap<_, _>>();
     let mut symbols = BTreeMap::new();
+    // The parser relocates authored top-level setup into a tick seed. The
+    // runtime executes that setup before root statements; analysis must keep
+    // its names and declared types visible there without exporting locals
+    // from an ordinary callable's own declaration block.
+    for item in &program.items {
+        let TopLevelItem::SeedDef(seed) = item;
+        if !matches!(seed.canonical_name.as_str(), "매마디" | "매틱") { continue; }
+        let Some(body) = &seed.body else { continue; };
+        for statement in &body.stmts {
+            if seed.is_relocated_top_level_setup(statement) {
+                validate_root_statements(std::slice::from_ref(statement), &mut symbols, &call_results, false)?;
+            }
+        }
+    }
     let mut world_names = BTreeSet::new();
     for statement in &program.root_stmts {
         match statement {
@@ -635,7 +638,9 @@ fn validate_minimal_root_program(program: &CanonProgram) -> Result<(), StaticDia
             }
         }
     }
-    symbols.extend(world_names.into_iter().map(|name| (name, StaticType::Unknown)));
+    for name in world_names {
+        symbols.entry(name).or_insert(StaticType::Unknown);
+    }
     validate_root_statements(&program.root_stmts, &mut symbols, &call_results, false)?;
     for item in &program.items {
         let TopLevelItem::SeedDef(seed) = item;
@@ -1045,19 +1050,16 @@ mod tests {
     }
 
     #[test]
-    fn alpha2_fixed_relative_time_is_explicitly_unsupported() {
+    fn alpha3_rd136_time_constructors_are_not_rejected_by_retired_alpha2_guard() {
         for source in [
             "시간 := (2) 표준시간.고정마디.",
             "시간 := (-1) 표준시간.상대마디.",
-            "시간 := (마디=2) 표준시간.고정마디.",
+            "시간 := (번호=2) 표준시간.고정마디.",
             "시간 := (차이=-1) 표준시간.상대마디.",
             "계산:움직씨 := { 시간 := (2) 표준시간.고정마디. }.",
         ] {
             let snapshot = analyze_source(request(source, 0, V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
-            assert_eq!(snapshot.outcome, "REJECTED", "{source}");
-            assert_eq!(snapshot.diagnostics[0].code, "E_BOGAE_TIME_POLICY_UNSUPPORTED", "{source}");
-            let start = snapshot.diagnostics[0].span.start;
-            assert!(source[start..].starts_with("표준시간"), "{source}: {start}");
+            assert_ne!(snapshot.outcome, "REJECTED", "{source}: {:?}",snapshot.diagnostics);
         }
         let text = analyze_source(request("글 := \"표준시간.고정마디\".", 0, V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
         assert_ne!(text.outcome, "REJECTED");
@@ -1250,6 +1252,31 @@ mod tests {
             V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY,
         ));
         assert_eq!(snapshot.outcome, "ACCEPTED", "{:?}", snapshot.diagnostics);
+    }
+
+    #[test]
+    fn root_program_reads_parser_relocated_top_level_setup() {
+        // A3-P3: top-level setup remains world-owned after the parser moves
+        // its declaration block into the tick seed. It is not a local name.
+        for source in [
+            "채비 { r:나눔수 := (6,9) 나눔수. f:곱수 := (72) 곱수. }. r 보여주기. f 보여주기.",
+            "채비 { 값:수 := 2. }. (매마디)마다 { 값 <- 값 + 1. }. 값 보여주기.",
+        ] {
+            let snapshot = analyze_source(request(source, 0, V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+            assert_eq!(snapshot.outcome, "ACCEPTED", "{:?}", snapshot.diagnostics);
+        }
+    }
+
+    #[test]
+    fn root_setup_preserves_types_and_does_not_export_callable_locals() {
+        for (source, code) in [
+            ("채비 { 값:글 := \"가\". }. (값 + 1) 보여주기.", "E_CHECK_TYPE_MISMATCH"),
+            ("실행:움직씨 := { 채비 { 숨김:수 := 2. }. }. 숨김 보여주기.", "E_CHECK_UNKNOWN_NAME"),
+        ] {
+            let snapshot = analyze_source(request(source, 0, V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+            assert_eq!(snapshot.outcome, "REJECTED", "{:?}", snapshot.diagnostics);
+            assert_eq!(snapshot.diagnostics[0].code, code);
+        }
     }
 
     #[test]

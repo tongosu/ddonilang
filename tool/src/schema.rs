@@ -123,6 +123,11 @@ fn seed_kind_name(kind: &SeedKind) -> String {
 
 fn type_ref_name(type_ref: &TypeRef) -> String {
     match type_ref {
+        TypeRef::Tensor {element,shape} => {
+            let mut axes = shape.iter().map(u64::to_string).collect::<Vec<_>>().join(", ");
+            if shape.len() == 1 { axes.push(','); }
+            format!("(원소씨={}, 모양=({axes})) 텐서씨",type_ref_name(element))
+        }
         TypeRef::Named(name) => name.clone(),
         TypeRef::Applied { name, args } => {
             let mut out = String::new();
@@ -151,6 +156,10 @@ fn type_ref_name(type_ref: &TypeRef) -> String {
 
 fn collect_type_names(type_ref: &TypeRef, types: &mut BTreeSet<String>) {
     match type_ref {
+        TypeRef::Tensor {element,..} => {
+            types.insert("텐서씨".into());
+            collect_type_names(element,types);
+        }
         TypeRef::Named(name) => {
             if name != "_" {
                 types.insert(name.clone());

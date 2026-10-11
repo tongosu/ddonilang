@@ -1648,28 +1648,6 @@ fn decode_parse_mode(value: u64) -> ParseMode {
     }
 }
 
-fn validate_alpha2_bogae_time_surface(source: &str) -> Result<(), String> {
-    // Tokens exclude comments and text values; no source-content heuristic.
-    let Ok(tokens) = Lexer::new(source).tokenize() else { return Ok(()); };
-    for (index, token) in tokens.iter().enumerate() {
-        let direct = matches!(&token.kind, TokenKind::Ident(name)
-            if crate::source_analysis::unsupported_bogae_time_policy(name));
-        let qualified = matches!(&token.kind, TokenKind::Ident(name) if name == "표준시간")
-            && (index == 0 || !matches!(tokens[index - 1].kind, TokenKind::Dot))
-            && tokens.get(index + 1).is_some_and(|next| matches!(next.kind, TokenKind::Dot))
-            && tokens.get(index + 2).is_some_and(|next| matches!(&next.kind,
-                TokenKind::Ident(name) if matches!(name.as_str(), "고정마디" | "상대마디")));
-        if direct || qualified {
-            let prefix = &source[..token.span.start];
-            let line = prefix.bytes().filter(|byte| *byte == b'\n').count() + 1;
-            let column = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
-            return Err(format!("E_BOGAE_TIME_POLICY_UNSUPPORTED: {} ({line}:{column})\n",
-                crate::source_analysis::BOGAE_TIME_POLICY_UNSUPPORTED));
-        }
-    }
-    Ok(())
-}
-
 fn encode_age_target(age: AgeTarget) -> u64 {
     match age {
         AgeTarget::Age0 => 0,
@@ -1716,6 +1694,8 @@ pub fn set_default_age_target(age: AgeTarget) {
 #[derive(Clone)]
 pub struct DdnProgram {
     source_identity: String,
+    source_capture: Option<crate::source_snapshot_admission::SourceCapture>,
+    saved_project_sources: Option<Arc<crate::project_revision_envelope_supply::VerifiedSavedV25Sources>>,
     #[allow(dead_code)]
     program: CanonProgram,
     functions: HashMap<String, SeedDef>,
@@ -1835,9 +1815,86 @@ impl DdnProgram {
                     .to_string(),
             );
         }
+        // A3-P7 / RD-643: capture the unmodified bytes once at the common
+        // declared-v25 frontdoor, before metadata stripping/canonicalization.
+        // Content-only observation provenance remains separate and unchanged.
+        let source_capture = if v25 {
+            Some(crate::source_snapshot_admission::capture_declared_v25(source.as_bytes())?)
+        } else { None };
+        Self::parse_captured_source(source, file_path, mode, v25, age_target, source_capture)
+    }
+
+    /// RD-643 replay frontdoor: a typed saved capture, not a live editor buffer.
+    /// Revalidate the seal but never allocate a new admission ordinal.
+    pub(crate) fn from_sealed_v25_source_with_mode(
+        source_capture: crate::source_snapshot_admission::SourceCapture,
+        file_path: &str,
+        mode: ParseMode,
+        age_target: AgeTarget,
+    ) -> Result<Self, String> {
+        crate::source_snapshot_admission::replay(
+            &crate::source_snapshot_admission::EpochSupply::for_declared_epoch(ddonirang_lang::SourceEpoch::V25),
+            &source_capture,
+        ).map_err(|_| "E_SOURCE_ADMISSION_CUSTODY: 저장된 원문 봉인과 글판이 맞지 않습니다".to_string())?;
+        Self::parse_captured_source("", file_path, mode, true, age_target, Some(source_capture))
+    }
+
+    /// Sealing proves source custody, not permission to bypass profile limits.
+    pub(crate) fn from_sealed_supported_source_profile_with_mode(
+        source_capture: crate::source_snapshot_admission::SourceCapture,
+        file_path: &str,
+        mode: ParseMode,
+        profile: SupportedSourceProfile,
+        age_target: AgeTarget,
+    ) -> Result<Self, String> {
+        match profile {
+            SupportedSourceProfile::V1CoreV25 => {
+                let program = Self::from_sealed_v25_source_with_mode(
+                    source_capture, file_path, mode, age_target,
+                )?;
+                validate_v1_core_no_named_callable_recursion(&program.program)?;
+                Ok(program)
+            }
+        }
+    }
+
+    /// A linked execution unit is derived code, not a new original snapshot.
+    /// Keep the admitted original closure alive and recheck its existing seals.
+    pub(crate) fn from_saved_v25_project_with_mode(
+        saved: Arc<crate::project_revision_envelope_supply::VerifiedSavedV25Sources>,
+        mode: ParseMode,
+        age_target: AgeTarget,
+    ) -> Result<Self, String> {
+        let epoch=crate::source_snapshot_admission::EpochSupply::for_declared_epoch(
+            ddonirang_lang::SourceEpoch::V25,
+        );
+        for (_,capture) in saved.captures() {
+            crate::source_snapshot_admission::replay(&epoch,capture)
+                .map_err(|_|"E_SOURCE_ADMISSION_CUSTODY: 저장된 프로젝트 원문 봉인이 맞지 않습니다".to_string())?;
+        }
+        let preparation=saved.preparation();
+        let mut program=Self::parse_captured_source(
+            &preparation.source,&preparation.target_path,mode,true,age_target,None,
+        )?;
+        validate_v1_core_no_named_callable_recursion(&program.program)?;
+        program.saved_project_sources=Some(saved);
+        Ok(program)
+    }
+
+    fn parse_captured_source(
+        source: &str,
+        file_path: &str,
+        mode: ParseMode,
+        v25: bool,
+        age_target: AgeTarget,
+        source_capture: Option<crate::source_snapshot_admission::SourceCapture>,
+    ) -> Result<Self, String> {
+        if mode == ParseMode::HistoricalMigrationEvidence {
+            return Err("E_HISTORICAL_ASYNC_MIGRATION_EXECUTION_FORBIDDEN: migration evidence mode cannot enter product execution".to_string());
+        }
+        let source = source_capture.as_ref().map_or(source, |sealed| sealed.text());
         validate_no_legacy_header(source)?;
         validate_no_legacy_boim_surface(source)?;
-        validate_alpha2_bogae_time_surface(source)?;
         let meta_parse = split_file_meta(source);
         let top_level_decl_names = collect_top_level_decl_names(&meta_parse.stripped);
         let configured_madi = extract_setting_madi(&meta_parse.stripped)?;
@@ -1910,6 +1967,8 @@ impl DdnProgram {
         }
         Ok(Self {
             source_identity: format!("sha256:{}", crate::runtime_surface::sha256_hex(source.as_bytes())),
+            source_capture,
+            saved_project_sources: None,
             program,
             functions,
             ordinary_overloads,
@@ -1925,6 +1984,14 @@ impl DdnProgram {
 
     pub fn parse_warnings(&self) -> &[DdnParseWarning] {
         &self.parse_warnings
+    }
+
+    pub(crate) fn sealed_source_capture(&self) -> Option<&crate::source_snapshot_admission::SourceCapture> {
+        self.source_capture.as_ref()
+    }
+
+    pub(crate) fn sealed_project_sources(&self) -> Option<&crate::project_revision_envelope_supply::VerifiedSavedV25Sources> {
+        self.saved_project_sources.as_deref()
     }
 
     pub fn ordinary_callable_admission_evidence(
@@ -2164,6 +2231,8 @@ fn collect_v1_core_named_calls_expr(
     calls: &mut BTreeSet<String>,
 ) {
     match &expr.kind {
+        ExprKind::Tensor(value) => collect_v1_core_named_calls_expr(value.input(), alias_owner, calls),
+        ExprKind::MultiAxisSelection(value) => { for child in value.children() { collect_v1_core_named_calls_expr(child, alias_owner, calls); } }
         ExprKind::FieldAccess { target, .. }
         | ExprKind::SeedLiteral { body: target, .. }
         | ExprKind::Suffix { value: target, .. }
@@ -2471,6 +2540,8 @@ fn collect_public_observation_fields_expr<'a>(
     fields: &mut Vec<&'a ddonirang_lang::PublicObservationField>,
 ) {
     match &expr.kind {
+        ExprKind::Tensor(value) => collect_public_observation_fields_expr(value.input(), fields),
+        ExprKind::MultiAxisSelection(value) => { for child in value.children() { collect_public_observation_fields_expr(child, fields); } }
         ExprKind::FieldAccess { target, .. }
         | ExprKind::SeedLiteral { body: target, .. }
         | ExprKind::Suffix { value: target, .. }
@@ -3256,6 +3327,8 @@ fn stmt_quantifier_feature(stmt: &Stmt) -> Option<&'static str> {
 
 fn expr_regex_feature(expr: &Expr) -> Option<&'static str> {
     match &expr.kind {
+        ExprKind::Tensor(value) => expr_regex_feature(value.input()),
+        ExprKind::MultiAxisSelection(value) => value.children().find_map(expr_regex_feature),
         ExprKind::Literal(Literal::Regex(_)) => Some("regex_literal"),
         ExprKind::Literal(_)
         | ExprKind::Var(_)
@@ -3330,6 +3403,8 @@ fn expr_regex_feature(expr: &Expr) -> Option<&'static str> {
 
 fn expr_assertion_feature(expr: &Expr) -> Option<&'static str> {
     match &expr.kind {
+        ExprKind::Tensor(value) => expr_assertion_feature(value.input()),
+        ExprKind::MultiAxisSelection(value) => value.children().find_map(expr_assertion_feature),
         ExprKind::Assertion(_) => Some("assertion_literal"),
         ExprKind::Literal(_)
         | ExprKind::Var(_)
@@ -3395,6 +3470,8 @@ fn expr_assertion_feature(expr: &Expr) -> Option<&'static str> {
 
 fn expr_state_machine_feature(expr: &Expr) -> Option<&'static str> {
     match &expr.kind {
+        ExprKind::Tensor(value) => expr_state_machine_feature(value.input()),
+        ExprKind::MultiAxisSelection(value) => value.children().find_map(expr_state_machine_feature),
         ExprKind::StateMachine(_) => Some("state_machine_literal"),
         ExprKind::Literal(_)
         | ExprKind::Var(_)
@@ -4057,6 +4134,7 @@ pub struct DdnRunner {
     bogae_activation_requested: bool,
     bogae_entry: Option<String>,
     authored_bogae: Option<crate::authored_bogae::Activation>,
+    bogae_history: crate::bogae_time::SceneHistory,
     prev_keys_pressed: u64,
     project_asset_registry: Option<Arc<gate0_registry::ProjectAssetRegistry>>,
     work_cost: Rc<RefCell<WorkCostMeter>>,
@@ -4076,6 +4154,8 @@ pub struct StateTransitionRecord {
 }
 
 pub struct DdnRunOutput {
+    /// A3-P1: typed display sidecar; never a world resource or input authority.
+    pub display_outputs: Vec<crate::output_display::OutputDisplay>,
     pub bogae_projection: Option<serde_json::Value>,
     pub patch: Patch,
     /// 실제 실행 중 읽은 입력 필드. 세계 상태에는 넣지 않는다.
@@ -4186,6 +4266,7 @@ impl DdnRunner {
             bogae_activation_requested: false,
             bogae_entry: None,
             authored_bogae: None,
+            bogae_history: crate::bogae_time::SceneHistory::default(),
             prev_keys_pressed: 0,
             project_asset_registry: None,
             work_cost: Rc::new(RefCell::new(WorkCostMeter::default())),
@@ -4194,10 +4275,21 @@ impl DdnRunner {
         }
     }
 
-    /// Public DDN source has no ReactionProvider declaration ingress in W1-C2
-    /// I1. Historical receive hooks remain migration evidence only.
+    /// Count only explicit RD-445 owned named providers. Historical receive
+    /// hooks never become providers merely because they have matching bodies.
     pub fn public_provider_source_ingress_count(&self) -> usize {
-        0
+        let mut identities = std::collections::BTreeSet::new();
+        for seed in self.program.functions.values().filter(|seed|matches!(&seed.seed_kind,
+            SeedKind::Named(kind) if kind=="임자")) {
+            if let Some(body)=&seed.body {
+                for stmt in &body.stmts {
+                    if let Stmt::Definition {id,reaction:Some(_),..}=stmt {
+                        identities.insert((seed.id,*id));
+                    }
+                }
+            }
+        }
+        identities.len()
     }
 
     /// Public run frontdoors activate views; low-level constructor evaluation
@@ -4413,7 +4505,20 @@ impl DdnRunner {
         snapshot: &crate::logical_input_tape::LogicalSnapshot,
         defaults: &HashMap<String, Value>,
     ) -> Result<(DdnRunOutput, serde_json::Value), String> {
+        self.run_update_logical_with_initial_held(world, binding, snapshot, defaults, None)
+    }
+
+    pub(crate) fn run_update_logical_with_initial_held(
+        &mut self, world: &NuriWorld,
+        binding: &crate::logical_input_tape::LogicalInputBinding,
+        snapshot: &crate::logical_input_tape::LogicalSnapshot,
+        defaults: &HashMap<String, Value>,
+        initial_held: Option<&BTreeMap<String, bool>>,
+    ) -> Result<(DdnRunOutput, serde_json::Value), String> {
         let query = crate::logical_input_tape::query(binding, snapshot)?;
+        let query = if let Some(initial) = initial_held {
+            query.with_initial_held(initial.clone()).map_err(|_| "E_LOGICAL_INPUT_STATE: 사건 전후 눌림 상태가 다릅니다".to_string())?
+        } else { query };
         let input = InputSnapshot {
             tick_id: snapshot.madi,
             dt: Fixed64::from_raw_i64(binding.dt_raw),
@@ -4581,6 +4686,28 @@ impl DdnRunner {
             }
         }
         let mut root_bogae_projection = None;
+        if self.named_entry_after_definitions && seed_name == self.update_name {
+            // The parser places authored top-level setup in the tick seed.
+            // An explicit project start must initialize those declarations,
+            // but must not implicitly invoke an unrelated tick function.
+            let mut locals = HashMap::new();
+            for item in &ctx.program.program.items {
+                let ddonirang_lang::TopLevelItem::SeedDef(seed) = item;
+                if seed.canonical_name == seed_name { continue; }
+                let Some(body) = &seed.body else { continue; };
+                let synthetic_setup = seed.span == body.span
+                    && body.stmts.iter().all(|stmt| matches!(stmt, Stmt::DeclBlock { .. }));
+                for stmt in &body.stmts {
+                    let Stmt::DeclBlock { span, .. } = stmt else { continue; };
+                    if synthetic_setup || span.start < seed.span.start || span.end > seed.span.end {
+                        if let Err(error) = ctx.eval_stmt(&mut locals, stmt) {
+                            self.prev_keys_pressed = prev_keys_pressed;
+                            return Err(error);
+                        }
+                    }
+                }
+            }
+        }
         if !ctx.program.root_stmts.is_empty()
             && (!self.named_entry_after_definitions || seed_name == self.update_name) {
             ctx.root_program_active = true;
@@ -4595,6 +4722,7 @@ impl DdnRunner {
                     return Err(error);
                 }
             }
+            ctx.dispatch_logical_input_reactions()?;
             for stmt in &ctx.program.root_stmts {
                 let snapshot = ctx.capture_frame_snapshot(&locals);
                 if let Err(error) = ctx.eval_stmt(&mut locals, stmt) {
@@ -4628,6 +4756,7 @@ impl DdnRunner {
             })?
         } else if missing_is_noop {
             return Ok(DdnRunOutput {
+                display_outputs: Vec::new(),
                 bogae_projection: None,
                 patch: Patch {
                     ops: Vec::new(),
@@ -4671,16 +4800,37 @@ impl DdnRunner {
                 }
             }
         } else { bogae_projection };
+        let authored_projection=bogae_projection.clone();
+        let mut bogae_projection=bogae_projection;
         if self.bogae_activation_requested {
             if let Err(error) = crate::bogae_projection::admit_activation(bogae_projection.as_ref()) {
                 self.prev_keys_pressed = prev_keys_pressed;
                 return Err(error.into());
             }
+            if let Some(projection)=bogae_projection.as_ref() {
+                match self.bogae_history.preview(input.tick_id,projection) {
+                    Ok(resolved)=>bogae_projection=Some(resolved),
+                    Err(error)=>{self.prev_keys_pressed=prev_keys_pressed;return Err(error.into());}
+                }
+            }
+        }
+        if self.bogae_activation_requested {
+            if let Some(projection)=authored_projection.as_ref() {
+                let bytes=self.bogae_history.storage_bytes_after(input.tick_id,projection).map_err(EvalError::from)?;
+                if let Err(error)=ctx.work_cost.borrow_mut().set_result_artifact_bytes(bytes) {
+                    self.prev_keys_pressed=prev_keys_pressed;
+                    return Err(error.into());
+                }
+            }
         }
         ctx.work_cost.borrow_mut().note_committed_madi()?;
+        if self.bogae_activation_requested {
+            if let Some(projection)=authored_projection {self.bogae_history.commit(input.tick_id,projection);}
+        }
         let work_cost = ctx.work_cost.borrow().receipt();
         self.internal_dispatch = ctx.internal_dispatch.clone();
         Ok(DdnRunOutput {
+            display_outputs: ctx.display_outputs,
             bogae_projection,
             patch,
             resources,
@@ -4694,6 +4844,20 @@ impl DdnRunner {
     #[allow(dead_code)]
     pub fn reset_transient_state(&mut self) {
         self.prev_keys_pressed = 0;
+        self.bogae_history.clear();
+    }
+
+    pub fn scene_history_snapshot(&self) -> serde_json::Value { self.bogae_history.snapshot() }
+
+    // A3-P11: consumed input history is distinct from a newer host snapshot.
+    pub(crate) fn consumed_keys_pressed(&self) -> u64 { self.prev_keys_pressed }
+
+    pub(crate) fn restore_consumed_keys_pressed(&mut self, keys: u64) {
+        self.prev_keys_pressed = keys;
+    }
+
+    pub fn restore_scene_history(&mut self, history: crate::bogae_time::SceneHistory) {
+        self.bogae_history = history;
     }
 }
 
@@ -4779,6 +4943,7 @@ struct EvalContext<'a> {
     factor_bits_min: Option<u64>,
     factor_bits_max: u64,
     public_observations: Vec<PublicObservationEvent>,
+    display_outputs: Vec<crate::output_display::OutputDisplay>,
     /// Root-program `<-` bindings are ordinary mutable bindings, but they must
     /// not silently change their runtime value category on a later rebind.
     root_program_active: bool,
@@ -4840,6 +5005,7 @@ struct EvalFrameSnapshot {
     factor_bits_min: Option<u64>,
     factor_bits_max: u64,
     public_observations: Vec<PublicObservationEvent>,
+    display_outputs: Vec<crate::output_display::OutputDisplay>,
     root_binding_types: HashMap<String, String>,
 }
 
@@ -4888,6 +5054,11 @@ fn statement_cannot_abort(stmt: &Stmt) -> bool {
 
 fn root_binding_type_key(value: &Value) -> String {
     match value {
+        Value::Tensor(tensor) => {
+            let mut axes = tensor.shape().iter().map(u64::to_string).collect::<Vec<_>>().join(", ");
+            if tensor.shape().len() == 1 { axes.push(','); }
+            format!("(원소씨=셈수, 모양=({axes})) 텐서씨")
+        }
         // Integer-valued and fractional Fixed64 values are one current numeric
         // category; `value_type_name` deliberately distinguishes their display
         // labels, which is not a rebinding-type distinction.
@@ -4899,6 +5070,9 @@ fn root_binding_type_key(value: &Value) -> String {
 }
 
 fn inferred_binding_type(value: &Value) -> TypeRef {
+    if let Value::Tensor(tensor) = value {
+        return TypeRef::Tensor { element: Box::new(TypeRef::Named("셈수".into())), shape: tensor.shape().to_vec() };
+    }
     // Reuse only types already understood by the runtime checker. None has
     // no inferred payload type; its policy remains a separate decision.
     if matches!(value, Value::None) {
@@ -4912,6 +5086,57 @@ fn inferred_binding_type(value: &Value) -> TypeRef {
     }
 }
 
+#[cfg(test)]
+mod alpha3_unit_binding_tests {
+    use super::*;
+
+    // A3-P2 provisional: retain the existing dimension, not a display unit.
+    #[test]
+    fn a3_p2_derived_unit_binding_retains_dimension() {
+        let dimension = UnitDim::LENGTH.add(UnitDim::LENGTH);
+        let area = Value::Unit(UnitValue { value: Fixed64::from_i64(2), dim: dimension });
+        let inferred = inferred_binding_type(&area);
+        assert!(!matches!(inferred, TypeRef::Infer));
+        assert!(check_value_type(&area, &inferred).is_ok());
+        let distance = Value::Unit(UnitValue { value: Fixed64::from_i64(2), dim: UnitDim::LENGTH });
+        assert!(check_value_type(&distance, &inferred).is_err());
+        assert!(check_value_type(&Value::Fixed64(Fixed64::from_i64(2)), &inferred).is_err());
+    }
+
+    #[test]
+    fn a3_p2_known_scaled_unit_binding_uses_same_dimension() {
+        let length = Value::Unit(UnitValue { value: Fixed64::from_i64(1), dim: UnitDim::LENGTH });
+        let inferred = inferred_binding_type(&length);
+        assert!(check_value_type(&length, &inferred).is_ok());
+        assert!(check_value_type(&length, &TypeRef::Named("수@cm".into())).is_ok());
+        let time = Value::Unit(UnitValue { value: Fixed64::from_i64(1), dim: UnitDim::TIME });
+        assert!(check_value_type(&time, &inferred).is_err());
+    }
+}
+
+#[cfg(test)]
+mod alpha3_chaebi_lifetime_tests {
+    // A3-P3 PROVISIONAL: initialization is not a per-madi recalculation.
+    #[test]
+    fn a3_p3_root_chaebi_initial_expression_runs_once() {
+        let source = include_str!("../../solutions/seamgrim_ui_mvp/samples/alpha3_chaebi_once.ddn");
+        let result = crate::runtime_surface::run_summary_from_supported_source_profile(
+            source, "chaebi-once.ddn", Some(3), Some("v1-core-v25"),
+        ).expect("a retained initial value must not re-evaluate division on madi two");
+        assert_eq!(result["output_display"]["texts"], serde_json::json!(["1", "1", "1"]));
+        assert_eq!(result["resources"]["fixed64"]["분모"], "0");
+    }
+
+    #[test]
+    fn a3_p3_root_chaebi_without_initial_value_reads_retained_slot() {
+        let source = include_str!("../../solutions/seamgrim_ui_mvp/samples/alpha3_chaebi_empty.ddn");
+        let result = crate::runtime_surface::run_summary_from_supported_source_profile(
+            source, "chaebi-empty.ddn", Some(3), Some("v1-core-v25"),
+        ).expect("a declaration without an initializer must not mask a retained slot with None");
+        assert_eq!(result["output_display"]["texts"], serde_json::json!(["4", "5", "6"]));
+    }
+}
+
 fn checked_optional_map_get(map: &BTreeMap<String, MapEntry>, key: &Value) -> Result<Value, EvalError> {
     match map.get(&map_key_canon(key)) {
         Some(entry) if matches!(entry.value, Value::None) => Err(
@@ -4920,6 +5145,16 @@ fn checked_optional_map_get(map: &BTreeMap<String, MapEntry>, key: &Value) -> Re
         Some(entry) => Ok(entry.value.clone()),
         None => Ok(Value::None),
     }
+}
+
+enum IndexedSelectionExpr<'a> {
+    Single(&'a Expr),
+    Axes(&'a [ddonirang_lang::ast::TensorAxisSelector]),
+}
+
+enum EvaluatedIndexedSelection {
+    Single(Value),
+    Axes(Vec<crate::unit_wire::TensorSelector>),
 }
 
 #[derive(Debug)]
@@ -5176,6 +5411,7 @@ impl<'a> EvalContext<'a> {
             factor_bits_min: None,
             factor_bits_max: 0,
             public_observations: Vec::new(),
+            display_outputs: Vec::new(),
             root_program_active: false,
             root_binding_types: HashMap::new(),
             project_asset_registry,
@@ -5865,7 +6101,14 @@ impl<'a> EvalContext<'a> {
                     } else {
                         self.resource_exists(&item.name)
                     };
-                    let value = if let Some(expr) = &item.value {
+                    // A3-P3 provisional: top-level setup initializes a retained
+                    // world slot, not a per-madi expression. Reopening/restoring
+                    // that slot must not run its initializer again. A reset has
+                    // no committed slot and follows the normal first-run path.
+                    let value = if is_top_level_decl && resource_exists {
+                        self.get_resource(&item.name).ok_or_else(|| EvalError::Message(
+                            format!("E_CHAEBI_RESOURCE_UNRESOLVED: 채비의 저장 값을 읽을 수 없습니다: {}", item.name)))?
+                    } else if let Some(expr) = &item.value {
                         match self.eval_expr(locals, expr) {
                             Ok(val) => val,
                             Err(err) => return Err(err),
@@ -5892,7 +6135,7 @@ impl<'a> EvalContext<'a> {
                             return Err(type_mismatch_error(&item.name, &detail.expected, &detail.actual));
                         }
                     }
-                    let value = if item.value.is_some() && resource_exists {
+                    let value = if !is_top_level_decl && item.value.is_some() && resource_exists {
                         self.get_resource(&item.name).unwrap_or(value)
                     } else {
                         value
@@ -5993,12 +6236,16 @@ impl<'a> EvalContext<'a> {
                     match &root.kind {
                         ExprKind::Var(name) => break name,
                         ExprKind::SelectionPlace { target, index } => {
-                            selection_indices.push(index.as_ref());
+                            selection_indices.push(IndexedSelectionExpr::Single(index.as_ref()));
                             root = target;
                         }
                         ExprKind::Call { func, args } if func == "차림.값" && args.len() == 2 => {
-                            selection_indices.push(&args[1].expr);
+                            selection_indices.push(IndexedSelectionExpr::Single(&args[1].expr));
                             root = &args[0].expr;
+                        }
+                        ExprKind::MultiAxisSelection(selection) => {
+                            selection_indices.push(IndexedSelectionExpr::Axes(&selection.selectors));
+                            root = &selection.target;
                         }
                         _ => return Err("대입 대상은 이름에서 시작하는 선택 위치여야 합니다".to_string().into()),
                     }
@@ -6026,24 +6273,17 @@ impl<'a> EvalContext<'a> {
                         let mut parents = Vec::new();
                         let last = selection_indices.len() - 1;
                         for index_expr in &selection_indices[..last] {
-                            let index = self.eval_expr(locals, index_expr)?;
-                            let child = self.eval_call(locals, "차림.값",
-                                vec![collection.clone(), index.clone()], self.source_span_for_expr(target))?;
+                            let index = self.eval_indexed_selection(locals, index_expr)?;
+                            let child = self.read_indexed_selection(locals, collection.clone(), &index, target)?;
                             parents.push((collection, index));
                             collection = child;
                         }
-                        let index = self.eval_expr(locals, selection_indices[last])?;
+                        let index = self.eval_indexed_selection(locals, &selection_indices[last])?;
                         let replacement = self.eval_expr(locals, value)?;
-                        let mut updated = self.eval_call(
-                            locals,
-                            "차림.바꾼값",
-                            vec![collection, index, replacement],
-                            self.source_span_for_expr(target),
-                        )?;
+                        let mut updated = self.replace_indexed_selection(locals, collection, &index, replacement, target)?;
                         // Rebuild immutable parents; publish only the final root.
                         for (parent, index) in parents.into_iter().rev() {
-                            updated = self.eval_call(locals, "차림.바꾼값",
-                                vec![parent, index, updated], self.source_span_for_expr(target))?;
+                            updated = self.replace_indexed_selection(locals, parent, &index, updated, target)?;
                         }
                         Ok(updated)
                     })()
@@ -6158,8 +6398,10 @@ impl<'a> EvalContext<'a> {
                 if self.guard_rejected {
                     return Ok(FlowControl::Continue);
                 }
-                let ExprKind::SelectionPlace { target, index } = &destination.kind else {
-                    return Err("E_RESULT_FLOW_DESTINATION_PLACE_REQUIRED".to_string().into());
+                let (target, index) = match &destination.kind {
+                    ExprKind::SelectionPlace {target,index} => (target.as_ref(),IndexedSelectionExpr::Single(index)),
+                    ExprKind::MultiAxisSelection(selection) if selection.writable => (selection.target.as_ref(),IndexedSelectionExpr::Axes(&selection.selectors)),
+                    _ => return Err("E_RESULT_FLOW_DESTINATION_PLACE_REQUIRED".to_string().into()),
                 };
                 let ExprKind::Var(root_name) = &target.kind else {
                     return Err("E_RESULT_FLOW_ROOT_REQUIRED".to_string().into());
@@ -6176,13 +6418,8 @@ impl<'a> EvalContext<'a> {
                 let replacement = (|| {
                     let produced = self.eval_expr(locals, producer)?;
                     let collection = self.eval_expr(locals, target)?;
-                    let selection_index = self.eval_expr(locals, index)?;
-                    self.eval_call(
-                        locals,
-                        "차림.바꾼값",
-                        vec![collection, selection_index, produced],
-                        self.source_span_for_expr(destination),
-                    )
+                    let selection_index = self.eval_indexed_selection(locals, &index)?;
+                    self.replace_indexed_selection(locals, collection, &selection_index, produced, destination)
                 })();
                 let replacement = match replacement {
                     Ok(value) => value,
@@ -6550,6 +6787,14 @@ impl<'a> EvalContext<'a> {
         // existing code and the innermost failing call, but do not lose its
         // authored source location at the shared CLI/WASM boundary.
         if let Err(EvalError::Message(message)) = &result {
+            if matches!(&expr.kind, ExprKind::Tensor(_) | ExprKind::MultiAxisSelection(_)) {
+                if let Some(location) = self.source_span_for_expr(expr) {
+                    return result.map_err(|error| EvalError::SourceLocated {
+                        error: Box::new(error), span: (expr.span.start,expr.span.end),
+                        line: location.start_line, column: location.start_col.unwrap_or(1),
+                    });
+                }
+            }
             if matches!(&expr.kind, ExprKind::Call { func, .. }
                 if func.starts_with("표준보개.") || func.starts_with("표준보기.")
                     || func.starts_with("표준장면.") || func.starts_with("표준시간."))
@@ -6568,6 +6813,48 @@ impl<'a> EvalContext<'a> {
         result
     }
 
+    fn eval_indexed_selection(&mut self, locals: &mut HashMap<String, Value>, selection: &IndexedSelectionExpr<'_>) -> Result<EvaluatedIndexedSelection, EvalError> {
+        match selection {
+            IndexedSelectionExpr::Single(expr) => self.eval_expr(locals, expr).map(EvaluatedIndexedSelection::Single),
+            IndexedSelectionExpr::Axes(selectors) => self.eval_tensor_selectors(locals, selectors).map(EvaluatedIndexedSelection::Axes),
+        }
+    }
+
+    fn read_indexed_selection(&mut self, locals: &mut HashMap<String, Value>, collection: Value, selection: &EvaluatedIndexedSelection, location: &Expr) -> Result<Value, EvalError> {
+        match selection {
+            EvaluatedIndexedSelection::Single(index) => self.eval_call(locals,"차림.값",vec![collection,index.clone()],self.source_span_for_expr(location)),
+            EvaluatedIndexedSelection::Axes(selectors) => {
+                let Value::Tensor(tensor) = collection else { return Err("E_TENSOR_SELECTION_TARGET: 다축 선택 대상은 텐서여야 합니다".to_string().into()); };
+                self.work_cost.borrow_mut().charge_element_visits(tensor.elements().len())?;
+                crate::unit_wire::tensor_select(&tensor,selectors).map_err(Into::into)
+            }
+        }
+    }
+
+    fn replace_indexed_selection(&mut self, locals: &mut HashMap<String, Value>, collection: Value, selection: &EvaluatedIndexedSelection, replacement: Value, location: &Expr) -> Result<Value, EvalError> {
+        match selection {
+            EvaluatedIndexedSelection::Single(index) => self.eval_call(locals,"차림.바꾼값",vec![collection,index.clone(),replacement],self.source_span_for_expr(location)),
+            EvaluatedIndexedSelection::Axes(selectors) => {
+                let Value::Tensor(tensor) = collection else { return Err("E_TENSOR_SELECTION_TARGET: 다축 선택 대상은 텐서여야 합니다".to_string().into()); };
+                self.work_cost.borrow_mut().charge_element_visits(tensor.elements().len())?;
+                crate::unit_wire::tensor_replace(&tensor,selectors,&replacement).map(Value::Tensor).map_err(Into::into)
+            }
+        }
+    }
+
+    fn eval_tensor_selectors(&mut self, locals: &mut HashMap<String, Value>, selectors: &[ddonirang_lang::ast::TensorAxisSelector]) -> Result<Vec<crate::unit_wire::TensorSelector>, EvalError> {
+        use ddonirang_lang::ast::TensorAxisSelector;
+        use crate::unit_wire::TensorSelector;
+        selectors.iter().map(|s| match s {
+            TensorAxisSelector::Index(expr) => {
+                let value = self.eval_expr(locals, expr)?;
+                Ok(TensorSelector::Index(value_to_tensor_index(&value)? as u64))
+            }
+            TensorAxisSelector::Range {start,end} => Ok(TensorSelector::Range {start:*start,end:*end}),
+            TensorAxisSelector::Full => Ok(TensorSelector::Full),
+        }).collect()
+    }
+
     fn eval_expr_inner(
         &mut self,
         locals: &mut HashMap<String, Value>,
@@ -6576,6 +6863,57 @@ impl<'a> EvalContext<'a> {
         let _registry_key = expr_registry_key(&expr.kind);
         self.work_cost.borrow_mut().charge_dispatch()?;
         match &expr.kind {
+            ExprKind::MultiAxisSelection(selection) => {
+                if selection.writable {
+                    return Err("E_TENSOR_SELECTION_PLACE: 쓰기 위치는 값으로 읽을 수 없습니다".to_string().into());
+                }
+                let value = self.eval_expr(locals, &selection.target)?;
+                let Value::Tensor(value) = value else {
+                    return Err("E_TENSOR_SELECTION_TARGET: 다축 선택 대상은 텐서여야 합니다".to_string().into());
+                };
+                let selectors = self.eval_tensor_selectors(locals, &selection.selectors)?;
+                self.work_cost.borrow_mut().charge_element_visits(value.elements().len())?;
+                crate::unit_wire::tensor_select(&value, &selectors).map_err(Into::into)
+            }
+            ExprKind::Tensor(provider) => {
+                use ddonirang_lang::ast::TensorProviderExpr;
+                match provider {
+                    TensorProviderExpr::FromCollection { input, element_type, shape } => {
+                        crate::basic_tensor_element_type_identity::issue(element_type)
+                            .map_err(|error| EvalError::from(format!("E_TENSOR_TYPE: 원소씨 검증 실패: {error:?}")))?;
+                        let count = if shape.contains(&0) { Some(0) } else {
+                            shape.iter().try_fold(1u64, |count, axis| count.checked_mul(*axis))
+                        }.ok_or_else(|| EvalError::from("E_TENSOR_SHAPE: 원소 수 overflow".to_string()))?;
+                        let count = usize::try_from(count).map_err(|_| EvalError::from("E_TENSOR_SHAPE: 원소 수 범위 초과".to_string()))?;
+                        self.work_cost.borrow_mut().charge_element_visits(count)?;
+                        let input = self.eval_expr(locals, input)?;
+                        crate::unit_wire::tensor_from_collection(element_type, shape, &input)
+                            .map(Value::Tensor).map_err(EvalError::from)
+                    }
+                    TensorProviderExpr::ToCollection { input } => {
+                        let Value::Tensor(value) = self.eval_expr(locals, input)? else {
+                            return Err("E_TENSOR_TYPE: 차림으로 입력은 Tensor여야 합니다".to_string().into());
+                        };
+                        crate::unit_wire::verify_runtime_tensor(&value).map_err(EvalError::from)?;
+                        crate::unit_wire::preflight_tensor_collection(value.shape()).map_err(EvalError::from)?;
+                        fn rebuild(shape: &[u64], values: &mut std::slice::Iter<'_, Fixed64>, meter: &mut WorkCostMeter) -> Result<Value, EvalError> {
+                            match shape.split_first() {
+                                None => values.next().copied().map(Value::Fixed64)
+                                    .ok_or_else(|| EvalError::from("E_TENSOR_SHAPE: 원소 누락".to_string())),
+                                Some((axis, rest)) => {
+                                    let count = usize::try_from(*axis).map_err(|_| EvalError::from("E_TENSOR_SHAPE: 축 범위 초과".to_string()))?;
+                                    meter.charge_element_visits(count)?;
+                                    let mut out = Vec::new();
+                                    out.try_reserve_exact(count).map_err(|_| EvalError::from("E_TENSOR_SHAPE: 차림 용량 초과".to_string()))?;
+                                    for _ in 0..count { out.push(rebuild(rest, values, meter)?); }
+                                    Ok(Value::List(out))
+                                }
+                            }
+                        }
+                        rebuild(value.shape(), &mut value.elements().iter(), &mut self.work_cost.borrow_mut())
+                    }
+                }
+            }
             ExprKind::Literal(Literal::Resource(path)) => {
                 let handle = self.resolve_asset_handle(path)?;
                 Ok(Value::ResourceHandle(handle))
@@ -6668,13 +7006,9 @@ impl<'a> EvalContext<'a> {
                 }
             }
             ExprKind::Call { args, func } => {
-                if crate::source_analysis::unsupported_bogae_time_policy(func) {
-                    return Err(format!("E_BOGAE_TIME_POLICY_UNSUPPORTED: {}",
-                        crate::source_analysis::BOGAE_TIME_POLICY_UNSUPPORTED).into());
-                }
                 if func == "표준보개.돋" {
                     use ddonirang_lang::runtime::BogaeRelationValue;
-                    if args.len()!=2 {return Err("E_BOGAE_RECIPE_TYPE: 돋은 대상·보기법 인자 둘을 받습니다".to_string().into());}
+                    if !(2..=3).contains(&args.len()) {return Err("E_BOGAE_RECIPE_TYPE: 돋은 대상·보기법과 선택 시간 인자를 받습니다".to_string().into());}
                     let target_arg=args.iter().find(|arg|arg.resolved_pin.as_deref()==Some("대상")).unwrap_or(&args[0]);
                     let recipe_arg=args.iter().find(|arg|arg.resolved_pin.as_deref()==Some("보기법")).unwrap_or(&args[1]);
                     let ExprKind::Var(name)=&recipe_arg.expr.kind else {
@@ -6703,8 +7037,15 @@ impl<'a> EvalContext<'a> {
                     let Value::View(view)=result else {return Err("E_BOGAE_RECIPE_TYPE: 보기법 결과는 보기값이어야 합니다".to_string().into());};
                     let source_location=self.source_span_for_expr(expr).map(|span|
                         [span.start_line,span.start_col.unwrap_or(0),span.end_line,span.end_col.unwrap_or(0)]);
+                    let time_override=if args.len()==3 {
+                        let time_arg=args.iter().find(|arg|arg.resolved_pin.as_deref()==Some("시간")).unwrap_or(&args[2]);
+                        match self.eval_expr(locals,&time_arg.expr)? {
+                            Value::TimePolicy(policy)=>Some(policy),
+                            _=>return Err("E_BOGAE_TIME_POLICY_INVALID: 시간은 보개시간값이어야 합니다".to_string().into()),
+                        }
+                    }else{None};
                     return Ok(Value::BogaeRelation(BogaeRelationValue::Magnifier {
-                        target:Box::new(target),recipe,view,source_location,
+                        target:Box::new(target),recipe,view,source_location,time_override,
                     }));
                 }
                 if matches!(func.as_str(), "그리고" | "또는") {
@@ -6723,6 +7064,27 @@ impl<'a> EvalContext<'a> {
                 let mut values = Vec::with_capacity(args.len());
                 for arg in args {
                     values.push(self.eval_expr(locals, &arg.expr)?);
+                }
+                // A3-TIME-P1: evaluate in authored order, then bind optional
+                // named time arguments using the single public signature table.
+                if matches!(func.as_str(),"표준보기.결과표"|"표준보기.장면"|"표준보개.으뜸"|"표준보개.곁"|"표준보개.겹")
+                    && args.iter().any(|arg|arg.resolved_pin.is_some()) {
+                    let signature=ddonirang_lang::stdlib::view_function_sigs().into_iter().find(|sig|sig.name==func).expect("view signature");
+                    let mut slots:Vec<Option<Value>>=vec![None;signature.params.len()];
+                    for (arg,value) in args.iter().zip(values) {
+                        let index=if let Some(pin)=arg.resolved_pin.as_deref() {
+                            signature.params.iter().position(|name|*name==pin)
+                                .ok_or_else(||EvalError::from(format!("E_CALL_PIN_UNKNOWN: {func}에 `{pin}` 받는자리가 없습니다")))?
+                        }else{slots.iter().position(Option::is_none)
+                            .ok_or_else(||EvalError::from(format!("E_CALL_ARGUMENT_COUNT: {func} 인자가 너무 많습니다")))?};
+                        if slots[index].is_some() {return Err(format!("E_CALL_PIN_DUPLICATE: {} 받는자리가 겹칩니다",signature.params[index]).into());}
+                        slots[index]=Some(value);
+                    }
+                    let required=signature.params.len()-1;
+                    if slots[..required].iter().any(Option::is_none) {
+                        return Err(format!("E_CALL_REQUIRED_PIN_MISSING: {func}의 필수 받는자리가 없습니다").into());
+                    }
+                    values=slots.into_iter().flatten().collect();
                 }
                 let resource_backed_names = self.resource_backed_caller_names(locals);
                 let value =
@@ -6993,6 +7355,9 @@ impl<'a> EvalContext<'a> {
                 signal.source_span,
             ));
         };
+        if body.stmts.iter().any(|stmt|matches!(stmt,Stmt::Definition {reaction:Some(_),..})) {
+            return self.dispatch_authored_reaction_providers(locals,&signal,body);
+        }
         let previous_seed = self.current_seed_name.clone();
         let previous_owner = self.current_owner_identity.clone();
         let frame_snapshot = self.capture_frame_snapshot(locals);
@@ -7190,6 +7555,204 @@ impl<'a> EvalContext<'a> {
         result
     }
 
+    fn dispatch_logical_input_reactions(&mut self)->Result<(),EvalError> {
+        // A3-P4: source explicitly names every channel/nominal alert/receiver.
+        let mut bindings=BTreeMap::<String,(String,String,ddonirang_lang::Span)>::new();
+        for stmt in &self.program.root_stmts {
+            let Stmt::Expr {expr,..}=stmt else {continue};
+            let ExprKind::Call {func,args}=&expr.kind else {continue};
+            if func!="입력사상.알림결속" {continue;}
+            let mut slots: [Option<String>;3]=[None,None,None];
+            for (index,arg) in args.iter().enumerate() {
+                let ExprKind::Literal(Literal::String(name))=&arg.expr.kind else {
+                    return Err("E_LOGICAL_REACTION_BINDING: 결속 이름은 최상위의 명시 글 값이어야 합니다".to_string().into());
+                };
+                let slot = match arg.resolved_pin.as_deref() {
+                    Some("채널")=>0, Some("알림씨")=>1, Some("받는이")=>2,
+                    None=>index,
+                    _=>return Err("E_LOGICAL_REACTION_BINDING: 알림 결속의 받는자리 이름이 잘못되었습니다".to_string().into()),
+                };
+                if slot>=slots.len() || slots[slot].replace(name.clone()).is_some() {
+                    return Err("E_LOGICAL_REACTION_BINDING: 알림 결속의 받는자리가 중복되었습니다".to_string().into());
+                }
+            }
+            let names=slots.into_iter().collect::<Option<Vec<_>>>().ok_or_else(|| EvalError::from("E_LOGICAL_REACTION_BINDING: 채널·알림씨·받는이를 명시하세요".to_string()))?;
+            if bindings.insert(names[0].clone(),(names[1].clone(),names[2].clone(),expr.span)).is_some() {
+                return Err("E_LOGICAL_REACTION_BINDING_DUPLICATE: 같은 채널의 알림 결속이 중복되었습니다".to_string().into());
+            }
+            let Some(alert)=self.program.functions.get(&names[1]) else {return Err("E_LOGICAL_REACTION_ALERT: 선언된 알림씨가 없습니다".to_string().into())};
+            if !matches!(&alert.seed_kind,SeedKind::Named(kind) if kind=="알림씨") {
+                return Err("E_LOGICAL_REACTION_ALERT: 결속 대상은 알림씨여야 합니다".to_string().into());
+            }
+            let required=[("채널","글"),("알림","글"),("순서","수"),("마디번호","수")];
+            if alert.params.len()!=required.len() || required.iter().any(|(name,ty)|
+                !alert.params.iter().any(|pin|pin.pin_name==*name&&pin.type_ref==TypeRef::Named((*ty).into())&&!pin.optional&&pin.default_value.is_none())) {
+                return Err("E_LOGICAL_REACTION_ALERT: 알림씨는 채널:글·알림:글·순서:수·마디번호:수 받는자리를 명시해야 합니다".to_string().into());
+            }
+        }
+        if bindings.is_empty() {return Ok(())}
+        let input=self.logical_input.clone().ok_or_else(||EvalError::from("E_LOGICAL_INPUT_PROFILE_REQUIRED: 알림 결속에는 논리 입력 프로필이 필요합니다".to_string()))?;
+        for channel in bindings.keys() {let _=input.events_for(channel).map_err(|_|EvalError::from("E_LOGICAL_REACTION_CHANNEL: 기록에 결속되지 않은 논리 채널입니다".to_string()))?;}
+        self.input_reads.borrow_mut().insert("logical.reactions".into());
+        let mut locals=HashMap::new();
+        let result = (|| -> Result<(),EvalError> {
+        for (index,event) in input.events().iter().enumerate() {
+            let Some((alert,receiver,span))=bindings.get(&event.channel) else {continue};
+            self.logical_input = Some(input.at_event_prefix(index+1).map_err(|_| EvalError::from("E_LOGICAL_INPUT_STATE: 반응에는 이전 확정 눌림 상태가 필요합니다".to_string()))?);
+            let kind=match event.kind {
+                ddonirang_core::input::LogicalInputEventKind::Press=>"누름",
+                ddonirang_core::input::LogicalInputEventKind::Repeat=>"반복",
+                ddonirang_core::input::LogicalInputEventKind::Release=>"뗌",
+                _=>return Err("E_LOGICAL_INPUT_TEXT_UNSUPPORTED: 글 입력 반응은 아직 지원하지 않습니다".to_string().into()),
+            };
+            let ordinal=i64::try_from(event.receive_ordinal).map_err(|_|EvalError::from("E_LOGICAL_INPUT_ORDER: 사건 순서 범위 초과".to_string()))?;
+            let madi=i64::try_from(input.madi()).map_err(|_|EvalError::from("E_LOGICAL_INPUT_ORDER: 마디 범위 초과".to_string()))?;
+            if ordinal > i32::MAX as i64 || madi > i32::MAX as i64 {
+                return Err("E_LOGICAL_INPUT_ORDER: 알림씨 수 받는자리의 정확한 정수 범위를 넘었습니다".to_string().into());
+            }
+            self.dispatch_async_to_endpoint(&mut locals,PendingAsyncSignal {
+                receiver_name:receiver.clone(),event_kind:alert.clone(),sender_name:"입력사상".into(),source_span:*span,
+                event_payload:Value::Pack(BTreeMap::from([
+                    ("채널".into(),Value::String(event.channel.clone())),("알림".into(),Value::String(kind.into())),
+                    ("순서".into(),Value::Fixed64(Fixed64::from_i64(ordinal))),
+                    ("마디번호".into(),Value::Fixed64(Fixed64::from_i64(madi))),
+                ])),
+            })?;
+            self.drain_async_queue(&mut locals)?;
+        }
+        Ok(())
+        })();
+        self.logical_input = Some(input);
+        result
+    }
+
+    fn dispatch_authored_reaction_providers(
+        &mut self,locals:&mut HashMap<String,Value>,signal:&PendingAsyncSignal,body:&Body,
+    )->Result<(),EvalError> {
+        // RD-293/445: independent candidates against one settled snapshot.
+        // This is actual DDN execution, not InternalReactionProgram lowering.
+        let mut providers=BTreeMap::new();
+        for stmt in &body.stmts {
+            if let Stmt::Definition {name,reaction:Some(registration),value,..}=stmt {
+                if registration.alert_type!=signal.event_kind {continue;}
+                if !self.async_payload_type_matches(&registration.alert_type,&signal.event_kind,&signal.event_payload) {
+                    return Err("E_REACTION_ALERT_TYPE: 등록한 알림씨와 전달 값의 씨가 다릅니다".to_string().into());
+                }
+                let ExprKind::Thunk(provider_body)=&value.kind else {return Err("E_REACTION_BODY: 반응 본문이 없습니다".to_string().into())};
+                let identity=format!("{}::{}",signal.receiver_name,name);
+                if providers.insert(identity,(Some(registration.payload.pin_name.as_str()),provider_body)).is_some() {
+                    return Err("E_REACTION_PROVIDER_DUPLICATE: 같은 반응 정의 정체가 중복되었습니다".to_string().into());
+                }
+            }
+        }
+        // Existing consuming routes and non-consuming named providers are
+        // separate participants. Route ambiguity never becomes a priority.
+        let route_snapshot=self.capture_frame_snapshot(locals);
+        let route_owner=self.current_owner_identity.clone();
+        let route_seed=self.current_seed_name.clone();
+        self.current_owner_identity=Some(signal.receiver_name.clone());
+        self.current_seed_name=Some(signal.receiver_name.clone());
+        let route_result:Result<Option<(Option<&str>,&Body)>,EvalError>=(|| {
+            let mut route=None;
+            for stmt in &body.stmts {
+                let Stmt::Receive {sender,payload_type:Some(payload_type),binding,condition,body:route_body,..}=stmt else {continue};
+                if !self.async_payload_type_matches(payload_type,&signal.event_kind,&signal.event_payload) {continue;}
+                if let Some(sender)=sender {
+                    if self.resolve_entity_name(sender)?!=signal.sender_name {continue;}
+                }
+                if !self.eval_receive_condition(locals,binding.as_deref(),condition.as_ref(),true,
+                    &signal.event_kind,&signal.sender_name,&signal.event_payload)? {continue;}
+                if route.is_some() {return Err("E_ASYNC_ENDPOINT_AMBIGUOUS_CANDIDATE: 한 전달에 맞는 수신 경로가 여러 개입니다".to_string().into());}
+                route=Some((binding.as_deref(),route_body));
+            }
+            Ok(route)
+        })();
+        self.restore_frame_snapshot(locals,&route_snapshot);
+        self.current_owner_identity=route_owner;self.current_seed_name=route_seed;
+        if let Some(route)=route_result? {
+            providers.insert(format!("route::{}",signal.receiver_name),route);
+        }
+        if providers.is_empty() {return Err("E_REACTION_UNHANDLED: 이 알림씨에 반응하는 정의가 없습니다".to_string().into());}
+        let base=self.capture_frame_snapshot(locals);
+        let previous_owner=self.current_owner_identity.clone();
+        let previous_seed=self.current_seed_name.clone();
+        let initial_rng=self.rng_state;
+        let mut merged=BTreeMap::<String,PatchOp>::new();
+        let mut resource_writes=BTreeMap::<String,Value>::new();
+        let mut output_ops=Vec::new();let mut envelopes=Vec::new();
+        let mut observations=Vec::new();let mut displays=Vec::new();
+        let mut final_rng=None;
+        let result=(|| {
+            for (_identity,(binding,provider_body)) in providers {
+                self.restore_frame_snapshot(locals,&base);self.rng_state=initial_rng;
+                self.current_owner_identity=Some(signal.receiver_name.clone());
+                self.current_seed_name=Some(signal.receiver_name.clone());
+                locals.insert("받는이".into(),Value::String(signal.receiver_name.clone()));
+                let mut fixed=HashSet::from(["받는이".to_string()]);
+                if let Some(binding)=binding {fixed.insert(binding.to_string());}
+                self.const_scopes.push(fixed);
+                self.async_outbox.begin_frame();
+                let evaluated=self.eval_receive_stmt(locals,binding,None,provider_body,
+                    true,&signal.event_kind,&signal.sender_name,&signal.event_payload);
+                if let Err(error)=evaluated {self.async_outbox.abort_frame();return Err(error);}
+                if self.aborted || self.guard_rejected {
+                    self.async_outbox.abort_frame();return Err("E_REACTION_ABORTED: 반응 실패로 마디를 게시하지 않습니다".to_string().into());
+                }
+                envelopes.extend(self.async_outbox.commit_frame());
+                let written_tags:HashSet<&str>=self.patch_ops.iter().skip(base.patch_ops.len()).filter_map(|op|match op {
+                    PatchOp::SetResourceJson{tag,..}|PatchOp::SetResourceFixed64{tag,..}
+                    |PatchOp::SetResourceHandle{tag,..}|PatchOp::SetResourceValue{tag,..}=>Some(tag.as_str()),
+                    _=>None,
+                }).collect();
+                for (key,shared) in self.resources.0.iter() {
+                    // Lazy reads may cache defaults in resources; only an
+                    // emitted write is a candidate, not a newly cached read.
+                    if !written_tags.contains(key.as_str()) {continue;}
+                    let value=shared.as_ref();
+                    if resource_writes.get(key).is_some_and(|old|old!=value) {
+                        return Err(format!("E_REACTION_PATCH_CONFLICT: 반응들이 같은 자원에 서로 다른 값을 썼습니다: {key}").into());
+                    }
+                    resource_writes.insert(key.clone(),value.clone());
+                }
+                let mut provider_ops=BTreeMap::new();
+                for op in self.patch_ops.iter().skip(base.patch_ops.len()) {
+                    let key=match op {
+                        PatchOp::SetResourceJson{tag,..}|PatchOp::SetResourceFixed64{tag,..}
+                        |PatchOp::SetResourceHandle{tag,..}|PatchOp::SetResourceValue{tag,..}=>Some(format!("resource:{tag}")),
+                        PatchOp::SetComponentJson{entity,tag,..}|PatchOp::RemoveComponent{entity,tag}=>Some(format!("component:{entity:?}:{tag:?}")),
+                        _=>None,
+                    };
+                    if let Some(key)=key {
+                        provider_ops.insert(key,op.clone());
+                    } else {output_ops.push(op.clone());}
+                }
+                for (key,op) in provider_ops {
+                    if merged.get(&key).is_some_and(|old|old!=&op) {
+                        return Err(format!("E_REACTION_PATCH_CONFLICT: 반응 결과가 충돌합니다: {key}").into());
+                    }
+                    merged.insert(key,op);
+                }
+                observations.extend_from_slice(&self.public_observations[base.public_observations.len()..]);
+                displays.extend_from_slice(&self.display_outputs[base.display_outputs.len()..]);
+                if self.rng_state!=initial_rng {
+                    if final_rng.is_some_and(|old|old!=self.rng_state) {return Err("E_REACTION_PATCH_CONFLICT: 난수 상태가 충돌합니다".to_string().into());}
+                    final_rng=Some(self.rng_state);
+                }
+            }
+            Ok(())
+        })();
+        self.restore_frame_snapshot(locals,&base);
+        self.current_owner_identity=previous_owner;self.current_seed_name=previous_seed;
+        self.rng_state=initial_rng;
+        result?;
+        for (key,value) in resource_writes {self.resources.insert(key,value);}
+        for op in merged.into_values().chain(output_ops) {self.patch_ops.push(op);}
+        self.public_observations.extend(observations);self.display_outputs.extend(displays);
+        self.rng_state=final_rng.unwrap_or(initial_rng);
+        self.admit_async_envelopes(envelopes);
+        Ok(())
+    }
+
     fn eval_receive_condition(
         &mut self,
         locals: &mut HashMap<String, Value>,
@@ -7281,14 +7844,19 @@ impl<'a> EvalContext<'a> {
             let value = self.eval_expr(locals, payload_expr)?;
             return Ok((func.clone(), value));
         }
+        let params = seed.params.clone();
         let mut fields = BTreeMap::new();
         for (index, arg) in args.iter().enumerate() {
             let name = arg
                 .resolved_pin
                 .clone()
-                .or_else(|| seed.params.get(index).map(|param| param.pin_name.clone()))
+                .or_else(|| params.get(index).map(|param| param.pin_name.clone()))
                 .unwrap_or_else(|| format!("값{index}"));
-            fields.insert(name, self.eval_expr(locals, &arg.expr)?);
+            let value = self.eval_expr(locals, &arg.expr)?;
+            let param = params.iter().find(|param| param.pin_name == name)
+                .ok_or_else(|| EvalError::from(format!("알림씨 받는자리를 찾을 수 없습니다: {name}")))?;
+            self.check_param_type(param, &value)?;
+            fields.insert(name, value);
         }
         Ok((func.clone(), Value::Pack(fields)))
     }
@@ -8175,6 +8743,35 @@ impl<'a> EvalContext<'a> {
         source_span: Option<SourceSpan>,
     ) -> Result<Value, EvalError> {
         let func = Self::canonicalize_stdlib_alias(func);
+        if matches!(func,"표준시간.공통"|"표준시간.고정마디"|"표준시간.상대마디") {
+            self.work_cost.borrow_mut().charge_dispatch()?;
+            builtin_work_cost_rule(func)?;
+            use ddonirang_lang::runtime::BogaeTimePolicy;
+            if func=="표준시간.공통" && args.is_empty() { return Ok(Value::TimePolicy(BogaeTimePolicy::Common)); }
+            let [Value::Fixed64(number)]=args.as_slice() else {
+                return Err("E_BOGAE_TIME_POLICY_INVALID: 고정·상대 마디는 정수 마디 하나를 받습니다".to_string().into());
+            };
+            let raw=number.raw_i64();
+            if raw%(1i64<<32)!=0 {return Err("E_BOGAE_TIME_POLICY_INVALID: 마디는 정수여야 합니다".to_string().into());}
+            let madi=raw/(1i64<<32);
+            let policy=match func {
+                "표준시간.고정마디" if madi>=0=>BogaeTimePolicy::Fixed(madi as u64),
+                "표준시간.상대마디"=>BogaeTimePolicy::Relative(madi),
+                _=>return Err("E_BOGAE_TIME_POLICY_INVALID: 고정 마디는 음수가 될 수 없습니다".to_string().into()),
+            };
+            return Ok(Value::TimePolicy(policy));
+        }
+        // A3-TIME-P1 provisional optional `시간` pin on existing constructors.
+        let time_base_count=match func {"표준보기.결과표"=>Some(0),
+            "표준보기.장면"|"표준보개.으뜸"=>Some(1),"표준보개.곁"=>Some(2),
+            "표준보개.겹"=>Some(3),_=>None};
+        let mut args=args;
+        let time_override=if time_base_count.is_some_and(|count|args.len()==count+1) {
+            match args.pop().expect("one optional time argument") {
+                Value::TimePolicy(policy)=>Some(policy),
+                _=>return Err("E_BOGAE_TIME_POLICY_INVALID: 시간은 보개시간값이어야 합니다".to_string().into()),
+            }
+        }else{None};
         if self.logical_input.is_some() && matches!(func,
             "눌렸나" | "막눌렸나" | "입력키" | "입력키?" | "입력키!") {
             return Err("E_LOGICAL_INPUT_PHYSICAL_UNSUPPORTED: 논리 입력 원문은 물리 키를 읽지 않습니다".to_string().into());
@@ -8234,7 +8831,8 @@ impl<'a> EvalContext<'a> {
                     if !args.is_empty() {
                         return Err("표준보기.결과표는 인자를 받지 않습니다".to_string().into());
                     }
-                    Ok(Value::View(ddonirang_lang::runtime::ViewValue::ResultTable))
+                    let view=ddonirang_lang::runtime::ViewValue::ResultTable;
+                    Ok(Value::View(match time_override {Some(policy)=>ddonirang_lang::runtime::ViewValue::Timed {view:Box::new(view),policy},None=>view}))
                 }
                 "표준보개.으뜸" => {
                     if args.len() != 1 {
@@ -8246,7 +8844,7 @@ impl<'a> EvalContext<'a> {
                     self.work_cost.borrow_mut().charge_element_visits(crate::scene_value::clone_visits(&args[0]))?;
                     let source_location = source_span.as_ref().map(|span|
                         [span.start_line, span.start_col.unwrap_or(0), span.end_line, span.end_col.unwrap_or(0)]);
-                    Ok(Value::BogaeRelation(ddonirang_lang::runtime::BogaeRelationValue::Primary { view: view.clone(), source_location }))
+                    Ok(Value::BogaeRelation(ddonirang_lang::runtime::BogaeRelationValue::Primary { view: view.clone(), source_location,time_override }))
                 }
                 "표준보개.짜임" => {
                     if args.len() != 1 {
@@ -8283,7 +8881,7 @@ impl<'a> EvalContext<'a> {
                     let order = expect_int_strict(&args[2])?;
                     let source_location = source_span.as_ref().map(|span|
                         [span.start_line, span.start_col.unwrap_or(0), span.end_line, span.end_col.unwrap_or(0)]);
-                    Ok(Value::BogaeRelation(BogaeRelationValue::Overlay {view:view.clone(), basis_location:*basis_location, order, source_location}))
+                    Ok(Value::BogaeRelation(BogaeRelationValue::Overlay {view:view.clone(), basis_location:*basis_location, order, source_location,time_override}))
                 }
                 "표준보개.곁" => {
                     use ddonirang_lang::runtime::{BogaeRelationValue, SidePlacement};
@@ -8295,7 +8893,7 @@ impl<'a> EvalContext<'a> {
                         "E_BOGAE_UNSUPPORTED: 곁 자리는 왼쪽·오른쪽·위·아래·자동입니다".to_string()))?;
                     let source_location = source_span.as_ref().map(|span|
                         [span.start_line, span.start_col.unwrap_or(0), span.end_line, span.end_col.unwrap_or(0)]);
-                    Ok(Value::BogaeRelation(BogaeRelationValue::Side {view:view.clone(), placement, source_location}))
+                    Ok(Value::BogaeRelation(BogaeRelationValue::Side {view:view.clone(), placement, source_location,time_override}))
                 }
                 "표준보개.돋" => {
                     Err("E_BOGAE_RECIPE_UNSEALED: 돋 보기법은 작성 정의 정체로 해소해야 합니다".to_string().into())
@@ -8313,7 +8911,11 @@ impl<'a> EvalContext<'a> {
                             for element in elements {self.work_cost.borrow_mut().charge_element_visits(crate::scene_value::clone_visits(element))?;}
                         }
                     }
-                    crate::scene_value::construct_with_meter(func, &args,Some(&mut self.work_cost.borrow_mut())).map_err(EvalError::from)
+                    let value=crate::scene_value::construct_with_meter(func, &args,Some(&mut self.work_cost.borrow_mut())).map_err(EvalError::from)?;
+                    Ok(match (value,time_override) {
+                        (Value::View(view),Some(policy))=>Value::View(ddonirang_lang::runtime::ViewValue::Timed {view:Box::new(view),policy}),
+                        (value,_)=>value,
+                    })
                 }
                 "아님" | "아니다" => {
                     if args.len() != 1 {
@@ -9090,6 +9692,12 @@ impl<'a> EvalContext<'a> {
                     if args.len() != 2 {
                         return Err("차림.값은 인자 2개를 받습니다".to_string().into());
                     }
+                    if let Value::Tensor(tensor) = &args[0] {
+                        let index = value_to_tensor_index(&args[1])?;
+                        self.work_cost.borrow_mut().charge_element_visits(tensor.elements().len())?;
+                        return crate::unit_wire::tensor_select(tensor, &[crate::unit_wire::TensorSelector::Index(index as u64)])
+                            .map_err(Into::into);
+                    }
                     let value = list_nth(&args[0], &args[1]).map_err(runtime_error)?;
                     self.work_cost.borrow_mut().charge_element_visits(1)?;
                     Ok(value)
@@ -9097,6 +9705,12 @@ impl<'a> EvalContext<'a> {
                 "차림.바꾼값" => {
                     if args.len() != 3 {
                         return Err("차림.바꾼값은 인자 3개를 받습니다".to_string().into());
+                    }
+                    if let Value::Tensor(tensor) = &args[0] {
+                        let index = value_to_tensor_index(&args[1])?;
+                        self.work_cost.borrow_mut().charge_element_visits(tensor.elements().len())?;
+                        return crate::unit_wire::tensor_replace(tensor, &[crate::unit_wire::TensorSelector::Index(index as u64)], &args[2])
+                            .map(Value::Tensor).map_err(Into::into);
                     }
                     let index = value_to_index(&args[1])?;
                     let Value::List(items) = &args[0] else {
@@ -10613,6 +11227,22 @@ impl<'a> EvalContext<'a> {
                         &action,
                     )))
                 }
+                "입력사상.알림결속" => {
+                    if self.logical_input.is_none() {
+                        return Err("E_LOGICAL_INPUT_PROFILE_REQUIRED: 알림 결속에는 논리 입력 프로필이 필요합니다".to_string().into());
+                    }
+                    if args.len()!=3 || args.iter().any(|value|!matches!(value,Value::String(_))) {
+                        return Err("E_LOGICAL_REACTION_BINDING: 채널·알림씨·받는이 이름을 글로 명시하세요".to_string().into());
+                    }
+                    if !self.root_program_active {return Err("E_LOGICAL_REACTION_BINDING: 알림 결속은 최상위에서만 선언합니다".to_string().into());}
+                    let direct = self.program.root_stmts.iter().any(|stmt| {
+                        let Stmt::Expr {expr,..}=stmt else {return false};
+                        matches!(&expr.kind, ExprKind::Call {func,..} if func=="입력사상.알림결속")
+                            && source_span.is_some() && self.source_span_for_expr(expr)==source_span
+                    });
+                    if !direct {return Err("E_LOGICAL_REACTION_BINDING: 알림 결속은 최상위의 직접 선언이어야 합니다".to_string().into());}
+                    Ok(Value::None)
+                }
                 "입력사상.사건들" => {
                     if !args.is_empty() {
                         return Err("입력사상.사건들은 인자 없이 해당 마디의 사건을 읽습니다".to_string().into());
@@ -11373,6 +12003,9 @@ impl<'a> EvalContext<'a> {
                 Value::Scene(_) | Value::SceneElement(_) | Value::View(ddonirang_lang::runtime::ViewValue::Scene(_)) => {
                     return Err("E_SCENE_OPERATION_UNSUPPORTED: 장면 값의 비교·열쇠 사용은 아직 지원하지 않습니다".to_string().into());
                 }
+                Value::View(view) if matches!(view.without_time(), ddonirang_lang::runtime::ViewValue::Scene(_)) => {
+                    return Err("E_SCENE_OPERATION_UNSUPPORTED: 장면 값의 비교·열쇠 사용은 아직 지원하지 않습니다".to_string().into());
+                }
                 Value::Lambda(_) | Value::ResourceHandle(_) | Value::StateMachine(_) | Value::Formula(_) => {
                     let mut segments = Vec::new();
                     let mut cursor = parent;
@@ -11932,6 +12565,7 @@ impl<'a> EvalContext<'a> {
             factor_bits_min: self.factor_bits_min,
             factor_bits_max: self.factor_bits_max,
             public_observations: self.public_observations.clone(),
+            display_outputs: self.display_outputs.clone(),
             root_binding_types: self.root_binding_types.clone(),
         }
     }
@@ -11954,6 +12588,7 @@ impl<'a> EvalContext<'a> {
         self.factor_bits_min = snapshot.factor_bits_min;
         self.factor_bits_max = snapshot.factor_bits_max;
         self.public_observations = snapshot.public_observations.clone();
+        self.display_outputs = snapshot.display_outputs.clone();
         self.root_binding_types = snapshot.root_binding_types.clone();
     }
 
@@ -12086,7 +12721,20 @@ impl<'a> EvalContext<'a> {
     }
 
     fn set_resource(&mut self, name: &str, value: Value) -> Result<(), EvalError> {
+        if let Some(Value::Tensor(old)) = self.resources.get(name) {
+            let Value::Tensor(next) = &value else {
+                return Err("Tensor 교체는 같은 원소씨와 모양이어야 합니다".to_string().into());
+            };
+            if old.element_identity() != next.element_identity() || old.shape() != next.shape() {
+                return Err("Tensor 교체 모양 또는 원소씨 불일치".to_string().into());
+            }
+        }
         match value {
+            Value::Tensor(tensor) => {
+                let saved = crate::unit_wire::tensor_to_resource(&tensor).map_err(EvalError::from)?;
+                self.patch_ops.push(PatchOp::SetResourceValue { tag: name.to_string(), value: saved });
+                self.resources.insert(name.to_string(), Value::Tensor(tensor));
+            }
             Value::Fixed64(v) => {
                 if let Some(spec) = parse_resource_unit_tag(name) {
                     let unit_value = UnitValue::try_from_spec(v, spec).map_err(unit_error)?;
@@ -12126,9 +12774,14 @@ impl<'a> EvalContext<'a> {
                     self.resources
                         .insert(name.to_string(), Value::Fixed64(unit.value));
                 } else {
-                    return Err("단위가 있는 값은 단위 태그 자원에만 저장할 수 있습니다"
-                        .to_string()
-                        .into());
+                    // A3-P2: a normal binding keeps its typed UnitValue. The
+                    // existing ResourceValue wire already owns its dimension;
+                    // a unit suffix in the variable spelling is not required.
+                    self.patch_ops.push(PatchOp::SetResourceValue {
+                        tag: name.to_string(),
+                        value: ResourceValue::Unit(unit),
+                    });
+                    self.resources.insert(name.to_string(), Value::Unit(unit));
                 }
             }
             Value::String(s) => {
@@ -12184,6 +12837,7 @@ impl<'a> EvalContext<'a> {
                 self.resources
                     .insert(name.to_string(), Value::Lambda(lambda));
             }
+            Value::TimePolicy(policy) => { self.resources.insert(name.to_string(),Value::TimePolicy(policy)); }
             Value::View(view) => {
                 // Authored 보기값은 실행기 결속만 유지한다. world Patch/hash에 넣지 않는다.
                 self.resources.insert(name.to_string(), Value::View(view));
@@ -12226,6 +12880,9 @@ impl<'a> EvalContext<'a> {
         );
         insert(&mut row, "kind", Value::String("output".to_string()));
         insert(&mut row, "text", Value::String(value_to_string(&value)));
+        self.display_outputs.push(crate::output_display::OutputDisplay {
+            madi: self.tick_id, line_no, text: crate::output_display::text(&value),
+        });
         entries.push(Value::Map(row));
         self.set_resource("output_log", Value::List(entries))
     }
@@ -12777,6 +13434,7 @@ impl<'a> EvalContext<'a> {
             factor_bits_max: self.factor_bits_max,
             public_observations: self.public_observations.clone(),
             root_program_active: self.root_program_active,
+            display_outputs: self.display_outputs.clone(),
             root_binding_types: self.root_binding_types.clone(),
             project_asset_registry: self.project_asset_registry,
             work_cost: Rc::clone(&self.work_cost),
@@ -12800,6 +13458,7 @@ impl<'a> EvalContext<'a> {
         self.factor_bits_min = child.factor_bits_min;
         self.factor_bits_max = child.factor_bits_max;
         self.public_observations = child.public_observations;
+        self.display_outputs = child.display_outputs;
         self.root_binding_types = child.root_binding_types;
         self.pending_async_signals = child.pending_async_signals;
         self.async_outbox = child.async_outbox;
@@ -12849,6 +13508,7 @@ impl<'a> EvalContext<'a> {
             factor_bits_max: self.factor_bits_max,
             public_observations: self.public_observations.clone(),
             root_program_active: self.root_program_active,
+            display_outputs: self.display_outputs.clone(),
             root_binding_types: self.root_binding_types.clone(),
             project_asset_registry: self.project_asset_registry,
             work_cost: Rc::clone(&self.work_cost),
@@ -12874,6 +13534,7 @@ impl<'a> EvalContext<'a> {
         self.factor_bits_min = child.factor_bits_min;
         self.factor_bits_max = child.factor_bits_max;
         self.public_observations = child.public_observations;
+        self.display_outputs = child.display_outputs;
         self.pending_async_signals = child.pending_async_signals;
         self.async_outbox = child.async_outbox;
         self.async_wait_receipts = child.async_wait_receipts;
@@ -13001,6 +13662,7 @@ impl<'a> EvalContext<'a> {
             factor_bits_max: self.factor_bits_max,
             public_observations: Vec::new(),
             root_program_active: self.root_program_active,
+            display_outputs: Vec::new(),
             root_binding_types: self.root_binding_types.clone(),
             project_asset_registry: self.project_asset_registry,
             work_cost: Rc::clone(&self.work_cost),
@@ -13322,6 +13984,8 @@ fn contains_unresolved_bogae_relation_for_builtin<'a>(
             Value::BogaeRelation(_) | Value::BogaeComposition(_) => return Ok(true),
             Value::Scene(_) | Value::SceneElement(_) | Value::View(ddonirang_lang::runtime::ViewValue::Scene(_)) =>
                 if !ordered_scene_carrier { return Err("E_SCENE_OPERATION_UNSUPPORTED: 장면 값의 비교·열쇠 사용은 아직 지원하지 않습니다".to_string().into()); },
+            Value::View(view) if matches!(view.without_time(), ddonirang_lang::runtime::ViewValue::Scene(_)) =>
+                if !ordered_scene_carrier { return Err("E_SCENE_OPERATION_UNSUPPORTED: 장면 값의 비교·열쇠 사용은 아직 지원하지 않습니다".to_string().into()); },
             Value::List(items) => stack.push(Box::new(items.iter())),
             Value::Set(items) | Value::Pack(items) => stack.push(Box::new(items.values())),
             Value::Map(items) => stack.push(Box::new(items.values()
@@ -13334,6 +13998,7 @@ fn contains_unresolved_bogae_relation_for_builtin<'a>(
 
 fn values_equal(left: &Value, right: &Value) -> bool {
     match (left, right) {
+        (Value::Tensor(a), Value::Tensor(b)) => a == b,
         (Value::Fixed64(a), Value::Fixed64(b)) => a.raw_i64() == b.raw_i64(),
         (Value::Fixed64(a), Value::Unit(b)) if b.is_dimensionless() => {
             a.raw_i64() == b.value.raw_i64()
@@ -13356,12 +14021,14 @@ fn values_equal(left: &Value, right: &Value) -> bool {
         (Value::Regex(a), Value::Regex(b)) => a == b,
         (Value::Lambda(a), Value::Lambda(b)) => a.id == b.id,
         (Value::View(a), Value::View(b)) => a == b,
+        (Value::TimePolicy(a),Value::TimePolicy(b))=>a==b,
         _ => false,
     }
 }
 
 fn value_rank(value: &Value) -> u8 {
     match value {
+        Value::Tensor(_) => 21,
         Value::None => 0,
         Value::Bool(_) => 1,
         Value::Fixed64(_) | Value::Unit(_) => 2,
@@ -13374,6 +14041,7 @@ fn value_rank(value: &Value) -> u8 {
         Value::StateMachine(_) => 9,
         Value::Lambda(_) => 10,
         Value::View(_) => 15,
+        Value::TimePolicy(_) => 20,
         Value::SceneElement(_) => 18,
         Value::Scene(_) => 19,
         Value::BogaeRelation(_) => 16,
@@ -17591,6 +18259,19 @@ fn value_to_index(value: &Value) -> Result<usize, EvalError> {
     }
 }
 
+fn value_to_tensor_index(value: &Value) -> Result<usize, EvalError> {
+    // RD-388: never silently truncate a fractional or negative coordinate.
+    let number = match value {
+        Value::Fixed64(n) => *n,
+        Value::Unit(n) if n.is_dimensionless() => n.value,
+        _ => return Err("E_TENSOR_SELECTION: 축 번호는 0 이상의 정수여야 합니다".to_string().into()),
+    };
+    if number.raw_i64() < 0 || number.frac_part() != 0 {
+        return Err("E_TENSOR_SELECTION: 축 번호는 0 이상의 정수여야 합니다".to_string().into());
+    }
+    usize::try_from(number.int_part()).map_err(|_| "E_TENSOR_SELECTION: 축 번호 초과".to_string().into())
+}
+
 const STREAM_V1_SCHEMA: &str = "ddn.stream.v1";
 const STREAM_CAPACITY_MAX: usize = 1_000_000;
 const STREAM_VALUE_LABEL: &str = "흐름(흐름.만들기 결과)";
@@ -17800,10 +18481,20 @@ fn stream_oldest_to_newest(stream: &RuntimeStream) -> Vec<Value> {
     out
 }
 
-fn value_to_string(value: &Value) -> String {
+pub(crate) fn value_to_string(value: &Value) -> String {
+    format_value_text(value, false)
+}
+
+pub(crate) fn value_to_display_text(value: &Value) -> String {
+    format_value_text(value, true)
+}
+
+fn format_value_text(value: &Value, display_only: bool) -> String {
     match value {
+        Value::Tensor(_) => map_key_canon(value),
         Value::String(s) => s.clone(),
-        Value::Fixed64(n) => format_fixed64_for_display(*n),
+        Value::Fixed64(n) => if display_only { n.display_rounded_six() }
+            else { format_fixed64_for_display(*n) },
         Value::Unit(unit) => {
             let suffix = unit
                 .display_symbol()
@@ -17819,16 +18510,17 @@ fn value_to_string(value: &Value) -> String {
             }
         }
         Value::ResourceHandle(handle) => format!("자원#{}", handle.to_hex()),
-        Value::View(view) => match view { ddonirang_lang::runtime::ViewValue::ResultTable => "<보기값:결과표>", _ => "<보기값:장면>" }.to_string(),
+        Value::View(view) => match view.without_time() { ddonirang_lang::runtime::ViewValue::ResultTable => "<보기값:결과표>", _ => "<보기값:장면>" }.to_string(),
         Value::SceneElement(_) => "<장면요소값>".to_string(),
         Value::Scene(_) => "<장면값>".to_string(),
         Value::BogaeRelation(relation) => format!("<{}>", relation.kind_name()),
         Value::BogaeComposition(_) => "<보개짜임값>".to_string(),
+        Value::TimePolicy(policy) => policy.canonical_text(),
         Value::None => String::new(),
         Value::List(items) => {
             let rendered = items
                 .iter()
-                .map(value_to_string)
+                .map(|value| format_value_text(value, display_only))
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("차림[{rendered}]")
@@ -17873,11 +18565,11 @@ fn value_to_string(value: &Value) -> String {
                 if kind == RELATION_KIND_EQUATION {
                     let lhs = items
                         .get(RELATION_LEFT_FIELD)
-                        .map(value_to_string)
+                        .map(|value| format_value_text(value, display_only))
                         .unwrap_or_else(|| "[수식]".to_string());
                     let rhs = items
                         .get(RELATION_RIGHT_FIELD)
-                        .map(value_to_string)
+                        .map(|value| format_value_text(value, display_only))
                         .unwrap_or_else(|| "[수식]".to_string());
                     return format!("{lhs} =:= {rhs}");
                 }
@@ -17890,13 +18582,13 @@ fn value_to_string(value: &Value) -> String {
                     ) {
                         return format!(
                             "#성공(미지수=\"{variable}\", 값={})",
-                            value_to_string(value)
+                            format_value_text(value, display_only)
                         );
                     }
                     if let Some(Value::Pack(bindings)) = items.get(RELATION_SOLVE_BINDINGS_FIELD) {
                         let rendered = bindings
                             .iter()
-                            .map(|(key, value)| format!("{key}={}", value_to_string(value)))
+                            .map(|(key, value)| format!("{key}={}", format_value_text(value, display_only)))
                             .collect::<Vec<_>>()
                             .join(", ");
                         return format!("#성공(해=({rendered}))");
@@ -17922,7 +18614,7 @@ fn value_to_string(value: &Value) -> String {
                 first = false;
                 out.push_str(key);
                 out.push_str(": ");
-                out.push_str(&value_to_string(value));
+                out.push_str(&format_value_text(value, display_only));
             }
             out.push(')');
             out
@@ -18344,6 +19036,7 @@ fn resource_map_to_formula(entries: &BTreeMap<String, ResourceMapEntry>) -> Opti
 
 fn resource_value_from_value(value: &Value) -> Result<ResourceValue, EvalError> {
     match value {
+        Value::Tensor(value) => crate::unit_wire::tensor_to_resource(value).map_err(EvalError::from),
         Value::None => Ok(ResourceValue::None),
         Value::Bool(value) => Ok(ResourceValue::Bool(*value)),
         Value::Fixed64(value) => Ok(ResourceValue::Fixed64(*value)),
@@ -18404,11 +19097,13 @@ fn resource_value_from_value(value: &Value) -> Result<ResourceValue, EvalError> 
         Value::SceneElement(_) | Value::Scene(_) => Err("장면 값은 세계 자원에 대입할 수 없습니다".to_string().into()),
         Value::BogaeRelation(_) => Err("보개관계값은 세계 자원에 대입할 수 없습니다".to_string().into()),
         Value::BogaeComposition(_) => Err("보개짜임값은 세계 자원에 대입할 수 없습니다".to_string().into()),
+        Value::TimePolicy(_) => Err("보개시간값은 세계 자원에 대입할 수 없습니다".to_string().into()),
     }
 }
 
 fn public_observation_type(value: &Value) -> (&'static str, String) {
     match value {
+        Value::Tensor(_) => ("basic_tensor_v1", String::new()),
         Value::None => ("none", String::new()),
         Value::Bool(_) => ("bool", String::new()),
         Value::Fixed64(_) => ("fixed64", String::new()),
@@ -18435,6 +19130,7 @@ fn public_observation_type(value: &Value) -> (&'static str, String) {
         Value::Scene(_) => ("scene", String::new()),
         Value::BogaeRelation(_) => ("bogae_relation", String::new()),
         Value::BogaeComposition(_) => ("bogae_composition", String::new()),
+        Value::TimePolicy(_) => ("bogae_time", String::new()),
     }
 }
 
@@ -18523,6 +19219,8 @@ fn canonical_dataset_observation_name(name: &str) -> Result<String, EvalError> {
 
 fn value_from_resource_value(value: &ResourceValue) -> Value {
     match value {
+        ResourceValue::BasicTensorV1(carrier) => Value::Tensor(
+            crate::unit_wire::tensor_from_carrier(carrier).expect("admitted Tensor resource")),
         ResourceValue::None => Value::None,
         ResourceValue::Bool(value) => Value::Bool(*value),
         ResourceValue::Fixed64(value) => Value::Fixed64(*value),
@@ -18628,6 +19326,7 @@ fn escape_canon_string(input: &str) -> String {
 
 fn value_canon(value: &Value) -> String {
     match value {
+        Value::Tensor(_) => map_key_canon(value),
         Value::None => "없음".to_string(),
         Value::Bool(true) => "참".to_string(),
         Value::Bool(false) => "거짓".to_string(),
@@ -18640,11 +19339,12 @@ fn value_canon(value: &Value) -> String {
             format!("{}@{}", unit.value.canonical_decimal_text(), suffix)
         }
         Value::String(s) => format!("\"{}\"", escape_canon_string(s)),
-        Value::View(view) => match view { ddonirang_lang::runtime::ViewValue::ResultTable => "<보기값:결과표>", _ => "<보기값:장면>" }.to_string(),
+        Value::View(view) => match view.without_time() { ddonirang_lang::runtime::ViewValue::ResultTable => "<보기값:결과표>", _ => "<보기값:장면>" }.to_string(),
         Value::SceneElement(_) => "<장면요소값>".to_string(),
         Value::Scene(_) => "<장면값>".to_string(),
         Value::BogaeRelation(relation) => format!("<{}>", relation.kind_name()),
         Value::BogaeComposition(_) => "<보개짜임값>".to_string(),
+        Value::TimePolicy(policy) => policy.canonical_text(),
         Value::ResourceHandle(handle) => format!("자원#{}", handle.to_hex()),
         Value::List(items) => {
             let mut out = String::from("차림[");
@@ -21307,12 +22007,120 @@ fn position_to_line_col(source: &str, byte_pos: usize) -> (u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime_surface::DEFAULT_UPDATE_NAME;
     use ddonirang_core::platform::DetNuri;
     use ddonirang_core::{Nuri, KEY_A, KEY_D};
     use ddonirang_lang::runtime::Value as RuntimeValue;
     use std::sync::{Mutex, MutexGuard};
 
     const INPUT_KEY_Z: u64 = 1 << 7;
+
+    #[test]
+    fn alpha3_tensor_named_source_roundtrip_and_distinct_identity() {
+        // RD-385/386/389/510/674/682/683, not tensor_v0 compatibility evidence.
+        let source = r#"
+벡터 <- (차림=차림[1,2],원소씨=셈수,모양=(2,)) 텐서로.
+목록 <- (텐서=벡터) 차림으로.
+영차원 <- (차림=7,원소씨=셈수,모양=()) 텐서로.
+빈판 <- (차림=() 차림,원소씨=셈수,모양=(0,3)) 텐서로.
+빈결과 <- (텐서=빈판) 차림으로.
+행렬:(원소씨=셈수,모양=(2,2)) 텐서씨 := (차림=차림[차림[1,2],차림[3,4]],원소씨=셈수,모양=(2,2)) 텐서로.
+확인 <- 행렬.
+벡터 <- (차림=차림[3,4],원소씨=셈수,모양=(2,)) 텐서로.
+"#;
+        let program = DdnProgram::from_v25_source(source, "tensor.ddn").unwrap();
+        let mut runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME);
+        let output = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).unwrap();
+        let RuntimeValue::Tensor(vector) = &output.resources["벡터"] else { panic!("typed Tensor"); };
+        assert_eq!(vector.shape(), &[2]);
+        assert_eq!(vector.elements(), &[Fixed64::from_i64(3),Fixed64::from_i64(4)]);
+        let RuntimeValue::Tensor(scalar) = &output.resources["영차원"] else { panic!("rank 0"); };
+        assert!(scalar.shape().is_empty());
+        assert!(!values_equal(&output.resources["영차원"], &RuntimeValue::Fixed64(Fixed64::from_i64(7))));
+        assert!(!values_equal(&output.resources["벡터"], &output.resources["목록"]));
+        assert!(matches!(&output.resources["빈결과"], RuntimeValue::List(items) if items.is_empty()));
+        let restored = crate::unit_wire::resource_value_from_detjson(
+            &crate::unit_wire::resource_value_to_detjson(&crate::unit_wire::tensor_to_resource(vector).unwrap())).unwrap();
+        assert_eq!(value_canon(&value_from_resource_value(&restored)), value_canon(&output.resources["벡터"]));
+        assert!(matches!(&output.resources["확인"], RuntimeValue::Tensor(value) if value.shape() == [2,2]));
+    }
+
+    #[test]
+    fn alpha3_tensor_source_single_axis_selection_and_persistent_update() {
+        // RD-388/391: this is actual source, not harness lowering.
+        let source = r#"
+판 <- (차림=차림[차림[1,2],차림[3,4]],원소씨=셈수,모양=(2,2)) 텐서로.
+옛판 <- 판.
+둘째줄 <- 판[1].
+마지막 <- 판[1][1].
+판[1][0] <- 9.
+바꾼값 <- 판[1][0].
+옛값 <- 옛판[1][0].
+"#;
+        let program = DdnProgram::from_v25_source(source,"tensor-selection.ddn").unwrap();
+        let mut runner = DdnRunner::new(program,DEFAULT_UPDATE_NAME);
+        let output = runner.run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+        assert!(matches!(&output.resources["둘째줄"],RuntimeValue::Tensor(t) if t.shape() == [2]));
+        assert_eq!(output.resources["마지막"],RuntimeValue::Fixed64(Fixed64::from_i64(4)));
+        assert_eq!(output.resources["바꾼값"],RuntimeValue::Fixed64(Fixed64::from_i64(9)));
+        assert_eq!(output.resources["옛값"],RuntimeValue::Fixed64(Fixed64::from_i64(3)));
+    }
+
+    #[test]
+    fn alpha3_tensor_multi_axis_source_slices_and_result_flow() {
+        // RD-388/391: one bracket group is not nested list selection.
+        let source = r#"
+판 <- (차림=차림[차림[1,2,3],차림[4,5,6]],원소씨=셈수,모양=(2,3)) 텐서로.
+옛판 <- 판.
+마지막 <- 판[1,2].
+가운데 <- 판[:,1..2].
+빈판 <- 판[2..2,:].
+새열 <- (차림=차림[차림[8],차림[9]],원소씨=셈수,모양=(2,1)) 텐서로.
+판[:,1..2] <- 새열.
+판[1,2] <- 7.
+판[0..1,:][0][0] <- 10.
+새열 -> 판[:,1..2].
+뒤 <- 판[0,0].
+이전 <- 옛판[0,0].
+"#;
+        let program = DdnProgram::from_v25_source(source,"tensor-multi.ddn").unwrap();
+        let mut runner = DdnRunner::new(program,DEFAULT_UPDATE_NAME);
+        let output = runner.run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+        assert_eq!(output.resources["마지막"],RuntimeValue::Fixed64(Fixed64::from_i64(6)));
+        assert_eq!(output.resources["뒤"],RuntimeValue::Fixed64(Fixed64::from_i64(10)));
+        assert_eq!(output.resources["이전"],RuntimeValue::Fixed64(Fixed64::from_i64(1)));
+        assert!(matches!(&output.resources["가운데"],RuntimeValue::Tensor(t) if t.shape() == [2,1] && t.elements() == [Fixed64::from_i64(2),Fixed64::from_i64(5)]));
+        assert!(matches!(&output.resources["빈판"],RuntimeValue::Tensor(t) if t.shape() == [0,3] && t.elements().is_empty()));
+        assert!(matches!(&output.resources["판"],RuntimeValue::Tensor(t) if t.elements() == [10,8,3,4,9,7].map(Fixed64::from_i64)));
+    }
+
+    #[test]
+    fn alpha3_tensor_rejects_ragged_mismatched_element_and_replacement() {
+        let prefix = "판 <- (차림=차림[1,2],원소씨=셈수,모양=(2,)) 텐서로.\n";
+        for invalid in [
+            "판 <- (차림=차림[1,2,3],원소씨=셈수,모양=(3,)) 텐서로.",
+            "판 <- 차림[1,2].",
+            "판 <- (차림=차림[1,\"가\"],원소씨=셈수,모양=(2,)) 텐서로.",
+            "다른판 <- (차림=차림[차림[1,2],차림[3]],원소씨=셈수,모양=(2,2)) 텐서로.",
+            "다른판:(원소씨=셈수,모양=(3,)) 텐서씨 := (차림=차림[1,2],원소씨=셈수,모양=(2,)) 텐서로.",
+            "다른판 <- (텐서=차림[1,2]) 차림으로.",
+            "판[2] <- 9.",
+            "판[0.5] <- 9.",
+            "값 <- 판[-1].",
+            "값 <- 판[0.5].",
+            "값 <- 판[:,0].",
+            "값 <- 판[0,0].",
+            "판[:] <- 9.",
+            "판[:] <- (차림=차림[1],원소씨=셈수,모양=(1,)) 텐서로.",
+        ] {
+            let program = DdnProgram::from_v25_source(&format!("{prefix}{invalid}"),"bad-tensor.ddn").unwrap();
+            let mut runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME);
+            let world = NuriWorld::new();
+            let before = format!("{world:?}");
+            assert!(runner.run_update(&world,&empty_input(),&HashMap::new()).is_err(), "must reject: {invalid}");
+            assert_eq!(format!("{world:?}"),before);
+        }
+    }
 
     #[test]
     fn pure_scalar_snapshot_rhs_whitelist_and_rollback() {
@@ -21598,6 +22406,45 @@ mod tests {
     }
 
     #[test]
+    fn a3_p2_local_derived_unit_rebinding_rejects_another_dimension() {
+        // A3-P2: actual V25 source through the shared product parser/runtime.
+        let source = "검산:움직씨 := { 면적 <- 2@m * 3@m. 면적 <- 1@s. }.\n() 검산하기.";
+        let program = DdnProgram::from_v25_source(source, "unit-local.ddn").unwrap();
+        let mut runner = DdnRunner::new(program, "매마디");
+        let error = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .err().expect("dimension-changing rebinding must fail");
+        assert!(error.to_string().contains("씨 불일치") || error.to_string().contains("TYPE_MISMATCH"), "{error}");
+    }
+
+    #[test]
+    fn a3_p2_local_derived_unit_rebinding_keeps_same_dimension() {
+        let source = "검산:움직씨 := { 면적 <- 2@m * 3@m. 면적 <- 4@m * 5@m. 면적 보여주기. }.\n() 검산하기.";
+        let program = DdnProgram::from_v25_source(source, "unit-local-same.ddn").unwrap();
+        let mut runner = DdnRunner::new(program, "매마디");
+        let output = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).unwrap();
+        assert!(output.display_outputs.iter().any(|row| row.text == "20@m^2"), "{:?}", output.display_outputs);
+    }
+
+    #[test]
+    fn a3_p1_output_display_snapshot_rollback_preserves_world_text() {
+        let program = DdnProgram::from_v25_source("1 보여주기.", "display-snapshot.ddn").unwrap();
+        let world = NuriWorld::new();
+        let defaults = HashMap::new();
+        let mut ctx = EvalContext::new(&program, &world, &defaults, None, InputState::new(0, 0), 0, 0, None);
+        let mut locals = HashMap::new();
+        ctx.append_output_log(Value::String("19.019999999".into())).unwrap();
+        let saved = ctx.capture_frame_snapshot(&locals);
+        ctx.append_output_log(Value::Fixed64(Fixed64::parse_decimal_exact("19.02").unwrap())).unwrap();
+        assert_eq!(ctx.display_outputs[1].text, "19.02");
+        ctx.restore_frame_snapshot(&mut locals, &saved);
+        assert_eq!(ctx.display_outputs, saved.display_outputs);
+        assert_eq!(ctx.display_outputs.len(), 1);
+        assert_eq!(ctx.display_outputs[0].text, "19.019999999");
+        assert_eq!(ctx.patch_ops, saved.patch_ops);
+        assert_eq!(ctx.resources.clone().into_owned(), saved.resources.clone().into_owned());
+    }
+
+    #[test]
     fn wo09_output_snapshot_complex_call_abort_keeps_rollback() {
         let mut program = DdnProgram::from_v25_source(
             r#"고장:움직씨 := {
@@ -21865,6 +22712,37 @@ mod tests {
     }
 
     #[test]
+    fn a3_p12_project_entry_keeps_top_level_setup_across_ticks() {
+        let program = DdnProgram::from_v25_source(
+            "채비 { 진행:수 := 0. }. 실행:움직씨 := { (매마디)마다 { 진행 <- 진행 + 1. }. }.",
+            "project-setup.ddn",
+        ).unwrap();
+        let mut runner = DdnRunner::new(program, "매마디");
+        runner.configure_project_entry("실행").unwrap();
+        let mut world = DetNuri::new();
+        for tick_id in 0..3 {
+            let mut input = empty_input(); input.tick_id = tick_id;
+            let output = runner.run_update(world.world(), &input, &HashMap::new()).unwrap();
+            assert_eq!(extract_fixed(&output.resources, "진행"), Fixed64::from_i64(tick_id as i64 + 1));
+            let mut sink = ddonirang_core::signals::VecSignalSink::default();
+            world.apply_patch(&output.patch, tick_id, &mut sink);
+        }
+    }
+
+    #[test]
+    fn a3_p12_project_setup_does_not_invoke_other_tick_or_callable_locals() {
+        let program = DdnProgram::from_v25_source(
+            "채비 { 진행:수 := 0. }. 매마디:움직씨 := { 채비 { 지역값:수 := 9. }. 진행 <- 999. }. 채비 { 뒤값:수 := 7. }. 실행:움직씨 := { 진행 <- 진행 + 뒤값. }.",
+            "project-other-tick.ddn",
+        ).unwrap();
+        let mut runner = DdnRunner::new(program, "매마디");
+        runner.configure_project_entry("실행").unwrap();
+        let output = runner.run_update(DetNuri::new().world(), &empty_input(), &HashMap::new()).unwrap();
+        assert_eq!(extract_fixed(&output.resources, "진행"), Fixed64::from_i64(7));
+        assert!(!output.resources.contains_key("지역값"));
+    }
+
+    #[test]
     fn wo03_v25_arithmetic_failure_is_not_a_successful_signal() {
         for source in [
             "(1 / 0) 보여주기.",
@@ -22066,20 +22944,18 @@ mod tests {
     }
 
     #[test]
-    fn alpha2_deferred_time_tokens_do_not_reject_text_or_other_namespaces() {
+    fn alpha3_rd136_admits_time_tokens_without_text_or_namespace_heuristics() {
         for source in [
             "글 := \"표준시간.고정마디\".",
             "결과 := () 다른.표준시간.고정마디.",
         ] {
-            assert!(validate_alpha2_bogae_time_surface(source).is_ok(), "{source}");
+            DdnProgram::from_v25_source(source,"text-time.ddn").expect("no token-level time guard");
         }
         for source in [
-            "시간 := (마디=2) 표준시간.고정마디.",
+            "시간 := (번호=2) 표준시간.고정마디.",
             "시간 := (차이=-1) 표준시간.상대마디.",
         ] {
-            let error = DdnProgram::from_v25_source(source, "time.ddn").err().expect("unsupported");
-            assert!(error.contains("E_BOGAE_TIME_POLICY_UNSUPPORTED"), "{error}");
-            assert!(error.contains("알파3"), "{error}");
+            DdnProgram::from_v25_source(source, "time.ddn").expect("RD-136 constructors now admitted by Alpha3");
         }
     }
 
@@ -22243,6 +23119,15 @@ mod tests {
         let mut runner = DdnRunner::new(program, "매마디");
         let error = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).err().expect("scene equality rejected");
         assert!(error.to_string().contains("E_SCENE_OPERATION_UNSUPPORTED"));
+    }
+
+    #[test]
+    fn a3_rd136_timed_view_cannot_bypass_scene_comparison_guard() {
+        let source = "원 := (중심=차림[0,0],반지름=1) 표준장면.원. 장면 := (요소들=차림[원],가로범위=차림[-2,2],세로범위=차림[-2,2]) 표준장면.평면. 보기 := (장면=장면,시간=() 표준시간.공통) 표준보기.장면. (보기 == 보기) 보여주기.";
+        let program=DdnProgram::from_v25_source(source,"timed-scene-guard.ddn").unwrap();
+        let mut runner=DdnRunner::new(program,"매마디");
+        let error=runner.run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).err().expect("timed scene must still reject comparison");
+        assert!(error.to_string().contains("E_SCENE_OPERATION_UNSUPPORTED"),"{error}");
     }
 
     #[test]
@@ -23527,6 +24412,70 @@ mod tests {
             output.resources.get("받은"),
             Some(&RuntimeValue::String("async-ok".to_string()))
         );
+    }
+
+    #[test]
+    fn a3_rd293_signal_payload_checks_declared_pin_before_reaction() {
+        // A3-P4: typed alert admission is independent of whether a provider reads it.
+        let source = r#"
+(값:수) 첫알림:알림씨 := { 없음. }.
+관제탑:임자 := {
+  (받은:첫알림) 첫반응:움직씨 {첫알림을 받으면} := { 성공 <- 7. }.
+}.
+매틱:움직씨 := { (철수)의 ((값=3) 첫알림) ~> 관제탑. }.
+"#;
+        let run = |text: &str| {
+            let program = DdnProgram::from_v25_source(text, "알림씨_받는자리.ddn").unwrap();
+            DdnRunner::new(program, "매틱").run_update(
+                &NuriWorld::new(), &empty_input(), &HashMap::new())
+        };
+        assert_eq!(run(source).unwrap().resources["성공"], Value::Fixed64(Fixed64::from_i64(7)));
+        for wrong in ["\"틀린씨\"", "참"] {
+            let invalid = source.replace("값=3", &format!("값={wrong}"));
+            let error = run(&invalid).err().expect("wrong payload must fail before dispatch");
+            assert!(error.contains("E_TYPE_MISMATCH"), "{error}");
+        }
+        let text_pin = source.replace("값:수", "값:글").replace("값=3", "값=\"정상\"");
+        assert!(run(&text_pin).is_ok());
+        assert!(run(&text_pin.replace("값=\"정상\"", "값=3")).is_err());
+    }
+
+    #[test]
+    fn a3_rd445_authored_providers_share_snapshot_and_fail_on_conflict() {
+        // A3-P4 provisional header placement; actual V25 product parse/run.
+        let source=r#"
+(값:수) 첫알림:알림씨 := { 없음. }.
+관제탑:임자 := {
+  (받은:첫알림) 첫반응:움직씨 {첫알림을 받으면} := { 합계 <- 합계 + 받은.값. }.
+  (받은:첫알림) 둘반응:움직씨 {첫알림을 받으면} := { 관찰값 <- 합계 + 10. }.
+}.
+매틱:움직씨 := { (철수)의 ((값=1) 첫알림) ~> 관제탑. }.
+"#;
+        let defaults=HashMap::from([("합계".into(),Value::Fixed64(Fixed64::from_i64(2))),
+            ("관찰값".into(),Value::Fixed64(Fixed64::from_i64(0)))]);
+        let run=|text:&str| {
+            let program=DdnProgram::from_v25_source(text,"반응.ddn").unwrap();
+            DdnRunner::new(program,"매틱").run_update(&NuriWorld::new(),&empty_input(),&defaults)
+        };
+        let output=run(source).unwrap();
+        assert_eq!(output.resources["합계"],Value::Fixed64(Fixed64::from_i64(3)));
+        assert_eq!(output.resources["관찰값"],Value::Fixed64(Fixed64::from_i64(12)),"second provider observed first provider's write");
+        let repeated=source.replace("합계 <- 합계 + 받은.값.","합계 <- 합계 + 0. 합계 <- 합계 + 받은.값.");
+        assert_eq!(run(&repeated).unwrap().resources,output.resources,"one provider's sequential writes are not cross-provider conflicts");
+        let conflict=source.replace("관찰값 <- 합계 + 10","합계 <- 합계 + 10");
+        assert!(run(&conflict).err().unwrap().contains("E_REACTION_PATCH_CONFLICT"));
+        let failure=source.replace("관찰값 <- 합계 + 10","관찰값 <- 1 / 0");
+        assert!(run(&failure).is_err());
+        let combined=source.replace("관제탑:임자 := {", "관제탑:임자 := { (받은:첫알림)를 받으면 { 수신값 <- 합계 + 20. }.");
+        assert_eq!(run(&combined).unwrap().resources["수신값"],Value::Fixed64(Fixed64::from_i64(22)),"consuming route must see the same settled snapshot as providers");
+        let ambiguous=combined.replace("수신값 <- 합계 + 20. }.","수신값 <- 합계 + 20. }. (받은:첫알림)를 받으면 { 없음. }.");
+        assert!(run(&ambiguous).err().unwrap().contains("E_ASYNC_ENDPOINT_AMBIGUOUS"));
+        for mutation in ["받은 <- 없음.", "받은.값 <- 7.", "받는이 <- \"다른이\"."] {
+            let immutable=source.replace("합계 <- 합계 + 받은.값.",mutation);
+            assert!(run(&immutable).is_err(), "RD-293 immutable payload/receiver accepted: {mutation}");
+        }
+        let receiver=source.replace("관찰값 <- 합계 + 10.","수신이름 <- 받는이.");
+        assert_eq!(run(&receiver).unwrap().resources["수신이름"],Value::String("관제탑".into()));
     }
 
     #[test]
