@@ -23,6 +23,12 @@ pub struct Parser {
     seed_kind_stack: Vec<SeedKind>,
     natural_foreach_ids: HashSet<NodeId>,
     current_item_stack: Vec<(String, TypeRef, Span)>,
+    registered_forms: HashMap<String, String>,
+    registered_form_candidates: HashMap<String, Vec<NodeId>>,
+    registered_call_candidates: HashMap<NodeId, Vec<NodeId>>,
+    registered_call_spans: HashMap<NodeId, Span>,
+    registered_definitions: HashMap<NodeId, SeedDef>,
+    explicitly_registered_owners: HashSet<String>,
     mode: ParseMode,
 }
 struct ArgSuffix {
@@ -73,6 +79,12 @@ impl Parser {
             seed_kind_stack: Vec::new(),
             natural_foreach_ids: HashSet::new(),
             current_item_stack: Vec::new(),
+            registered_forms: HashMap::new(),
+            registered_form_candidates: HashMap::new(),
+            registered_call_candidates: HashMap::new(),
+            registered_call_spans: HashMap::new(),
+            registered_definitions: HashMap::new(),
+            explicitly_registered_owners: HashSet::new(),
             mode,
         }
     }
@@ -86,6 +98,25 @@ impl Parser {
         source: String,
         file_path: String,
     ) -> Result<CanonProgram, ParseError> {
+        self.parse_program_phase(source, file_path, true)
+    }
+
+    /// Declaration discovery only. Imported call targets are resolved after
+    /// linking; this result must never be used as an executable program.
+    pub fn parse_unlinked_module(
+        &mut self,
+        source: String,
+        file_path: String,
+    ) -> Result<CanonProgram, ParseError> {
+        self.parse_program_phase(source, file_path, false)
+    }
+
+    fn parse_program_phase(
+        &mut self,
+        source: String,
+        file_path: String,
+        resolve_calls: bool,
+    ) -> Result<CanonProgram, ParseError> {
         self.source = source.clone();
         self.root_hide = false;
         self.beat_depth = 0;
@@ -97,7 +128,14 @@ impl Parser {
         self.seed_kind_stack.clear();
         self.natural_foreach_ids.clear();
         self.current_item_stack.clear();
+        self.registered_forms.clear();
+        self.registered_form_candidates.clear();
+        self.registered_call_candidates.clear();
+        self.registered_call_spans.clear();
+        self.registered_definitions.clear();
+        self.explicitly_registered_owners.clear();
         let mut items = Vec::new();
+        let mut root_stmts = Vec::new();
         let mut top_level_decl = Vec::new();
         while !self.is_at_end() {
             if matches!(self.current().kind, TokenKind::Pragma(_)) {
@@ -121,6 +159,12 @@ impl Parser {
                     ),
                 });
             }
+            if self.source_epoch == SourceEpoch::V25 && self.peek_legacy_l11_brace_block() {
+                return Err(ParseError {
+                    span: self.current_span(),
+                    message: "E_V25_DEFINITION_MIGRATION_REQUIRED: V25에서는 이전 brace형 L11 선언을 사용할 수 없습니다. `(<항목>=value) 쓰임.` 또는 `(<항목>=value) 드러냄.`처럼 현재 typed directive를 사용하세요".to_string(),
+                });
+            }
             if matches!(self.current().kind, TokenKind::BogeaMadangBlock(_)) {
                 let _ = self.parse_bogae_madang_block_stmt()?;
                 continue;
@@ -130,7 +174,12 @@ impl Parser {
                 continue;
             }
             if self.peek_meta_block_kind().is_some() {
-                let _ = self.parse_meta_block_stmt()?;
+                let stmt = self.parse_meta_block_stmt()?;
+                // Drawing is executable at the root just as it is in a body.
+                // Keep configuration-only metadata out of the statement stream.
+                if matches!(&stmt, Stmt::MetaBlock { kind: MetaBlockKind::Bogae, .. }) {
+                    root_stmts.push(stmt);
+                }
                 continue;
             }
             if let Some(kind) = self.peek_decl_block_kind() {
@@ -138,7 +187,11 @@ impl Parser {
                 top_level_decl.push(stmt);
                 continue;
             }
-            items.push(self.parse_top_level_item()?);
+            if self.is_root_statement_start() {
+                root_stmts.push(self.parse_stmt(false)?);
+            } else {
+                items.push(self.parse_top_level_item()?);
+            }
         }
         if !top_level_decl.is_empty() {
             self.inject_top_level_decl_blocks(&mut items, top_level_decl)?;
@@ -147,14 +200,30 @@ impl Parser {
             id: self.next_id(),
             source_epoch: self.source_epoch,
             items,
+            root_stmts,
             origin: OriginMap {
                 file_path,
                 source,
                 node_spans: std::collections::HashMap::new(),
+                registered_call_candidates: HashMap::new(),
             },
         };
         self.validate_seed_name_conflicts(&program)?;
-        self.apply_default_args(&mut program)?;
+        self.bind_registered_forms(&program)?;
+        crate::ordinary_callable::validate_ordinary_callable_admission(&program).map_err(
+            |failure| ParseError {
+                span: Span::new(failure.span_start, failure.span_end),
+                message: failure.diagnostic_message(),
+            },
+        )?;
+        if resolve_calls {
+            self.apply_default_args(&mut program)?;
+        }
+        program.origin.registered_call_candidates = self.registered_call_candidates.clone();
+        program
+            .origin
+            .node_spans
+            .extend(self.registered_call_spans.clone());
         self.validate_units(&program)?;
         validate_record_field_accesses(&program)?;
         Ok(program)
@@ -213,7 +282,129 @@ impl Parser {
     fn parse_top_level_item(&mut self) -> Result<TopLevelItem, ParseError> {
         Ok(TopLevelItem::SeedDef(self.parse_seed_def()?))
     }
+
+    /// Keep the established callable grammar authoritative for callable
+    /// headers, while admitting the current root-program statement forms.
+    /// In particular, `name <- value.` and the V25 short Definition form
+    /// `name := literal.` must not be reinterpreted as seed definitions merely
+    /// because they appear before any callable.
+    fn is_root_statement_start(&self) -> bool {
+        match &self.current().kind {
+            TokenKind::Ident(_) | TokenKind::Josa(_) => {
+                let v25 = self.source_epoch == SourceEpoch::V25;
+                if v25 && self.peek_kind_n_is(1, |kind| matches!(kind, TokenKind::Colon)) {
+                    // Typed values use the statement grammar, including applied
+                    // types. Preserve callable kinds and declaration bodies.
+                    for (index, token) in self.tokens.iter().enumerate().skip(self.pos + 2) {
+                        match token.kind {
+                            TokenKind::KwImeumssi
+                            | TokenKind::KwUmjikssi
+                            | TokenKind::KwValueFunc
+                            | TokenKind::KwHeureumssi
+                            | TokenKind::KwGallaessi
+                            | TokenKind::KwRelationssi
+                            | TokenKind::KwSam
+                            | TokenKind::KwIeumssi
+                            | TokenKind::KwSemssi => return false,
+                            TokenKind::Define | TokenKind::Equals => {
+                                return !matches!(
+                                    self.tokens.get(index + 1).map(|next| &next.kind),
+                                    Some(TokenKind::LBrace)
+                                );
+                            }
+                            TokenKind::Dot | TokenKind::Eof => return false,
+                            _ => {}
+                        }
+                    }
+                    return false;
+                }
+                if v25
+                    && !self.peek_kind_n_is(1, |kind| {
+                        matches!(kind, TokenKind::Colon | TokenKind::LParen | TokenKind::LBrace)
+                    })
+                {
+                    return true;
+                }
+                self.peek_kind_n_is(1, |kind| {
+                    matches!(
+                        kind,
+                        TokenKind::Define
+                            | TokenKind::Arrow
+                            | TokenKind::RightArrow
+                            | TokenKind::PlusArrow
+                            | TokenKind::MinusArrow
+                            | TokenKind::PlusEqual
+                            | TokenKind::MinusEqual
+                            | TokenKind::KwBoyeojugi
+                            | TokenKind::KwTolabogi
+                    ) || (v25 && matches!(kind, TokenKind::Equals))
+                })
+            }
+            // Callable headers begin with an identifier or parameter list.
+            // Other statement heads (condition/loop/control and braced
+            // expression conditions) are root-program statements.
+            TokenKind::LParen if self.source_epoch == SourceEpoch::V25 => {
+                let mut depth = 0usize;
+                for (index, token) in self.tokens.iter().enumerate().skip(self.pos) {
+                    match token.kind {
+                        TokenKind::LParen => depth += 1,
+                        TokenKind::RParen => {
+                            depth -= 1;
+                            if depth == 0 {
+                                // A declaration continues as `(pins) name:` or
+                                // `(pins) name{alternate~...}:`.
+                                // Empty and ordinary argument lists belong to
+                                // the root statement/call parser.
+                                if !matches!(
+                                    self.tokens.get(index + 1).map(|token| &token.kind),
+                                    Some(TokenKind::Ident(_) | TokenKind::Josa(_))
+                                ) {
+                                    return true;
+                                }
+                                if matches!(
+                                    self.tokens.get(index + 2).map(|token| &token.kind),
+                                    Some(TokenKind::Colon)
+                                ) {
+                                    return false;
+                                }
+                                if matches!(
+                                    self.tokens.get(index + 2).map(|token| &token.kind),
+                                    Some(TokenKind::LBrace)
+                                ) {
+                                    for (close_index, token) in
+                                        self.tokens.iter().enumerate().skip(index + 3)
+                                    {
+                                        match token.kind {
+                                            TokenKind::RBrace => {
+                                                return !matches!(
+                                                    self.tokens
+                                                        .get(close_index + 1)
+                                                        .map(|next| &next.kind),
+                                                    Some(TokenKind::Colon)
+                                                );
+                                            }
+                                            TokenKind::Eof => return true,
+                                            _ => {}
+                                        }
+                                    }
+                                }
+                                return true;
+                            }
+                        }
+                        TokenKind::Eof => break,
+                        _ => {}
+                    }
+                }
+                false
+            }
+            TokenKind::LParen => false,
+            _ => true,
+        }
+    }
     fn parse_seed_def(&mut self) -> Result<SeedDef, ParseError> {
+        if self.check_ident() && self.peek_kind_n_is(1, |kind| matches!(kind, TokenKind::LParen)) {
+            return self.parse_named_single_expression_callable();
+        }
         let start = self.current_span();
         let params = if self.check(&TokenKind::LParen) {
             self.parse_params()?
@@ -221,9 +412,40 @@ impl Parser {
             Vec::new()
         };
         let name = self.expect_ident("씨앗 이름")?.raw.clone();
-        self.validate_seed_name_tail(&name, self.previous_span())?;
+        let alternate_forms =
+            if self.source_epoch == SourceEpoch::V25 && self.check(&TokenKind::LBrace) {
+                self.parse_callable_alternate_forms(&name)?
+            } else {
+                Vec::new()
+            };
+        if alternate_forms.is_empty() {
+            self.validate_seed_name_tail(&name, self.previous_span())?;
+        }
         self.expect(&TokenKind::Colon, ":")?;
+        // Full callable declarations place an explicit result type between the
+        // preferred name and the callable kind:
+        // `(pins) name:Result:셈씨 := { ... }`.
+        let has_result_type = self.source_epoch == SourceEpoch::V25
+            && self.tokens[self.pos..]
+                .iter()
+                .take_while(|token| {
+                    !matches!(
+                        token.kind,
+                        TokenKind::Define | TokenKind::Equals | TokenKind::LBrace | TokenKind::Eof
+                    )
+                })
+                .any(|token| matches!(token.kind, TokenKind::Colon));
+        let result_type = if has_result_type {
+            let result_type = self.parse_type_ref()?;
+            self.expect(&TokenKind::Colon, ":")?;
+            Some(result_type)
+        } else {
+            None
+        };
         let kind = self.parse_seed_kind()?;
+        if result_type.is_some() && !matches!(kind, SeedKind::Semssi | SeedKind::Umjikssi) {
+            return Err(self.error("결과 타입이 있는 셈씨 또는 움직씨 선언"));
+        }
         if self.source_epoch == SourceEpoch::V25 && self.check(&TokenKind::Equals) {
             return Err(ParseError {
                 span: self.current_span(),
@@ -234,7 +456,13 @@ impl Parser {
             SourceEpoch::V25 => self.expect(&TokenKind::Define, ":=")?,
             SourceEpoch::PreV25 => self.expect(&TokenKind::Equals, "=")?,
         };
+        if result_type.is_some() && !self.check(&TokenKind::LBrace) {
+            return Err(self.error("결과 타입이 있는 선언의 `{ ... }` 본문"));
+        }
         self.enter_scope();
+        if let Some(result_type) = &result_type {
+            self.declare_typed_name(&name, result_type);
+        }
         for param in &params {
             self.declare_typed_name(&param.pin_name, &param.type_ref);
         }
@@ -242,7 +470,14 @@ impl Parser {
         let body_result = if self.check(&TokenKind::LBrace) {
             let body = self.parse_body();
             match body {
-                Ok(body) => Ok(body),
+                Ok(body) => {
+                    // V25의 `이름:씨 := { ... }.` 종결자는 선언에 속한다.
+                    // root statement로 넘기거나 본문 span에 포함하지 않는다.
+                    if self.source_epoch == SourceEpoch::V25 && self.check(&TokenKind::Dot) {
+                        self.advance();
+                    }
+                    Ok(body)
+                }
                 Err(err) => {
                     self.seed_kind_stack.pop();
                     self.exit_scope();
@@ -270,11 +505,221 @@ impl Parser {
             id: self.next_id(),
             span: start.merge(&self.previous_span()),
             canonical_name: name,
+            alternate_forms,
             seed_kind: kind,
             params,
+            result_type,
             body: Some(body),
             modifiers: Vec::new(),
         })
+    }
+
+    /// RD-406 current surface: `name (pin:type, ... --> result) := expr.`
+    ///
+    /// This remains a named callable (`SeedKind::ValueFunc`) instead of being
+    /// lowered into an ordinary binding or an anonymous expression.
+    fn parse_named_single_expression_callable(&mut self) -> Result<SeedDef, ParseError> {
+        let start = self.current_span();
+        let name = self.expect_ident("호출가능 정의 이름")?.raw.clone();
+        self.validate_seed_name_tail(&name, self.previous_span())?;
+        self.expect(&TokenKind::LParen, "(")?;
+
+        let mut params = Vec::new();
+        loop {
+            if self.check(&TokenKind::TypeArrow) {
+                break;
+            }
+            let param_start = self.current_span();
+            let pin_name = self.expect_ident("호출가능 매개변수")?.raw.clone();
+            self.expect(&TokenKind::Colon, ":")?;
+            let type_ref = match self.parse_type_operand()? {
+                ParsedTypeOperand::Single(type_ref) => type_ref,
+                ParsedTypeOperand::FunctionParams(_) => {
+                    return Err(self.error("호출가능 매개변수 타입"));
+                }
+            };
+            params.push(ParamPin {
+                id: self.next_id(),
+                span: param_start.merge(&self.previous_span()),
+                pin_name,
+                type_ref,
+                default_value: None,
+                optional: false,
+                josa_list: Vec::new(),
+            });
+            if self.check(&TokenKind::Comma) {
+                self.advance();
+                continue;
+            }
+            if self.check(&TokenKind::TypeArrow) {
+                break;
+            }
+            return Err(self.error("`,` 또는 `-->`"));
+        }
+        self.expect(&TokenKind::TypeArrow, "-->")?;
+        let result_type = match self.parse_type_operand()? {
+            ParsedTypeOperand::Single(type_ref) => type_ref,
+            ParsedTypeOperand::FunctionParams(_) => return Err(self.error("호출가능 결과 타입")),
+        };
+        self.expect(&TokenKind::RParen, ")")?;
+        self.expect(&TokenKind::Define, ":=")?;
+        if self.check(&TokenKind::LBrace) {
+            return Err(ParseError {
+                span: self.current_span(),
+                message: "E_RD406_SINGLE_EXPRESSION_BODY_REQUIRED: named callable 본문은 하나의 식이어야 합니다".to_string(),
+            });
+        }
+
+        self.enter_scope();
+        for param in &params {
+            self.declare_typed_name(&param.pin_name, &param.type_ref);
+        }
+        self.seed_kind_stack.push(SeedKind::ValueFunc);
+        let expr = self.parse_expr();
+        self.seed_kind_stack.pop();
+        let expr = match expr {
+            Ok(expr) => expr,
+            Err(error) => {
+                self.exit_scope();
+                return Err(error);
+            }
+        };
+        let mood = match self.consume_stmt_terminator() {
+            Ok(mood) => mood,
+            Err(error) => {
+                self.exit_scope();
+                return Err(error);
+            }
+        };
+        self.exit_scope();
+        let expr_span = expr.span;
+        Ok(SeedDef {
+            id: self.next_id(),
+            span: start.merge(&self.previous_span()),
+            canonical_name: name,
+            alternate_forms: Vec::new(),
+            seed_kind: SeedKind::ValueFunc,
+            params,
+            result_type: Some(result_type),
+            body: Some(Body {
+                id: self.next_id(),
+                span: expr_span,
+                stmts: vec![Stmt::Return {
+                    id: self.next_id(),
+                    span: expr_span,
+                    mood,
+                    value: expr,
+                }],
+            }),
+            modifiers: Vec::new(),
+        })
+    }
+
+    fn parse_callable_alternate_forms(
+        &mut self,
+        canonical_name: &str,
+    ) -> Result<Vec<String>, ParseError> {
+        let start = self.current_span();
+        self.expect(&TokenKind::LBrace, "{")?;
+        let mut forms = Vec::new();
+        loop {
+            let token = self.expect_ident("명시 꼴바꿈")?;
+            let form = token.raw.clone();
+            let form_span = self.previous_span();
+            if form == canonical_name || forms.iter().any(|existing| existing == &form) {
+                return Err(ParseError {
+                    span: form_span,
+                    message: format!(
+                        "E_CALLABLE_SURFACE_DUPLICATE: '{}' 표면이 같은 정의에 중복 등록되었습니다",
+                        form
+                    ),
+                });
+            }
+            forms.push(form);
+            if self.check(&TokenKind::Tilde) {
+                self.advance();
+                continue;
+            }
+            break;
+        }
+        self.expect(&TokenKind::RBrace, "}")
+            .map_err(|_| ParseError {
+                span: start,
+                message: "E_CALLABLE_SURFACE_SET_UNCLOSED: 명시 꼴바꿈은 `}`로 닫아야 합니다"
+                    .to_string(),
+            })?;
+        Ok(forms)
+    }
+
+    fn bind_registered_forms(&mut self, program: &CanonProgram) -> Result<(), ParseError> {
+        let preferred: HashSet<String> = program
+            .items
+            .iter()
+            .map(|item| {
+                let TopLevelItem::SeedDef(seed) = item;
+                seed.canonical_name.clone()
+            })
+            .collect();
+        let builtins: HashSet<String> = minimal_stdlib_sigs()
+            .iter()
+            .map(|signature| signature.name.to_string())
+            .collect();
+
+        for item in &program.items {
+            let TopLevelItem::SeedDef(seed) = item;
+            self.registered_definitions.insert(seed.id, seed.clone());
+            if seed.alternate_forms.is_empty() {
+                continue;
+            }
+            if !crate::ordinary_callable::is_v1_ordinary_callable(seed) {
+                return Err(ParseError {
+                    span: seed.span,
+                    message: "E_REGISTERED_FORM_CONTEXT: 현재 등록 표면은 호출가능 정의 문맥에서만 허용됩니다"
+                        .to_string(),
+                });
+            }
+            self.explicitly_registered_owners
+                .insert(seed.canonical_name.clone());
+            for form in std::iter::once(&seed.canonical_name).chain(&seed.alternate_forms) {
+                if builtins.contains(form)
+                    || (form != &seed.canonical_name && preferred.contains(form))
+                    || self
+                        .registered_forms
+                        .get(form)
+                        .is_some_and(|owner| owner != &seed.canonical_name)
+                {
+                    return Err(ParseError {
+                        span: seed.span,
+                        message: format!(
+                            "E_CALLABLE_SURFACE_AMBIGUOUS: '{}' 표면에 둘 이상의 정의 소유자가 있습니다",
+                            form
+                        ),
+                    });
+                }
+                self.registered_forms
+                    .insert(form.clone(), seed.canonical_name.clone());
+                self.registered_form_candidates
+                    .entry(form.clone())
+                    .or_default()
+                    .push(seed.id);
+            }
+        }
+
+        // The preferred spelling denotes the complete overload family. Each
+        // alternate remains the exact subset that explicitly registered it.
+        for owner in &self.explicitly_registered_owners {
+            let candidates = program
+                .items
+                .iter()
+                .filter_map(|item| {
+                    let TopLevelItem::SeedDef(seed) = item;
+                    (&seed.canonical_name == owner).then_some(seed.id)
+                })
+                .collect();
+            self.registered_form_candidates
+                .insert(owner.clone(), candidates);
+        }
+        Ok(())
     }
     fn parse_params(&mut self) -> Result<Vec<ParamPin>, ParseError> {
         self.expect(&TokenKind::LParen, "(")?;
@@ -501,6 +946,33 @@ impl Parser {
         })
     }
 
+    fn is_ordinary_while_start(&self) -> bool {
+        if !self.check(&TokenKind::LBrace) {
+            return false;
+        }
+        let mut depth = 0usize;
+        for (offset, token) in self.tokens[self.pos..].iter().enumerate() {
+            match token.kind {
+                TokenKind::LBrace => depth += 1,
+                TokenKind::RBrace => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return self
+                            .tokens
+                            .get(self.pos + offset + 1)
+                            .is_some_and(|next| Self::token_text_is(&next.kind, "인"))
+                            && self
+                                .tokens
+                                .get(self.pos + offset + 2)
+                                .is_some_and(|next| matches!(next.kind, TokenKind::KwDongan));
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
     fn parse_body_with_chaebi_restriction(&mut self) -> Result<Body, ParseError> {
         self.chaebi_forbidden_depth += 1;
         let body = self.parse_body();
@@ -533,6 +1005,12 @@ impl Parser {
             return Err(ParseError {
                 span: self.current_span(),
                 message: "E_BOIM_LEGACY_REMOVED: `보임 {}` 블록은 제거되었습니다. `(<이름>: <식>, ...) 보임.`을 사용하세요".to_string(),
+            });
+        }
+        if self.source_epoch == SourceEpoch::V25 && self.peek_legacy_l11_brace_block() {
+            return Err(ParseError {
+                span: self.current_span(),
+                message: "E_V25_DEFINITION_MIGRATION_REQUIRED: V25에서는 이전 brace형 L11 선언을 사용할 수 없습니다. `(<항목>=value) 쓰임.` 또는 `(<항목>=value) 드러냄.`처럼 현재 typed directive를 사용하세요".to_string(),
             });
         }
         if self.peek_meta_block_kind().is_some() {
@@ -586,6 +1064,9 @@ impl Parser {
             return self.parse_beat_block_stmt();
         }
         if self.check(&TokenKind::KwManyak) {
+            if self.source_epoch == SourceEpoch::V25 {
+                return Err(self.error("E_V25_IF_SURFACE: 조건문은 '{ 조건 }이면 { ... } 아니면 { ... }.'로 작성하세요"));
+            }
             return self.parse_manyak_if_stmt();
         }
         if let Some(stmt) = self.try_parse_receive_stmt()? {
@@ -593,6 +1074,48 @@ impl Parser {
         }
         if self.peek_public_observation_stmt() {
             return self.parse_public_observation_stmt();
+        }
+
+        if self.source_epoch == SourceEpoch::V25 && self.is_current_if_start() {
+            self.advance();
+            let thunk_body = self.parse_thunk_body_after_lbrace(s)?;
+            self.validate_eval_body(&thunk_body, ThunkEvalMode::Bool, thunk_body.span)?;
+            let thunk = Expr::new(self.next_id(), thunk_body.span, ExprKind::Thunk(thunk_body));
+            self.advance(); // 정확한 `이면`
+            let condition = Expr::new(self.next_id(), thunk.span, ExprKind::Eval {
+                thunk: Box::new(thunk), mode: ThunkEvalMode::Bool,
+            });
+            return self.parse_if_stmt_from_condition(s, condition);
+        }
+        if self.is_ordinary_while_start() {
+            self.advance(); // 여는 중괄호
+            let thunk_body = self.parse_thunk_body_after_lbrace(s)?;
+            self.validate_eval_body(&thunk_body, ThunkEvalMode::Bool, thunk_body.span)?;
+            let thunk = Expr::new(self.next_id(), thunk_body.span, ExprKind::Thunk(thunk_body));
+            self.advance(); // 구조적 미리보기에서 확인한 정확한 `인`
+            self.expect(&TokenKind::KwDongan, "동안")?;
+            let condition = Expr::new(
+                self.next_id(),
+                thunk.span,
+                ExprKind::Eval {
+                    thunk: Box::new(thunk),
+                    mode: ThunkEvalMode::Bool,
+                },
+            );
+            if !self.check(&TokenKind::LBrace) {
+                return Err(
+                    self.error("E_WHILE_SURFACE: 동안 다음에는 콜론 없이 '{'가 와야 합니다")
+                );
+            }
+            let body = self.parse_body_with_chaebi_restriction()?;
+            let mood = self.consume_optional_terminator()?;
+            return Ok(Stmt::While {
+                id: self.next_id(),
+                span: s.merge(&self.previous_span()),
+                mood,
+                condition,
+                body,
+            });
         }
 
         let explicit_sender = self.try_parse_message_sender_prefix()?;
@@ -727,22 +1250,19 @@ impl Parser {
         }
 
         if self.check(&TokenKind::KwIlttae) || self.check(&TokenKind::KwMajeumyeon) {
+            if self.source_epoch == SourceEpoch::V25 {
+                return Err(self.error("E_V25_IF_SURFACE: 조건문은 '{ 조건 }이면 { ... } 아니면 { ... }.'로 작성하세요"));
+            }
             self.advance();
             return self.parse_if_stmt_from_condition(s, e);
         }
 
         if self.check(&TokenKind::KwDongan) {
-            self.advance();
-            self.ensure_eval_condition(&e, "동안 조건")?;
-            self.expect_colon_or_lbrace("동안 본문")?;
-            let body = self.parse_body_with_chaebi_restriction()?;
-            let mood = self.consume_optional_terminator()?;
-            return Ok(Stmt::While {
-                id: self.next_id(),
-                span: s.merge(&self.previous_span()),
-                mood,
-                condition: e,
-                body,
+            return Err(ParseError {
+                span: e.span.merge(&self.current_span()),
+                message:
+                    "E_WHILE_SURFACE: 일반 반복은 '{ 조건 }인 동안 { ... }.'로 작성해야 합니다"
+                        .to_string(),
             });
         }
 
@@ -782,11 +1302,41 @@ impl Parser {
             });
         }
         if self.consume_right_arrow() {
-            let target = self.parse_expr()?;
-            let deferred_span = self.consume_deferred_marker()?;
-            let deferred = deferred_span.is_some();
+            if self.source_epoch != SourceEpoch::V25 {
+                let target = self.parse_expr()?;
+                let deferred_span = self.consume_deferred_marker()?;
+                let deferred = deferred_span.is_some();
+                let mood = self.consume_stmt_terminator()?;
+                return self.build_mutate_stmt_from_assignment(
+                    s,
+                    target,
+                    e,
+                    mood,
+                    deferred,
+                    deferred_span,
+                );
+            }
+            let destination_expr = self.parse_expr()?;
+            let destination = self.build_result_flow_destination(destination_expr)?;
+            if self.consume_deferred_marker()?.is_some() {
+                return Err(self.error(
+                    "E_RESULT_FLOW_DEFERRED_FORBIDDEN: `->` 결과흐름에는 미루기를 붙일 수 없습니다",
+                ));
+            }
             let mood = self.consume_stmt_terminator()?;
-            self.build_mutate_stmt_from_assignment(s, target, e, mood, deferred, deferred_span)
+            if !matches!(destination.kind, ExprKind::SelectionPlace { .. }) {
+                return Err(ParseError {
+                    span: destination.span,
+                    message: "E_RESULT_FLOW_DESTINATION_PLACE_REQUIRED: `->`의 대상은 indexed writable SelectionPlace여야 합니다".to_string(),
+                });
+            }
+            Ok(Stmt::ResultFlow {
+                id: self.next_id(),
+                span: s.merge(&self.previous_span()),
+                mood,
+                producer: e,
+                destination,
+            })
         } else if self.consume_arrow() {
             let value = self.parse_expr()?;
             let deferred_span = self.consume_deferred_marker()?;
@@ -1223,6 +1773,25 @@ impl Parser {
         self.parse_if_stmt_from_condition(start, condition)
     }
 
+    fn is_current_if_start(&self) -> bool {
+        if !self.check(&TokenKind::LBrace) { return false; }
+        let mut depth = 0usize;
+        for (offset, token) in self.tokens[self.pos..].iter().enumerate() {
+            match token.kind {
+                TokenKind::LBrace => depth += 1,
+                TokenKind::RBrace => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return self.tokens.get(self.pos + offset + 1)
+                            .is_some_and(|next| next.raw == "이면");
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
     fn parse_if_stmt_from_condition(
         &mut self,
         start: Span,
@@ -1230,8 +1799,15 @@ impl Parser {
     ) -> Result<Stmt, ParseError> {
         let then_body = self.parse_body()?;
         let else_body = if let Some(pos) = self.find_if_else_lead_pos() {
+            if self.source_epoch == SourceEpoch::V25
+                && (pos != self.pos || self.tokens[pos].raw != "아니면") {
+                return Err(self.error("E_V25_IF_SURFACE: '아니면'은 앞 본문의 닫는 중괄호 바로 뒤에 작성하세요"));
+            }
             self.pos = pos;
             self.advance();
+            if self.source_epoch == SourceEpoch::V25 && self.is_current_if_start() {
+                return Err(self.error("E_V25_IF_CHAIN_UNSUPPORTED: 연쇄 조건 대신 '아니면 { { 조건 }이면 { ... }. }'처럼 중첩하세요"));
+            }
             Some(self.parse_body()?)
         } else {
             None
@@ -1855,7 +2431,9 @@ impl Parser {
         if !self.check_ident() {
             return false;
         }
-        self.peek_kind_n_is(1, |kind| matches!(kind, TokenKind::Define | TokenKind::Colon))
+        self.peek_kind_n_is(1, |kind| {
+            matches!(kind, TokenKind::Define | TokenKind::Colon)
+        })
     }
 
     fn is_legacy_definition_stmt_start(&self) -> bool {
@@ -1880,7 +2458,7 @@ impl Parser {
         self.expect(&TokenKind::Define, ":=")?;
         let value = self.parse_expr()?;
         let mood = self.consume_stmt_terminator()?;
-        self.declare_name(&name);
+        self.declare_typed_name(&name, &type_ref);
         Ok(Stmt::Definition {
             id: self.next_id(),
             span: start.merge(&self.previous_span()),
@@ -2554,6 +3132,22 @@ impl Parser {
     fn parse_unary(&mut self) -> Result<Expr, ParseError> {
         if self.check(&TokenKind::Minus) {
             let op_token = self.advance();
+            let number = self.current().clone();
+            if matches!(number.kind, TokenKind::Integer(_) | TokenKind::Float(_))
+                && Fixed64::parse_decimal_exact(&number.raw).is_none()
+            {
+                // 양수 magnitude가 표현 범위 밖이어도 signed MIN은 유효하다.
+                // 일반 음수의 기존 0 - rhs AST는 이 경로에서 바꾸지 않는다.
+                if let Some(value) = Fixed64::parse_decimal_exact(&format!("-{}", number.raw)) {
+                    self.advance();
+                    let span = self.to_ast_span(op_token.span)
+                        .merge(&self.to_ast_span(number.span));
+                    let expr = Expr::new(
+                        self.next_id(), span, ExprKind::Literal(Literal::Fixed64(value)),
+                    );
+                    return self.parse_primary_tail(expr, true);
+                }
+            }
             let rhs = self.parse_unary()?;
             let zero = Expr::new(
                 self.next_id(),
@@ -2588,7 +3182,7 @@ impl Parser {
             return self.parse_tagged_formula();
         }
         let t = self.advance();
-        let mut expr = match &t.kind {
+        let expr = match &t.kind {
             TokenKind::Integer(_) | TokenKind::Float(_) => {
                 let value = Fixed64::parse_decimal_exact(&t.raw).ok_or_else(|| ParseError {
                     span: self.to_ast_span(t.span),
@@ -2796,6 +3390,9 @@ impl Parser {
                     let Some(next) = self.tokens.get(self.pos + 1) else {
                         break;
                     };
+                    if matches!(next.kind, TokenKind::Eof | TokenKind::RBrace) {
+                        break;
+                    }
                     if next.span.start != dot.span.end {
                         break;
                     }
@@ -3052,6 +3649,10 @@ impl Parser {
             }
             _ => return Err(self.error("표현식")),
         };
+        self.parse_primary_tail(expr, allow_bare_bound_call)
+    }
+
+    fn parse_primary_tail(&mut self, mut expr: Expr, allow_bare_bound_call: bool) -> Result<Expr, ParseError> {
         expr = self.parse_index_suffix(expr)?;
         expr = self.parse_at_suffix(expr)?;
         expr = self.parse_not_suffix(expr)?;
@@ -3130,6 +3731,12 @@ impl Parser {
             .map(|t| matches!(t.kind, TokenKind::Equals))
             .unwrap_or(false)
     }
+    fn peek_legacy_l11_brace_block(&self) -> bool {
+        self.peek_kind_n_is(1, |kind| matches!(kind, TokenKind::LBrace))
+            && ["쓰임", "드러냄", "공개"]
+                .iter()
+                .any(|name| Self::token_text_is(&self.current().kind, name))
+    }
     fn peek_kind_n_is(&self, n: usize, f: impl FnOnce(&TokenKind) -> bool) -> bool {
         self.tokens
             .get(self.pos + n)
@@ -3182,36 +3789,31 @@ impl Parser {
             if func == "차림.값" && args.len() == 2 {
                 let target_expr = args[0].expr.clone();
                 let index_expr = args[1].expr.clone();
-                if !matches!(target_expr.kind, ExprKind::Var(_)) {
+                let mut root = &target_expr;
+                while let ExprKind::Call { func, args } = &root.kind {
+                    if func != "차림.값" || args.len() != 2 { break; }
+                    root = &args[0].expr;
+                }
+                if !matches!(root.kind, ExprKind::Var(_)) {
                     return Err(ParseError {
-                        span: target_expr.span,
+                        span: root.span,
                         message: "차림 인덱스 대입 대상은 이름만 허용됩니다".to_string(),
                     });
                 }
-                let mut arg_target = self.new_arg_binding(target_expr.clone());
-                arg_target.resolved_pin = Some("대상".to_string());
-                arg_target.binding_reason = BindingReason::UserFixed;
-                let mut arg_index = self.new_arg_binding(index_expr);
-                arg_index.resolved_pin = Some("i".to_string());
-                arg_index.binding_reason = BindingReason::UserFixed;
-                let mut arg_value = self.new_arg_binding(value);
-                arg_value.resolved_pin = Some("값".to_string());
-                arg_value.binding_reason = BindingReason::UserFixed;
-                let value_expr = Expr::new(
-                    self.next_id(),
-                    target.span.merge(&arg_value.span),
-                    ExprKind::Call {
-                        args: vec![arg_target, arg_index, arg_value],
-                        func: "차림.바꾼값".to_string(),
-                    },
-                );
-                self.ensure_root_declared_for_write(&target_expr)?;
+                self.ensure_root_declared_for_write(root)?;
                 return Ok(Stmt::Mutate {
                     id: self.next_id(),
                     span: stmt_start.merge(&self.previous_span()),
                     mood,
-                    target: target_expr,
-                    value: value_expr,
+                    target: Expr::new(
+                        self.next_id(),
+                        target.span,
+                        ExprKind::SelectionPlace {
+                            target: Box::new(target_expr),
+                            index: Box::new(index_expr),
+                        },
+                    ),
+                    value,
                     deferred,
                     deferred_span,
                 });
@@ -3233,6 +3835,36 @@ impl Parser {
             value,
             deferred,
             deferred_span,
+        })
+    }
+
+    fn build_result_flow_destination(&mut self, destination: Expr) -> Result<Expr, ParseError> {
+        if let ExprKind::Call { func, args } = &destination.kind {
+            if func == "차림.값" && args.len() == 2 {
+                let target = args[0].expr.clone();
+                let index = args[1].expr.clone();
+                if !matches!(target.kind, ExprKind::Var(_)) {
+                    return Err(ParseError {
+                        span: target.span,
+                        message:
+                            "E_RESULT_FLOW_ROOT_REQUIRED: `->` 대상 차림의 root는 이름이어야 합니다"
+                                .to_string(),
+                    });
+                }
+                self.ensure_root_declared_for_write(&target)?;
+                return Ok(Expr::new(
+                    self.next_id(),
+                    destination.span,
+                    ExprKind::SelectionPlace {
+                        target: Box::new(target),
+                        index: Box::new(index),
+                    },
+                ));
+            }
+        }
+        Err(ParseError {
+            span: destination.span,
+            message: "E_RESULT_FLOW_DESTINATION_PLACE_REQUIRED: `->`의 대상은 indexed writable SelectionPlace여야 합니다".to_string(),
         })
     }
 
@@ -3289,8 +3921,10 @@ impl Parser {
             id: self.next_id(),
             span,
             canonical_name: "매마디".to_string(),
+            alternate_forms: Vec::new(),
             seed_kind: SeedKind::Umjikssi,
             params: Vec::new(),
+            result_type: None,
             body: Some(body),
             modifiers: Vec::new(),
         };
@@ -3303,6 +3937,7 @@ impl Parser {
             Stmt::DeclBlock { span, .. }
             | Stmt::Definition { span, .. }
             | Stmt::Mutate { span, .. }
+            | Stmt::ResultFlow { span, .. }
             | Stmt::Expr { span, .. }
             | Stmt::Receive { span, .. }
             | Stmt::Send { span, .. }
@@ -3612,7 +4247,35 @@ impl Parser {
             if !self.check(&TokenKind::LBracket) {
                 break;
             }
-            self.advance();
+            let open = self.advance();
+            if matches!(&expr.kind, ExprKind::Var(name) if name == "차림") {
+                let mut elements = Vec::new();
+                if self.check(&TokenKind::RBracket) {
+                    return Err(ParseError {
+                        span: self.to_ast_span(open.span),
+                        message: "E_COLLECTION_CONSTRUCTOR_ELEMENT_TYPE_REQUIRED: 빈 `차림[]`은 원소 타입을 결정할 수 없습니다".to_string(),
+                    });
+                }
+                loop {
+                    elements.push(self.parse_expr()?);
+                    if self.check(&TokenKind::Comma) {
+                        self.advance();
+                        if self.check(&TokenKind::RBracket) {
+                            return Err(self.error("차림 원소"));
+                        }
+                        continue;
+                    }
+                    break;
+                }
+                let close = self.expect(&TokenKind::RBracket, "]")?;
+                let span = expr.span.merge(&self.to_ast_span(close.span));
+                expr = Expr::new(
+                    self.next_id(),
+                    span,
+                    ExprKind::CollectionConstructor { elements },
+                );
+                continue;
+            }
             let index_expr = self.parse_expr()?;
             let close = self.expect(&TokenKind::RBracket, "]")?;
             let span = expr.span.merge(&self.to_ast_span(close.span));
@@ -3872,7 +4535,7 @@ impl Parser {
                     .map_or(false, |expr| self.expr_has_mutation(expr))
             }),
             Stmt::Definition { value, .. } => self.expr_has_mutation(value),
-            Stmt::Mutate { .. } => true,
+            Stmt::Mutate { .. } | Stmt::ResultFlow { .. } => true,
             Stmt::Expr { expr, .. } => self.expr_has_mutation(expr),
             Stmt::Receive {
                 condition, body, ..
@@ -3969,6 +4632,11 @@ impl Parser {
                     .map_or(false, |expr| self.expr_has_eval_do(expr))
             }),
             Stmt::Definition { value, .. } => self.expr_has_eval_do(value),
+            Stmt::ResultFlow {
+                producer,
+                destination,
+                ..
+            } => self.expr_has_eval_do(producer) || self.expr_has_eval_do(destination),
             Stmt::Expr { expr, .. } => self.expr_has_eval_do(expr),
             Stmt::Receive {
                 condition, body, ..
@@ -4065,6 +4733,11 @@ impl Parser {
                     .map_or(false, |expr| self.expr_has_random(expr))
             }),
             Stmt::Definition { value, .. } => self.expr_has_random(value),
+            Stmt::ResultFlow {
+                producer,
+                destination,
+                ..
+            } => self.expr_has_random(producer) || self.expr_has_random(destination),
             Stmt::Expr { expr, .. } => self.expr_has_random(expr),
             Stmt::Receive {
                 condition, body, ..
@@ -4162,6 +4835,11 @@ impl Parser {
                     .map_or(false, |expr| self.expr_has_show(expr))
             }),
             Stmt::Definition { value, .. } => self.expr_has_show(value),
+            Stmt::ResultFlow {
+                producer,
+                destination,
+                ..
+            } => self.expr_has_show(producer) || self.expr_has_show(destination),
             Stmt::Expr { expr, .. } => self.expr_has_show(expr),
             Stmt::Receive {
                 condition, body, ..
@@ -4486,7 +5164,17 @@ impl Parser {
         let mut josa = None;
         if self.check(&TokenKind::Colon) {
             self.advance();
-            let pin = self.expect_ident("핀")?.raw.clone();
+            let pin_token = self.expect_ident("핀")?;
+            let mut pin = pin_token.raw.clone();
+            let mut pin_end = pin_token.span.end;
+            while let TokenKind::Josa(value) = &self.current().kind {
+                if self.current().span.start != pin_end {
+                    break;
+                }
+                pin.push_str(value);
+                pin_end = self.current().span.end;
+                self.advance();
+            }
             fixed_pin = Some(pin);
         }
         if self.check(&TokenKind::Tilde) {
@@ -5437,6 +6125,37 @@ impl Parser {
                 }
             }
         }
+
+        // An exact surface may be shared only when typed resolution can still
+        // distinguish the definitions. Identical typed call shapes would make
+        // declaration/source order an implicit winner, so reject them here.
+        let mut exact_surface_owners: HashMap<(String, String), (String, Span)> = HashMap::new();
+        for item in &program.items {
+            let TopLevelItem::SeedDef(seed) = item;
+            let typed_shape = format!(
+                "{:?}",
+                seed.params
+                    .iter()
+                    .map(|param| (&param.type_ref, &param.josa_list, param.optional))
+                    .collect::<Vec<_>>()
+            );
+            for surface in seed.callable_surface_names() {
+                let key = (surface.clone(), typed_shape.clone());
+                if let Some((owner, _)) = exact_surface_owners.get(&key) {
+                    if owner != &seed.canonical_name {
+                        return Err(ParseError {
+                            span: seed.span,
+                            message: format!(
+                                "E_CALLABLE_SURFACE_AMBIGUOUS: '{}' 표면이 '{}'와 '{}'에 같은 typed call shape로 등록되었습니다",
+                                surface, owner, seed.canonical_name
+                            ),
+                        });
+                    }
+                } else {
+                    exact_surface_owners.insert(key, (seed.canonical_name.clone(), seed.span));
+                }
+            }
+        }
         Ok(())
     }
 
@@ -5455,7 +6174,9 @@ impl Parser {
         let mut signatures = HashMap::new();
         for item in &program.items {
             let TopLevelItem::SeedDef(seed) = item;
-            signatures.insert(seed.canonical_name.clone(), seed.params.clone());
+            for surface in seed.callable_surface_names() {
+                signatures.insert(surface, seed.params.clone());
+            }
         }
         let mut known_seeds: HashSet<String> = signatures.keys().cloned().collect();
         for sig in minimal_stdlib_sigs() {
@@ -5463,12 +6184,15 @@ impl Parser {
         }
 
         for item in &mut program.items {
-            let TopLevelItem::SeedDef(seed) = item;
-            if let Some(body) = &mut seed.body {
-                self.apply_defaults_in_body(body, &signatures, &known_seeds)?;
+            match item {
+                TopLevelItem::SeedDef(seed) => {
+                    if let Some(body) = &mut seed.body {
+                        self.apply_defaults_in_body(body, &signatures, &known_seeds)?;
+                    }
+                }
             }
         }
-
+        self.apply_defaults_in_stmts(&mut program.root_stmts, &signatures, &known_seeds)?;
         Ok(())
     }
 
@@ -5478,6 +6202,9 @@ impl Parser {
             if let Some(body) = &seed.body {
                 self.validate_body_units(body)?;
             }
+        }
+        for stmt in &program.root_stmts {
+            self.validate_stmt_units(stmt)?;
         }
         Ok(())
     }
@@ -5497,6 +6224,15 @@ impl Parser {
                         self.infer_expr_dim(value)?;
                     }
                 }
+                Ok(())
+            }
+            Stmt::ResultFlow {
+                producer,
+                destination,
+                ..
+            } => {
+                self.infer_expr_dim(producer)?;
+                self.infer_expr_dim(destination)?;
                 Ok(())
             }
             Stmt::Definition { value, .. } => {
@@ -5659,6 +6395,17 @@ impl Parser {
                 }
                 Ok(DimState::Unknown)
             }
+            ExprKind::CollectionConstructor { elements } => {
+                for element in elements {
+                    self.infer_expr_dim(element)?;
+                }
+                Ok(DimState::Unknown)
+            }
+            ExprKind::SelectionPlace { target, index } => {
+                self.infer_expr_dim(target)?;
+                self.infer_expr_dim(index)?;
+                Ok(DimState::Unknown)
+            }
             ExprKind::Thunk(body) => {
                 self.validate_body_units(body)?;
                 Ok(DimState::Unknown)
@@ -5803,7 +6550,16 @@ impl Parser {
         signatures: &HashMap<String, Vec<ParamPin>>,
         known_seeds: &HashSet<String>,
     ) -> Result<(), ParseError> {
-        for stmt in &mut body.stmts {
+        self.apply_defaults_in_stmts(&mut body.stmts, signatures, known_seeds)
+    }
+
+    fn apply_defaults_in_stmts(
+        &mut self,
+        stmts: &mut [Stmt],
+        signatures: &HashMap<String, Vec<ParamPin>>,
+        known_seeds: &HashSet<String>,
+    ) -> Result<(), ParseError> {
+        for stmt in stmts {
             match stmt {
                 Stmt::DeclBlock { items, .. } => {
                     for item in items {
@@ -5818,6 +6574,14 @@ impl Parser {
                 Stmt::Mutate { target, value, .. } => {
                     self.apply_defaults_in_expr(target, signatures, known_seeds)?;
                     self.apply_defaults_in_expr(value, signatures, known_seeds)?;
+                }
+                Stmt::ResultFlow {
+                    producer,
+                    destination,
+                    ..
+                } => {
+                    self.apply_defaults_in_expr(producer, signatures, known_seeds)?;
+                    self.apply_defaults_in_expr(destination, signatures, known_seeds)?;
                 }
                 Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
                     self.apply_defaults_in_expr(expr, signatures, known_seeds)?
@@ -5969,6 +6733,7 @@ impl Parser {
                     self.apply_defaults_in_expr(&mut arg.expr, signatures, known_seeds)?;
                 }
                 let func_name = func.clone();
+                self.record_registered_call(expr.id, expr.span, &func_name);
                 let resolved = self.resolve_call_target(&func_name, known_seeds, expr.span)?;
                 if *func != resolved.1 {
                     *func = resolved.1;
@@ -6040,6 +6805,7 @@ impl Parser {
                         self.apply_defaults_in_expr(&mut arg.expr, signatures, known_seeds)?;
                     }
                     let func_name = func.clone();
+                    self.record_registered_call(stage.id, stage.span, &func_name);
                     let resolved = self.resolve_call_target(&func_name, known_seeds, stage.span)?;
                     if *func != resolved.1 {
                         *func = resolved.1;
@@ -6358,7 +7124,28 @@ impl Parser {
         known_seeds: &HashSet<String>,
         span: Span,
     ) -> Result<(String, String), ParseError> {
-        resolve_known_call_target(func, known_seeds, span)
+        if let Some(owner) = self.registered_forms.get(func) {
+            return Ok((owner.clone(), owner.clone()));
+        }
+        let resolved = resolve_known_call_target(func, known_seeds, span)?;
+        if self.explicitly_registered_owners.contains(&resolved.0) {
+            return Err(ParseError {
+                span,
+                message: format!(
+                    "E_REGISTERED_FORM_REQUIRED: '{}'은 명시적으로 등록된 호출 표면이 아닙니다",
+                    func
+                ),
+            });
+        }
+        Ok(resolved)
+    }
+
+    fn record_registered_call(&mut self, id: NodeId, span: Span, form: &str) {
+        if let Some(candidates) = self.registered_form_candidates.get(form) {
+            self.registered_call_candidates
+                .insert(id, candidates.clone());
+            self.registered_call_spans.insert(id, span);
+        }
     }
 
     fn apply_defaults_to_call(
@@ -6952,6 +7739,14 @@ fn validate_field_body(
                     env.insert(name.clone(), shape);
                 }
             }
+            Stmt::ResultFlow {
+                producer,
+                destination,
+                ..
+            } => {
+                validate_field_expr(producer, env)?;
+                validate_field_expr(destination, env)?;
+            }
             Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
                 validate_field_expr(expr, env)?;
             }
@@ -7102,6 +7897,17 @@ fn validate_field_expr(
             }
             Ok(FieldShape::Unknown)
         }
+        ExprKind::CollectionConstructor { elements } => {
+            for element in elements {
+                validate_field_expr(element, env)?;
+            }
+            Ok(FieldShape::Unknown)
+        }
+        ExprKind::SelectionPlace { target, index } => {
+            validate_field_expr(target, env)?;
+            validate_field_expr(index, env)?;
+            Ok(FieldShape::Unknown)
+        }
         ExprKind::Infix { left, right, .. } => {
             validate_field_expr(left, env)?;
             validate_field_expr(right, env)?;
@@ -7139,6 +7945,9 @@ pub struct ParseError {
 
 impl ParseError {
     pub fn code(&self) -> &'static str {
+        if self.message.starts_with("E_V25_IF_SURFACE:") {
+            return "E_V25_IF_SURFACE";
+        }
         if self
             .message
             .starts_with("E_V25_DEFINITION_MIGRATION_REQUIRED:")
@@ -7241,3 +8050,36 @@ impl fmt::Display for ParseError {
 }
 
 impl std::error::Error for ParseError {}
+
+#[cfg(test)]
+mod wo09_signed_min_tests {
+    use super::*;
+    use crate::lexer::Lexer;
+
+    fn expression(source: &str) -> Expr {
+        let mut parser = Parser::new(Lexer::new(source).tokenize().unwrap());
+        let result = parser.parse_unary().unwrap();
+        assert!(matches!(parser.current().kind, TokenKind::Eof));
+        result
+    }
+
+    #[test]
+    fn wo09_signed_min_keeps_ordinary_negative_ast_and_primary_tail() {
+        let ordinary = expression("-0.5");
+        let ExprKind::Infix { left, op, right } = ordinary.kind else { panic!("ordinary negative AST changed") };
+        assert_eq!(op, "-");
+        assert!(matches!(left.kind, ExprKind::Literal(Literal::Fixed64(v)) if v.raw_i64() == 0));
+        assert!(matches!(right.kind, ExprKind::Literal(Literal::Fixed64(v)) if v.raw_i64() == 1i64 << 31));
+        for source in ["-2147483648", "(-2147483648)"] {
+            assert!(matches!(expression(source).kind, ExprKind::Literal(Literal::Fixed64(v)) if v.raw_i64() == i64::MIN));
+        }
+        let ExprKind::Suffix { value, at } = expression("-2147483648@m").kind else { panic!("unit suffix lost") };
+        assert!(matches!(value.kind, ExprKind::Literal(Literal::Fixed64(v)) if v.raw_i64() == i64::MIN));
+        assert!(matches!(at, AtSuffix::Unit(ref unit) if unit == "m"));
+        assert!(matches!(expression("-2147483648 아님").kind, ExprKind::Call { ref func, .. } if func == "아님"));
+        let ExprKind::Infix { left, op, right } = expression("- -2147483648").kind else { panic!("outer negation lost") };
+        assert_eq!(op, "-");
+        assert!(matches!(left.kind, ExprKind::Literal(Literal::Fixed64(v)) if v.raw_i64() == 0));
+        assert!(matches!(right.kind, ExprKind::Literal(Literal::Fixed64(v)) if v.raw_i64() == i64::MIN));
+    }
+}

@@ -16,7 +16,9 @@ lto = true
 codegen-units = 1
 
 [profile.release.package.ddonirang-tool]
-opt-level = "z"
+# Interactive Alpha2 execution prioritizes runtime speed over minimum binary size.
+# World/receipt/tape equivalence is checked against the previous size build.
+opt-level = 3
 strip = true
 
 [profile.dev]

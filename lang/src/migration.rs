@@ -88,6 +88,10 @@ fn collect_stmt(stmt: &Stmt, source: &str, out: &mut Vec<HistoricalAsyncMigratio
                 }
             }
         }
+        Stmt::ResultFlow { producer, destination, .. } => {
+            collect_expr(producer, source, out);
+            collect_expr(destination, source, out);
+        }
         Stmt::Definition { value, .. } => collect_expr(value, source, out),
         Stmt::Mutate { target, value, .. } => {
             collect_expr(target, source, out);
@@ -185,6 +189,15 @@ fn collect_expr(expr: &Expr, source: &str, out: &mut Vec<HistoricalAsyncMigratio
             for arg in args {
                 collect_expr(&arg.expr, source, out);
             }
+        }
+        ExprKind::CollectionConstructor { elements } => {
+            for element in elements {
+                collect_expr(element, source, out);
+            }
+        }
+        ExprKind::SelectionPlace { target, index } => {
+            collect_expr(target, source, out);
+            collect_expr(index, source, out);
         }
         ExprKind::Infix { left, right, .. } => {
             collect_expr(left, source, out);

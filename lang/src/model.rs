@@ -4799,6 +4799,42 @@ pub fn parse_model_program_with_source_file(
     Parser::new(source, source_file, tokens).parse()
 }
 
+/// Read an explicitly selected model recipe library without manufacturing a
+/// model definition or a solve request. The existing recipe parser owns the
+/// surface, identity, source hash and diagnostics; ordinary bindings are not
+/// promoted to recipes by this entry point.
+pub fn parse_model_recipe_library_with_source_file(
+    source: &str,
+    source_file: &str,
+) -> Result<Vec<SolveRecipe>, ModelParseError> {
+    let tokens = Lexer::new(source).tokenize()?;
+    let mut parser = Parser::new(source, source_file, tokens);
+    let mut names = HashSet::new();
+    while !parser.at_eof() {
+        let start = parser.current().span;
+        if !parser.is_assignment_start() {
+            return Err(error("E_MODEL_RECIPE_SHAPE_CANDIDATE",
+                "방법 모듈에는 방법 값꾸러미 결속만 둘 수 있습니다", start.start, start.end));
+        }
+        let count = parser.recipes.len();
+        parser.parse_top_level_assignment()?;
+        if parser.recipes.len() != count + 1 {
+            return Err(error("E_MODEL_RECIPE_SHAPE_CANDIDATE",
+                "일반 결속이나 풀기 요청은 방법 선언이 아닙니다", start.start, parser.previous().span.end));
+        }
+        let recipe = parser.recipes.last().expect("one recipe parsed");
+        if !names.insert(recipe.name.clone()) {
+            return Err(error("E_MODEL_RECIPE_DUP_CANDIDATE",
+                "방법 이름이 중복되었습니다", recipe.span.start, recipe.span.end));
+        }
+    }
+    if parser.recipes.is_empty() {
+        return Err(error("E_MODEL_SURFACE_MISSING_CANDIDATE",
+            "방법 선언이 없습니다", 0, source.len()));
+    }
+    Ok(parser.recipes)
+}
+
 pub fn fixed_default_precise_recipe(request: &RunRequest) -> SolveRecipe {
     let span = request.method_provenance.source_range();
     let expression_canon = "(방식:#정밀)";
@@ -5084,6 +5120,23 @@ pub fn model_ir_candidate_json(program: &ModelProgram) -> JsonValue {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wo03_recipe_library_preserves_existing_identity_and_rejects_other_statements() {
+        let source = "정밀한방법 <- (방식: #정밀).\n";
+        let recipes = parse_model_recipe_library_with_source_file(source, "method.ddn")
+            .expect("explicit recipe library");
+        let full = format!("{source}계산 = 모형 {{ 입력:나눔수 :: (들임). 결과:나눔수 :: (그자리, 내줌). 결과::구함. 결과 =:= 입력. }}.");
+        let program = parse_model_program_with_source_file(&full, "method.ddn").unwrap();
+        assert_eq!(recipes.len(), 1);
+        assert_eq!(recipes[0].identity, program.ir.recipes[0].identity);
+        assert_eq!(recipes[0].source_hash, program.ir.recipes[0].source_hash);
+        assert_eq!(recipes[0].span, program.ir.recipes[0].span);
+        for invalid in ["", "값 <- 1.", "값 보여주기.", "정밀한방법 := (방식: #정밀)."] {
+            assert!(parse_model_recipe_library_with_source_file(invalid, "method.ddn").is_err(), "{invalid}");
+        }
+        assert!(parse_model_recipe_library_with_source_file(&format!("{source}{source}"), "method.ddn").is_err());
+    }
 
     const FALLING: &str = r#"
 낙하운동 = 모형 {

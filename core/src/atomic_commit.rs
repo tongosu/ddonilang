@@ -539,6 +539,7 @@ fn fault_diag(
             ("UNIT_MISMATCH", Some("DIM_MISMATCH".to_string()))
         }
         ArithmeticFaultKind::DivByZero => ("ARITH_FAULT", Some("DIV0".to_string())),
+        ArithmeticFaultKind::Overflow => ("ARITH_FAULT", Some("OVERFLOW".to_string())),
     };
     DiagEvent {
         madi,
@@ -584,6 +585,7 @@ fn arithmetic_consequence_id(
 ) -> String {
     let kind = match kind {
         ArithmeticFaultKind::DivByZero => "div0",
+        ArithmeticFaultKind::Overflow => "overflow",
         ArithmeticFaultKind::DimensionMismatch { .. } => "dim_mismatch",
     };
     format!(

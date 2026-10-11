@@ -1,27 +1,41 @@
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use ddonirang_tool::artifact_output::existing_input_output_alias;
 
 const SOURCE_PROFILE_FLAG: &str = "--source-profile";
 
 fn usage() -> &'static str {
     "또니랑 V1 명령줄 (정본 실행파일: ddonilang, 또니랑; 호환 별칭: ddonirang)\n\
 사용법:\n\
-  ddonilang 실행 <파일.ddn> --source-profile <profile> [--madi <N>] [--open deny|record|replay --open-log <transcript.json> --open-resources <manifest.json>]  (technical: run)\n\
+  ddonilang 실행 <파일.ddn> --source-profile <profile> [--마디수 <N>] [--json] [--summary-json <summary.detjson>] [--open deny|record|replay --open-log <transcript.json> --open-resources <manifest.json>]  (technical: run)\n\
   ddonilang 검사 <파일.ddn> --source-profile <profile>  (technical: check)\n\
   ddonilang 짓기 <파일.ddn> --source-profile <profile>  (technical: build)\n\
   ddonilang 개발 정본 <파일.ddn> --source-profile <profile>  (technical: canon)\n\
   ddonilang lint <파일.ddn> --source-profile <profile> [--suggest-patch] [--out <ddn.patch.json>]\n\
   ddonilang project-normalize <virtual-project.json>\n\
-  ddonilang project-discover [시작경로] [--project <project.ddnproj>] [--virtual <request.json>]\n\
+  ddonilang project-discover <작품머리.ddn> [--project <작품머리.ddn>] [--virtual <request.json>]\n\
   ddonilang project-graph <virtual-project.json>\n\
   ddonilang project-symbols <virtual-project.json>\n\
   ddonilang project-lock <virtual-project.json> [--frozen]\n\
-  ddonilang project-run [시작경로] [--project <project.ddnproj>] [--virtual <request.json>] [--target <이름>] [--inspect-graph] [--inspect-lock] [--open deny|record|replay --open-log <transcript.json> --open-resources <manifest.json>] [--out <artifact.detjson>]\n\
+  ddonilang project-run <작품머리.ddn> [--project <작품머리.ddn>] [--virtual <request.json>] [--inspect-graph] [--inspect-lock] [--open deny|record|replay --open-log <transcript.json> --open-resources <manifest.json>] [--out <artifact.detjson>]\n\
   ddonilang currentline-run --cell <파일.ddn> --source-profile <profile> [--context-json <context.detjson>] [--context-out <context.detjson>] [--summary-json <summary.detjson>]\n\
+  ddonilang workbench [--no-open]\n\
+  ddonilang 논리입력기록 <파일.ddn> <입력요청.json> <기록파일>  (technical: logical-record)\n\
+  ddonilang 논리입력재생 <파일.ddn> <기록파일> <입력계약.json>  (technical: logical-replay)\n\
+  ddonilang 작품자료 <만들기|열기|복제|갱신|보개등록|이름변경|경로변경> <파일.json>  (technical: authored-project)\n\
+  ddonilang 작품자료 실행 <파일.json> [--마디수 N]: 저장된 보개 정체로 실행\n\
   ddonilang 도움  (technical: help)\n\
   ddonilang 판본  (technical: version)\n\n\
-V1 지원 profile: v1-core-v25\n"
+제어입력 옵션 (괄호 안은 영어 호환 별칭):\n\
+  --마디수 N (--madi): 실행할 마디 수\n\
+  --보개-시작 <정의이름>: 보기값·보개짜임값의 시작을 명시 (임시 실행 정체, 영구 ID 생성 없음)\n\
+  --실시간-입력 터미널|웹 (--sam-live console|web)\n\
+  --실시간-입력-호스트 (--sam-live-host), --실시간-입력-포트 (--sam-live-port)\n\
+  --초당-마디 N (--madi-hz): 입력 마디 속도\n\
+  --입력-테이프 파일 (--sam): 명시적 테이프 재생\n\
+  --입력-테이프-기록 파일 (--record-sam): 실시간 입력 기록\n\
+문법 판 v25의 알파 실행 프로필: --source-profile v1-core-v25\n"
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -40,6 +54,11 @@ enum Command {
     ProjectLock(ProjectLockCommand),
     ProjectRun(ProjectRunCommand),
     CurrentlineRun(CurrentlineCommand),
+    Workbench(WorkbenchCommand),
+    LogicalRecord { source: PathBuf, request: PathBuf, output: PathBuf },
+    LogicalReplay { source: PathBuf, tape: PathBuf, binding: PathBuf },
+    AuthoredProject { operation: String, input: PathBuf },
+    AuthoredRun { input: PathBuf, madi: Option<u32> },
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -47,7 +66,74 @@ struct SourceCommand {
     path: PathBuf,
     source_profile: String,
     requested_madi: Option<u32>,
+    json_stdout: bool,
+    summary_json: Option<PathBuf>,
     host_resources: HostResourceOptions,
+    control_input: ControlInputOptions,
+    bogae_entry: Option<String>,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct ControlInputOptions {
+    mode: Option<String>,
+    host: Option<String>,
+    port: Option<String>,
+    hz: Option<String>,
+    tape: Option<String>,
+    record: Option<String>,
+}
+
+impl ControlInputOptions {
+    fn active(&self) -> bool { self.mode.is_some() || self.tape.is_some() }
+
+    fn parse_option(&mut self, args: &[String], index: &mut usize) -> Result<bool, String> {
+        let (flag, inline) = args[*index].split_once('=').map_or((args[*index].as_str(), None), |(flag, value)| (flag, Some(value)));
+        let (slot, korean) = match flag {
+            "--실시간-입력" | "--sam-live" => (&mut self.mode, "--실시간-입력"),
+            "--실시간-입력-호스트" | "--sam-live-host" => (&mut self.host, "--실시간-입력-호스트"),
+            "--실시간-입력-포트" | "--sam-live-port" => (&mut self.port, "--실시간-입력-포트"),
+            "--초당-마디" | "--madi-hz" => (&mut self.hz, "--초당-마디"),
+            "--입력-테이프" | "--sam" => (&mut self.tape, "--입력-테이프"),
+            "--입력-테이프-기록" | "--record-sam" => (&mut self.record, "--입력-테이프-기록"),
+            _ => return Ok(false),
+        };
+        if slot.is_some() { return Err(format!("E_CLI_OPTION_DUPLICATE {korean}: 같은 옵션을 두 번 지정할 수 없습니다")); }
+        let value = match inline {
+            Some("") => return Err(format!("E_CLI_OPTION_VALUE_REQUIRED {korean}: 값이 필요합니다")),
+            Some(value) => value.to_string(),
+            None => next_cli_value(args, index, korean)?,
+        };
+        *slot = Some(value);
+        if korean == "--실시간-입력" {
+            self.mode = Some(match self.mode.as_deref() {
+                Some("터미널" | "console") => "console",
+                Some("웹" | "web") => "web",
+                _ => return Err("E_CLI_OPTION_VALUE_INVALID --실시간-입력: 터미널(console) 또는 웹(web)을 지정하세요".into()),
+            }.into());
+        }
+        Ok(true)
+    }
+
+    fn validate(&self, requested_madi: Option<u32>) -> Result<(), String> {
+        if self.mode.is_some() && self.tape.is_some() {
+            return Err("E_CLI_OPTION_CONFLICT 실시간 입력과 입력 테이프를 동시에 지정할 수 없습니다".into());
+        }
+        if self.mode.is_some() && requested_madi.is_none() {
+            return Err("E_SAM_LIVE_MADI_REQUIRED --마디수(--madi)로 유한 실행 길이를 지정하세요".into());
+        }
+        if self.mode.is_none() && (self.host.is_some() || self.port.is_some() || self.hz.is_some() || self.record.is_some()) {
+            return Err("E_CLI_OPTION_CONFLICT 입력 호스트·속도·기록 옵션에는 --실시간-입력(--sam-live)이 필요합니다".into());
+        }
+        if let Some(port) = &self.port {
+            port.parse::<u16>().map_err(|_| "E_CLI_OPTION_VALUE_INVALID --실시간-입력-포트: 포트 범위를 확인하세요".to_string())?;
+        }
+        if let Some(hz) = &self.hz {
+            if hz.parse::<u32>().ok().filter(|hz| *hz > 0).is_none() {
+                return Err("E_SAM_BAD_MADI_HZ --초당-마디(--madi-hz)는 양의 정수여야 합니다".into());
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -95,6 +181,11 @@ struct CurrentlineCommand {
     context_out: Option<PathBuf>,
     summary_json: Option<PathBuf>,
     source_profile: String,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct WorkbenchCommand {
+    no_open: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -309,12 +400,29 @@ fn parse_source_command(
     let mut path = None;
     let mut source_profile = None;
     let mut requested_madi = None;
+    let mut json_stdout = false;
+    let mut summary_json = None;
     let mut host_resources = HostResourceOptions::default();
+    let mut control_input = ControlInputOptions::default();
+    let mut bogae_entry = None;
     let mut index = 0usize;
 
     while index < args.len() {
+        if allow_madi && control_input.parse_option(&args, &mut index)? {
+            index += 1;
+            continue;
+        }
         let argument = &args[index];
         match argument.as_str() {
+            "--보개-시작" => {
+                if !allow_madi || bogae_entry.is_some() {
+                    return Err("E_CLI_BOGAE_ENTRY: 실행에 보개 시작 하나만 명시하세요".into());
+                }
+                index += 1;
+                let value=args.get(index).filter(|value|!value.is_empty() && !value.starts_with('-'))
+                    .ok_or("E_CLI_BOGAE_ENTRY: 보개 시작 정의가 필요합니다")?;
+                bogae_entry=Some(value.clone());
+            }
             SOURCE_PROFILE_FLAG => {
                 if source_profile.is_some() {
                     return Err(format!(
@@ -332,21 +440,34 @@ fn parse_source_command(
                 };
                 source_profile = Some(value.clone());
             }
-            "--madi" if allow_madi => {
+            "--마디수" | "--madi" if allow_madi => {
                 if requested_madi.is_some() {
-                    return Err(format!("E_CLI_OPTION_DUPLICATE --madi\n{}", usage()));
+                    return Err(format!("E_CLI_OPTION_DUPLICATE --마디수(--madi): 중복 입력입니다\n{}", usage()));
                 }
                 index += 1;
                 let value = args.get(index).filter(|value| !value.starts_with("--"));
                 let Some(value) = value else {
-                    return Err(format!("E_CLI_OPTION_VALUE_REQUIRED --madi\n{}", usage()));
+                    return Err(format!("E_CLI_OPTION_VALUE_REQUIRED --마디수(--madi): 값이 필요합니다\n{}", usage()));
                 };
                 requested_madi = Some(value.parse::<u32>().map_err(|_| {
-                    format!("E_CLI_OPTION_VALUE_INVALID --madi={value}\n{}", usage())
+                    format!("E_CLI_OPTION_VALUE_INVALID --마디수(--madi)={value}: 양의 정수를 지정하세요\n{}", usage())
                 })?);
                 if requested_madi == Some(0) {
-                    return Err(format!("E_CLI_OPTION_VALUE_INVALID --madi=0\n{}", usage()));
+                    return Err(format!("E_CLI_OPTION_VALUE_INVALID --마디수(--madi)=0: 양의 정수를 지정하세요\n{}", usage()));
                 }
+            }
+            "--json" if allow_madi => {
+                if json_stdout {
+                    return Err(format!("E_CLI_OPTION_DUPLICATE --json\n{}", usage()));
+                }
+                json_stdout = true;
+            }
+            "--summary-json" if allow_madi => {
+                set_host_resource_path(
+                    &mut summary_json,
+                    next_cli_value(&args, &mut index, "--summary-json")?,
+                    "--summary-json",
+                )?;
             }
             "--open" if allow_madi => {
                 set_host_resource_mode(&mut host_resources, next_cli_value(&args, &mut index, "--open")?)?;
@@ -376,18 +497,28 @@ fn parse_source_command(
                 }
                 source_profile = Some(value.to_string());
             }
-            _ if allow_madi && argument.starts_with("--madi=") => {
+            _ if allow_madi && (argument.starts_with("--마디수=") || argument.starts_with("--madi=")) => {
                 if requested_madi.is_some() {
-                    return Err(format!("E_CLI_OPTION_DUPLICATE --madi\n{}", usage()));
+                    return Err(format!("E_CLI_OPTION_DUPLICATE --마디수(--madi): 중복 입력입니다\n{}", usage()));
                 }
-                let value = argument.trim_start_matches("--madi=");
+                let value = argument.split_once('=').expect("matched assignment").1;
                 let parsed = value.parse::<u32>().map_err(|_| {
-                    format!("E_CLI_OPTION_VALUE_INVALID --madi={value}\n{}", usage())
+                    format!("E_CLI_OPTION_VALUE_INVALID --마디수(--madi)={value}: 양의 정수를 지정하세요\n{}", usage())
                 })?;
                 if parsed == 0 {
-                    return Err(format!("E_CLI_OPTION_VALUE_INVALID --madi=0\n{}", usage()));
+                    return Err(format!("E_CLI_OPTION_VALUE_INVALID --마디수(--madi)=0: 양의 정수를 지정하세요\n{}", usage()));
                 }
                 requested_madi = Some(parsed);
+            }
+            _ if allow_madi && argument.starts_with("--json=") => {
+                return Err(format!("E_CLI_OPTION_VALUE_INVALID {argument}\n{}", usage()));
+            }
+            _ if allow_madi && argument.starts_with("--summary-json=") => {
+                set_host_resource_path(
+                    &mut summary_json,
+                    argument.trim_start_matches("--summary-json=").to_string(),
+                    "--summary-json",
+                )?;
             }
             _ if allow_madi && argument.starts_with("--open=") => {
                 set_host_resource_mode(&mut host_resources, argument.trim_start_matches("--open=").to_string())?;
@@ -426,11 +557,22 @@ fn parse_source_command(
         )
     })?;
     validate_host_resource_options(&host_resources)?;
+    control_input.validate(requested_madi)?;
+    if control_input.active() && !matches!(host_resources.mode.as_deref(), None | Some("deny")) {
+        return Err("E_CLI_OPTION_CONFLICT 제어입력과 --open 결합 실행은 지원하지 않습니다".into());
+    }
+    if bogae_entry.is_some() && (control_input.active() || !matches!(host_resources.mode.as_deref(), None|Some("deny"))) {
+        return Err("E_CLI_OPTION_CONFLICT: 보개 시작과 제어입력·외부 자원 결합은 아직 지원하지 않습니다".into());
+    }
     Ok(SourceCommand {
         path,
         source_profile,
         requested_madi,
+        json_stdout,
+        summary_json,
         host_resources,
+        control_input,
+        bogae_entry,
     })
 }
 
@@ -696,12 +838,16 @@ fn parse_project_run(args: &[String]) -> Result<ProjectRunCommand, String> {
             usage()
         ));
     }
+    if virtual_source.is_none() && start.is_none() && project.is_none() {
+        return Err("E_PROJECT_HEAD_REQUIRED: 실행할 작품 머리 파일을 지정해 주세요. 예: ddonilang project-run 작품.ddn".to_string());
+    }
     validate_host_resource_options(&host_resources)?;
     Ok(ProjectRunCommand {
         start,
         project,
         virtual_source,
-        target: target.unwrap_or_else(|| "앱".to_string()),
+        // D9: only the authored root chooses its start definition.
+        target: target.unwrap_or_default(),
         inspect_graph,
         inspect_lock,
         out,
@@ -908,6 +1054,9 @@ fn command_help_requested(command: &str, rest: &[String]) -> bool {
                 | "project-lock"
                 | "project-run"
                 | "currentline-run"
+                | "workbench"
+                | "logical-record" | "논리입력기록"
+                | "logical-replay" | "논리입력재생"
         )
 }
 
@@ -919,6 +1068,44 @@ fn parse_args(args: Vec<String>) -> Result<Command, String> {
         return Ok(Command::Help);
     }
     match command.as_str() {
+        "작품자료" | "authored-project" => {
+            if matches!(rest.first().map(String::as_str), Some("실행" | "run")) {
+                let madi = match rest.len() {
+                    2 => None,
+                    4 if rest[2] == "--마디수" => {
+                        let value = rest[3].parse::<u32>().map_err(|_| "마디 수는 양의 정수여야 합니다")?;
+                        if value == 0 { return Err("마디 수는 0일 수 없습니다".into()); }
+                        Some(value)
+                    }
+                    _ => return Err("작품자료 실행 <파일.json> [--마디수 N]".into()),
+                };
+                return Ok(Command::AuthoredRun { input: PathBuf::from(&rest[1]), madi });
+            }
+            if rest.len() != 2 { return Err("작품자료 <만들기|열기|복제|갱신|보개등록|이름변경|경로변경> <파일.json>".into()); }
+            let operation = match rest[0].as_str() {
+                "만들기" | "create" => "create",
+                "열기" | "open" => "open",
+                "복제" | "clone" => "clone",
+                "갱신" | "update" => "update",
+                "보개등록" | "register_bogae" => "register_bogae",
+                "이름변경" | "rename" => "rename",
+                "경로변경" | "relocate" => "relocate",
+                _ => return Err("지원하지 않는 작품자료 작업입니다".into()),
+            };
+            Ok(Command::AuthoredProject { operation: operation.into(), input: PathBuf::from(&rest[1]) })
+        }
+        "logical-record" | "논리입력기록" => {
+            if rest.len() != 3 || rest.iter().any(|value| value.starts_with("--")) {
+                return Err("E_CLI_LOGICAL_ARGUMENTS: 원문·입력요청·출력기록 경로가 필요합니다".into());
+            }
+            Ok(Command::LogicalRecord { source: PathBuf::from(&rest[0]), request: PathBuf::from(&rest[1]), output: PathBuf::from(&rest[2]) })
+        }
+        "logical-replay" | "논리입력재생" => {
+            if rest.len() != 3 || rest.iter().any(|value| value.starts_with("--")) {
+                return Err("E_CLI_LOGICAL_ARGUMENTS: 원문·기록·입력계약 경로가 필요합니다".into());
+            }
+            Ok(Command::LogicalReplay { source: PathBuf::from(&rest[0]), tape: PathBuf::from(&rest[1]), binding: PathBuf::from(&rest[2]) })
+        }
         "help" | "도움" | "--help" | "--도움" | "-h" => {
             if rest.is_empty() {
                 Ok(Command::Help)
@@ -979,7 +1166,17 @@ fn parse_args(args: Vec<String>) -> Result<Command, String> {
         "project-lock" => parse_project_lock(rest).map(Command::ProjectLock),
         "project-run" => parse_project_run(rest).map(Command::ProjectRun),
         "currentline-run" => parse_currentline_command(rest).map(Command::CurrentlineRun),
+        "workbench" => parse_workbench_command(rest).map(Command::Workbench),
         _ => Err(format!("E_CLI_COMMAND_UNKNOWN {command}\n{}", usage())),
+    }
+}
+
+fn parse_workbench_command(args: &[String]) -> Result<WorkbenchCommand, String> {
+    match args {
+        [] => Ok(WorkbenchCommand { no_open: false }),
+        [flag] if flag == "--no-open" => Ok(WorkbenchCommand { no_open: true }),
+        [flag] if flag.starts_with("--") => Err(format!("E_CLI_OPTION_UNKNOWN {flag}\n{}", usage())),
+        [value, ..] => Err(format!("E_CLI_POSITIONAL_UNEXPECTED value={value}\n{}", usage())),
     }
 }
 
@@ -1002,6 +1199,22 @@ fn pretty_json(value: &ddonirang_tool::serde_json::Value) -> Result<String, Exec
     ddonirang_tool::serde_json::to_string_pretty(value)
         .map(|text| format!("{text}\n"))
         .map_err(|error| ExecutionError::runtime(format!("E_CLI_JSON_SERIALIZE {error}")))
+}
+
+fn human_run_output(summary: &ddonirang_tool::serde_json::Value) -> Result<String, ExecutionError> {
+    let output_log = summary
+        .get("output_log_texts")
+        .and_then(ddonirang_tool::serde_json::Value::as_array)
+        .ok_or_else(|| ExecutionError::runtime("E_CLI_OUTPUT_LOG_INVALID"))?;
+    let mut output = String::new();
+    for value in output_log {
+        let text = value
+            .as_str()
+            .ok_or_else(|| ExecutionError::runtime("E_CLI_OUTPUT_LOG_INVALID"))?;
+        output.push_str(text);
+        output.push('\n');
+    }
+    Ok(output)
 }
 
 fn read_project_json(path: &PathBuf, error_code: &str) -> Result<String, ExecutionError> {
@@ -1030,8 +1243,102 @@ fn read_utf8_input(path: &PathBuf, error_code: &str) -> Result<String, Execution
     })
 }
 
+fn execute_control_input(command: &SourceCommand, source: &str) -> Result<(String, i32), ExecutionError> {
+    use ddonirang_tool::artifact_output::{preflight_artifact_targets, write_artifact_set_atomic, ArtifactPayload};
+    use ddonirang_tool::live_input::{LiveInput, LiveInputMode};
+    let options = &command.control_input;
+    let record_path = options.record.as_ref().map(PathBuf::from);
+    let mut targets = Vec::new();
+    for path in [record_path.as_deref(), command.summary_json.as_deref()].into_iter().flatten() {
+        if existing_input_output_alias(&command.path, path)
+            || options.tape.as_deref().is_some_and(|input| existing_input_output_alias(Path::new(input), path)) {
+            return Err(ExecutionError::input("E_CLI_OUTPUT_ALIASES_INPUT 결과 경로가 입력 파일과 같습니다"));
+        }
+        targets.push(path);
+    }
+    preflight_artifact_targets(&targets).map_err(ExecutionError::runtime)?;
+    let path = command.path.display().to_string();
+    let (summary, tape_candidate) = if let Some(mode) = &options.mode {
+        let hz = options.hz.as_deref().unwrap_or("60").parse::<u32>().map_err(|_| ExecutionError::input("E_SAM_BAD_MADI_HZ"))?;
+        let port = options.port.as_deref().unwrap_or("8765").parse::<u16>().map_err(|_| ExecutionError::input("E_CLI_OPTION_VALUE_INVALID"))?;
+        let mut live = LiveInput::new(
+            if mode == "console" { LiveInputMode::Console } else { LiveInputMode::Web },
+            options.host.clone().unwrap_or_else(|| "127.0.0.1".into()), port, hz, record_path,
+        ).map_err(ExecutionError::runtime)?;
+        let result = ddonirang_tool::runtime_surface::run_summary_from_source_with_live_input(
+            source, &path, command.requested_madi, 0, Some(&command.source_profile), hz,
+            |madi| live.sample_tick(madi)?.into_record(madi),
+        );
+        // Preserve the existing ordered-event V2 recording. Alpha1's
+        // Workbench V1 compatibility path must not downgrade CLI evidence.
+        live.seal_result(result).map_err(ExecutionError::runtime)?
+    } else {
+        let tape_path = options.tape.as_deref().expect("active validated tape source");
+        let tape = ddonirang_tool::input_tape::read_input_tape(Path::new(tape_path)).map_err(ExecutionError::input)?;
+        let summary = ddonirang_tool::runtime_surface::run_summary_from_supported_source_profile_with_input_tape(
+            source, &path, command.requested_madi, Some(&command.source_profile), &tape,
+        ).map_err(ExecutionError::runtime)?;
+        (summary, None)
+    };
+    let summary_json = pretty_json(&summary)?;
+    let stdout = if command.json_stdout { summary_json.clone() } else { human_run_output(&summary)? };
+    let mut payloads = Vec::new();
+    if let Some((path, bytes)) = &tape_candidate {
+        payloads.push(ArtifactPayload { target: path, bytes });
+    }
+    if let Some(path) = &command.summary_json {
+        payloads.push(ArtifactPayload { target: path, bytes: summary_json.as_bytes() });
+    }
+    write_artifact_set_atomic(&payloads).map_err(ExecutionError::runtime)?;
+    Ok((stdout, 0))
+}
+
 fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
     match command {
+        Command::AuthoredRun { input, madi } => {
+            let text = String::from_utf8(read_logical_input(&input)?)
+                .map_err(|_| ExecutionError::input("E_SOURCE_UTF8_INVALID: 작품자료가 UTF-8이 아닙니다"))?;
+            let artifact = ddonirang_tool::authored_project::open(text.as_bytes())
+                .map_err(ExecutionError::input)?;
+            let (source, source_path, _) = artifact.execution_source()
+                .map_err(ExecutionError::input)?;
+            let summary = ddonirang_tool::runtime_surface::run_summary_with_authored_bogae(
+                &source, &source_path, madi, &artifact.source_profile, &text, None, None,
+            ).map_err(ExecutionError::runtime)?;
+            Ok((pretty_json(&summary)? + "\n", 0))
+        }
+        Command::AuthoredProject { operation, input } => {
+            let text = String::from_utf8(read_logical_input(&input)?)
+                .map_err(|_| ExecutionError::input("E_SOURCE_UTF8_INVALID: 작품자료가 UTF-8이 아닙니다"))?;
+            let result = ddonirang_tool::authored_project::operate(&operation, &text)
+                .map_err(ExecutionError::input)?;
+            Ok((result + "\n", 0))
+        }
+        Command::LogicalRecord { source, request, output } => {
+            if existing_input_output_alias(&source, &output) || existing_input_output_alias(&request, &output) {
+                return Err(ExecutionError::input("E_CLI_OUTPUT_ALIASES_INPUT: 기록으로 입력을 덮어쓸 수 없습니다"));
+            }
+            ddonirang_tool::artifact_output::preflight_artifact_targets(&[output.as_path()])
+                .map_err(ExecutionError::runtime)?;
+            let source = read_logical_input(&source)?;
+            let source = String::from_utf8(source).map_err(|_| ExecutionError::input("E_SOURCE_UTF8_INVALID: 원문이 UTF-8이 아닙니다"))?;
+            let request = ddonirang_tool::serde_json::from_slice(&read_logical_input(&request)?)
+                .map_err(|_| ExecutionError::input("E_LOGICAL_INPUT_REQUEST: 입력 요청 필드가 올바르지 않습니다"))?;
+            let (bytes, summary) = ddonirang_tool::logical_input_tape::record_source(&source, &request)
+                .map_err(ExecutionError::runtime)?;
+            ddonirang_tool::artifact_output::write_binary_artifact_atomic(&output, &bytes)
+                .map_err(ExecutionError::runtime)?;
+            Ok((pretty_json(&summary)? + "\n", 0))
+        }
+        Command::LogicalReplay { source, tape, binding } => {
+            let source = String::from_utf8(read_logical_input(&source)?)
+                .map_err(|_| ExecutionError::input("E_SOURCE_UTF8_INVALID: 원문이 UTF-8이 아닙니다"))?;
+            let expected = ddonirang_tool::serde_json::from_slice(&read_logical_input(&binding)?)
+                .map_err(|_| ExecutionError::input("E_LOGICAL_INPUT_BINDING: 입력 계약 필드가 올바르지 않습니다"))?;
+            let summary = ddonirang_tool::logical_input_tape::replay_source(&source, &read_logical_input(&tape)?, &expected)
+                .map_err(ExecutionError::runtime)?;
+            Ok((pretty_json(&summary)? + "\n", 0))
+        }
         Command::Help => Ok((usage().to_string(), 0)),
         Command::Version => Ok((
             format!(
@@ -1044,9 +1351,32 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
         Command::Run(command) => {
             let source = read_source(&command)?;
             let path = command.path.display().to_string();
-            preflight_invocation_artifact_targets(&command.host_resources, None)?;
+            if command
+                .summary_json
+                .as_deref()
+                .is_some_and(|output| existing_input_output_alias(&command.path, output))
+            {
+                return Err(ExecutionError::input("E_CLI_OUTPUT_ALIASES_INPUT"));
+            }
+            preflight_invocation_artifact_targets(
+                &command.host_resources,
+                command.summary_json.as_deref(),
+            )?;
+            ddonirang_tool::source_frontdoor_workflow::validate_supported_source_for_execution(
+                &source,
+                &command.path,
+                &command.source_profile,
+            )
+            .map_err(ExecutionError::from)?;
+            if command.control_input.active() {
+                return execute_control_input(&command, &source);
+            }
             let prepared = prepare_host_resources_for_cli(&command.host_resources)?;
-            let summary = if let Some(prepared) = &prepared {
+            let summary = if let Some(entry) = &command.bogae_entry {
+                ddonirang_tool::runtime_surface::run_summary_with_bogae_entry(
+                    &source,&path,command.requested_madi,&command.source_profile,entry,
+                )
+            } else if let Some(prepared) = &prepared {
                 ddonirang_tool::runtime_surface::run_summary_from_supported_source_profile_with_host_resources(
                     &source,
                     &path,
@@ -1063,8 +1393,20 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
                 )
             }
             .map_err(ExecutionError::runtime)?;
-            let output = pretty_json(&summary)?;
-            publish_invocation_artifacts(&command.host_resources, prepared.as_ref(), None)?;
+            let summary_json = pretty_json(&summary)?;
+            let output = if command.json_stdout {
+                summary_json.clone()
+            } else {
+                human_run_output(&summary)?
+            };
+            publish_invocation_artifacts(
+                &command.host_resources,
+                prepared.as_ref(),
+                command
+                    .summary_json
+                    .as_deref()
+                    .map(|path| (path, summary_json.as_str())),
+            )?;
             Ok((output, 0))
         }
         Command::Check(command) | Command::Build(command) => {
@@ -1248,6 +1590,49 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
                 })?;
             Ok((currentline.stdout, 0))
         }
+        Command::Workbench(_) => Err(ExecutionError::runtime("E_WORKBENCH_MAIN_DISPATCH_REQUIRED")),
+    }
+}
+
+fn run_workbench(command: WorkbenchCommand) -> Result<(), ExecutionError> {
+    let executable = std::env::current_exe()
+        .map_err(|error| ExecutionError::runtime(format!("E_WORKBENCH_EXECUTABLE_PATH {error}")))?;
+    let bundle_root = executable
+        .parent()
+        .ok_or_else(|| ExecutionError::runtime("E_WORKBENCH_EXECUTABLE_PARENT"))?
+        .join("workbench");
+    let host = ddonirang_tool::workbench_host::WorkbenchHost::start(
+        &bundle_root,
+        &bundle_root.join("asset_manifest.detjson"),
+    )
+    .map_err(ExecutionError::runtime)?;
+    let mut record = serde_json::json!({
+        "schema": "ddonirang.workbench_startup.v1",
+        "ok": true,
+        "profile": ddonirang_tool::ddn_runtime::V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY,
+        "bind_address": "127.0.0.1",
+        "startup_url": host.startup_url(),
+        "port": host.port(),
+        "asset_manifest_identity": host.manifest_sha256(),
+        "browser_open_requested": !command.no_open,
+    });
+    if command.no_open {
+        record["automation_token"] = serde_json::Value::String(host.token().to_string());
+    }
+    write_stdout(&(record.to_string() + "\n")).map_err(ExecutionError::runtime)?;
+    if !command.no_open {
+        #[cfg(target_os = "windows")]
+        let opened = std::process::Command::new("explorer.exe")
+            .arg(host.url())
+            .spawn();
+        #[cfg(not(target_os = "windows"))]
+        let opened = std::process::Command::new("xdg-open").arg(host.url()).spawn();
+        if let Err(error) = opened {
+            eprintln!("E_WORKBENCH_BROWSER_OPEN {error}");
+        }
+    }
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(1));
     }
 }
 
@@ -1255,6 +1640,18 @@ fn write_stdout(text: &str) -> Result<(), String> {
     io::stdout()
         .write_all(text.as_bytes())
         .map_err(|error| format!("E_CLI_STDOUT_WRITE {error}"))
+}
+
+fn read_logical_input(path: &Path) -> Result<Vec<u8>, ExecutionError> {
+    let size = fs::metadata(path).map_err(|error| ExecutionError::input(format!("E_LOGICAL_INPUT_READ: {error}")))?.len();
+    if size > 67_108_864 + 64 {
+        return Err(ExecutionError::input("E_LOGICAL_INPUT_SIZE: 입력 크기 한도를 넘었습니다"));
+    }
+    let bytes = fs::read(path).map_err(|error| ExecutionError::input(format!("E_LOGICAL_INPUT_READ: {error}")))?;
+    if bytes.len() > 67_108_864 + 64 {
+        return Err(ExecutionError::input("E_LOGICAL_INPUT_SIZE: 입력 크기 한도를 넘었습니다"));
+    }
+    Ok(bytes)
 }
 
 fn main() {
@@ -1266,6 +1663,13 @@ fn main() {
             std::process::exit(2);
         }
     };
+    if let Command::Workbench(command) = command {
+        if let Err(error) = run_workbench(command) {
+            eprintln!("{}", error.message);
+            std::process::exit(error.exit_code);
+        }
+        return;
+    }
     match execute(command) {
         Ok((output, exit_code)) => {
             if let Err(error) = write_stdout(&output) {
@@ -1353,6 +1757,185 @@ mod tests {
         let english_missing_profile = parse_args(vec!["run".into(), "input.ddn".into()]);
         let korean_missing_profile = parse_args(vec!["실행".into(), "input.ddn".into()]);
         assert_eq!(korean_missing_profile, english_missing_profile);
+    }
+
+    #[test]
+    fn control_input_official_aliases_and_duplicate_options() {
+        fn command(flags: &[&str]) -> Command {
+            let mut args = vec!["실행".into(), "game.ddn".into(), "--source-profile=v1-core-v25".into()];
+            args.extend(flags.iter().map(|value| value.to_string()));
+            parse_args(args).expect("control option parsing")
+        }
+        assert_eq!(command(&["--마디수=3", "--실시간-입력", "터미널", "--초당-마디=60"]),
+            command(&["--madi=3", "--sam-live", "console", "--madi-hz=60"]));
+        assert_eq!(command(&["--마디수", "3", "--실시간-입력", "웹"]),
+            command(&["--madi", "3", "--sam-live", "web"]));
+        for unapproved in ["--입력-영수증=record.json", "--input-receipts=record.json"] {
+            assert!(parse_args(vec!["실행".into(), "game.ddn".into(),
+                "--source-profile=v1-core-v25".into(), unapproved.into()])
+                .unwrap_err().contains("E_CLI_OPTION_UNKNOWN"));
+        }
+        for duplicate in [
+            ["--마디수=3", "--madi=4"],
+            ["--실시간-입력=터미널", "--sam-live=console"],
+            ["--입력-테이프=a", "--sam=b"],
+        ] {
+            let mut args = vec!["실행".into(), "game.ddn".into(), "--source-profile=v1-core-v25".into()];
+            args.extend(duplicate.into_iter().map(String::from));
+            assert!(parse_args(args).unwrap_err().contains("OPTION_DUPLICATE"));
+        }
+    }
+
+    #[test]
+    fn control_input_official_ddn_replay_and_corruption_no_publication() {
+        use ddonirang_tool::input_tape::{InputTape, InputRecord, InputEvent, InputEventKind, mask_to_bytes, encode_input_tape};
+        struct Scratch(PathBuf);
+        impl Drop for Scratch { fn drop(&mut self) { let _ = fs::remove_dir_all(&self.0); } }
+        let directory = std::env::temp_dir().join(format!("ddn-control-cli-{}-{}", std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        fs::create_dir(&directory).unwrap();
+        let scratch = Scratch(directory);
+        let tape_path = scratch.0.join("input.ddntape");
+        let summary_path = scratch.0.join("summary.detjson");
+        let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tools/teul-cli/tests/fixtures/cli_control_input_r1.ddn");
+        let tape = InputTape { version: 2, madi_hz: 60, records: vec![
+            InputRecord { madi: 0, held_mask: mask_to_bytes(2), events: vec![InputEvent { sequence: 0, key_bit: 2, kind: InputEventKind::Press }] },
+            InputRecord { madi: 1, held_mask: mask_to_bytes(0), events: vec![InputEvent { sequence: 1, key_bit: 2, kind: InputEventKind::Release }] },
+        ] };
+        let mut bytes = encode_input_tape(&tape).unwrap();
+        fs::write(&tape_path, &bytes).unwrap();
+        let run = |flag: &str| {
+            let args = vec!["실행".into(), source.display().to_string(), "--source-profile=v1-core-v25".into(),
+                "--마디수=2".into(), flag.into(), tape_path.display().to_string(), "--json".into(),
+                "--summary-json".into(), summary_path.display().to_string()];
+            execute(parse_args(args).unwrap())
+        };
+        let (korean, code) = run("--입력-테이프").unwrap();
+        assert_eq!(code, 0);
+        let (english, code) = run("--sam").unwrap();
+        assert_eq!(code, 0);
+        assert_eq!(korean, english);
+        let summary: ddonirang_tool::serde_json::Value = ddonirang_tool::serde_json::from_str(&korean).unwrap();
+        assert_eq!(summary["output_log_texts"], ddonirang_tool::serde_json::json!(["참", "거짓"]));
+        let before = fs::read(&summary_path).unwrap();
+        *bytes.last_mut().unwrap() ^= 1;
+        fs::write(&tape_path, bytes).unwrap();
+        let error = run("--입력-테이프").err().unwrap();
+        assert!(error.message.contains("E_SAM_TAPE_DIGEST_MISMATCH"));
+        assert_eq!(fs::read(summary_path).unwrap(), before);
+    }
+
+    #[test]
+    fn official_run_accepts_explicit_json_and_atomic_summary_without_changing_human_default() {
+        let parsed = parse_args(vec![
+            "실행".into(),
+            "input.ddn".into(),
+            "--source-profile".into(),
+            "v1-core-v25".into(),
+            "--madi=3".into(),
+            "--json".into(),
+            "--summary-json=summary.detjson".into(),
+        ])
+        .expect("run options");
+        assert_eq!(
+            parsed,
+            Command::Run(SourceCommand {
+                path: PathBuf::from("input.ddn"),
+                source_profile: "v1-core-v25".into(),
+                requested_madi: Some(3),
+                json_stdout: true,
+                summary_json: Some(PathBuf::from("summary.detjson")),
+                host_resources: HostResourceOptions::default(),
+                control_input: ControlInputOptions::default(),
+                bogae_entry: None,
+            })
+        );
+
+        let human = parse_args(vec![
+            "run".into(),
+            "input.ddn".into(),
+            "--source-profile=v1-core-v25".into(),
+            "--summary-json".into(),
+            "summary.detjson".into(),
+        ])
+        .expect("human stdout mode");
+        assert!(matches!(
+            human,
+            Command::Run(SourceCommand {
+                json_stdout: false,
+                summary_json: Some(_),
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn official_run_rejects_implicit_or_duplicate_json_modes() {
+        for args in [
+            vec![
+                "run".into(),
+                "input.ddn".into(),
+                "--source-profile=v1-core-v25".into(),
+                "--json=true".into(),
+            ],
+            vec![
+                "run".into(),
+                "input.ddn".into(),
+                "--source-profile=v1-core-v25".into(),
+                "--json".into(),
+                "--json".into(),
+            ],
+            vec![
+                "run".into(),
+                "input.ddn".into(),
+                "--source-profile=v1-core-v25".into(),
+                "--summary-json".into(),
+            ],
+        ] {
+            assert!(parse_args(args).is_err());
+        }
+    }
+
+    #[test]
+    fn official_run_human_output_preserves_program_order_and_empty_output() {
+        let summary = ddonirang_tool::serde_json::json!({
+            "output_log_texts": ["첫 출력", "둘째 출력"],
+            "state_hash": "not-human-output",
+        });
+        assert_eq!(
+            human_run_output(&summary).expect("human output"),
+            "첫 출력\n둘째 출력\n"
+        );
+        assert_eq!(
+            human_run_output(&ddonirang_tool::serde_json::json!({"output_log_texts": []}))
+                .expect("empty output"),
+            ""
+        );
+    }
+
+    #[test]
+    fn official_run_rejects_malformed_output_log_before_stdout_projection() {
+        let malformed = ddonirang_tool::serde_json::json!({"output_log_texts": ["ok", 3]});
+        let error = human_run_output(&malformed).expect_err("malformed output log");
+        assert_eq!(error.exit_code, 1);
+        assert_eq!(error.message, "E_CLI_OUTPUT_LOG_INVALID");
+    }
+
+    #[test]
+    fn official_run_rejects_summary_output_alias_of_existing_input() {
+        let root = std::env::temp_dir().join(format!(
+            "ddn-cli-summary-alias-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).expect("test root");
+        let input = root.join("input.ddn");
+        std::fs::write(&input, "값:셈씨 := 1.").expect("input");
+        assert!(existing_input_output_alias(&input, &input));
+        assert!(existing_input_output_alias(
+            &input,
+            &root.join(".").join("input.ddn")
+        ));
+        std::fs::remove_dir_all(&root).expect("task-owned test root cleanup");
     }
 
     #[test]
@@ -1478,6 +2061,11 @@ mod tests {
 
     #[test]
     fn project_run_binds_neutral_identity_inputs_and_rejects_virtual_conflicts() {
+        assert!(parse_args(vec!["project-run".into()]).unwrap_err().starts_with("E_PROJECT_HEAD_REQUIRED"));
+        let explicit = parse_args(vec!["project-run".into(), "임의이름.ddn".into()]).unwrap();
+        let Command::ProjectRun(explicit) = explicit else { panic!("project run"); };
+        assert_eq!(explicit.start, Some(PathBuf::from("임의이름.ddn")));
+        assert!(explicit.target.is_empty(), "no hidden app target");
         assert_eq!(
             parse_args(vec![
                 "project-run".into(),
@@ -1609,7 +2197,7 @@ mod tests {
         let manifest_arg = manifest_path.to_string_lossy().to_string();
         let record = parse_args(vec![
             "run".into(), source_arg.clone(), "--source-profile".into(),
-            "v1-core-v25".into(), "--open".into(), "record".into(),
+            "v1-core-v25".into(), "--json".into(), "--open".into(), "record".into(),
             "--open-log".into(), log_arg.clone(), "--open-resources".into(), manifest_arg,
         ])
         .expect("record command");
@@ -1620,7 +2208,7 @@ mod tests {
         std::fs::remove_file(&resource_path).expect("remove only task-owned declared input");
         let replay = parse_args(vec![
             "run".into(), source_arg, "--source-profile".into(), "v1-core-v25".into(),
-            "--open".into(), "replay".into(), "--open-log".into(), log_arg,
+            "--json".into(), "--open".into(), "replay".into(), "--open-log".into(), log_arg,
         ])
         .expect("replay command");
         let (replay_output, _) = execute(replay).expect("replay without declared input locator");

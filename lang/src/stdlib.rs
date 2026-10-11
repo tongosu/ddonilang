@@ -1507,6 +1507,45 @@ pub fn numeric_type_constructor_sigs() -> Vec<FunctionSig> {
     ]
 }
 
+/// RD-123/RD-518: 기본 결과표 생성은 입력 받는자리가 없다.
+pub fn view_function_sigs() -> Vec<FunctionSig> {
+    vec![FunctionSig { name:"표준장면.원", params:&["중심","반지름"], ret:"장면요소값" },
+    FunctionSig { name:"표준장면.다각형", params:&["꼭짓점들"], ret:"장면요소값" },
+    FunctionSig { name:"표준장면.글", params:&["자리","내용"], ret:"장면요소값" },
+    FunctionSig { name:"표준장면.평면", params:&["요소들","가로범위","세로범위"], ret:"장면값" },
+    FunctionSig { name:"표준보기.장면", params:&["장면"], ret:"보기값" },
+    FunctionSig {
+        name: "표준보기.결과표",
+        params: &[],
+        ret: "보기값",
+    }, FunctionSig {
+        name: "표준보개.으뜸",
+        params: &["보기"],
+        ret: "으뜸보개관계값",
+    }, FunctionSig {
+        name: "표준보개.겹",
+        params: &["보기", "기준", "순서"],
+        ret: "겹보개관계값",
+    }, FunctionSig {
+        name: "표준보개.곁",
+        params: &["보기", "자리"],
+        ret: "곁보개관계값",
+    }, FunctionSig {
+        name: "표준보개.돋",
+        params: &["대상", "보기법"],
+        ret: "돋보개관계값",
+    }, FunctionSig {
+        name: "표준보개.짜임",
+        params: &["관계들"],
+        ret: "보개짜임값",
+    }]
+}
+
+/// Alpha2 logical snapshot query. Legacy physical input signatures are unchanged.
+pub fn logical_input_function_sigs() -> Vec<FunctionSig> {
+    vec![FunctionSig { name: "입력사상.사건들", params: &[], ret: "(묶음)차림" }]
+}
+
 pub fn minimal_stdlib_sigs() -> Vec<FunctionSig> {
     let mut out = Vec::new();
     out.extend(string_function_sigs());
@@ -1530,6 +1569,8 @@ pub fn minimal_stdlib_sigs() -> Vec<FunctionSig> {
     out.extend(logic_function_sigs());
     out.extend(age1_runtime_function_sigs());
     out.extend(numeric_type_constructor_sigs());
+    out.extend(view_function_sigs());
+    out.extend(logical_input_function_sigs());
     out
 }
 

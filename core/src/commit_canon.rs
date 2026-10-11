@@ -334,6 +334,7 @@ fn fault_context(ctx: &FaultContext) -> String {
 fn arithmetic_kind(kind: &ArithmeticFaultKind) -> String {
     match kind {
         ArithmeticFaultKind::DivByZero => object(vec![("kind", json_string("DivByZero"))]),
+        ArithmeticFaultKind::Overflow => object(vec![("kind", json_string("Overflow"))]),
         ArithmeticFaultKind::DimensionMismatch { left, right } => object(vec![
             ("kind", json_string("DimensionMismatch")),
             ("left", json_string(&left.format())),

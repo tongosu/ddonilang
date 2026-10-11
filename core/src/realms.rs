@@ -88,26 +88,37 @@ impl Realm {
         }
     }
 
-    pub fn step_batch(&mut self, inputs: &[RealmStepInput]) -> RealmStepOutput {
+    pub fn step_batch(&mut self, inputs: &[RealmStepInput]) -> Result<RealmStepOutput, String> {
         if inputs.is_empty() {
-            return RealmStepOutput::from_realm(self);
+            return Ok(RealmStepOutput::from_realm(self));
         }
 
+        // A batch is an atomic realm transition.  Build it on a clone so a
+        // checked Fixed64 failure cannot publish a partial resource/rng/madi
+        // update for an earlier item in the same batch.
+        let mut candidate = self.clone();
         for input in inputs {
-            let current = self
+            let current = candidate
                 .world
                 .get_resource_fixed64("realm.value")
                 .unwrap_or(Fixed64::ZERO);
-            let updated = current.saturating_add(Fixed64::from_i64(input.delta));
-            self.world
+            let updated = current
+                .checked_add(Fixed64::from_i64(input.delta))
+                .map_err(|_| "E_REALM_ARITH_OVERFLOW realm.value".to_string())?;
+            candidate
+                .world
                 .set_resource_fixed64("realm.value".to_string(), updated);
-            self.rng = splitmix64(self.rng);
-            self.world
-                .set_resource_handle("realm.rng".to_string(), ResourceHandle::from_raw(self.rng));
-            self.madi = self.madi.wrapping_add(1);
+            candidate.rng = splitmix64(candidate.rng);
+            candidate.world.set_resource_handle(
+                "realm.rng".to_string(),
+                ResourceHandle::from_raw(candidate.rng),
+            );
+            candidate.madi = candidate.madi.wrapping_add(1);
         }
-        self.state_hash = self.world.state_hash();
-        RealmStepOutput::from_realm(self)
+        candidate.state_hash = candidate.world.state_hash();
+        let output = RealmStepOutput::from_realm(&candidate);
+        *self = candidate;
+        Ok(output)
     }
 }
 
@@ -153,17 +164,17 @@ impl MultiRealmManager {
             buckets[input.realm_id].push(input);
         }
 
-        let mut outputs: Vec<RealmStepOutput> = self
-            .realms
-            .iter()
-            .map(RealmStepOutput::from_realm)
-            .collect();
+        // All realms participate in one externally visible batch.  Keep the
+        // manager unchanged unless every realm can produce its candidate.
+        let mut candidate_realms = self.realms.clone();
 
-        match self.thread_mode.resolve() {
+        let outputs = match self.thread_mode.resolve() {
             ThreadMode::Seq => {
-                for (idx, realm) in self.realms.iter_mut().enumerate() {
-                    outputs[idx] = realm.step_batch(&buckets[idx]);
-                }
+                candidate_realms
+                    .iter_mut()
+                    .enumerate()
+                    .map(|(idx, realm)| realm.step_batch(&buckets[idx]))
+                    .collect::<Result<Vec<_>, _>>()?
             }
             ThreadMode::Rayon(threads) => {
                 use rayon::prelude::*;
@@ -172,18 +183,17 @@ impl MultiRealmManager {
                     .build()
                     .map_err(|err| format!("E_REALM_THREADPOOL {}", err))?;
                 pool.install(|| {
-                    self.realms
+                    candidate_realms
                         .par_iter_mut()
-                        .zip(outputs.par_iter_mut())
                         .enumerate()
-                        .for_each(|(idx, (realm, out))| {
-                            *out = realm.step_batch(&buckets[idx]);
-                        });
-                });
+                        .map(|(idx, realm)| realm.step_batch(&buckets[idx]))
+                        .collect::<Result<Vec<_>, _>>()
+                })?
             }
             ThreadMode::Auto => unreachable!("resolved thread mode"),
-        }
+        };
 
+        self.realms = candidate_realms;
         Ok(outputs)
     }
 }
@@ -200,4 +210,98 @@ fn splitmix64(mut x: u64) -> u64 {
     z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
     z ^ (z >> 31)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MultiRealmManager, Realm, RealmStepInput, ThreadMode};
+    use crate::Fixed64;
+
+    #[test]
+    fn realm_fixed64_overflow_is_atomic() {
+        let mut realm = Realm::new(7, 19);
+        realm
+            .world
+            .set_resource_fixed64("realm.value".to_string(), Fixed64::MAX);
+        realm.state_hash = realm.world.state_hash();
+        let before = realm.clone();
+
+        let error = realm
+            .step_batch(&[RealmStepInput {
+                realm_id: 7,
+                delta: 1,
+            }])
+            .expect_err("overflow must fail closed");
+
+        assert_eq!(error, "E_REALM_ARITH_OVERFLOW realm.value");
+        assert_eq!(realm.world.state_hash(), before.world.state_hash());
+        assert_eq!(realm.state_hash, before.state_hash);
+        assert_eq!(realm.rng, before.rng);
+        assert_eq!(realm.madi, before.madi);
+    }
+
+    #[test]
+    fn multi_realm_overflow_keeps_every_realm_unchanged() {
+        let mut manager = MultiRealmManager::new(2, 19, ThreadMode::Seq);
+        manager.realms[1]
+            .world
+            .set_resource_fixed64("realm.value".to_string(), Fixed64::MAX);
+        manager.realms[1].state_hash = manager.realms[1].world.state_hash();
+        let before = manager.state_hashes();
+        let before_rng = manager.realms.iter().map(|realm| realm.rng).collect::<Vec<_>>();
+        let before_madi = manager.realms.iter().map(|realm| realm.madi).collect::<Vec<_>>();
+
+        let error = manager
+            .step_batch(&[
+                RealmStepInput {
+                    realm_id: 0,
+                    delta: 1,
+                },
+                RealmStepInput {
+                    realm_id: 1,
+                    delta: 1,
+                },
+            ])
+            .expect_err("one realm overflow must abort the whole batch");
+
+        assert_eq!(error, "E_REALM_ARITH_OVERFLOW realm.value");
+        assert_eq!(manager.state_hashes(), before);
+        assert_eq!(
+            manager.realms.iter().map(|realm| realm.rng).collect::<Vec<_>>(),
+            before_rng
+        );
+        assert_eq!(
+            manager.realms.iter().map(|realm| realm.madi).collect::<Vec<_>>(),
+            before_madi
+        );
+    }
+
+    #[test]
+    fn multi_realm_checked_batch_commits_all_candidates_after_success() {
+        let mut manager = MultiRealmManager::new(2, 19, ThreadMode::Seq);
+        let outputs = manager
+            .step_batch(&[
+                RealmStepInput {
+                    realm_id: 0,
+                    delta: 2,
+                },
+                RealmStepInput {
+                    realm_id: 1,
+                    delta: -1,
+                },
+            ])
+            .expect("representable batch must commit");
+
+        assert_eq!(outputs.len(), 2);
+        assert_eq!(manager.realms[0].madi, 1);
+        assert_eq!(manager.realms[1].madi, 1);
+        assert_eq!(
+            manager.realms[0].world.get_resource_fixed64("realm.value"),
+            Some(Fixed64::from_i64(2))
+        );
+        assert_eq!(
+            manager.realms[1].world.get_resource_fixed64("realm.value"),
+            Some(Fixed64::from_i64(-1))
+        );
+    }
 }

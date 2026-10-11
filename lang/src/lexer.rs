@@ -539,6 +539,7 @@ impl<'a> Lexer<'a> {
             if matches!(
                 next_sig,
                 Some('<')
+                    | Some('>')
                     | Some('=')
                     | Some(':')
                     | Some('.')
@@ -552,7 +553,7 @@ impl<'a> Lexer<'a> {
                     | Some('}')
                     | Some(',')
                     | Some('|')
-            ) || next_is_postfix_keyword
+            ) || self.next_non_ws_starts_with("!=") || next_is_postfix_keyword
                 || no_split.iter().any(|w| *w == lexeme.as_str())
             {
                 return Ok(Token {
@@ -1520,6 +1521,17 @@ mod tests {
         assert!(!tokens
             .iter()
             .any(|token| matches!(token.kind, TokenKind::Josa(ref name) if name == "도")));
+    }
+
+    #[test]
+    fn ident_ending_with_josa_is_not_split_before_comparison_operator() {
+        for operator in [">", ">=", "<", "<=", "==", "!="] {
+            let source = format!("{{ 변길이 {operator} 최대변길이 }}이면 {{}}.");
+            let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+            assert!(tokens.iter().any(|token|
+                matches!(&token.kind, TokenKind::Ident(name) if name == "변길이")),
+                "비교 앞 이름의 조사 꼬리를 분리하면 안 됩니다: {operator}");
+        }
     }
 
     #[test]

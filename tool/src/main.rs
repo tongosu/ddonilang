@@ -1,6 +1,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 mod detmath_assets;
+pub mod completion;
 mod fixed64_boundary;
 mod gate0_registry;
 pub mod lsp;
@@ -1835,7 +1836,7 @@ fn run_once_from(file_path: Option<&str>) -> Result<(), String> {
             .read_to_end(&mut buf)
             .map_err(|e| format!("입력 읽기 실패: {e}"))?;
     }
-    let input = decode_stdin(&buf);
+    let input = decode_stdin(&buf)?;
     let line = input.trim().to_string();
 
     let sam = DetSam::new(Fixed64::from_i64(1));
@@ -2270,7 +2271,7 @@ fn read_text_from_path(path: &str) -> Result<String, String> {
     let mut f = std::fs::File::open(path).map_err(|e| format!("파일 열기 실패: {e}"))?;
     f.read_to_end(&mut buf)
         .map_err(|e| format!("파일 읽기 실패: {e}"))?;
-    Ok(decode_stdin(&buf))
+    decode_stdin(&buf)
 }
 
 fn emit_program_parse_warnings(program: &DdnProgram) {
@@ -2319,7 +2320,7 @@ fn read_text_from_stdin() -> Result<String, String> {
     io::stdin()
         .read_to_end(&mut buf)
         .map_err(|e| format!("입력 읽기 실패: {e}"))?;
-    Ok(decode_stdin(&buf))
+    decode_stdin(&buf)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -3449,46 +3450,12 @@ fn keycode_to_name(code: event::KeyCode) -> Option<String> {
     }
 }
 
-fn decode_stdin(buf: &[u8]) -> String {
-    if buf.starts_with(&[0xFF, 0xFE]) {
-        return decode_utf16_le(&buf[2..]);
-    }
+fn decode_stdin(buf: &[u8]) -> Result<String, String> {
     if buf.starts_with(&[0xEF, 0xBB, 0xBF]) {
-        return String::from_utf8_lossy(&buf[3..]).to_string();
+        return Err("E_SOURCE_UTF8_BOM_FORBIDDEN: 원문은 BOM 없는 UTF-8이어야 합니다".to_string());
     }
-    let utf8 = String::from_utf8_lossy(buf);
-    if utf8.contains('\u{FFFD}') && buf.len() % 2 == 0 {
-        return decode_utf16_le(buf);
-    }
-    if looks_like_utf16le(buf) {
-        return decode_utf16_le(buf);
-    }
-    utf8.to_string()
-}
-
-fn decode_utf16_le(buf: &[u8]) -> String {
-    let mut units = Vec::with_capacity(buf.len() / 2);
-    for chunk in buf.chunks_exact(2) {
-        units.push(u16::from_le_bytes([chunk[0], chunk[1]]));
-    }
-    String::from_utf16_lossy(&units)
-}
-
-fn looks_like_utf16le(buf: &[u8]) -> bool {
-    if buf.len() < 4 {
-        return false;
-    }
-    let mut zero_odd = 0usize;
-    let mut total = 0usize;
-    for (i, b) in buf.iter().enumerate() {
-        if i % 2 == 1 {
-            total += 1;
-            if *b == 0 {
-                zero_odd += 1;
-            }
-        }
-    }
-    total > 0 && zero_odd * 2 >= total
+    std::str::from_utf8(buf).map(str::to_owned)
+        .map_err(|error| format!("E_SOURCE_UTF8_INVALID: 올바른 UTF-8이 아닙니다 (바이트 {})", error.valid_up_to()))
 }
 
 fn take_arg_value(args: &mut Vec<String>, flag: &str) -> Option<String> {
@@ -5302,6 +5269,14 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn wo03_source_bytes_are_strict_utf8_without_bom() {
+        assert_eq!(decode_stdin("값 <- 1.\r\n".as_bytes()).unwrap(), "값 <- 1.\r\n");
+        assert!(decode_stdin(b"\xef\xbb\xbfabc").unwrap_err().contains("BOM_FORBIDDEN"));
+        assert!(decode_stdin(&[0xff, 0xfe, 0x61, 0]).unwrap_err().contains("UTF8_INVALID"));
+        assert!(decode_stdin(&[0xff]).unwrap_err().contains("UTF8_INVALID"));
+        assert_eq!(decode_stdin("\"안\u{feff}쪽\"".as_bytes()).unwrap(), "\"안\u{feff}쪽\"");
+    }
     use ddonirang_core::gogae3::{
         compute_w24_state_hash, compute_w25_state_hash, compute_w26_state_hash,
         compute_w27_state_hash, compute_w28_state_hash, compute_w29_state_hash,
@@ -5310,7 +5285,6 @@ mod tests {
         W30Params, W31Params, W32Params, W33Params,
     };
     use ddonirang_core::platform::NetEvent;
-    use ddonirang_core::ArithmeticFaultKind;
     use ddonirang_core::{ExprTrace, ResourceMapEntry, ResourceValue};
     use std::collections::BTreeMap;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -6588,9 +6562,10 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
     }
 
     #[test]
-    fn ddn_unit_mismatch_emits_signal_and_preserves_value() {
+    fn ddn_unit_mismatch_fails_without_publishing_a_tick() {
         let script = r#"
 매틱:움직씨 = {
+    중간 <- 99.
     결과 <- 입력값 + 1@m.
 }
 "#;
@@ -6599,6 +6574,9 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
         let mut nuri = DetNuri::new();
         nuri.world_mut()
             .set_resource_fixed64("결과".to_string(), Fixed64::from_i64(7));
+        nuri.world_mut()
+            .set_resource_fixed64("중간".to_string(), Fixed64::from_i64(3));
+        let before = nuri.world().state_hash();
         let input = InputSnapshot {
             tick_id: 0,
             dt: Fixed64::from_i64(1),
@@ -6620,27 +6598,19 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
             )),
         );
         defaults.insert("결과".to_string(), Value::Fixed64(Fixed64::from_i64(7)));
-        let out = runner
+        // WO-03: numeric failures propagate from DdnRunner; an EngineLoop
+        // signal's separate contract does not authorize silent source success.
+        let error = runner
             .run_update(nuri.world(), &input, &defaults)
-            .expect("run update");
-        assert!(!out.patch.ops.iter().any(|op| matches!(
-            op,
-            PatchOp::SetResourceFixed64 { tag, .. } if tag == "결과"
-        )));
-        let mut sink = VecSignalSink::default();
-        nuri.apply_patch(&out.patch, input.tick_id, &mut sink);
+            .err().expect("unit mismatch must fail instead of emitting a successful patch");
+        assert!(error.contains("단위 차원이 다릅니다"), "{error}");
+        assert_eq!(nuri.world().state_hash(), before);
+        assert_eq!(nuri.world().get_resource_fixed64("중간"), Some(Fixed64::from_i64(3)));
         let result = nuri
             .world()
             .get_resource_fixed64("결과")
             .unwrap_or(Fixed64::ZERO);
         assert_eq!(result, Fixed64::from_i64(7));
-        assert!(sink.signals.iter().any(|signal| matches!(
-            signal,
-            Signal::ArithmeticFault {
-                kind: ArithmeticFaultKind::DimensionMismatch { .. },
-                ..
-            }
-        )));
     }
 
     #[test]

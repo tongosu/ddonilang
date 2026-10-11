@@ -82,17 +82,27 @@ fn inventory_all_workbench_lessons_by_product_source_epoch() {
     println!("FD01_V25_PASS_PATHS={v25_pass_paths:?}");
     assert_eq!(both + pre_v25_only + v25_only + neither, files.len());
     assert_eq!(files.len(), 557, "sealed FD01 lesson membership drift");
-    assert_eq!(both, 0, "unexpected dual-epoch lesson acceptance");
-    assert_eq!(pre_v25_only, 127, "pre-V25-only membership drift");
+    // D8 moved these four shipped sources; D6 rejects the retired if spelling.
+    // This is explicit parser inventory, not a content-based epoch selector.
+    assert_eq!(both, 4, "dual-parser lesson membership drift");
+    assert_eq!(pre_v25_only, 104, "pre-V25-only membership drift");
     assert_eq!(v25_only, 0, "unexpected V25-ready lesson appeared");
-    assert_eq!(neither, 430, "dual-rejection membership drift");
-    assert!(v25_pass_paths.is_empty(), "global V25 switch gate must stay closed");
+    assert_eq!(neither, 449, "dual-rejection membership drift");
+    assert_eq!(v25_pass_paths, vec![
+        PathBuf::from("rep_grid_game_state_drop_v1/lesson.ddn"),
+        PathBuf::from("rep_phys_pendulum_wave1_v1/lesson.ddn"),
+        PathBuf::from("rep_phys_projectile_xy_v1/lesson.ddn"),
+        PathBuf::from("rep_phys_projectile_xy_v1/projectile_seum_s2.ddn"),
+    ], "only the individually migrated deployment sources may pass V25");
     assert_eq!(
         v25_error_families,
         BTreeMap::from([
             ("E_BOIM_LEGACY_REMOVED".to_string(), 414),
-            ("E_V25_DEFINITION_BINDING_CATEGORY".to_string(), 8),
-            ("E_V25_DEFINITION_MIGRATION_REQUIRED".to_string(), 135),
+            ("E_V25_DEFINITION_BINDING_CATEGORY".to_string(), 63),
+            ("E_V25_DEFINITION_MIGRATION_REQUIRED".to_string(), 16),
+            ("E_V25_IF_SURFACE".to_string(), 36),
+            ("E_WHILE_SURFACE".to_string(), 18),
+            ("UNCLASSIFIED".to_string(), 6),
         ]),
         "V25 diagnostic-family inventory drift",
     );

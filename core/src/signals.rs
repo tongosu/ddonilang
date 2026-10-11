@@ -29,6 +29,7 @@ pub struct ExprTrace {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ArithmeticFaultKind {
     DivByZero,
+    Overflow,
     DimensionMismatch { left: UnitDim, right: UnitDim },
 }
 

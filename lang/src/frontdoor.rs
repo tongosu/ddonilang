@@ -1,4 +1,48 @@
 use crate::lexer::{Lexer, TokenKind};
+use crate::{
+    canonicalize_module_directive_document, parse_module_directive_document, CanonProgram,
+    ModuleDirectiveContext, ModuleDirectiveDocument, ParseError, ParseMode,
+};
+
+/// Typed result of the shared source frontdoor for a module-directive document.
+///
+/// The module metadata remains distinct from the ordinary V25 declaration AST.
+/// The latter is parsed only after the directive prefix has been consumed.
+#[derive(Debug, Clone)]
+pub struct ModuleDirectiveFrontdoorResult {
+    pub directives: ModuleDirectiveDocument,
+    pub declaration_program: Option<CanonProgram>,
+    pub canonical_source: String,
+}
+
+/// Parses the module-directive prefix through the existing lexer-backed RD-457
+/// parser, then routes its remaining declaration tail through the ordinary
+/// shared V25 frontdoor parser. This function does not lower directives into
+/// runtime calls and does not discard their typed metadata.
+pub fn parse_module_directive_frontdoor_with_mode(
+    source: &str,
+    file_path: &str,
+    mode: ParseMode,
+    context: &ModuleDirectiveContext,
+) -> Result<ModuleDirectiveFrontdoorResult, ParseError> {
+    let prepared = preprocess_frontdoor_source(source);
+    let directives = parse_module_directive_document(&prepared, file_path, context)?;
+    let declaration_program = if directives.declaration_source.is_empty() {
+        None
+    } else {
+        Some(crate::parse_v25_with_mode(
+            &directives.declaration_source,
+            file_path,
+            mode,
+        )?)
+    };
+    let canonical_source = canonicalize_module_directive_document(&directives);
+    Ok(ModuleDirectiveFrontdoorResult {
+        directives,
+        declaration_program,
+        canonical_source,
+    })
+}
 
 const LEGACY_HEADER_KEYS: &[&str] = &[
     "이름",
@@ -379,9 +423,6 @@ fn strip_file_leading_setting_block(input: &str) -> String {
     while idx < bytes.len() {
         match bytes[idx] {
             b' ' | b'\t' | b'\r' | b'\n' => idx += 1,
-            0xEF if idx + 2 < bytes.len() && bytes[idx + 1] == 0xBB && bytes[idx + 2] == 0xBF => {
-                idx += 3;
-            }
             _ => break,
         }
     }

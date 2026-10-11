@@ -1,6 +1,6 @@
 use ddonirang_lang::{
-    canonicalize, normalize, parse, parse_v25, DeclKind, NormalizationLevel, SourceEpoch, Stmt,
-    TopLevelItem,
+    canonicalize, normalize, parse, parse_v25, parse_v25_and_normalize, DeclKind,
+    NormalizationLevel, SourceEpoch, Stmt, TopLevelItem,
 };
 
 const PUBLIC_SAFE_POSITIVE: &str = r#"검산:움직씨 := {
@@ -10,6 +10,29 @@ const PUBLIC_SAFE_POSITIVE: &str = r#"검산:움직씨 := {
 }
 "#;
 const PUBLIC_SAFE_OLD_EQUALS: &str = "검산:움직씨 = {\n}\n";
+
+#[test]
+fn v25_braced_callable_terminator_belongs_to_definition_not_root_statement() {
+    let first = "검산:움직씨 := { 값:수 := 1. }.";
+    let source = format!("{first}\n다음:움직씨 := {{ 값:수 := 2. }}.\n");
+    let mut program = parse_v25(&source, "종결자.ddn").expect("current dotted definition");
+    assert_eq!(program.items.len(), 2);
+    assert!(program.root_stmts.is_empty());
+    let TopLevelItem::SeedDef(seed) = &program.items[0];
+    assert_eq!(seed.span.end, first.len());
+    assert_eq!(&source[seed.body.as_ref().unwrap().span.end..seed.span.end], ".");
+    canonicalize(&mut program).unwrap();
+    let canonical = normalize(&program, NormalizationLevel::N1);
+    let mut reparsed = parse_v25(&canonical, "정본.ddn").unwrap();
+    canonicalize(&mut reparsed).unwrap();
+    assert_eq!(canonical, normalize(&reparsed, NormalizationLevel::N1));
+    assert_eq!(reparsed.items.len(), 2);
+    assert!(reparsed.root_stmts.is_empty());
+    assert!(parse_v25("검산:움직씨 := {}", "기존.ddn").is_ok());
+    for source in ["검산:움직씨 := {}..", "검산:움직씨 := {}. .", "검산:움직씨 = {}."] {
+        assert!(parse_v25(source, "invalid.ddn").is_err());
+    }
+}
 const PUBLIC_SAFE_BINDING_AS_DEFINITION: &str = r#"검산:움직씨 := {
     채비: { 합계:수 <- 4. }.
 }
@@ -136,4 +159,47 @@ fn v25_typed_local_legacy_equals_targeted_matrix() {
         .expect_err("malformed type must fail closed");
     assert_ne!(malformed.code(), DEFINITION_MIGRATION_DIAGNOSTIC);
     assert!(!malformed.message.contains(DEFINITION_MIGRATION_DIAGNOSTIC));
+}
+
+#[test]
+fn v25_current_frontdoor_rejects_legacy_l11_brace_blocks_without_lexical_false_positives() {
+    for source in [
+        "쓰임 { 운동: \"./lib/운동\". }",
+        "드러냄 { 값. }",
+        "공개 { 값. }",
+    ] {
+        let error = parse_v25(source, "legacy_l11.ddn")
+            .expect_err("current V25 frontdoor must reject a legacy brace block");
+        assert_eq!(error.code(), DEFINITION_MIGRATION_DIAGNOSTIC, "{source}");
+    }
+
+    let source = local_source("    글값:글 := \"쓰임 { 드러냄 { 공개 {\".\n    값:수 := 1.");
+    parse_v25(&source, "literal_and_comment.ddn")
+        .expect("string text must not trigger legacy brace rejection");
+
+    let comment_source = local_source(
+        "    값:수 := 1. // 쓰임 { 드러냄 { 공개 { 는 주석 텍스트입니다\n    다음값:수 := 값.",
+    );
+    parse_v25(&comment_source, "comment_only_legacy_text.ddn")
+        .expect("comment text must not trigger legacy brace rejection");
+}
+
+#[test]
+fn v25_root_binding_rebinding_keeps_statement_category_and_canonical_bytes() {
+    let source = "값 <- 0.\n값 <- 값 + 1.\n값 보여주기.\n";
+    let program = parse_v25(source, "root_binding.ddn").expect("root bindings parse");
+
+    assert!(program.items.is_empty());
+    assert_eq!(program.root_stmts.len(), 3);
+    assert!(matches!(program.root_stmts[0], Stmt::Mutate { .. }));
+    assert!(matches!(program.root_stmts[1], Stmt::Mutate { .. }));
+    assert!(matches!(program.root_stmts[2], Stmt::Show { .. }));
+
+    let once = parse_v25_and_normalize(source, "root_binding.ddn", NormalizationLevel::N1)
+        .expect("root binding canonicalization");
+    let twice = parse_v25_and_normalize(&once, "root_binding.ddn", NormalizationLevel::N1)
+        .expect("canonical root binding reparses");
+    assert_eq!(once, twice);
+    assert!(once.contains("값 <- 0."));
+    assert!(!once.contains("값:수 :="));
 }

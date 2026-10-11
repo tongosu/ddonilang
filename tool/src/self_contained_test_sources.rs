@@ -355,7 +355,12 @@ pub(crate) const ECO_C02_RUNNER: &str = r#"{
 }
 "#;
 
-pub(crate) const ECO_C02_EXPECTED: &str = r#"{"results":[{"convergence_after_shock":false,"convergence_before_shock":true,"divergence_tick":2,"error_code":"E_ECO_DIVERGENCE_DETECTED","max_delta":"14.999999979","name":"거시↔제한합리"}],"schema":"ddn.runner_report.v0","seed":42,"shock_delta":"0.0999999998","shock_scope":"양쪽","shock_target":"세율","shock_tick":2,"shock_type":"세율_인상","ticks":4}"#;
+// RD-091 / 14b3c7d5: decimal ingress rounds to nearest, ties to even.
+// 0.1 * 2^32 = 429496729.6 -> raw 429496730 (not legacy truncation 429496729).
+// Price gap = (200 - 50) * raw / 2^32 = 15.000000013969838619232177734375.
+// The report's existing ten-decimal truncating formatter yields 15.0000000139;
+// the same formatter yields 0.1 for raw 429496730 / 2^32.
+pub(crate) const ECO_C02_EXPECTED: &str = r#"{"results":[{"convergence_after_shock":false,"convergence_before_shock":true,"divergence_tick":2,"error_code":"E_ECO_DIVERGENCE_DETECTED","max_delta":"15.0000000139","name":"거시↔제한합리"}],"schema":"ddn.runner_report.v0","seed":42,"shock_delta":"0.1","shock_scope":"양쪽","shock_target":"세율","shock_tick":2,"shock_type":"세율_인상","ticks":4}"#;
 
 pub(crate) const ECO_C03_MICRO: &str = r#"(시작)할때 {
   세율 <- 0.

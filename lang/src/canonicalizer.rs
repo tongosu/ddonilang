@@ -5,8 +5,6 @@ use crate::stdlib::minimal_stdlib_sigs;
 use crate::term_map;
 use std::collections::{HashMap, HashSet};
 
-const CALL_TAIL_SHORT_FORMS: [&str; 4] = ["기", "고", "면", "면서"];
-
 pub struct LintWarning {
     pub code: &'static str,
     pub span: Span,
@@ -17,11 +15,38 @@ pub struct CanonicalizeReport {
     pub warnings: Vec<LintWarning>,
 }
 
+/// Canonical DDL Wave 1 presentation.  Section order is retained for humans;
+/// stable identities are already registry-bound in the DDL AST and are not
+/// derived from this order.
+pub fn canonicalize_ddl_wave1(document: &DdlDocument) -> String {
+    let mut sections = Vec::with_capacity(document.sections.len());
+    for section in &document.sections {
+        let header = match section.language_profile_identity.as_str() {
+            "language-profile:ko" => "#!한국어",
+            "language-profile:ja" => "#!日本語",
+            _ => unreachable!("DDL parser admits only the Wave 1 exact registry"),
+        };
+        let projection = &section.projection;
+        debug_assert!(matches!(
+            projection.omitted_payload,
+            OmittedPayload::ValueInitializer
+        ));
+        sections.push(format!(
+            "{header}\n{}:{} :={{...}}.",
+            projection.localized_name, projection.localized_type
+        ));
+    }
+    format!("{}\n", sections.join("\n\n"))
+}
+
 pub fn canonicalize(program: &mut CanonProgram) -> Result<CanonicalizeReport, ParseError> {
     let mut warnings = Vec::new();
     let signatures = collect_seed_signatures(program);
     for item in &mut program.items {
         canonicalize_top_level_item(item, &signatures, &mut warnings)?;
+    }
+    for stmt in &mut program.root_stmts {
+        canonicalize_stmt(stmt, &signatures, &mut warnings)?;
     }
     let known_seeds = collect_known_seeds(program);
     let stdlib_names = collect_stdlib_names();
@@ -132,6 +157,10 @@ fn canonicalize_seed_def(
     warnings: &mut Vec<LintWarning>,
 ) -> Result<(), ParseError> {
     canonicalize_ident(&mut seed.canonical_name, seed.span, warnings)?;
+    for form in &mut seed.alternate_forms {
+        canonicalize_ident(form, seed.span, warnings)?;
+    }
+    seed.alternate_forms.sort();
     if let SeedKind::Named(name) = &mut seed.seed_kind {
         canonicalize_ident(name, seed.span, warnings)?;
     }
@@ -141,6 +170,9 @@ fn canonicalize_seed_def(
         if let Some(default_value) = &mut param.default_value {
             canonicalize_expr(default_value, signatures, warnings)?;
         }
+    }
+    if let Some(result_type) = &mut seed.result_type {
+        canonicalize_type_ref(result_type, seed.span, warnings)?;
     }
     if let Some(body) = &mut seed.body {
         canonicalize_body(body, signatures, warnings)?;
@@ -188,6 +220,14 @@ fn canonicalize_stmt(
         Stmt::Mutate { target, value, .. } => {
             canonicalize_expr(target, signatures, warnings)?;
             canonicalize_expr(value, signatures, warnings)?;
+        }
+        Stmt::ResultFlow {
+            producer,
+            destination,
+            ..
+        } => {
+            canonicalize_expr(producer, signatures, warnings)?;
+            canonicalize_expr(destination, signatures, warnings)?;
         }
         Stmt::Expr { expr, .. } => canonicalize_expr(expr, signatures, warnings)?,
         Stmt::Receive {
@@ -342,6 +382,15 @@ fn canonicalize_expr(
                 canonicalize_call_arg_josa(arg, func, signatures);
                 lint_call_arg_josa_conflict(arg, func, signatures, warnings);
             }
+        }
+        ExprKind::CollectionConstructor { elements } => {
+            for element in elements {
+                canonicalize_expr(element, signatures, warnings)?;
+            }
+        }
+        ExprKind::SelectionPlace { target, index } => {
+            canonicalize_expr(target, signatures, warnings)?;
+            canonicalize_expr(index, signatures, warnings)?;
         }
         ExprKind::Infix { left, right, .. } => {
             canonicalize_expr(left, signatures, warnings)?;
@@ -525,7 +574,7 @@ fn collect_known_seeds(program: &CanonProgram) -> HashSet<String> {
     let mut known = HashSet::new();
     for item in &program.items {
         let TopLevelItem::SeedDef(seed) = item;
-        known.insert(seed.canonical_name.clone());
+        known.extend(seed.callable_surface_names());
     }
     for sig in minimal_stdlib_sigs() {
         known.insert(sig.name.to_string());
@@ -537,20 +586,11 @@ fn collect_seed_signatures(program: &CanonProgram) -> HashMap<String, Vec<ParamP
     let mut signatures = HashMap::new();
     for item in &program.items {
         let TopLevelItem::SeedDef(seed) = item;
-        signatures.insert(seed.canonical_name.clone(), seed.params.clone());
-        for alias in seed_call_surface_aliases(&seed.canonical_name) {
-            signatures.insert(alias, seed.params.clone());
+        for surface in seed.callable_surface_names() {
+            signatures.insert(surface, seed.params.clone());
         }
     }
     signatures
-}
-
-fn seed_call_surface_aliases(seed_name: &str) -> Vec<String> {
-    let mut aliases = Vec::new();
-    for tail in CALL_TAIL_SHORT_FORMS {
-        aliases.push(format!("{seed_name}{tail}"));
-    }
-    aliases
 }
 
 fn collect_stdlib_names() -> HashSet<String> {
@@ -608,6 +648,14 @@ fn lint_tailless_body(
             Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
                 lint_tailless_expr(expr, known_seeds, stdlib_names, warnings);
             }
+            Stmt::ResultFlow {
+                producer,
+                destination,
+                ..
+            } => {
+                lint_tailless_expr(producer, known_seeds, stdlib_names, warnings);
+                lint_tailless_expr(destination, known_seeds, stdlib_names, warnings);
+            }
             Stmt::Receive {
                 condition, body, ..
             } => {
@@ -630,12 +678,7 @@ fn lint_tailless_body(
             }
             Stmt::PublicObservation { fields, .. } => {
                 for field in fields {
-                    lint_tailless_expr(
-                        &field.value,
-                        known_seeds,
-                        stdlib_names,
-                        warnings,
-                    );
+                    lint_tailless_expr(&field.value, known_seeds, stdlib_names, warnings);
                 }
             }
             Stmt::MetaBlock { .. } => {}
@@ -752,6 +795,15 @@ fn lint_tailless_expr(
             for arg in args {
                 lint_tailless_expr(&arg.expr, known_seeds, stdlib_names, warnings);
             }
+        }
+        ExprKind::CollectionConstructor { elements } => {
+            for element in elements {
+                lint_tailless_expr(element, known_seeds, stdlib_names, warnings);
+            }
+        }
+        ExprKind::SelectionPlace { target, index } => {
+            lint_tailless_expr(target, known_seeds, stdlib_names, warnings);
+            lint_tailless_expr(index, known_seeds, stdlib_names, warnings);
         }
         ExprKind::FieldAccess { target, .. } => {
             lint_tailless_expr(target, known_seeds, stdlib_names, warnings)

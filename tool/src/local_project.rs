@@ -28,8 +28,8 @@ use crate::sealed_domain_dataset::{
 };
 use ddonirang_core::ResourceHandle;
 use ddonirang_lang::{
-    resolve_known_call_target, Body, Expr, ExprKind, Lexer, ParseMode, Span, Stmt, Token,
-    TokenKind, TopLevelItem,
+    parse_module_directive_prefix, resolve_known_call_target, Body, Expr, ExprKind, Lexer,
+    ModuleDirectiveContext, ParseMode, Span, Stmt, Token, TokenKind, TopLevelItem,
 };
 
 pub const VIRTUAL_PROJECT_SOURCE_SCHEMA: &str = "ddn.virtual_project_source.v1";
@@ -60,6 +60,14 @@ pub const MAX_PROJECT_TOTAL_UTF8_BYTES: usize = 2 * 1024 * 1024;
 pub const PROJECT_ROOT_FILE: &str = "뿌리.ddn";
 pub const PROJECT_JSON_FILE: &str = "ddn.project.json";
 const LEGACY_ROOT_FILES: &[&str] = &["프로젝트.ddn", "project.ddn"];
+
+fn require_beta_project_feature(code: &'static str, message: &str) -> Result<(), LocalProjectError> {
+    if cfg!(feature = "beta-project-features") {
+        Ok(())
+    } else {
+        Err(LocalProjectError::new(code, message))
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct LocalProjectError {
@@ -574,6 +582,8 @@ pub struct LocalProjectGraph {
     pub targets: BTreeMap<String, String>,
     pub module_paths: BTreeMap<String, String>,
     pub gaji_aliases: BTreeMap<String, String>,
+    pub module_sources: BTreeMap<String, Vec<String>>,
+    pub start_definition: Option<String>,
     pub file_count: usize,
     pub files: Vec<NormalizedProjectFile>,
     pub project_graph_sha256: String,
@@ -685,6 +695,7 @@ pub struct LocalProjectRunSummary {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct LocalProjectPrepareLink {
+    pub source_profile_identity: &'static str,
     pub schema: &'static str,
     pub frontdoor: &'static str,
     pub root_path: String,
@@ -858,6 +869,7 @@ pub fn build_project_execution_recipe_json(input_json: &str) -> Result<String, L
 pub fn build_project_execution_recipe(
     request: ProjectExecutionRecipeRequest,
 ) -> Result<ProjectExecutionRecipeIdentity, LocalProjectError> {
+    require_beta_project_feature("E_ALPHA_DATASET_UNSUPPORTED", "자료셋과 실행 자료 연결은 베타에서 지원할 예정입니다")?;
     if request.schema != PROJECT_EXECUTION_RECIPE_REQUEST_SCHEMA {
         return Err(LocalProjectError::new(
             "E_PROJECT_EXECUTION_RECIPE_SCHEMA",
@@ -997,6 +1009,7 @@ pub fn build_gaji_lifecycle_plan_json(input_json: &str) -> Result<String, LocalP
 pub fn build_gaji_lifecycle_plan(
     request: GajiLifecyclePlanRequest,
 ) -> Result<GajiLifecyclePlan, LocalProjectError> {
+    require_beta_project_feature("E_ALPHA_GAJI_LIFECYCLE_UNSUPPORTED", "가지 설치·제거·갱신은 알파에서 지원하지 않습니다. 베타에서 지원할 예정입니다")?;
     if request.schema != GAJI_LIFECYCLE_PLAN_SCHEMA {
         return Err(LocalProjectError::new(
             "E_GAJI_LIFECYCLE_SCHEMA",
@@ -1711,7 +1724,7 @@ pub fn build_gaji_extraction_plan(
         .collect::<Result<Vec<_>, _>>()?;
     selected_modules.sort();
     selected_modules.dedup();
-    let mut modules = BTreeMap::new();
+    let mut pending = Vec::new();
     for path in &selected_modules {
         if path == &graph.root_path || path == &graph.entry_path {
             return Err(LocalProjectError::with_path(
@@ -1720,30 +1733,51 @@ pub fn build_gaji_extraction_plan(
                 "뿌리 또는 진입 파일은 재사용 모듈 추출 대상으로 선택할 수 없습니다",
             ));
         }
-        collect_module_info(path, path, &text_by_path, &mut modules, &mut Vec::new())?;
+        let module = graph.module_sources.iter().find(|(_, paths)| paths.contains(path))
+            .map(|(name, _)| name.clone()).ok_or_else(|| LocalProjectError::with_path(
+                "E_GAJI_MODULE_SELECTION_INVALID", path, "선언된 모듈 원문을 선택해 주세요"))?;
+        pending.push(module);
     }
-    let included_modules = modules
-        .keys()
+    let mut modules = BTreeMap::new();
+    while let Some(name) = pending.pop() {
+        if modules.contains_key(&name) { continue; }
+        let head = &graph.module_paths[&name];
+        let directives = resolve_work_project_module_directives(&request.source, head)?;
+        pending.extend(directives.imports.iter().map(|import| import.source.clone()));
+        modules.insert(name, directives);
+    }
+    let mut remaining = modules.keys().cloned().collect::<BTreeSet<_>>();
+    while !remaining.is_empty() {
+        let ready = remaining.iter().filter(|name|
+            modules[*name].imports.iter().all(|import| !remaining.contains(&import.source)))
+            .cloned().collect::<Vec<_>>();
+        if ready.is_empty() {
+            return Err(LocalProjectError::new("E_IMPORT_CYCLE", "추출할 모듈에 순환 쓰임이 있습니다"));
+        }
+        for name in ready { remaining.remove(&name); }
+    }
+    let included_modules = modules.keys()
+        .flat_map(|name| graph.module_sources[name].iter())
         .filter(|path| !path.starts_with("vendor/"))
         .cloned()
-        .collect::<Vec<_>>();
+        .collect::<BTreeSet<_>>().into_iter().collect::<Vec<_>>();
     let mut external_gaji_dependencies = BTreeMap::new();
     for (alias, vendor_path) in &graph.gaji_aliases {
-        if modules
-            .keys()
+        if included_modules.iter()
             .any(|path| path == vendor_path || path.starts_with(&format!("{vendor_path}/")))
         {
             external_gaji_dependencies.insert(alias.clone(), vendor_path.clone());
         }
     }
     let mut public_symbols = Vec::new();
-    for path in &included_modules {
-        let info = modules.get(path).expect("included module metadata");
-        for (external_name, internal_name) in &info.exports {
+    for (name, info) in &modules {
+        let path = &graph.module_paths[name];
+        if path.starts_with("vendor/") { continue; }
+        for export in &info.exports {
             public_symbols.push(GajiPublicSymbol {
                 module_path: path.clone(),
-                external_name: external_name.clone(),
-                internal_name: internal_name.clone(),
+                external_name: export.external_name.clone(),
+                internal_name: export.internal_name.clone(),
             });
         }
     }
@@ -1862,22 +1896,7 @@ pub fn build_project_edit_plan(
             "add_file",
         ),
         ProjectEditOperation::AddModule { path, module_name } => {
-            let module_name = module_name.trim();
-            if module_name.is_empty() || module_name.contains('.') || module_name.contains('"') {
-                return Err(LocalProjectError::new(
-                    "E_PROJECT_MODULE_NAME_INVALID",
-                    "모듈 이름은 비어 있지 않은 한 이름이어야 합니다",
-                ));
-            }
-            let template = format!("# {module_name} 모듈\n드러냄 {{ 값. }}\n\n값 <- 0.\n");
-            build_add_file_plan(
-                request.source,
-                &before_hash,
-                &path,
-                &template,
-                "ddn_source",
-                "add_module",
-            )
+            build_add_module_plan(request.source, &before_hash, &path, &module_name)
         }
         ProjectEditOperation::DuplicateFile { from_path, to_path } => {
             build_duplicate_file_plan(request.source, &before_hash, &from_path, &to_path)
@@ -1886,7 +1905,8 @@ pub fn build_project_edit_plan(
             build_delete_file_plan(request.source, &before_hash, &path)
         }
         ProjectEditOperation::SetEntry { path } => {
-            build_set_entry_plan(request.source, &before_hash, &path)
+            Err(LocalProjectError::with_path("E_PROJECT_START_REFERENCE_REQUIRED", path,
+                "시작은 파일 경로가 아니라 (모듈=이름,정의=이름)으로 지정해야 합니다"))
         }
         ProjectEditOperation::BindSealedDataset {
             binding_name,
@@ -1907,6 +1927,7 @@ fn build_bind_sealed_dataset_plan(
     dataset_handle: &str,
 ) -> Result<ProjectEditPlan, LocalProjectError> {
     let binding_name = binding_name.trim().nfc().collect::<String>();
+    require_beta_project_feature("E_ALPHA_DATASET_UNSUPPORTED", "봉인 자료 결속은 알파에서 지원하지 않습니다. 베타에서 지원할 예정입니다")?;
     if binding_name.is_empty() {
         return Err(LocalProjectError::new(
             "E_PROJECT_DATASET_BINDING_NAME_REQUIRED",
@@ -2005,7 +2026,8 @@ fn build_bind_sealed_dataset_plan(
     } else {
         (body_start, newline, "  ")
     };
-    let statement = format!("{prefix}{indent}{binding_name} <- {exact_resource_call}.{newline}");
+    let statement =
+        format!("{prefix}{indent}{binding_name}:묶음 := {exact_resource_call}.{newline}");
     entry.utf8_text.insert_str(insert_at, &statement);
     let modified_path = entry.path.clone();
     let modified_text = entry.utf8_text.clone();
@@ -2036,19 +2058,8 @@ fn build_bind_sealed_dataset_plan(
 }
 
 fn validate_dataset_binding_name(binding_name: &str) -> Result<(), LocalProjectError> {
-    let probe = format!("매틱:움직씨 = {{\n  {binding_name} <- 0.\n}}\n");
-    let prepared = runtime_surface::prepare_source_for_execution(&probe).map_err(|err| {
-        LocalProjectError::new(
-            "E_PROJECT_DATASET_BINDING_NAME_INVALID",
-            format!("자료 이름 전처리에 실패했습니다: {err}"),
-        )
-    })?;
-    let program = ddonirang_lang::parse_with_mode(
-        &prepared.execution_source,
-        "<dataset-binding-name>",
-        ParseMode::Strict,
-    )
-    .map_err(|err| {
+    let probe = format!("앱:움직씨 := {{\n  {binding_name}:묶음 := 0.\n}}\n");
+    let program = ddonirang_lang::parse_v25(&probe, "<dataset-binding-name>").map_err(|err| {
         LocalProjectError::new(
             "E_PROJECT_DATASET_BINDING_NAME_INVALID",
             format!("DDN 이름으로 사용할 수 없습니다: {}", err.message),
@@ -2060,13 +2071,7 @@ fn validate_dataset_binding_name(binding_name: &str) -> Result<(), LocalProjectE
             body.stmts.iter().any(|stmt| {
                 matches!(
                     stmt,
-                    Stmt::Mutate {
-                        target: Expr {
-                            kind: ExprKind::Var(name),
-                            ..
-                        },
-                        ..
-                    } if name == binding_name
+                    Stmt::Definition { name, .. } if name == binding_name
                 )
             })
         })
@@ -2080,6 +2085,44 @@ fn validate_dataset_binding_name(binding_name: &str) -> Result<(), LocalProjectE
     Ok(())
 }
 
+/// The project's root owns its epoch (RD-452/492); source tokens never do.
+pub fn project_source_profile(
+    source: &VirtualProjectSource,
+    caller_profile: Option<&str>,
+) -> Result<&'static str, LocalProjectError> {
+    let root_path = normalize_project_path(&source.root_path)?;
+    let root = source.files.iter().find(|file| {
+        normalize_project_path(&file.path).ok().as_deref() == Some(root_path.as_str())
+    }).ok_or_else(|| LocalProjectError::with_path(
+        "E_PROJECT_ROOT_MISSING", &root_path, "프로젝트 뿌리 파일이 없습니다",
+    ))?;
+    reject_source_bom(&root.utf8_text, Some(&root_path))?;
+    use ddonirang_lang::work_root::{parse_work_root, FieldValueKind, RootField};
+    let directive = parse_work_root(&root.utf8_text).map_err(|error| {
+        LocalProjectError::with_path_span("E_PROJECT_ROOT_PARSE", &root_path,
+            error.message, (error.span.start, error.span.end))
+    })?;
+    let epoch = match directive.field(RootField::SourceEpoch).map(|field| &field.kind) {
+        Some(FieldValueKind::Text(value)) => Some(value.as_str()),
+        Some(_) => return Err(LocalProjectError::with_path("E_PROJECT_SOURCE_PROFILE_INVALID", &root_path,
+            "얽음의 글판 값은 \"v25\"처럼 글로 지정해 주세요")),
+        None => None,
+    };
+    match epoch {
+        Some("v25") => {}
+        Some(value) => return Err(LocalProjectError::with_path("E_PROJECT_SOURCE_PROFILE_UNSUPPORTED", &root_path,
+            format!("지원하지 않는 프로젝트 판본입니다: {value}. 알파는 v25만 지원합니다"))),
+        None => return Err(LocalProjectError::with_path("E_PROJECT_SOURCE_PROFILE_REQUIRED", &root_path,
+            "정식 얽음 뿌리에 글판=\"v25\"를 지정해 주세요. 가지 판본은 문법 글판이 아닙니다")),
+    }
+    let profile = crate::ddn_runtime::V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY;
+    if caller_profile.is_some_and(|caller| caller != profile) {
+        return Err(LocalProjectError::with_path("E_PROJECT_SOURCE_PROFILE_CONFLICT", &root_path,
+            "호출자가 지정한 판본과 프로젝트 뿌리의 판본이 다릅니다"));
+    }
+    Ok(profile)
+}
+
 fn entry_declares_name(text: &str, path: &str, name: &str) -> Result<bool, LocalProjectError> {
     let prepared = runtime_surface::prepare_source_for_execution(text).map_err(|err| {
         LocalProjectError::with_path(
@@ -2088,15 +2131,14 @@ fn entry_declares_name(text: &str, path: &str, name: &str) -> Result<bool, Local
             format!("entry DDN 전처리 실패: {err}"),
         )
     })?;
-    let program =
-        ddonirang_lang::parse_with_mode(&prepared.execution_source, path, ParseMode::Strict)
-            .map_err(|err| {
-                LocalProjectError::with_path(
-                    "E_PROJECT_ENTRY_PARSE",
-                    path,
-                    format!("entry DDN 파싱 실패: {}", err.message),
-                )
-            })?;
+    let program = ddonirang_lang::parse_v25_with_mode(&prepared.execution_source, path, ParseMode::Strict)
+    .map_err(|err| {
+        LocalProjectError::with_path(
+            "E_PROJECT_ENTRY_PARSE",
+            path,
+            format!("entry DDN 파싱 실패: {}", err.message),
+        )
+    })?;
     Ok(program.items.iter().any(|item| {
         let TopLevelItem::SeedDef(seed) = item;
         seed.body.as_ref().is_some_and(|body| {
@@ -2110,6 +2152,7 @@ fn entry_declares_name(text: &str, path: &str, name: &str) -> Result<bool, Local
                     ..
                 } => current == name,
                 Stmt::DeclBlock { items, .. } => items.iter().any(|item| item.name == name),
+                Stmt::Definition { name: current, .. } => current == name,
                 _ => false,
             })
         })
@@ -2180,7 +2223,7 @@ fn find_top_level_target_body(text: &str, target: &str) -> Option<(usize, usize)
 }
 
 fn find_canonical_seed_body(text: &str, path: &str) -> Option<(usize, usize)> {
-    let program = ddonirang_lang::parse_with_mode(text, path, ParseMode::Strict).ok()?;
+    let program = ddonirang_lang::parse_v25_with_mode(text, path, ParseMode::Strict).ok()?;
     program.items.into_iter().find_map(|item| {
         let TopLevelItem::SeedDef(seed) = item;
         seed.body.map(|body| {
@@ -2200,11 +2243,11 @@ fn build_rename_file_plan(
 ) -> Result<ProjectEditPlan, LocalProjectError> {
     let from_path = normalize_project_path(from_path)?;
     let to_path = normalize_project_path(to_path)?;
-    if from_path == PROJECT_ROOT_FILE {
+    if from_path == source.root_path {
         return Err(LocalProjectError::with_path(
             "E_PROJECT_ROOT_RENAME_FORBIDDEN",
             from_path,
-            "뿌리.ddn은 이름을 바꿀 수 없습니다",
+            "지정 뿌리 파일 변경은 호출 경로와 함께 별도로 처리해야 합니다",
         ));
     }
     if source.files.iter().any(|file| file.path == to_path) {
@@ -2227,14 +2270,10 @@ fn build_rename_file_plan(
     let mut affected_references = Vec::new();
     for file in &mut source.files {
         if file.path.ends_with(".ddn") {
-            let block_names: &[&str] = if file.path == source.root_path {
-                &["프로젝트"]
-            } else {
-                &["쓰임"]
-            };
+            let block_names: &[&str] = if file.path == source.root_path { &["얽음"] } else { &[] };
             for block_name in block_names {
-                let edits =
-                    structural_path_edits(&file.utf8_text, block_name, &from_path, &to_path)?;
+                let edits = work_root_path_edits(&file.utf8_text, &source.root_path, &from_path, &to_path)?;
+                let _ = block_name;
                 if !edits.is_empty() {
                     let original_path = file.path.clone();
                     apply_text_edits(&mut file.utf8_text, &edits);
@@ -2273,6 +2312,7 @@ fn build_rename_file_plan(
     if source.entry_path == from_path {
         source.entry_path = to_path.clone();
     }
+    build_project_graph(source.clone())?;
     let after_hash = virtual_project_source_sha256(&source)?;
     Ok(ProjectEditPlan {
         schema: PROJECT_EDIT_PLAN_SCHEMA,
@@ -2288,6 +2328,71 @@ fn build_rename_file_plan(
         atomic_apply: true,
         lock_stale: true,
     })
+}
+
+fn build_add_module_plan(
+    mut source: VirtualProjectSource,
+    before_hash: &str,
+    path: &str,
+    module_name: &str,
+) -> Result<ProjectEditPlan, LocalProjectError> {
+    use ddonirang_lang::work_root::{parse_work_root, RootField};
+    let path = normalize_project_path(path)?;
+    if !path.ends_with(".ddn") {
+        return Err(LocalProjectError::with_path("E_PROJECT_DDN_EXTENSION", path,
+            "모듈 머리 경로는 .ddn으로 끝나야 합니다"));
+    }
+    if source.files.iter().any(|file| file.path == path) {
+        return Err(LocalProjectError::with_path("E_PROJECT_PATH_DUPLICATE", path,
+            "추가할 경로가 이미 존재합니다"));
+    }
+    let base = parent_dir(&source.root_path);
+    let relative = if base.is_empty() { path.clone() } else {
+        path.strip_prefix(&format!("{base}/")).map(str::to_string)
+            .ok_or_else(|| LocalProjectError::new("E_PROJECT_PATH_ESCAPE",
+                "뿌리의 원문 경계 밖에 모듈을 추가할 수 없습니다"))?
+    };
+    let root_file = source.files.iter_mut().find(|file| file.path == source.root_path)
+        .ok_or_else(|| LocalProjectError::new("E_PROJECT_EDIT_FILE_MISSING", "작품 뿌리가 없습니다"))?;
+    let root = parse_work_root(&root_file.utf8_text)
+        .map_err(|error| LocalProjectError::new("E_PROJECT_ROOT_PARSE", error.message))?;
+    let existing_modules = root.typed_modules()
+        .map_err(|error| LocalProjectError::new("E_PROJECT_ROOT_PARSE", error.message))?;
+    let field = root.field(RootField::Modules)
+        .ok_or_else(|| LocalProjectError::new("E_PROJECT_ROOT_PARSE", "모듬 선언이 없습니다"))?;
+    let start = field.span.start;
+    let end = field.span.end;
+    let before = root_file.utf8_text[start..end].to_string();
+    let closing = before.rfind(']').ok_or_else(||
+        LocalProjectError::new("E_PROJECT_ROOT_PARSE", "모듬은 차림으로 선언해야 합니다"))?;
+    let quoted_path = serde_json::to_string(&relative).expect("path JSON encoding");
+    let mut after = before.clone();
+    after.insert_str(closing, &format!(", (이름={module_name}, 머리={quoted_path}, 원문={quoted_path})"));
+    let mut updated_root = root_file.utf8_text.clone();
+    updated_root.replace_range(start..end, &after);
+    // Parse the authored name before changing either file. This also rejects
+    // duplicate names and delimiter injection without inventing an alias.
+    let updated_modules = parse_work_root(&updated_root)
+        .and_then(|root| root.typed_modules())
+        .map_err(|error| LocalProjectError::new("E_PROJECT_ROOT_PARSE", error.message))?;
+    if updated_modules.len() != existing_modules.len() + 1
+        || updated_modules.last().map(|module| module.name.as_str()) != Some(module_name)
+    {
+        return Err(LocalProjectError::new("E_PROJECT_MODULE_NAME_INVALID",
+            "모듈 이름은 따옴표 없는 이름 하나여야 합니다"));
+    }
+    root_file.utf8_text = updated_root;
+    let text = "(값=값) 드러냄.\n값:수 := 0.\n".to_string();
+    source.files.push(VirtualProjectFileSource {
+        path: path.clone(), role: "ddn_source".to_string(), utf8_text: text.clone(),
+    });
+    let root_path = source.root_path.clone();
+    finish_simple_edit_plan(source, before_hash, "add_module",
+        vec![root_path.clone(), path.clone()],
+        vec![ProjectEditPatch { path: root_path, start, end, before, after,
+            reason: "module_declaration_add" },
+            ProjectEditPatch { path, start: 0, end: 0, before: String::new(), after: text,
+                reason: "file_add" }], Vec::new())
 }
 
 fn build_add_file_plan(
@@ -2342,11 +2447,11 @@ fn build_duplicate_file_plan(
     to_path: &str,
 ) -> Result<ProjectEditPlan, LocalProjectError> {
     let from_path = normalize_project_path(from_path)?;
-    if from_path == PROJECT_ROOT_FILE {
+    if from_path == source.root_path {
         return Err(LocalProjectError::with_path(
             "E_PROJECT_ROOT_DUPLICATE_FORBIDDEN",
             from_path,
-            "뿌리.ddn은 복제할 수 없습니다",
+            "작업 머리 파일은 복제할 수 없습니다",
         ));
     }
     let original = source
@@ -2371,7 +2476,7 @@ fn build_delete_file_plan(
     path: &str,
 ) -> Result<ProjectEditPlan, LocalProjectError> {
     let path = normalize_project_path(path)?;
-    if path == PROJECT_ROOT_FILE || path == source.root_path {
+    if path == source.root_path {
         return Err(LocalProjectError::with_path(
             "E_PROJECT_ROOT_DELETE_FORBIDDEN",
             path,
@@ -2392,14 +2497,22 @@ fn build_delete_file_plan(
             "삭제할 파일이 없습니다",
         ));
     }
+    // D9 ownership is declared by the root, not by old path-shaped imports.
+    // Reject removing a declared source, including a member of a directory.
+    let root = source.files.iter().find(|file| file.path == source.root_path)
+        .ok_or_else(|| LocalProjectError::new("E_PROJECT_ROOT_MISSING", "작품 머리가 없습니다"))?;
+    let directive = ddonirang_lang::work_root::parse_work_root(&root.utf8_text)
+        .map_err(|err| LocalProjectError::new("E_PROJECT_ROOT_PARSE", err.message))?;
+    let modules = directive.typed_modules()
+        .map_err(|err| LocalProjectError::new("E_PROJECT_ROOT_PARSE", err.message))?;
     let mut references = Vec::new();
-    for file in &source.files {
-        if !file.path.ends_with(".ddn") || file.path == path {
-            continue;
-        }
-        for import in parse_imports(&file.utf8_text, &file.path)? {
-            if resolve_import_source_path(&file.path, &import.source)? == path {
-                references.push(format!("{}:쓰임.{}", file.path, import.alias));
+    for module in modules {
+        for raw in std::iter::once(&module.head).chain(module.sources.iter()) {
+            let relative = normalize_project_reference(raw.trim_end_matches('/'))?;
+            let base = parent_dir(&source.root_path);
+            let declared = normalize_project_path(&if base.is_empty() { relative } else { format!("{base}/{relative}") })?;
+            if path == declared || path.starts_with(&format!("{declared}/")) {
+                references.push(format!("{}:모듬.{}", source.root_path, module.name));
             }
         }
     }
@@ -2508,6 +2621,9 @@ fn finish_simple_edit_plan(
     patches: Vec<ProjectEditPatch>,
     affected_references: Vec<String>,
 ) -> Result<ProjectEditPlan, LocalProjectError> {
+    // File edits cannot silently add a source outside the declared closure or
+    // remove a declared head. The root remains the only membership authority.
+    build_project_graph(source.clone())?;
     let after_hash = virtual_project_source_sha256(&source)?;
     Ok(ProjectEditPlan {
         schema: PROJECT_EDIT_PLAN_SCHEMA,
@@ -2570,6 +2686,31 @@ fn structural_path_edits(
         let start = block_start + token.span.start;
         let end = block_start + token.span.end;
         edits.push((start, end, token.raw, format!("\"{replacement_value}\"")));
+    }
+    Ok(edits)
+}
+
+fn work_root_path_edits(text: &str, root_path: &str, from: &str, to: &str)
+    -> Result<Vec<(usize, usize, String, String)>, LocalProjectError> {
+    use ddonirang_lang::work_root::{parse_work_root, RootField};
+    let root = parse_work_root(text).map_err(|error| LocalProjectError::new("E_PROJECT_ROOT_PARSE", error.message))?;
+    let field = root.field(RootField::Modules).expect("validated modules");
+    let base = parent_dir(root_path);
+    let relative = |path: &str| -> Result<String, LocalProjectError> {
+        if base.is_empty() { return Ok(path.to_string()); }
+        path.strip_prefix(&format!("{base}/")).map(str::to_string)
+            .ok_or_else(|| LocalProjectError::new("E_PROJECT_PATH_ESCAPE", "뿌리의 원문 경계 밖으로 이동할 수 없습니다"))
+    };
+    let from = relative(from)?;
+    let to = relative(to)?;
+    let mut edits = Vec::new();
+    for token in &field.tokens {
+        if let TokenKind::StringLit(value) = &token.kind {
+            if normalize_project_reference(value)? == from {
+                edits.push((token.span.start, token.span.end,
+                    text[token.span.start..token.span.end].to_string(), serde_json::to_string(&to).unwrap()));
+            }
+        }
     }
     Ok(edits)
 }
@@ -2874,6 +3015,11 @@ pub fn build_disk_project_run_summary_with_supported_profile_prepared_host_resou
 pub fn build_project_graph(
     source: VirtualProjectSource,
 ) -> Result<LocalProjectGraph, LocalProjectError> {
+    if source.files.iter().any(|file| matches!(normalize_role(&file.role).as_str(), "root" | "ddn_source")
+        && ddonirang_lang::has_model_surface(&file.utf8_text)) {
+        require_beta_project_feature("E_ALPHA_MODEL_PROJECT_UNSUPPORTED", "정식 작품의 모형 연결은 알파에서 지원하지 않습니다. 한 파일 모형 실행과는 별도 기능입니다")?;
+    }
+    project_source_profile(&source, None)?;
     let normalized_manifest = normalize_virtual_project_source(source.clone())?;
     let root_path = normalized_manifest.root_path.clone();
     let entry_from_source = normalized_manifest.entry_path.clone();
@@ -2891,71 +3037,109 @@ pub fn build_project_graph(
             "project graph를 만들 root 파일이 없습니다",
         )
     })?;
-    for (path, text) in &text_by_path {
-        if path != &root_path && contains_project_block(text) {
-            return Err(LocalProjectError::with_path(
-                "E_PROJECT_BLOCK_OUTSIDE_ROOT",
-                path,
-                "프로젝트 {} 블록은 뿌리.ddn에서만 허용됩니다",
-            ));
+    let directive = ddonirang_lang::work_root::parse_work_root(root_text).map_err(|error| {
+        LocalProjectError::with_path_span("E_PROJECT_ROOT_PARSE", &root_path,
+            error.message, (error.span.start, error.span.end))
+    })?;
+    for field in [ddonirang_lang::work_root::RootField::ExecutionContract,
+        ddonirang_lang::work_root::RootField::View, ddonirang_lang::work_root::RootField::Exports] {
+        if directive.field(field).is_some() {
+            return Err(LocalProjectError::with_path("E_PROJECT_CONFIGURATION_UNSUPPORTED", &root_path,
+                "이 알파 실행기는 명시 실행계약·보개·가지 내놓음을 아직 결속하지 못합니다. 값을 무시하고 실행하지 않습니다"));
         }
     }
-    let project_block = extract_project_block(root_text).ok_or_else(|| {
-        LocalProjectError::with_path(
-            "E_PROJECT_BLOCK_MISSING",
-            root_path.clone(),
-            "뿌리.ddn에 프로젝트 {} 블록이 없습니다",
-        )
+    let declarations = directive.typed_modules().map_err(|error| {
+        LocalProjectError::with_path_span("E_PROJECT_MODULE_DECLARATION", &root_path,
+            error.message, (error.span.start, error.span.end))
     })?;
-    let project_name =
-        extract_ddn_string_field(project_block, "이름").unwrap_or_else(|| "이름없음".to_string());
-    let first_entry = extract_ddn_string_field(project_block, "첫글").ok_or_else(|| {
-        LocalProjectError::with_path(
-            "E_PROJECT_ENTRY_MISSING",
-            root_path.clone(),
-            "프로젝트 {} 안에 첫글이 필요합니다",
-        )
+    let start = directive.typed_start().map_err(|error| {
+        LocalProjectError::with_path_span("E_PROJECT_START_DECLARATION", &root_path,
+            error.message, (error.span.start, error.span.end))
     })?;
-    let entry_path = normalize_project_reference(&first_entry)?;
-    if entry_path != entry_from_source {
+    let mut module_paths = BTreeMap::new();
+    let mut module_sources = BTreeMap::new();
+    let mut owned_paths = BTreeSet::new();
+    for module in declarations {
+        let resolve = |raw: &str| {
+            let relative = normalize_project_reference(raw)?;
+            let base = parent_dir(&root_path);
+            normalize_project_path(&if base.is_empty() { relative } else { format!("{base}/{relative}") })
+        };
+        let head = resolve(&module.head)?;
+        let mut closure = Vec::new();
+        for raw in module.sources {
+            let path = resolve(raw.trim_end_matches('/'))?;
+            let expanded = if text_by_path.contains_key(&path) { vec![path.clone()] } else {
+                let prefix = format!("{path}/");
+                let matches = role_by_path.iter().filter(|(candidate, role)|
+                    candidate.starts_with(&prefix) && role.as_str() == "ddn_source")
+                    .map(|(candidate, _)| candidate.clone()).collect::<Vec<_>>();
+                if matches.is_empty() {
+                    return Err(LocalProjectError::with_path("E_PROJECT_MODULE_SOURCE_MISSING", &path,
+                        "선언한 원문 파일 또는 폴더 안의 원문이 입력 집합에 없습니다"));
+                }
+                matches
+            };
+            for path in expanded {
+                if closure.contains(&path) {
+                    return Err(LocalProjectError::with_path("E_PROJECT_MODULE_SOURCE_DUPLICATE", &path,
+                        "모듈 원문 집합이 겹치거나 중복 지정되어 있습니다"));
+                }
+                closure.push(path);
+            }
+        }
+        if !closure.contains(&head) {
+            return Err(LocalProjectError::with_path("E_PROJECT_HEAD_OUTSIDE_SOURCE_CLOSURE", &head,
+                "모듈 머리는 명시한 원문 집합에 포함되어야 합니다"));
+        }
+        closure.sort();
+        for path in &closure {
+            if path == &root_path || !text_by_path.contains_key(path) {
+                return Err(LocalProjectError::with_path("E_PROJECT_MODULE_SOURCE_MISSING", path,
+                    "모듈 머리와 원문은 닫힌 입력 집합의 원문 파일이어야 합니다"));
+            }
+            if !owned_paths.insert(path.clone()) {
+                return Err(LocalProjectError::with_path("E_PROJECT_MODULE_SOURCE_MULTIPLE_OWNERS", path,
+                    "같은 원문 파일을 둘 이상의 모듈이 소유할 수 없습니다"));
+            }
+        }
+        module_paths.insert(module.name.clone(), head);
+        module_sources.insert(module.name, closure);
+    }
+    for (path, role) in &role_by_path {
+        if path != &root_path && role == "ddn_source" && !owned_paths.contains(path) {
+            return Err(LocalProjectError::with_path("E_PROJECT_UNDECLARED_SOURCE", path,
+                "입력 원문이 얽음의 모듬에 선언되어 있지 않습니다"));
+        }
+    }
+    let (entry_path, start_definition) = match start {
+        Some(start) => {
+            let head = module_paths.get(&start.module).ok_or_else(|| {
+                LocalProjectError::with_path("E_PROJECT_START_MODULE_MISSING", &root_path,
+                    "시작 모듈이 모듬에 선언되어 있지 않습니다")
+            })?;
+            (head.clone(), Some(start.definition))
+        }
+        None => (String::new(), None),
+    };
+    if !entry_path.is_empty() && entry_path != entry_from_source {
         return Err(LocalProjectError::with_path(
             "E_PROJECT_ENTRY_CONFLICT",
             root_path.clone(),
-            format!("virtual entry({entry_from_source})와 프로젝트 첫글({entry_path})이 다릅니다"),
+            format!("호출의 entry({entry_from_source})와 얽음의 시작 머리({entry_path})가 다릅니다"),
         ));
     }
-    if !text_by_path.contains_key(&entry_path) {
+    if !entry_path.is_empty() && !text_by_path.contains_key(&entry_path) {
         return Err(LocalProjectError::with_path(
             "E_PROJECT_ENTRY_MISSING",
             entry_path.clone(),
             "프로젝트 첫글 파일이 없습니다",
         ));
     }
-    ensure_project_json_entry_matches_texts(&text_by_path, "", &root_path)?;
-
-    let mut targets = parse_string_pairs_from_named_block(project_block, "목표")?;
-    targets
-        .entry("앱".to_string())
-        .or_insert_with(|| entry_path.clone());
-    for (target, path) in targets.iter_mut() {
-        let normalized = normalize_project_reference(path)?;
-        if !text_by_path.contains_key(&normalized) {
-            return Err(LocalProjectError::with_path(
-                "E_PROJECT_TARGET_MISSING",
-                normalized,
-                format!("목표 {target} 파일이 없습니다"),
-            ));
-        }
-        *path = normalized;
-    }
-    let mut module_paths = parse_string_pairs_from_named_block(project_block, "모듈길")?;
-    for path in module_paths.values_mut() {
-        *path = normalize_project_reference_allow_root(path)?;
-    }
-    let mut gaji_aliases = parse_string_pairs_from_named_block(project_block, "가지")?;
-    for path in gaji_aliases.values_mut() {
-        *path = normalize_project_reference(path)?;
-    }
+    let project_name = root_path.clone(); // Display only; no source authority.
+    let mut targets = BTreeMap::new();
+    if let Some(definition) = &start_definition { targets.insert(definition.clone(), entry_path.clone()); }
+    let gaji_aliases = BTreeMap::new();
     let files = normalized_manifest.files.clone();
     let hash_input = serde_json::to_string(&json!({
         "schema": "ddn.local_project_graph.hash_input.v1",
@@ -2965,6 +3149,8 @@ pub fn build_project_graph(
         "targets": targets,
         "module_paths": module_paths,
         "gaji_aliases": gaji_aliases,
+        "module_sources": module_sources,
+        "start_definition": start_definition,
         "files": files,
     }))
     .expect("graph hash input serialization");
@@ -2977,6 +3163,8 @@ pub fn build_project_graph(
         targets,
         module_paths,
         gaji_aliases,
+        module_sources,
+        start_definition,
         file_count: files.len(),
         files,
         project_graph_sha256,
@@ -2996,6 +3184,49 @@ pub(crate) fn validate_project_module_boundary_for_authoring(
     build_linked_project_with_options(source, None, false, None).map(|_| ())
 }
 
+/// Bounded authored preparation reuses the product linker without execution.
+/// Its byte map is private provenance, not a new public source-map wire.
+pub(crate) struct AuthoredPreparation {
+    pub source: String,
+    pub target_path: String,
+    pub start_definition: Option<String>,
+    source_map: Vec<LinkedSourceSegment>,
+    imported_definitions: BTreeSet<(String,String,String)>,
+}
+
+impl AuthoredPreparation {
+    pub fn permits_import(&self,importer_head:&str,owner_head:&str,name:&str)->bool {
+        self.imported_definitions.contains(&(importer_head.into(),owner_head.into(),name.into()))
+    }
+    pub fn original_span(&self, span: Span) -> Result<(String, Span), String> {
+        let segment = self.source_map.iter().find(|segment|
+            span.start >= segment.generated_start && span.end <= segment.generated_end)
+            .ok_or_else(|| "E_AUTHORED_BOGAE_SOURCE_MAP: 연결 정의의 원래 소유 원문을 해소할 수 없습니다".to_string())?;
+        let start = segment.source_boundaries.get(span.start-segment.generated_start).copied();
+        let end = segment.source_boundaries.get(span.end-segment.generated_start).copied();
+        match (start,end) {
+            (Some(start),Some(end)) if start <= end => Ok((segment.source_path.clone(),Span::new(start,end))),
+            _ => Err("E_AUTHORED_BOGAE_SOURCE_MAP: 연결 정의의 원래 byte 범위를 해소할 수 없습니다".into()),
+        }
+    }
+}
+
+pub(crate) fn prepare_authored_execution(source: VirtualProjectSource)
+    -> Result<AuthoredPreparation,LocalProjectError> {
+    let graph = build_project_graph(source.clone())?;
+    let linked = build_linked_project_with_options(source,None,false,None)?;
+    let mut imported_definitions=BTreeSet::new();
+    for symbol in &linked.symbol_boundary.resolved_symbols {
+        for import in &linked.symbol_boundary.imports {
+            if import.alias==symbol.alias && import.resolved_path==symbol.module_path {
+                imported_definitions.insert((import.importer_path.clone(),symbol.module_path.clone(),symbol.internal_name.clone()));
+            }
+        }
+    }
+    Ok(AuthoredPreparation { source:linked.execution_source,target_path:graph.entry_path,
+        start_definition:graph.start_definition,source_map:linked.execution_source_map,imported_definitions })
+}
+
 fn build_linked_project(
     source: VirtualProjectSource,
     target_path_override: Option<&str>,
@@ -3010,6 +3241,178 @@ fn build_linked_project_with_options(
     run_for_symbol_values: bool,
     project_asset_registry: Option<Arc<ProjectAssetRegistry>>,
 ) -> Result<LinkedProject, LocalProjectError> {
+    let graph = build_project_graph(source.clone())?;
+    if target_path_override.is_some_and(|path| path != graph.entry_path) {
+        return Err(LocalProjectError::new("E_PROJECT_START_OVERRIDE", "호출자가 얽음의 시작을 덮을 수 없습니다"));
+    }
+    let texts = source.files.iter().map(|file| {
+        Ok((normalize_project_path(&file.path)?, file.utf8_text.clone()))
+    }).collect::<Result<BTreeMap<_, _>, LocalProjectError>>()?;
+    let mut definitions = BTreeMap::<String, String>::new();
+    let mut programs = BTreeMap::new();
+    let mut directives = BTreeMap::new();
+    for (module, paths) in &graph.module_sources {
+        let mut names = BTreeSet::new();
+        for path in paths {
+            let masked = mask_module_metadata_blocks(&texts[path])?;
+            if masked.trim().is_empty() { continue; }
+            if ddonirang_lang::has_model_surface(&masked) {
+                let model = ddonirang_lang::parse_model_program_with_source_file(&masked, path)
+                    .map_err(|error| LocalProjectError::with_path_span(error.candidate_code, path,
+                        error.message, (error.span.start, error.span.end)))?;
+                names.extend(model.ir.definitions.into_iter().map(|definition| definition.name));
+                continue;
+            }
+            if is_model_recipe_dependency(&source, &graph, module)? {
+                let recipes = ddonirang_lang::parse_model_recipe_library_with_source_file(&masked, path)
+                    .map_err(|error| LocalProjectError::with_path_span(error.candidate_code, path,
+                        error.message, (error.span.start, error.span.end)))?;
+                names.extend(recipes.into_iter().map(|recipe| recipe.name));
+                continue;
+            }
+            let program = parse_unlinked_work_module(&masked, path)
+                .map_err(|error| LocalProjectError::with_path_span(
+                    if error.code() == "E_PARSE" { "E_PROJECT_MODULE_PARSE" } else { error.code() }, path,
+                    error.message, (error.span.start, error.span.end)))?;
+            for item in &program.items {
+                let TopLevelItem::SeedDef(seed) = item;
+                if !names.insert(seed.canonical_name.clone()) {
+                    return Err(LocalProjectError::with_path("E_PROJECT_DEFINITION_DUPLICATE", path,
+                        format!("모듈 {module}의 정의가 중복됩니다: {}", seed.canonical_name)));
+                }
+            }
+            for statement in &program.root_stmts {
+                if let Stmt::Definition { name, .. } = statement {
+                    if !names.insert(name.clone()) {
+                        return Err(LocalProjectError::with_path("E_PROJECT_DEFINITION_DUPLICATE", path, name));
+                    }
+                } else if let Stmt::DeclBlock { items, .. } = statement {
+                    names.extend(items.iter().map(|item| item.name.clone()));
+                } else {
+                    return Err(LocalProjectError::with_path("E_PROJECT_TOP_LEVEL_EXECUTION", path,
+                        "정식 모듈의 실행 문장은 시작에 지정한 움직씨 본문에 작성해 주세요"));
+                }
+            }
+            programs.insert(path.clone(), program);
+        }
+        for name in names {
+            if let Some(owner) = definitions.insert(name.clone(), module.clone()) {
+                return Err(LocalProjectError::new("E_PROJECT_NAMESPACE_LOWERING_UNSUPPORTED",
+                    format!("서로 다른 모듈의 동명 정의는 아직 실행 결속되지 않았습니다: {owner}, {module}, {name}")));
+            }
+        }
+        directives.insert(module.clone(), resolve_work_project_module_directives(&source, &graph.module_paths[module])?);
+    }
+    fn visit_module(name: &str, directives: &BTreeMap<String, ProjectModuleDirectives>,
+        active: &mut BTreeSet<String>, done: &mut BTreeSet<String>, order: &mut Vec<String>) -> Result<(), LocalProjectError> {
+        if done.contains(name) { return Ok(()); }
+        if !active.insert(name.to_string()) {
+            return Err(LocalProjectError::new("E_IMPORT_CYCLE", format!("모듈 순환입니다: {name}")));
+        }
+        let module = directives.get(name).ok_or_else(|| LocalProjectError::new("E_MODULE_MISSING", name))?;
+        for import in &module.imports { visit_module(&import.source, directives, active, done, order)?; }
+        active.remove(name);
+        done.insert(name.to_string());
+        order.push(name.to_string());
+        Ok(())
+    }
+    let mut module_order = Vec::new();
+    let mut done = BTreeSet::new();
+    for module in graph.module_sources.keys() {
+        visit_module(module, &directives, &mut BTreeSet::new(), &mut done, &mut module_order)?;
+    }
+    let mut imports = Vec::new();
+    let mut exports = Vec::new();
+    let mut resolved_symbols = Vec::new();
+    let mut source_text = String::new();
+    let mut source_map = Vec::new();
+    for module in &module_order {
+        let paths = &graph.module_sources[module];
+        let head = &graph.module_paths[module];
+        let mut rewrites = BTreeMap::new();
+        for import in &directives[module].imports {
+            let imported_head = graph.module_paths.get(&import.source).ok_or_else(||
+                LocalProjectError::with_path("E_PROJECT_IMPORT_MODULE_UNKNOWN", head, &import.source))?;
+            let imported = &directives[&import.source];
+            for export in &imported.exports {
+                rewrites.insert(format!("{}.{}", import.alias, export.external_name), export.internal_name.clone());
+            }
+            imports.push(ResolvedImport { importer_path: head.clone(), alias: import.alias.clone(),
+                source: import.source.clone(), resolved_path: imported_head.clone() });
+        }
+        for export in &directives[module].exports {
+            exports.push(ResolvedExport { module_path: head.clone(), external_name: export.external_name.clone(),
+                internal_name: export.internal_name.clone() });
+        }
+        for path in paths {
+            for request in collect_alias_symbol_requests_from_tokens(&texts[path])? {
+                if let Some(import) = directives[module].imports.iter().find(|row| row.alias == request.alias) {
+                    let known_exports = directives[&import.source].exports.iter()
+                        .map(|row| row.external_name.clone()).collect::<HashSet<_>>();
+                    let (span_start, span_end) = request.source_span.unwrap_or((0, request.symbol.len()));
+                    let (external_stem, canonical_call) = resolve_known_call_target(
+                        &request.symbol, &known_exports, Span::new(span_start, span_end))
+                        .unwrap_or_else(|_| (request.symbol.clone(), request.symbol.clone()));
+                    let export = directives[&import.source].exports.iter()
+                        .find(|row| row.external_name == external_stem)
+                        .ok_or_else(|| LocalProjectError::with_path_span("E_SYMBOL_NOT_EXPORTED", path,
+                            format!("공개하지 않은 이름입니다: {}.{}", request.alias, request.symbol),
+                            request.source_span.unwrap_or((0, 0))))?;
+                    let suffix = canonical_call.strip_prefix(&external_stem).unwrap_or_default();
+                    rewrites.insert(format!("{}.{}", import.alias, request.symbol),
+                        format!("{}{}", export.internal_name, suffix));
+                    resolved_symbols.push(ResolvedSymbol {
+                        alias: request.alias, symbol: request.symbol,
+                        module_path: graph.module_paths[&import.source].clone(),
+                        internal_name: export.internal_name.clone(), value: String::new(),
+                    });
+                }
+            }
+            let mapped = strip_module_metadata_blocks_mapped(&texts[path])?;
+            let rewritten = rewrite_alias_refs_in_mapped_source(mapped, &rewrites)?;
+            let start = source_text.len();
+            source_text.push_str(&rewritten.text);
+            source_map.push(LinkedSourceSegment { generated_start: start, generated_end: source_text.len(),
+                source_path: path.clone(), source_boundaries: rewritten.source_boundaries });
+            source_text.push('\n');
+        }
+    }
+    if let Some(start_name) = &graph.start_definition {
+        let module = graph.module_paths.iter().find(|(_, head)| **head == graph.entry_path).map(|(name, _)| name).unwrap();
+        let matches = graph.module_sources[module].iter().filter_map(|path| programs.get(path)).flat_map(|program| program.items.iter())
+            .filter_map(|item| { let TopLevelItem::SeedDef(seed) = item; (seed.canonical_name == *start_name).then_some(seed) })
+            .collect::<Vec<_>>();
+        if matches.len() != 1 || matches[0].seed_kind != ddonirang_lang::SeedKind::Umjikssi
+            || !matches[0].params.is_empty() || matches[0].body.is_none() {
+            return Err(LocalProjectError::new("E_PROJECT_START_DEFINITION", "시작은 같은 모듈의 인자 없는 움직씨 정의 하나를 가리켜야 합니다"));
+        }
+    }
+    let output_rows = if run_for_symbol_values && graph.start_definition.is_some() {
+        let target = graph.start_definition.as_deref().ok_or_else(|| LocalProjectError::new(
+            "E_PROJECT_START_REQUIRED", "시작 없는 라이브러리는 실행할 수 없습니다"))?;
+        let result = runtime_surface::run_summary_from_supported_source_profile_with_update_name_diagnostic(
+            &source_text, &graph.entry_path, Some(1), Some(project_source_profile(&source, None)?), target, project_asset_registry)
+            .map_err(|error| LocalProjectError::from_execution_diagnostic(remap_execution_diagnostic(&source_map, error)))?;
+        json_string_array(result.get("output_log_texts"))
+    } else { Vec::new() };
+    let order = graph.module_sources.values().flatten().cloned().collect::<Vec<_>>();
+    let hash = sha256_hex(serde_json::to_string(&json!({"modules": graph.module_sources,
+        "imports": imports, "exports": exports, "source": source_text})).unwrap().as_bytes());
+    Ok(LinkedProject { symbol_boundary: LocalProjectSymbolBoundary {
+        schema: PROJECT_SYMBOL_BOUNDARY_SCHEMA, entry_path: graph.entry_path,
+        module_graph_order: order, module_graph_sha256: hash.clone(), imports, exports,
+        resolved_symbols, output_rows, symbol_boundary_sha256: hash,
+        diagnostics: Vec::new(),
+    }, execution_source: source_text, execution_source_map: source_map })
+}
+
+fn build_legacy_linked_project_with_options(
+    source: VirtualProjectSource,
+    target_path_override: Option<&str>,
+    run_for_symbol_values: bool,
+    project_asset_registry: Option<Arc<ProjectAssetRegistry>>,
+) -> Result<LinkedProject, LocalProjectError> {
+    let source_profile = project_source_profile(&source, None)?;
     let graph = build_project_graph(source.clone())?;
     let entry_path = target_path_override
         .unwrap_or(&graph.entry_path)
@@ -3158,17 +3561,19 @@ fn build_linked_project_with_options(
     let output_rows = if run_for_symbol_values {
         let runtime = match project_asset_registry {
             Some(registry) => {
-                runtime_surface::run_summary_from_source_with_project_assets_diagnostic(
+                runtime_surface::run_summary_from_supported_source_profile_with_project_assets_diagnostic(
                     &linked_execution_source.text,
                     &entry_path,
                     Some(1),
+                    Some(source_profile),
                     registry,
                 )
             }
-            None => runtime_surface::run_summary_from_source_diagnostic(
+            None => runtime_surface::run_summary_from_supported_source_profile_diagnostic(
                 &linked_execution_source.text,
                 &entry_path,
                 Some(1),
+                Some(source_profile),
             ),
         }
         .map_err(|err| {
@@ -3228,10 +3633,10 @@ fn validate_rd203_field_surface_before_link(
     source: &str,
     path: &str,
 ) -> Result<(), LocalProjectError> {
-    const WRAPPER_PREFIX: &str = "매틱:움직씨 = {\n";
+    const WRAPPER_PREFIX: &str = "매틱:움직씨 := {\n";
     const WRAPPER_SUFFIX: &str = "}\n";
     let masked = mask_module_metadata_blocks(source)?;
-    match ddonirang_lang::parse_with_mode(&masked, path, ddonirang_lang::ParseMode::Strict) {
+    match ddonirang_lang::parse_v25_with_mode(&masked, path, ddonirang_lang::ParseMode::Strict) {
         Ok(_) => return Ok(()),
         Err(err) if is_rd203_field_diagnostic(err.code()) => {
             let mut diagnostic = LocalProjectError::with_path_span(
@@ -3255,7 +3660,7 @@ fn validate_rd203_field_surface_before_link(
     }
     wrapped.push_str(WRAPPER_SUFFIX);
     if let Err(err) =
-        ddonirang_lang::parse_with_mode(&wrapped, path, ddonirang_lang::ParseMode::Strict)
+        ddonirang_lang::parse_v25_with_mode(&wrapped, path, ddonirang_lang::ParseMode::Strict)
     {
         if is_rd203_field_diagnostic(err.code()) {
             let span = if err.span.start >= WRAPPER_PREFIX.len()
@@ -3292,7 +3697,11 @@ struct LinkedExecutionSource {
 }
 
 fn wrap_linked_execution_source_for_supported_project_run(linked: &mut LinkedProject) {
-    const PREFIX: &str = "매틱:움직씨 := {\n";
+    // The supported V25 runtime dispatches the shared update callable named
+    // `매마디`.  Keep the generated project wrapper on that same authority;
+    // `매틱` is a historical producer spelling and would leave a valid V25
+    // project with no runnable update callable.
+    const PREFIX: &str = "매마디:움직씨 := {\n";
     const SUFFIX: &str = "}\n";
     let mut text =
         String::with_capacity(PREFIX.len() + linked.execution_source.len() + SUFFIX.len());
@@ -3410,7 +3819,11 @@ fn module_alias_rewrites(
 
 fn strip_module_metadata_blocks_mapped(text: &str) -> Result<MappedSourceText, LocalProjectError> {
     let mut mapped = MappedSourceText {
-        text: text.to_string(),
+        // Current parenthesized metadata is first blanked through the shared
+        // typed parser.  Its byte-preserving mask keeps the source map exact;
+        // historical brace custody continues through the existing removal
+        // path below.
+        text: mask_module_metadata_blocks(text)?,
         source_boundaries: (0..=text.len()).collect(),
     };
     for name in ["쓰임", "드러냄", "공개"] {
@@ -3424,35 +3837,7 @@ fn remove_named_block_mapped(
     name: &str,
 ) -> Result<MappedSourceText, LocalProjectError> {
     let text = &mapped.text;
-    let mut removals = Vec::new();
-    let mut cursor = 0usize;
-    while let Some(relative) = text[cursor..].find(name) {
-        let start = cursor + relative;
-        if !is_name_boundary(text, start, name.len()) {
-            cursor = start + name.len();
-            continue;
-        }
-        let mut open = start + name.len();
-        while let Some(ch) = text[open..].chars().next() {
-            if ch.is_whitespace() {
-                open += ch.len_utf8();
-            } else {
-                break;
-            }
-        }
-        if !text[open..].starts_with('{') {
-            cursor = open;
-            continue;
-        }
-        let end = find_block_end(text, open).ok_or_else(|| {
-            LocalProjectError::new(
-                "E_PROJECT_METADATA_BLOCK",
-                format!("{name} metadata 블록을 닫지 못했습니다"),
-            )
-        })?;
-        removals.push((start, end));
-        cursor = end;
-    }
+    let removals = legacy_named_brace_ranges(text, name)?;
     if removals.is_empty() {
         return Ok(mapped);
     }
@@ -3474,46 +3859,94 @@ fn remove_named_block_mapped(
     })
 }
 
+/// Historical brace metadata is recognized only from lexer tokens.  Raw text
+/// search would incorrectly consume `쓰임 {` inside a string or comment and
+/// could therefore turn non-semantic text into a project-link error.
+fn legacy_named_brace_ranges(
+    text: &str,
+    name: &str,
+) -> Result<Vec<(usize, usize)>, LocalProjectError> {
+    reject_source_bom(text, None)?;
+    let tokens = Lexer::new(text).tokenize().map_err(|error| {
+        LocalProjectError::new(
+            "E_PROJECT_ENTRY_PARSE",
+            format!("module metadata 토큰화 실패: {}", error.message),
+        )
+    })?;
+    let mut ranges = Vec::new();
+    for pair in tokens.windows(2) {
+        let is_name = matches!(
+            &pair[0].kind,
+            TokenKind::Ident(value) | TokenKind::Josa(value) if value == name
+        );
+        if !is_name || !matches!(pair[1].kind, TokenKind::LBrace) {
+            continue;
+        }
+        let end = find_block_end(text, pair[1].span.start).ok_or_else(|| {
+            LocalProjectError::new(
+                "E_PROJECT_METADATA_BLOCK",
+                format!("{name} metadata 블록을 닫지 못했습니다"),
+            )
+        })?;
+        ranges.push((pair[0].span.start, end));
+    }
+    Ok(ranges)
+}
+
 /// Module metadata is not parser input. Mask it without changing any original
 /// byte offset so AST-backed authoring locations remain source-exact.
 pub(crate) fn mask_module_metadata_blocks(text: &str) -> Result<String, LocalProjectError> {
+    reject_source_bom(text, None)?;
     let mut bytes = text.as_bytes().to_vec();
-    for name in ["쓰임", "드러냄", "공개"] {
-        let mut cursor = 0usize;
-        while let Some(relative) = text[cursor..].find(name) {
-            let start = cursor + relative;
-            if !is_name_boundary(text, start, name.len()) {
-                cursor = start + name.len();
-                continue;
-            }
-            let mut open = start + name.len();
-            while let Some(ch) = text[open..].chars().next() {
-                if ch.is_whitespace() {
-                    open += ch.len_utf8();
-                } else {
-                    break;
+    let tokens = Lexer::new(text).tokenize().map_err(|error| {
+        LocalProjectError::new(
+            "E_PROJECT_ENTRY_PARSE",
+            format!("current module source 토큰화 실패: {}", error.message),
+        )
+    })?;
+    if matches!(
+        tokens.first().map(|token| &token.kind),
+        Some(TokenKind::LParen)
+    ) {
+        let mut context = ModuleDirectiveContext::default();
+        context.known_import_targets = tokens
+            .iter()
+            .filter_map(|token| match &token.kind {
+                TokenKind::StringLit(value) | TokenKind::Ident(value) | TokenKind::Josa(value) => Some(value.clone()),
+                _ => None,
+            })
+            .collect();
+        context.public_definition_targets = tokens
+            .iter()
+            .filter_map(|token| match &token.kind {
+                TokenKind::Ident(value) | TokenKind::Josa(value) => Some(value.clone()),
+                _ => None,
+            })
+            .collect();
+        if let Ok(document) = parse_module_directive_prefix(text, "project.ddn", &context) {
+            for directive in [document.imports, document.exports].into_iter().flatten() {
+                for byte in &mut bytes[directive.span.start..directive.span.end] {
+                    if !matches!(*byte, b'\n' | b'\r') {
+                        *byte = b' ';
+                    }
                 }
             }
-            if !text[open..].starts_with('{') {
-                cursor = open;
-                continue;
-            }
-            let end = find_block_end(text, open).ok_or_else(|| {
+            return String::from_utf8(bytes).map_err(|_| {
                 LocalProjectError::new(
-                    "E_PROJECT_METADATA_BLOCK",
-                    format!("{name} metadata 블록을 닫지 못했습니다"),
+                    "E_PROJECT_AUTHORING_MASK_UTF8",
+                    "current directive offset 보존 mask가 UTF-8을 보존하지 못했습니다",
                 )
-            })?;
+            });
+        }
+    }
+    for name in ["쓰임", "드러냄", "공개"] {
+        for (start, end) in legacy_named_brace_ranges(text, name)? {
             for byte in &mut bytes[start..end] {
                 if !matches!(*byte, b'\n' | b'\r') {
                     *byte = b' ';
                 }
             }
-            cursor = end;
         }
-    }
-    if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
-        bytes[0..3].copy_from_slice(b"   ");
     }
     String::from_utf8(bytes).map_err(|_| {
         LocalProjectError::new(
@@ -3521,6 +3954,22 @@ pub(crate) fn mask_module_metadata_blocks(text: &str) -> Result<String, LocalPro
             "metadata offset 보존 mask가 UTF-8을 보존하지 못했습니다",
         )
     })
+}
+
+/// RD-534 forbids both a source BOM and stripping or masking it at ingress.
+/// Keep the original bytes intact and report the exact three-byte prefix.
+fn reject_source_bom(text: &str, path: Option<&str>) -> Result<(), LocalProjectError> {
+    if text.starts_with('\u{feff}') {
+        let mut error = LocalProjectError::new(
+            "E_SOURCE_UTF8_BOM_FORBIDDEN",
+            "원문 앞의 UTF-8 BOM은 허용되지 않습니다. BOM 없는 UTF-8로 저장해 주세요.",
+        );
+        error.path = path.map(str::to_owned);
+        error.source_span = Some((0, 3));
+        error.phase = Some("source_ingress");
+        return Err(error);
+    }
+    Ok(())
 }
 
 fn find_block_end(text: &str, open_brace: usize) -> Option<usize> {
@@ -3574,13 +4023,6 @@ fn find_block_end(text: &str, open_brace: usize) -> Option<usize> {
     Some(end).filter(|_| depth == 0)
 }
 
-fn is_name_boundary(text: &str, start: usize, len: usize) -> bool {
-    let before = text[..start].chars().next_back();
-    let after = text[start + len..].chars().next();
-    !before.map(is_identifier_char).unwrap_or(false)
-        && !after.map(is_identifier_char).unwrap_or(false)
-}
-
 fn rewrite_alias_refs_in_mapped_source(
     mapped: MappedSourceText,
     rewrites: &BTreeMap<String, String>,
@@ -3617,6 +4059,18 @@ fn rewrite_alias_refs_in_mapped_source(
         let key = format!("{alias}.{symbol}");
         if let Some(to) = rewrites.get(&key) {
             replacements.push((left.span.start, right.span.end, to.clone()));
+        } else {
+            let prefix = format!("{alias}.");
+            let known = rewrites.keys().filter_map(|name| name.strip_prefix(&prefix))
+                .map(str::to_string).collect::<HashSet<_>>();
+            if let Ok((stem, canonical_call)) = resolve_known_call_target(
+                &symbol, &known, Span::new(right.span.start, right.span.end),
+            ) {
+                if let Some(to) = rewrites.get(&format!("{alias}.{stem}")) {
+                    let suffix = canonical_call.strip_prefix(&stem).unwrap_or_default();
+                    replacements.push((left.span.start, right.span.end, format!("{to}{suffix}")));
+                }
+            }
         }
     }
     if replacements.is_empty() {
@@ -3808,6 +4262,7 @@ pub(crate) fn project_asset_registry_from_source(
     else {
         return Ok(None);
     };
+    require_beta_project_feature("E_ALPHA_DATASET_UNSUPPORTED", "자료셋 연결은 알파에서 지원하지 않습니다. 베타에서 지원할 예정입니다")?;
     let files = source
         .files
         .iter()
@@ -3843,11 +4298,8 @@ pub fn build_project_prepare_link(
     inspect_graph: bool,
     inspect_lock: bool,
 ) -> Result<LocalProjectPrepareLink, LocalProjectError> {
-    let target = if target.trim().is_empty() {
-        "앱"
-    } else {
-        target.trim()
-    };
+    let source_profile = project_source_profile(&source, None)?;
+    let requested_target = target.trim();
     let project_asset_registry = project_asset_registry_from_source(&source)?;
     let domain_evidence_manifests = domain_evidence_manifest_identities_from_source(&source)?;
     let sealed_dataset_assets = project_asset_registry
@@ -3864,6 +4316,11 @@ pub fn build_project_prepare_link(
         .unwrap_or_default();
     let normalized_project = normalize_virtual_project_source(source.clone())?;
     let graph = build_project_graph(source.clone())?;
+    let target = graph.start_definition.as_deref().ok_or_else(||
+        LocalProjectError::new("E_PROJECT_START_REQUIRED", "시작 없는 라이브러리는 실행 준비할 수 없습니다"))?;
+    if !requested_target.is_empty() && requested_target != target {
+        return Err(LocalProjectError::new("E_PROJECT_START_OVERRIDE", "호출자가 얽음의 시작을 덮을 수 없습니다"));
+    }
     let target_path = graph.targets.get(target).cloned().ok_or_else(|| {
         LocalProjectError::with_path(
             "E_PROJECT_TARGET_MISSING",
@@ -3878,11 +4335,14 @@ pub fn build_project_prepare_link(
         None
     };
     let linked = build_linked_project_with_options(source, Some(&target_path), false, None)?;
+    // The linker validated the authored start definition. Let the shared
+    // execution frontdoor report call errors with their original source span.
     let linked_execution_source_sha256 = sha256_hex(linked.execution_source.as_bytes());
-    let mut runtime_execution_envelope = runtime_surface::execution_envelope_from_source_with_path(
+    let mut runtime_execution_envelope = runtime_surface::execution_envelope_from_source_with_profile(
         &linked.execution_source,
         &target_path,
         Some(1),
+        Some(source_profile),
     )
     .map_err(|err| {
         LocalProjectError::from_execution_diagnostic(linked.remap_execution_diagnostic(err))
@@ -3900,6 +4360,7 @@ pub fn build_project_prepare_link(
         );
     }
     let mut prepared = LocalProjectPrepareLink {
+        source_profile_identity: source_profile,
         schema: "ddn.local_project.prepare_link.v1",
         frontdoor: "wasm_project_prepare_link_json",
         root_path: graph.root_path.clone(),
@@ -3925,6 +4386,7 @@ pub fn build_project_prepare_link(
     };
     let hash_input = serde_json::to_string(&json!({
         "schema": "ddn.local_project.prepare_link.hash_input.v1",
+        "source_profile_identity": prepared.source_profile_identity,
         "root_path": &prepared.root_path,
         "entry_path": &prepared.entry_path,
         "target": &prepared.target,
@@ -3999,10 +4461,10 @@ fn attach_host_resources_to_project_summary(
     summary: &mut LocalProjectRunSummary,
     prepared: &PreparedHostResources,
 ) {
-    let transcript = serde_json::to_value(&prepared.transcript)
-        .expect("host resource transcript serializes");
-    let receipt = serde_json::to_value(&prepared.receipt)
-        .expect("host resource receipt serializes");
+    let transcript =
+        serde_json::to_value(&prepared.transcript).expect("host resource transcript serializes");
+    let receipt =
+        serde_json::to_value(&prepared.receipt).expect("host resource receipt serializes");
     if let Some(envelope) = summary.runtime_execution_envelope.as_object_mut() {
         envelope.insert("host_resource_transcript".to_string(), transcript.clone());
         envelope.insert("host_resource_receipt".to_string(), receipt.clone());
@@ -4035,11 +4497,13 @@ fn build_project_run_summary_internal(
     inspect_lock: bool,
     supported_profile: bool,
 ) -> Result<LocalProjectRunSummary, LocalProjectError> {
-    let target = if target.trim().is_empty() {
-        "앱"
-    } else {
-        target.trim()
-    };
+    let source_profile = project_source_profile(&source, supported_profile.then_some(
+        crate::ddn_runtime::V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY,
+    ))?;
+    let requested_target = target.trim();
+    if supported_profile {
+        validate_current_project_sources_before_link(&source)?;
+    }
     let project_asset_registry = project_asset_registry_from_source(&source)?;
     let domain_evidence_manifests = domain_evidence_manifest_identities_from_source(&source)?;
     let sealed_dataset_assets = project_asset_registry
@@ -4055,6 +4519,11 @@ fn build_project_run_summary_internal(
         })?
         .unwrap_or_default();
     let graph = build_project_graph(source.clone())?;
+    let target = graph.start_definition.as_deref().ok_or_else(||
+        LocalProjectError::new("E_PROJECT_START_REQUIRED", "시작 없는 라이브러리는 실행할 수 없습니다"))?;
+    if !requested_target.is_empty() && requested_target != target {
+        return Err(LocalProjectError::new("E_PROJECT_START_OVERRIDE", "호출자가 얽음의 시작을 덮을 수 없습니다"));
+    }
     let target_path = graph.targets.get(target).cloned().ok_or_else(|| {
         LocalProjectError::with_path(
             "E_PROJECT_TARGET_MISSING",
@@ -4072,36 +4541,36 @@ fn build_project_run_summary_internal(
     };
     // project-run은 아래의 asset-aware 공통 runtime에서 실제 실행을 한 번 수행한다.
     // linker 내부의 asset-unaware 사전 실행을 중복 호출하면 검증된 registry를 잃는다.
-    let mut linked = build_linked_project_with_options(source, Some(&target_path), false, None)?;
-    if supported_profile {
-        wrap_linked_execution_source_for_supported_project_run(&mut linked);
-    }
-    let runtime = match (supported_profile, project_asset_registry) {
-        (true, Some(registry)) => runtime_surface::run_summary_from_supported_source_profile_with_project_assets_diagnostic(
+    let linked = build_linked_project_with_options(source, Some(&target_path), false, None)?;
+    // Current V25 project sources must take the same shared runtime profile as
+    // the explicit supported-profile entrypoint.  Leaving this choice to the
+    // legacy project-run default makes a valid `:=` module reach an old
+    // execution path with no V25 update wrapper.
+    let v25_named_target = graph.start_definition.is_some();
+    let runtime = if v25_named_target {
+        runtime_surface::run_summary_from_supported_source_profile_with_update_name_diagnostic(
+            &linked.execution_source,
+            &target_path,
+            Some(1),
+            Some(source_profile),
+            target,
+            project_asset_registry,
+        )
+    } else { match project_asset_registry {
+        Some(registry) => runtime_surface::run_summary_from_supported_source_profile_with_project_assets_diagnostic(
                 &linked.execution_source,
                 &target_path,
                 Some(1),
-                Some(crate::ddn_runtime::V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY),
+                Some(source_profile),
                 registry,
             ),
-        (true, None) => runtime_surface::run_summary_from_supported_source_profile_diagnostic(
+        None => runtime_surface::run_summary_from_supported_source_profile_diagnostic(
                 &linked.execution_source,
                 &target_path,
                 Some(1),
-                Some(crate::ddn_runtime::V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY),
+                Some(source_profile),
             ),
-        (false, Some(registry)) => runtime_surface::run_summary_from_source_with_project_assets_diagnostic(
-                &linked.execution_source,
-                &target_path,
-                Some(1),
-                registry,
-            ),
-        (false, None) => runtime_surface::run_summary_from_source_diagnostic(
-                &linked.execution_source,
-                &target_path,
-                Some(1),
-            ),
-    }
+    }}
     .map_err(|err| {
         LocalProjectError::from_execution_diagnostic(linked.remap_execution_diagnostic(err))
     })?;
@@ -4364,85 +4833,122 @@ pub fn discover_virtual_project_root(
         }
         files.insert(path);
     }
-    discover_root_from_file_set(&files, Some(&file_texts), &start, explicit.as_deref())
+    let path = explicit.unwrap_or(start);
+    let text = file_texts.get(&path).ok_or_else(|| LocalProjectError::with_path(
+        "E_PROJECT_ROOT_EXPLICIT_REQUIRED", &path, "얽음 원문 파일을 명시해 주세요. 폴더나 파일명 관례로 찾지 않습니다"))?;
+    reject_source_bom(text, Some(&path))?;
+    ddonirang_lang::work_root::parse_work_root(text).map_err(|error|
+        LocalProjectError::with_path("E_PROJECT_ROOT_PARSE", &path, error.message))?;
+    Ok(ProjectRootDiscoveryResult { schema: PROJECT_ROOT_DISCOVERY_SCHEMA, root_kind: "explicit_work_root",
+        root_marker_path: Some(path), project_json_path: None, used_fallback: false, diagnostics: Vec::new() })
 }
 
 pub fn discover_disk_project_root(
     start: &Path,
     explicit_project: Option<&Path>,
 ) -> Result<ProjectRootDiscoveryResult, LocalProjectError> {
-    let start_abs = if start.is_absolute() {
-        start.to_path_buf()
-    } else {
-        std::env::current_dir()
-            .map_err(|err| LocalProjectError::new("E_PROJECT_CWD", err.to_string()))?
-            .join(start)
-    };
-    let start_for_walk = if start_abs.is_file() {
-        start_abs
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| start_abs.clone())
-    } else {
-        start_abs.clone()
-    };
-    if let Some(explicit) = explicit_project {
-        let explicit_abs = if explicit.is_absolute() {
-            explicit.to_path_buf()
-        } else {
-            std::env::current_dir()
-                .map_err(|err| LocalProjectError::new("E_PROJECT_CWD", err.to_string()))?
-                .join(explicit)
-        };
-        let result = discover_disk_explicit_project(&explicit_abs)?;
-        ensure_no_symlink_escape(&start_abs, &explicit_root_dir(&explicit_abs)?)?;
-        return Ok(result);
+    let path = explicit_project.unwrap_or(start);
+    if !path.is_file() {
+        return Err(LocalProjectError::new("E_PROJECT_ROOT_EXPLICIT_REQUIRED", "얽음 원문 파일을 명시해 주세요. 상위 폴더에서 찾지 않습니다"));
     }
-    discover_disk_upward(&start_for_walk, &start_abs)
+    let text = fs::read_to_string(path).map_err(|error| LocalProjectError::new("E_PROJECT_FILE_READ", error.to_string()))?;
+    reject_source_bom(&text, path.to_str())?;
+    ddonirang_lang::work_root::parse_work_root(&text).map_err(|error|
+        LocalProjectError::new("E_PROJECT_ROOT_PARSE", error.message))?;
+    Ok(ProjectRootDiscoveryResult { schema: PROJECT_ROOT_DISCOVERY_SCHEMA, root_kind: "explicit_work_root",
+        root_marker_path: Some(path.to_string_lossy().into_owned()), project_json_path: None,
+        used_fallback: false, diagnostics: Vec::new() })
 }
 
 pub fn build_virtual_project_source_from_disk(
     start: &Path,
     explicit_project: Option<&Path>,
 ) -> Result<VirtualProjectSource, LocalProjectError> {
-    let root_dir = discover_disk_project_root_dir(start, explicit_project)?;
-    let root_text = fs::read_to_string(root_dir.join(PROJECT_ROOT_FILE)).map_err(|err| {
-        LocalProjectError::with_path(
-            "E_PROJECT_FILE_READ",
-            PROJECT_ROOT_FILE,
-            format!("뿌리.ddn을 읽을 수 없습니다: {err}"),
-        )
-    })?;
-    let project_block = extract_project_block(&root_text).ok_or_else(|| {
-        LocalProjectError::with_path(
-            "E_PROJECT_BLOCK_MISSING",
-            PROJECT_ROOT_FILE,
-            "뿌리.ddn에 프로젝트 {} 블록이 없습니다",
-        )
-    })?;
-    let first_entry = extract_ddn_string_field(project_block, "첫글").ok_or_else(|| {
-        LocalProjectError::with_path(
-            "E_PROJECT_ENTRY_MISSING",
-            PROJECT_ROOT_FILE,
-            "프로젝트 {} 안에 첫글이 필요합니다",
-        )
-    })?;
-    let entry_path = normalize_project_reference(&first_entry)?;
-    let mut files = Vec::new();
-    collect_disk_project_files(&root_dir, &root_dir, &mut files)?;
-    Ok(VirtualProjectSource {
+    let root_file = explicit_project.unwrap_or(start);
+    if !root_file.is_file() {
+        return Err(LocalProjectError::new("E_PROJECT_ROOT_EXPLICIT_REQUIRED", "--project는 폴더가 아닌 얽음 원문 파일이어야 합니다"));
+    }
+    let root_dir = root_file.parent().unwrap_or_else(|| Path::new("."));
+    let root_path = root_file.file_name().and_then(|name| name.to_str()).ok_or_else(||
+        LocalProjectError::new("E_PROJECT_PATH", "뿌리 파일 경로는 UTF-8이어야 합니다"))?.to_string();
+    let root_text = fs::read_to_string(root_file).map_err(|error|
+        LocalProjectError::with_path("E_PROJECT_FILE_READ", &root_path, error.to_string()))?;
+    reject_source_bom(&root_text, Some(&root_path))?;
+    let root = ddonirang_lang::work_root::parse_work_root(&root_text).map_err(|error|
+        LocalProjectError::with_path("E_PROJECT_ROOT_PARSE", &root_path, error.message))?;
+    let modules = root.typed_modules().map_err(|error|
+        LocalProjectError::with_path("E_PROJECT_MODULE_DECLARATION", &root_path, error.message))?;
+    let start = root.typed_start().map_err(|error|
+        LocalProjectError::with_path("E_PROJECT_START_DECLARATION", &root_path, error.message))?;
+    let entry_path = start.as_ref().map(|start| {
+        modules.iter().find(|module| module.name == start.module)
+            .ok_or_else(|| LocalProjectError::new("E_PROJECT_START_MODULE_MISSING", "시작 모듈이 없습니다"))
+            .and_then(|module| normalize_project_reference(&module.head))
+    }).transpose()?.unwrap_or_default();
+    let mut paths = BTreeSet::new();
+    let mut visited = 0usize;
+    for module in modules { for raw in module.sources {
+        let path = normalize_project_reference(raw.trim_end_matches('/'))?;
+        collect_declared_disk_sources(root_dir, &root_dir.join(path), &mut paths, &mut visited)?;
+    } }
+    let mut files = vec![VirtualProjectFileSource { path: root_path.clone(), role: "root".into(), utf8_text: root_text }];
+    for path in paths {
+        let disk_path = root_dir.join(&path);
+        ensure_no_symlink_escape(&disk_path, root_dir)?;
+        let text = fs::read_to_string(&disk_path).map_err(|error|
+            LocalProjectError::with_path("E_PROJECT_FILE_READ", &path, error.to_string()))?;
+        reject_source_bom(&text, Some(&path))?;
+        files.push(VirtualProjectFileSource { path, role: "ddn_source".into(), utf8_text: text });
+    }
+    let source = VirtualProjectSource {
         schema: VIRTUAL_PROJECT_SOURCE_SCHEMA.to_string(),
         kind: Some(LOCAL_PROJECT_TREE_KIND.to_string()),
         package_hash: None,
-        root_path: PROJECT_ROOT_FILE.to_string(),
+        root_path,
         entry_path,
         files,
-    })
+    };
+    build_project_graph(source.clone())?;
+    Ok(source)
+}
+
+fn collect_declared_disk_sources(root: &Path, path: &Path, paths: &mut BTreeSet<String>, visited: &mut usize)
+    -> Result<(), LocalProjectError> {
+    *visited += 1;
+    if *visited > 4096 || paths.len() >= MAX_PROJECT_FILES {
+        return Err(LocalProjectError::new("E_PROJECT_FILE_COUNT_LIMIT", "선언 원문 집합의 탐색 한도를 넘었습니다"));
+    }
+    ensure_no_symlink_escape(path, root)?;
+    let metadata = fs::symlink_metadata(path).map_err(|error|
+        LocalProjectError::new("E_PROJECT_FILE_READ", error.to_string()))?;
+    if metadata.file_type().is_symlink() {
+        return Err(LocalProjectError::new("E_PROJECT_SYMLINK_ESCAPE", "원문 집합에 심볼릭 링크를 넣을 수 없습니다"));
+    }
+    if metadata.is_dir() {
+        let mut children = fs::read_dir(path).map_err(|error| LocalProjectError::new("E_PROJECT_DIR_READ", error.to_string()))?
+            .collect::<Result<Vec<_>, _>>().map_err(|error| LocalProjectError::new("E_PROJECT_DIR_READ", error.to_string()))?;
+        children.sort_by_key(|entry| entry.file_name());
+        for child in children {
+            let child_path = child.path();
+            if child_path.is_dir() || child_path.extension().is_some_and(|extension| extension == "ddn") {
+                collect_declared_disk_sources(root, &child_path, paths, visited)?;
+            }
+        }
+    } else if metadata.is_file() {
+        let logical = path.strip_prefix(root).map_err(|_| LocalProjectError::new("E_PROJECT_PATH_ESCAPE", "원문이 뿌리 밖에 있습니다"))?
+            .to_str().ok_or_else(|| LocalProjectError::new("E_PROJECT_PATH", "원문 경로는 UTF-8이어야 합니다"))?.replace('\\', "/");
+        paths.insert(normalize_project_path(&logical)?);
+    }
+    Ok(())
 }
 
 pub fn normalize_virtual_project_source(
     source: VirtualProjectSource,
 ) -> Result<NormalizedProjectManifest, LocalProjectError> {
+    if source.files.iter().any(|file| file.path == "ddn.asset.json" || matches!(normalize_role(&file.role).as_str(),
+        "asset_manifest" | "sealed_dataset_envelope" | "dataset_payload" | "transform_recipe" | "domain_evidence_manifest")) {
+        require_beta_project_feature("E_ALPHA_DATASET_UNSUPPORTED", "자료셋·증거 자료 연결은 알파에서 지원하지 않습니다. 베타에서 선언 방식과 함께 지원할 예정입니다")?;
+    }
     if source.schema != VIRTUAL_PROJECT_SOURCE_SCHEMA {
         return Err(LocalProjectError::new(
             "E_VIRTUAL_PROJECT_SCHEMA",
@@ -4466,7 +4972,9 @@ pub fn normalize_virtual_project_source(
     validate_domain_evidence_manifest_files(&source)?;
 
     let root_path = normalize_project_path(&source.root_path)?;
-    let entry_path = normalize_project_path(&source.entry_path)?;
+    let entry_path = if source.entry_path.is_empty() { String::new() } else {
+        normalize_project_path(&source.entry_path)?
+    };
     let mut normalized_paths = BTreeSet::new();
     let mut case_fold_paths = BTreeMap::<String, String>::new();
     let mut files = Vec::with_capacity(source.files.len());
@@ -4474,6 +4982,9 @@ pub fn normalize_virtual_project_source(
     for file in source.files {
         let path = normalize_project_path(&file.path)?;
         validate_role(&file.role, &path)?;
+        if matches!(normalize_role(&file.role).as_str(), "root" | "ddn_source") {
+            reject_source_bom(&file.utf8_text, Some(&path))?;
+        }
         if !normalized_paths.insert(path.clone()) {
             return Err(LocalProjectError::with_path(
                 "E_PROJECT_PATH_DUPLICATE",
@@ -4521,7 +5032,7 @@ pub fn normalize_virtual_project_source(
             "virtual project source에 root 파일이 없습니다",
         ));
     }
-    if !normalized_paths.contains(&entry_path) {
+    if !entry_path.is_empty() && !normalized_paths.contains(&entry_path) {
         return Err(LocalProjectError::with_path(
             "E_PROJECT_ENTRY_MISSING",
             entry_path,
@@ -5712,6 +6223,353 @@ fn gaji_package_sha256(prefix: &str, text_by_path: &BTreeMap<String, String>) ->
     sha256_hex(input.as_bytes())
 }
 
+#[derive(Debug, Clone)]
+struct CurrentModuleDirectives {
+    imports: Vec<ParsedImport>,
+    exports: Vec<ParsedExport>,
+}
+
+fn parse_unlinked_work_module(
+    source: &str, path: &str,
+) -> Result<ddonirang_lang::CanonProgram, ddonirang_lang::ParseError> {
+    let tokens = Lexer::new(source).tokenize().map_err(|error| ddonirang_lang::ParseError {
+        span: Span::new(error.pos, error.pos + 1), message: error.message,
+    })?;
+    ddonirang_lang::Parser::new_v25_with_mode(tokens, ParseMode::Strict)
+        .parse_unlinked_module(source.to_string(), path.to_string())
+}
+
+pub(crate) fn resolve_work_import_source_path(
+    source: &VirtualProjectSource, module_name: &str,
+) -> Result<String, LocalProjectError> {
+    build_project_graph(source.clone())?.module_paths.get(module_name).cloned()
+        .ok_or_else(|| LocalProjectError::new("E_MODULE_MISSING",
+            format!("모듬에 선언하지 않은 모듈입니다: {module_name}")))
+}
+
+fn is_model_recipe_dependency(source: &VirtualProjectSource, graph: &LocalProjectGraph,
+    target: &str) -> Result<bool, LocalProjectError> {
+    for (module, paths) in &graph.module_sources {
+        if !paths.iter().any(|path| source.files.iter().any(|file|
+            file.path == *path && ddonirang_lang::has_model_surface(&file.utf8_text))) { continue; }
+        let head = &graph.module_paths[module];
+        let text = &source.files.iter().find(|file| file.path == *head).expect("validated head").utf8_text;
+        let tokens = Lexer::new(text).tokenize().map_err(|error|
+            LocalProjectError::with_path("E_PROJECT_MODULE_PARSE", head, error.message))?;
+        // This pass only identifies an explicit named dependency. The normal
+        // directive pass below still validates the true public definitions.
+        let candidates = tokens.iter().filter_map(|token| match &token.kind {
+            TokenKind::Ident(name) | TokenKind::Josa(name) => Some(name.clone()), _ => None });
+        let context = ModuleDirectiveContext::default()
+            .with_known_imports(graph.module_paths.keys().cloned()).with_public_definitions(candidates);
+        if let Ok(prefix) = parse_module_directive_prefix(text, head, &context) {
+            if prefix.imports.iter().flat_map(|directive| &directive.entries).any(|entry| entry.target == target) {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
+pub(crate) fn resolve_work_project_module_directives(
+    source: &VirtualProjectSource, path: &str,
+) -> Result<ProjectModuleDirectives, LocalProjectError> {
+    let graph = build_project_graph(source.clone())?;
+    let path = normalize_project_path(path)?;
+    let (module, closure) = graph.module_sources.iter().find(|(_, paths)| paths.contains(&path))
+        .ok_or_else(|| LocalProjectError::with_path("E_PROJECT_UNDECLARED_SOURCE", &path,
+            "모듈에 선언하지 않은 원문입니다"))?;
+    let texts = source.files.iter().map(|file| Ok((normalize_project_path(&file.path)?, &file.utf8_text)))
+        .collect::<Result<BTreeMap<_, _>, LocalProjectError>>()?;
+    let mut definitions = BTreeSet::new();
+    for source_path in closure {
+        let masked = mask_module_metadata_blocks(texts[source_path])?;
+        if masked.trim().is_empty() { continue; }
+        if ddonirang_lang::has_model_surface(&masked) {
+            let model = ddonirang_lang::parse_model_program_with_source_file(&masked, source_path)
+                .map_err(|error| LocalProjectError::with_path_span(error.candidate_code, source_path,
+                    error.message, (error.span.start, error.span.end)))?;
+            definitions.extend(model.ir.definitions.into_iter().map(|definition| definition.name));
+            continue;
+        }
+        if is_model_recipe_dependency(source, &graph, module)? {
+            let recipes = ddonirang_lang::parse_model_recipe_library_with_source_file(&masked, source_path)
+                .map_err(|error| LocalProjectError::with_path_span(error.candidate_code, source_path,
+                    error.message, (error.span.start, error.span.end)))?;
+            definitions.extend(recipes.into_iter().map(|recipe| recipe.name));
+            continue;
+        }
+        let program = parse_unlinked_work_module(&masked, source_path)
+            .map_err(|error| LocalProjectError::with_path_span(
+                if error.code() == "E_PARSE" { "E_PROJECT_MODULE_PARSE" } else { error.code() }, source_path,
+                error.message, (error.span.start, error.span.end)))?;
+        for item in program.items {
+            let TopLevelItem::SeedDef(seed) = item;
+            definitions.insert(seed.canonical_name);
+            // The parser stores top-level declaration blocks in the synthetic
+            // tick seed. Only those blocks (outside the authored seed span)
+            // contribute module definitions, never ordinary callable locals.
+            if let Some(body) = seed.body {
+                for statement in body.stmts {
+                    if let Stmt::DeclBlock { items, span, .. } = statement {
+                        if span.start <= seed.span.start {
+                            definitions.extend(items.into_iter().map(|item| item.name));
+                        }
+                    }
+                }
+            }
+        }
+        for statement in program.root_stmts {
+            if let Stmt::Definition { name, .. } = statement { definitions.insert(name); }
+            else if let Stmt::DeclBlock { items, .. } = statement {
+                definitions.extend(items.into_iter().map(|item| item.name));
+            }
+        }
+    }
+    let head = &graph.module_paths[module];
+    let head_tokens = Lexer::new(texts[head]).tokenize().map_err(|error|
+        LocalProjectError::with_path("E_PROJECT_MODULE_PARSE", head, error.message))?;
+    let mut aliases = BTreeSet::new();
+    let mut segment_start = 0;
+    for (index, token) in head_tokens.iter().enumerate() {
+        if matches!(&token.kind, TokenKind::Ident(name) | TokenKind::Josa(name) if name == "쓰임") {
+            for pair in head_tokens[segment_start..index].windows(2) {
+                if matches!(pair[1].kind, TokenKind::Equals) {
+                    if let TokenKind::Ident(name) | TokenKind::Josa(name) = &pair[0].kind {
+                        if !aliases.insert(name.clone()) {
+                            return Err(LocalProjectError::with_path_span("E_IMPORT_ALIAS_DUPLICATE", head,
+                                format!("쓰임 이름이 중복됩니다: {name}"), (pair[0].span.start, pair[0].span.end)));
+                        }
+                    }
+                }
+            }
+            segment_start = index + 1;
+        }
+    }
+    if !matches!(head_tokens.first().map(|token| &token.kind), Some(TokenKind::LParen)) {
+        return Ok(ProjectModuleDirectives { imports: Vec::new(), exports: Vec::new(), typed_current: true });
+    }
+    let context = ModuleDirectiveContext::default()
+        .with_known_imports(graph.module_paths.keys().cloned())
+        .with_public_definitions(definitions);
+    let parsed = parse_module_directive_prefix(texts[head], head, &context)
+        .map_err(|error| {
+            let code = if error.message.contains("E_RD457_IMPORT_TARGET_UNKNOWN") { "E_MODULE_MISSING" }
+                else if error.message.contains("DUPLICATE") { "E_IMPORT_ALIAS_DUPLICATE" }
+                else { "E_CURRENT_MODULE_DIRECTIVE" };
+            let span = if matches!(code, "E_MODULE_MISSING" | "E_IMPORT_ALIAS_DUPLICATE") {
+                head_tokens.windows(2).filter(|pair|
+                    pair[0].span.start >= error.span.start && pair[0].span.end <= error.span.end
+                    && matches!(pair[1].kind, TokenKind::Equals)
+                    && matches!(pair[0].kind, TokenKind::Ident(_) | TokenKind::Josa(_)))
+                    .last().map(|pair| (pair[0].span.start, pair[0].span.end))
+                    .unwrap_or((error.span.start, error.span.end))
+            } else { (error.span.start, error.span.end) };
+            LocalProjectError::with_path_span(code, head, error.message, span)
+        })?;
+    Ok(ProjectModuleDirectives {
+        imports: parsed.imports.into_iter().flat_map(|directive| directive.entries)
+            .map(|entry| ParsedImport { alias: entry.local_name, source: entry.target }).collect(),
+        exports: parsed.exports.into_iter().flat_map(|directive| directive.entries)
+            .map(|entry| ParsedExport { external_name: entry.local_name, internal_name: entry.target }).collect(),
+        typed_current: true,
+    })
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ProjectModuleDirectives {
+    pub imports: Vec<ParsedImport>,
+    pub exports: Vec<ParsedExport>,
+    pub typed_current: bool,
+}
+
+/// The current supported Project frontdoor must reject retired L11 brace
+/// declarations before graph/link processing can interpret them as metadata.
+/// This token-level check shares the parser's lexical boundary: strings and
+/// comments have no `Ident + LBrace` token pair, so they remain ordinary data.
+fn validate_current_project_sources_before_link(
+    source: &VirtualProjectSource,
+) -> Result<(), LocalProjectError> {
+    for file in &source.files {
+        if file.role != "ddn_source" {
+            continue;
+        }
+        reject_source_bom(&file.utf8_text, Some(&file.path))?;
+        let tokens = Lexer::new(&file.utf8_text).tokenize().map_err(|error| {
+            LocalProjectError::with_path(
+                "E_PROJECT_ENTRY_PARSE",
+                file.path.clone(),
+                format!("current module source 토큰화 실패: {}", error.message),
+            )
+        })?;
+        for pair in tokens.windows(2) {
+            let legacy_name = match &pair[0].kind {
+                TokenKind::Ident(name) | TokenKind::Josa(name) => {
+                    matches!(name.as_str(), "쓰임" | "드러냄" | "공개")
+                }
+                _ => false,
+            };
+            if legacy_name && matches!(pair[1].kind, TokenKind::LBrace) {
+                return Err(LocalProjectError::with_path_span(
+                    "E_V25_DEFINITION_MIGRATION_REQUIRED",
+                    file.path.clone(),
+                    "V25에서는 이전 brace형 L11 선언을 사용할 수 없습니다. `(<항목>=value) 쓰임.` 또는 `(<항목>=value) 드러냄.`처럼 현재 typed directive를 사용하세요",
+                    (pair[0].span.start, pair[1].span.end),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn current_module_directives(
+    text: &str,
+    path: &str,
+    text_by_path: &BTreeMap<String, String>,
+) -> Result<Option<CurrentModuleDirectives>, LocalProjectError> {
+    reject_source_bom(text, Some(path))?;
+    // A current module directive always begins with its parenthesized typed
+    // surface.  Other project custody (including historical brace inputs)
+    // stays on its existing explicit parser path; it is never a fallback for
+    // a current typed document.
+    let tokens = Lexer::new(text).tokenize().map_err(|error| {
+        LocalProjectError::with_path(
+            "E_PROJECT_ENTRY_PARSE",
+            path,
+            format!("current module source 토큰화 실패: {}", error.message),
+        )
+    })?;
+    if !matches!(
+        tokens.first().map(|token| &token.kind),
+        Some(TokenKind::LParen)
+    ) {
+        return Ok(None);
+    }
+
+    let mut known_import_targets = BTreeSet::new();
+    for candidate_path in text_by_path.keys() {
+        let stem = candidate_path
+            .strip_suffix(".ddn")
+            .unwrap_or(candidate_path);
+        known_import_targets.insert(stem.to_string());
+        known_import_targets.insert(candidate_path.to_string());
+        known_import_targets.insert(format!("./{stem}"));
+        known_import_targets.insert(format!("./{candidate_path}"));
+    }
+
+    // The shared typed parser owns directive syntax and spans.  Its registry
+    // preflight receives lexer-derived candidates only so the parser can read
+    // the declaration tail; actual export authority is then checked against
+    // the typed declaration AST below, rather than by a local string parser.
+    let mut lexical_candidates = BTreeSet::new();
+    for token in tokens {
+        if let TokenKind::Ident(name) | TokenKind::Josa(name) = token.kind {
+            lexical_candidates.insert(name);
+        }
+    }
+    let context = ModuleDirectiveContext::default()
+        .with_known_imports(known_import_targets)
+        .with_public_definitions(lexical_candidates);
+    let parsed = parse_module_directive_prefix(text, path, &context).map_err(|error| {
+        LocalProjectError::with_path_span(
+            "E_CURRENT_MODULE_DIRECTIVE",
+            path,
+            error.message,
+            (error.span.start, error.span.end),
+        )
+    })?;
+
+    let declared_names = if parsed.exports.is_some() {
+        let program = ddonirang_lang::parse_v25_with_mode(&parsed.declaration_source, path, ParseMode::Strict)
+            .map_err(|error| {
+                LocalProjectError::with_path_span(
+                    "E_CURRENT_MODULE_DECLARATION",
+                    path,
+                    error.message,
+                    (error.span.start, error.span.end),
+                )
+            })?;
+        program.items
+            .iter()
+            .map(|item| match item {
+                TopLevelItem::SeedDef(seed) => seed.canonical_name.clone(),
+            })
+            .chain(program.root_stmts.iter().filter_map(|stmt| match stmt {
+                Stmt::Definition { name, .. } => Some(name.clone()),
+                // Binding/rebinding is not a new exported definition.
+                _ => None,
+            }))
+            .collect::<BTreeSet<_>>()
+    } else {
+        BTreeSet::new()
+    };
+    let imports = parsed
+        .imports
+        .as_ref()
+        .map(|directive| {
+            directive
+                .entries
+                .iter()
+                .map(|entry| ParsedImport {
+                    alias: entry.local_name.clone(),
+                    source: entry.target.clone(),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let exports = parsed
+        .exports
+        .as_ref()
+        .map(|directive| {
+            directive
+                .entries
+                .iter()
+                .map(|entry| {
+                    if !declared_names.contains(&entry.target) {
+                        return Err(LocalProjectError::with_path(
+                            "E_RD457_EXPORT_TARGET_PRIVATE_OR_UNKNOWN",
+                            path,
+                            format!(
+                                "{}는 이 module의 typed DefinitionIdentity가 아닙니다",
+                                entry.target
+                            ),
+                        ));
+                    }
+                    Ok(ParsedExport {
+                        external_name: entry.local_name.clone(),
+                        internal_name: entry.target.clone(),
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+    Ok(Some(CurrentModuleDirectives { imports, exports }))
+}
+
+/// Resolve a module's import/export metadata through the current typed
+/// directive owner when the source begins with the current parenthesized
+/// surface. Historical block custody remains explicit and never becomes a
+/// fallback for a typed document.
+pub(crate) fn resolve_project_module_directives(
+    text: &str,
+    path: &str,
+    text_by_path: &BTreeMap<String, String>,
+) -> Result<ProjectModuleDirectives, LocalProjectError> {
+    match current_module_directives(text, path, text_by_path)? {
+        Some(current) => Ok(ProjectModuleDirectives {
+            imports: current.imports,
+            exports: current.exports,
+            typed_current: true,
+        }),
+        None => Ok(ProjectModuleDirectives {
+            imports: parse_imports(text, path)?,
+            exports: parse_exports(text, path)?,
+            typed_current: false,
+        }),
+    }
+}
+
 pub(crate) fn parse_imports(
     text: &str,
     path: &str,
@@ -5783,7 +6641,10 @@ fn collect_alias_show_requests_from_ast(
         return Ok(Vec::new());
     }
     if ddonirang_lang::has_model_surface(&masked) {
-        runtime_surface::execution_envelope_from_source_with_path(&masked, path, Some(1))
+        runtime_surface::execution_envelope_from_source_with_profile(
+            &masked, path, Some(1),
+            Some(crate::ddn_runtime::V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY),
+        )
             .map_err(LocalProjectError::from_execution_diagnostic)?;
         return Ok(Vec::new());
     }
@@ -5890,6 +6751,7 @@ fn collect_alias_show_requests_from_body(
             Stmt::DeclBlock { .. }
             | Stmt::Definition { .. }
             | Stmt::Mutate { .. }
+            | Stmt::ResultFlow { .. }
             | Stmt::Expr { .. }
             | Stmt::Send { .. }
             | Stmt::Inspect { .. }
@@ -6001,7 +6863,8 @@ fn collect_module_info(
         ));
     }
     stack.push(path.to_string());
-    let parsed_imports = parse_imports(text, path)?;
+    let directives = resolve_project_module_directives(text, path, text_by_path)?;
+    let parsed_imports = directives.imports;
     let mut seen_aliases = BTreeSet::new();
     let mut imports = Vec::new();
     for import in parsed_imports {
@@ -6056,7 +6919,8 @@ fn collect_module_info(
             .then(a.resolved_path.cmp(&b.resolved_path))
     });
     let mut exports = BTreeMap::new();
-    for export in parse_exports(text, path)? {
+    let parsed_exports = directives.exports;
+    for export in parsed_exports {
         if exports
             .insert(export.external_name.clone(), export.internal_name.clone())
             .is_some()
@@ -6324,11 +7188,213 @@ fn to_canonical_json_line<T: Serialize>(value: &T) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    #[cfg(not(feature = "beta-project-features"))]
+    fn alpha_scope_rejects_gaji_lifecycle_without_source_or_lock_changes() {
+        let mut source = sample_multifile_source();
+        source.files.push(VirtualProjectFileSource {
+            path: "ddn.lock".into(), role: "lock".into(), utf8_text: "보존-lock-bytes".into(),
+        });
+        let artifact = build_local_gaji_artifact(extraction_request(sample_multifile_source())).unwrap();
+        let before = serde_json::to_vec(&source).unwrap();
+        for operation in [
+            GajiLifecycleOperation::Install { alias: "힘".into(), artifact: artifact.clone() },
+            GajiLifecycleOperation::Update { alias: "힘".into(), artifact: artifact.clone() },
+            GajiLifecycleOperation::Remove { alias: "힘".into() },
+        ] {
+            let error = build_gaji_lifecycle_plan(lifecycle_request(source.clone(), operation)).unwrap_err();
+            assert_eq!(error.code, "E_ALPHA_GAJI_LIFECYCLE_UNSUPPORTED");
+            assert_eq!(serde_json::to_vec(&source).unwrap(), before);
+        }
+    }
+
+    #[test]
+    #[cfg(not(feature = "beta-project-features"))]
+    fn alpha_scope_rejects_model_project_without_source_changes() {
+        let source = sample_bounded_model_source();
+        let before = serde_json::to_vec(&source).unwrap();
+        let error = build_project_graph(source.clone()).unwrap_err();
+        assert_eq!(error.code, "E_ALPHA_MODEL_PROJECT_UNSUPPORTED");
+        assert_eq!(serde_json::to_vec(&source).unwrap(), before);
+    }
+
+    #[test]
+    #[cfg(not(feature = "beta-project-features"))]
+    fn alpha_scope_rejects_dataset_and_recipe_without_source_changes() {
+        let source = sample_sealed_dataset_project();
+        let before = serde_json::to_vec(&source).unwrap();
+        assert_eq!(normalize_virtual_project_source(source.clone()).unwrap_err().code, "E_ALPHA_DATASET_UNSUPPORTED");
+        assert_eq!(project_asset_registry_from_source(&source).unwrap_err().code, "E_ALPHA_DATASET_UNSUPPORTED");
+        assert_eq!(build_project_execution_recipe(ProjectExecutionRecipeRequest {
+            schema: PROJECT_EXECUTION_RECIPE_REQUEST_SCHEMA.into(),
+            prepare_link_sha256: "0".repeat(64), recipe_version: 1, setup: json!({}),
+        }).unwrap_err().code, "E_ALPHA_DATASET_UNSUPPORTED");
+        assert_eq!(serde_json::to_vec(&source).unwrap(), before);
+    }
     use super::*;
 
     #[test]
+    #[cfg(not(feature = "beta-project-features"))]
+    fn alpha_scope_rejects_each_dataset_role_and_keeps_unknown_role_rejection() {
+        for role in ["asset_manifest", "sealed_dataset_envelope", "dataset_payload", "transform_recipe", "domain_evidence_manifest"] {
+            let mut source = sample_source();
+            source.files.push(VirtualProjectFileSource { path:"datasets/input.json".into(), role:role.into(), utf8_text:"{}".into() });
+            let before = serde_json::to_vec(&source).unwrap();
+            assert_eq!(normalize_virtual_project_source(source.clone()).unwrap_err().code, "E_ALPHA_DATASET_UNSUPPORTED");
+            assert_eq!(serde_json::to_vec(&source).unwrap(), before);
+        }
+        let mut source = sample_source();
+        source.files.push(VirtualProjectFileSource { path:"other.json".into(), role:"dataset_compat_fallback".into(), utf8_text:"{}".into() });
+        assert_eq!(normalize_virtual_project_source(source).unwrap_err().code, "E_PROJECT_FILE_ROLE");
+    }
+
+    fn d9_source(root: &str, entry: &str, files: &[(&str, &str)]) -> VirtualProjectSource {
+        let mut inputs = vec![VirtualProjectFileSource { path: "chosen-root.ddn".into(), role: "root".into(), utf8_text: root.into() }];
+        inputs.extend(files.iter().map(|(path, text)| VirtualProjectFileSource {
+            path: (*path).into(), role: "ddn_source".into(), utf8_text: (*text).into(),
+        }));
+        VirtualProjectSource { schema: VIRTUAL_PROJECT_SOURCE_SCHEMA.into(), kind: Some(LOCAL_PROJECT_TREE_KIND.into()),
+            package_hash: None, root_path: "chosen-root.ddn".into(), entry_path: entry.into(), files: inputs }
+    }
+
+    #[test]
+    fn d9_canonical_named_start_runs_without_a_hidden_wrapper() {
+        let source = d9_source("(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"app/main.ddn\",원문=\"app/main.ddn\")], 시작=(모듈=앱,정의=실행)) 얽음.",
+            "app/main.ddn", &[("app/main.ddn", "실행:움직씨 := { 0 보여주기. }")]);
+        let prepared = build_project_prepare_link(source.clone(), "", false, false).unwrap();
+        assert_eq!(prepared.target, "실행");
+        assert!(!prepared.linked_execution_source.contains("매마디:움직씨"));
+        let run = build_project_run_summary(source, "", false, false).unwrap();
+        assert_eq!(run.runtime_output_log_texts, vec!["0"]);
+    }
+
+    #[test]
+    fn d9_multisource_exports_bind_after_all_definitions_are_collected() {
+        let source = d9_source("(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"main.ddn\",원문=\"main.ddn\"),(이름=힘,머리=\"head.ddn\",원문=차림[\"head.ddn\",\"value.ddn\"])], 시작=(모듈=앱,정의=실행)) 얽음.",
+            "main.ddn", &[("main.ddn", "(힘=힘) 쓰임. 실행:움직씨 := { 힘.중력 보여주기. }"),
+                ("head.ddn", "(중력=중력) 드러냄."), ("value.ddn", "중력:수 := 9.8.")]);
+        let run = build_project_run_summary(source, "", false, false).unwrap();
+        assert_eq!(run.runtime_output_log_texts.len(), 1);
+        assert!(run.runtime_output_log_texts[0].starts_with("9.8"));
+    }
+
+    #[test]
+    fn d9_head_membership_and_startless_library_are_explicit() {
+        let missing = d9_source("(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"head.ddn\",원문=\"value.ddn\")]) 얽음.", "",
+            &[("head.ddn", ""), ("value.ddn", "값:수 := 1.")]);
+        assert_eq!(build_project_graph(missing).unwrap_err().code, "E_PROJECT_HEAD_OUTSIDE_SOURCE_CLOSURE");
+        let library = d9_source("(글판=\"v25\", 모듬=차림[(이름=도구,머리=\"lib.ddn\",원문=\"lib.ddn\")]) 얽음.", "", &[("lib.ddn", "값:수 := 1.")]);
+        build_project_symbol_boundary(library.clone()).unwrap();
+        assert_eq!(build_project_run_summary(library, "", false, false).unwrap_err().code, "E_PROJECT_START_REQUIRED");
+    }
+
+    #[test]
+    fn d9_nested_root_directory_closure_and_rename_preserve_membership() {
+        let mut source = d9_source("(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"src/main.ddn\",원문=\"src\")], 시작=(모듈=앱,정의=실행)) 얽음.",
+            "nested/src/main.ddn", &[("nested/src/main.ddn", "실행:움직씨 := { 0 보여주기. }"),
+                ("nested/src/value.ddn", "값 := 1.")]);
+        source.root_path = "nested/custom.ddn".into();
+        source.files[0].path = source.root_path.clone();
+        let graph = build_project_graph(source.clone()).unwrap();
+        assert_eq!(graph.module_sources["앱"].len(), 2);
+        let hash = virtual_project_source_sha256(&source).unwrap();
+        let plan = build_rename_file_plan(source, &hash, "nested/src/main.ddn", "nested/src/entry.ddn").unwrap();
+        let graph = build_project_graph(plan.project_source).unwrap();
+        assert_eq!(graph.entry_path, "nested/src/entry.ddn");
+    }
+
+    #[test]
+    fn d9_import_cycles_are_rejected_before_execution() {
+        let source = d9_source("(글판=\"v25\", 모듬=차림[(이름=도구,머리=\"a.ddn\",원문=\"a.ddn\"),(이름=자료,머리=\"b.ddn\",원문=\"b.ddn\")]) 얽음.", "",
+            &[("a.ddn", "(자료=자료) 쓰임."), ("b.ddn", "(도구=도구) 쓰임.")]);
+        let error = build_project_symbol_boundary(source).unwrap_err();
+        assert_eq!(error.code, "E_IMPORT_CYCLE", "{error:?}");
+    }
+
+    #[test]
+    fn wo03_project_epoch_is_owned_by_root_not_source_content() {
+        for text in ["값 := 1. 값 보여주기.", "값 <- 1. 값 보여주기."] {
+            let mut source = sample_source();
+            source.files[0].utf8_text = text.to_string();
+            assert_eq!(project_source_profile(&source, None).unwrap_err().code,
+                "E_PROJECT_ROOT_PARSE");
+            // This exercises epoch extraction only; module resolution is a separate gate.
+            // D9: package version is not the source epoch; only 글판 owns it.
+            source.files[1].utf8_text = "(가지=로컬.검사, 판본=\"1.0\", 글판=\"v25\", 모듬=차림[(이름=앱, 머리=\"app/main.ddn\", 원문=\"app/main.ddn\")]) 얽음.".to_string();
+            assert_eq!(project_source_profile(&source, None).unwrap(),
+                crate::ddn_runtime::V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY);
+            assert_eq!(project_source_profile(&source, Some("legacy")).unwrap_err().code,
+                "E_PROJECT_SOURCE_PROFILE_CONFLICT");
+        }
+    }
+
+    #[test]
+    fn wo03_project_epoch_rejects_unknown_duplicate_and_nonfield_values() {
+        // D9 moves these failures into the common typed root parser. Preserve
+        // each negative purpose by checking its specific underlying cause.
+        for (root, cause) in [
+            ("(글판=\"v24\") 얽음.", "E_WORK_ROOT_SOURCE_EPOCH"),
+            ("(글판=\"v25\", 글판=\"v25\") 얽음.", "E_WORK_ROOT_DUPLICATE_FIELD"),
+            ("(글판=v25) 얽음.", "E_WORK_ROOT_SOURCE_EPOCH"),
+            ("() 얽음.", "E_WORK_ROOT_SOURCE_EPOCH"),
+            ("프로젝트 { 판본: \"v25\". }.", "E_WORK_ROOT_SURFACE"),
+            ("(가지=검사, 판본=\"v25\") 얽음.", "E_WORK_ROOT_SOURCE_EPOCH"),
+            ("(글판=\"v25\") 얼개.", "E_WORK_ROOT_SURFACE"),
+        ] {
+            let mut source = sample_source();
+            source.files[1].utf8_text = root.to_string();
+            let error = project_source_profile(&source, None).unwrap_err();
+            assert_eq!(error.code, "E_PROJECT_ROOT_PARSE", "{root}");
+            assert!(error.message.contains(cause), "{root}: {error:?}");
+        }
+    }
+
+    #[test]
+    fn wo03_bom_source_is_rejected_without_changing_original_offsets() {
+        let text = "\u{feff}값 := 1.\n값 보여주기.\n";
+        let error = mask_module_metadata_blocks(text).expect_err("RD-534 rejects BOM");
+        assert_eq!(error.code, "E_SOURCE_UTF8_BOM_FORBIDDEN");
+        assert_eq!(error.source_span, Some((0, 3)));
+        assert_eq!(error.phase, Some("source_ingress"));
+        assert_eq!(text.find('값'), Some(3));
+        assert_eq!(text.as_bytes().get(..3), Some(&[0xef, 0xbb, 0xbf][..]));
+    }
+
+    #[test]
+    fn wo03_bom_project_root_and_module_are_rejected_at_ingress() {
+        for role in ["root", "ddn_source"] {
+            let mut source = sample_source();
+            let file = source
+                .files
+                .iter_mut()
+                .find(|file| file.role == role)
+                .unwrap();
+            file.utf8_text.insert(0, '\u{feff}');
+            let path = file.path.clone();
+            let error = normalize_virtual_project_source(source).expect_err("BOM rejected");
+            assert_eq!(error.code, "E_SOURCE_UTF8_BOM_FORBIDDEN");
+            assert_eq!(error.path.as_deref(), Some(path.as_str()));
+            assert_eq!(error.source_span, Some((0, 3)));
+        }
+    }
+
+    #[test]
+    fn wo03_bom_free_metadata_mask_preserves_unicode_offsets_and_newlines() {
+        for newline in ["\n", "\r\n"] {
+            let text = format!("드러냄 {{ 값. }}{newline}값 <- 1.{newline}");
+            let masked = mask_module_metadata_blocks(&text).expect("BOM-free source");
+            assert_eq!(masked.len(), text.len());
+            assert_eq!(masked.find("값 <-"), text.find("값 <-"));
+            assert!(masked.ends_with(&format!("값 <- 1.{newline}")));
+        }
+        // U+FEFF inside a string is data, not a byte-ingress BOM.
+        let text = "값 <- \"\u{feff}\".";
+        assert_eq!(mask_module_metadata_blocks(text).unwrap(), text);
+    }
+
+    #[test]
     fn rd203_prelink_validation_keeps_entry_path_and_exact_field_segment() {
-        let entry = "사람 <- (이름: \"또니\").\n나이 <- 사람.나이.\n(나이: 나이) 보임.\n";
+        let entry = "앱:움직씨 := {\n사람 := (이름: \"또니\").\n나이 := 사람.나이.\n(나이: 나이) 보임.\n}.\n";
         let source = VirtualProjectSource {
             schema: VIRTUAL_PROJECT_SOURCE_SCHEMA.to_string(),
             kind: Some(LOCAL_PROJECT_TREE_KIND.to_string()),
@@ -6339,7 +7405,7 @@ mod tests {
                 VirtualProjectFileSource {
                     path: PROJECT_ROOT_FILE.to_string(),
                     role: "root".to_string(),
-                    utf8_text: "프로젝트 {\n  이름: \"RD-203\".\n  첫글: \"./main.ddn\".\n  목표 { 앱: \"./main.ddn\". }\n}.\n".to_string(),
+                    utf8_text: "(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"main.ddn\",원문=\"main.ddn\")], 시작=(모듈=앱,정의=앱)) 얽음.".to_string(),
                 },
                 VirtualProjectFileSource {
                     path: "main.ddn".to_string(),
@@ -6354,7 +7420,8 @@ mod tests {
         assert_eq!(err.path.as_deref(), Some("main.ddn"));
         let span = err.source_span.expect("field span");
         assert_eq!(&entry[span.0..span.1], "나이");
-        assert_eq!(span, (47, 53));
+        let field_start = entry.find("사람.나이").unwrap() + "사람.".len();
+        assert_eq!(span, (field_start, field_start + "나이".len()));
     }
 
     #[test]
@@ -6387,6 +7454,135 @@ mod tests {
     }
 
     #[test]
+    fn empty_project_current_callable_runs_through_the_shared_frontdoor() {
+        let mut source = sample_source();
+        source
+            .files
+            .iter_mut()
+            .find(|file| file.path == "뿌리.ddn")
+            .expect("empty-project root")
+            .utf8_text = "(글판=\"v25\", 모듬=차림[(이름=앱, 머리=\"app/main.ddn\", 원문=\"app/main.ddn\")], 시작=(모듈=앱, 정의=실행)) 얽음.".to_string();
+        source
+            .files
+            .iter_mut()
+            .find(|file| file.path == "app/main.ddn")
+            .expect("empty-project entry")
+            .utf8_text = "실행:움직씨 := {\n  값:수 := 0.\n  값 보여주기.\n}.\n".to_string();
+
+        let first =
+            build_project_run_summary_with_supported_profile(source.clone(), "", false, false)
+                .expect("current empty-project callable runs");
+        let second = build_project_run_summary_with_supported_profile(source, "", false, false)
+            .expect("repeated current empty-project callable runs");
+        assert_eq!(first.runtime_output_log_texts, vec!["0"]);
+        assert_eq!(first.runtime_state_hash, second.runtime_state_hash);
+        assert_eq!(first.summary_sha256, second.summary_sha256);
+    }
+
+    #[test]
+    fn current_workbench_physics_body_runs_through_the_shared_frontdoor() {
+        // D9: use the authored Workbench template, not a hidden callable wrapper.
+        let source = VirtualProjectSource {
+            schema: VIRTUAL_PROJECT_SOURCE_SCHEMA.to_string(),
+            kind: Some(LOCAL_PROJECT_TREE_KIND.to_string()),
+            package_hash: None,
+            root_path: "뿌리.ddn".to_string(),
+            entry_path: "app/main.ddn".to_string(),
+            files: vec![
+                VirtualProjectFileSource {
+                    path: "뿌리.ddn".to_string(),
+                    role: "root".to_string(),
+                    utf8_text: "(글판=\"v25\", 모듬=차림[(이름=앱, 머리=\"app/main.ddn\", 원문=\"app/main.ddn\"), (이름=힘, 머리=\"lib/힘.ddn\", 원문=\"lib/힘.ddn\")], 시작=(모듈=앱, 정의=실행)) 얽음.".to_string(),
+                },
+                VirtualProjectFileSource {
+                    path: "app/main.ddn".to_string(),
+                    role: "ddn_source".to_string(),
+                    utf8_text: "(힘=힘) 쓰임.\n\n실행:움직씨 := {\n초기속도x:수 := 0.\n초기속도y:수 := 20.\n시간간격:수 := 0.1.\n중력가속도:수 := 힘.중력.\n속도:수 := 초기속도y - 중력가속도 * 시간간격.\n위치:수 := 초기속도x + 속도 * 시간간격.\n위치 보여주기.\n속도 보여주기.\n힘.중력 보여주기.\n}.\n".to_string(),
+                },
+                VirtualProjectFileSource {
+                    path: "lib/힘.ddn".to_string(),
+                    role: "ddn_source".to_string(),
+                    utf8_text: "(중력=중력) 드러냄.\n\n중력:수 := 9.8.\n".to_string(),
+                },
+            ],
+        };
+
+        let prepared = build_project_prepare_link(source.clone(), "", true, false)
+            .expect("current Workbench physics body prepares through the shared frontdoor");
+        assert_eq!(prepared.target, "실행");
+        assert!(!prepared.linked_execution_source.contains("매마디:움직씨"));
+
+        let first = build_project_run_summary_with_supported_profile(
+            source.clone(),
+            "",
+            false,
+            false,
+        )
+        .expect("current Workbench physics body runs");
+        let second = build_project_run_summary_with_supported_profile(source, "", false, false)
+            .expect("repeated current Workbench physics body runs");
+        assert_eq!(first.runtime_state_hash, second.runtime_state_hash);
+        assert_eq!(first.summary_sha256, second.summary_sha256);
+        assert!(!first.runtime_output_log_texts.is_empty());
+    }
+
+    #[test]
+    fn current_project_run_rejects_legacy_l11_before_runtime_publication() {
+        let source = VirtualProjectSource {
+            schema: VIRTUAL_PROJECT_SOURCE_SCHEMA.to_string(),
+            kind: Some(LOCAL_PROJECT_TREE_KIND.to_string()),
+            package_hash: None,
+            root_path: "뿌리.ddn".to_string(),
+            entry_path: "app/main.ddn".to_string(),
+            files: vec![
+                VirtualProjectFileSource {
+                    path: "뿌리.ddn".to_string(),
+                    role: "root".to_string(),
+                    utf8_text: "(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"app/main.ddn\",원문=\"app/main.ddn\"),(이름=운동,머리=\"lib/운동.ddn\",원문=\"lib/운동.ddn\")], 시작=(모듈=앱,정의=앱)) 얽음.".to_string(),
+                },
+                VirtualProjectFileSource {
+                    path: "app/main.ddn".to_string(),
+                    role: "ddn_source".to_string(),
+                    utf8_text: "쓰임 { 운동: \"./lib/운동\". }\n".to_string(),
+                },
+                VirtualProjectFileSource {
+                    path: "lib/운동.ddn".to_string(),
+                    role: "ddn_source".to_string(),
+                    utf8_text: "(속도=속도) 드러냄.\n\n속도:수 := 7.\n".to_string(),
+                },
+            ],
+        };
+
+        let error = build_project_run_summary_with_supported_profile(source, "앱", false, false)
+            .expect_err("legacy brace directives must fail before a run summary exists");
+        assert_eq!(error.code, "E_V25_DEFINITION_MIGRATION_REQUIRED");
+        assert_eq!(error.path.as_deref(), Some("app/main.ddn"));
+
+        let comment_only = VirtualProjectSource {
+            schema: VIRTUAL_PROJECT_SOURCE_SCHEMA.to_string(),
+            kind: Some(LOCAL_PROJECT_TREE_KIND.to_string()),
+            package_hash: None,
+            root_path: "뿌리.ddn".to_string(),
+            entry_path: "app/main.ddn".to_string(),
+            files: vec![
+                VirtualProjectFileSource {
+                    path: "뿌리.ddn".to_string(),
+                    role: "root".to_string(),
+                    utf8_text: "(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"app/main.ddn\",원문=\"app/main.ddn\")], 시작=(모듈=앱,정의=앱)) 얽음.".to_string(),
+                },
+                VirtualProjectFileSource {
+                    path: "app/main.ddn".to_string(),
+                    role: "ddn_source".to_string(),
+                    utf8_text: "앱:움직씨 := { 값:수 := 1. // 쓰임 { 드러냄 { 공개 { 는 주석입니다\n값 보여주기.\n}.".to_string(),
+                },
+            ],
+        };
+        let summary = build_project_run_summary_with_supported_profile(comment_only, "앱", false, false)
+            .expect("comment text must not trigger a legacy L11 rejection");
+        assert_eq!(summary.runtime_output_log_texts, vec!["1"]);
+    }
+
+    #[test]
     fn supported_project_run_binds_declared_host_resource_before_execution() {
         let text = "프로젝트 입력\n";
         let request = HostResourceRequest {
@@ -6402,7 +7598,7 @@ mod tests {
             transcript: None,
         };
         let summary = build_project_run_summary_with_supported_profile_and_host_resources(
-            sample_multifile_source(),
+            current_typed_multifile_source(),
             "앱",
             false,
             false,
@@ -6410,9 +7606,17 @@ mod tests {
         )
         .expect("project host resource run");
         assert!(summary.host_resource_receipt.is_some());
-        assert_ne!(summary.summary_sha256, build_project_run_summary_with_supported_profile(
-            sample_multifile_source(), "앱", false, false
-        ).expect("ordinary project run").summary_sha256);
+        assert_ne!(
+            summary.summary_sha256,
+            build_project_run_summary_with_supported_profile(
+                current_typed_multifile_source(),
+                "앱",
+                false,
+                false
+            )
+            .expect("ordinary project run")
+            .summary_sha256
+        );
 
         let invalid = HostResourceRequest {
             schema: host_resource::HOST_RESOURCE_REQUEST_SCHEMA.to_string(),
@@ -6427,7 +7631,11 @@ mod tests {
             transcript: None,
         };
         let error = build_project_run_summary_with_supported_profile_and_host_resources(
-            sample_multifile_source(), "앱", false, false, &invalid,
+            current_typed_multifile_source(),
+            "앱",
+            false,
+            false,
+            &invalid,
         )
         .expect_err("invalid declaration must stop before project execution");
         assert_eq!(error.code, "E_HOST_RESOURCE_PREFLIGHT");
@@ -6444,20 +7652,38 @@ mod tests {
                 VirtualProjectFileSource {
                     path: "뿌리.ddn".to_string(),
                     role: "root".to_string(),
-                    utf8_text: "프로젝트 { 이름: \"샘\". 첫글: \"./app/main.ddn\". 목표 { 앱: \"./app/main.ddn\". } 모듈길 { 로컬: \"./lib\". } }.".to_string(),
+                    // D9: explicit module membership and authored executable definition.
+                    utf8_text: "(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"app/main.ddn\",원문=\"app/main.ddn\"),(이름=운동,머리=\"lib/운동.ddn\",원문=\"lib/운동.ddn\")], 시작=(모듈=앱,정의=앱)) 얽음.".to_string(),
                 },
                 VirtualProjectFileSource {
                     path: "app/main.ddn".to_string(),
                     role: "ddn_source".to_string(),
-                    utf8_text: "쓰임 { 운동: \"./lib/운동\". }\n운동.속도 보여주기.".to_string(),
+                    utf8_text: "(운동=운동) 쓰임.\n앱:움직씨 := { 운동.속도 보여주기. }.".to_string(),
                 },
                 VirtualProjectFileSource {
                     path: "lib/운동.ddn".to_string(),
                     role: "ddn_source".to_string(),
-                    utf8_text: "드러냄 { 속도. }\n속도 <- 7.".to_string(),
+                    utf8_text: "(속도=속도) 드러냄.\n속도:수 := 7.".to_string(),
                 },
             ],
         }
+    }
+
+    fn current_typed_multifile_source() -> VirtualProjectSource {
+        let mut source = sample_multifile_source();
+        source
+            .files
+            .iter_mut()
+            .find(|file| file.path == "app/main.ddn")
+            .expect("current entry")
+            .utf8_text = "(운동=운동) 쓰임.\n\n앱:움직씨 := { 운동.속도 보여주기. }.".to_string();
+        source
+            .files
+            .iter_mut()
+            .find(|file| file.path == "lib/운동.ddn")
+            .expect("current module")
+            .utf8_text = "(속도=속도) 드러냄.\n\n속도:수 := 7.".to_string();
+        source
     }
 
     fn sample_natural_iteration_multifile_source() -> VirtualProjectSource {
@@ -6471,16 +7697,16 @@ mod tests {
                 VirtualProjectFileSource {
                     path: "뿌리.ddn".to_string(),
                     role: "root".to_string(),
-                    utf8_text: "프로젝트 { 이름: \"자연 순회 다중 파일\". 첫글: \"./app/main.ddn\". 목표 { 앱: \"./app/main.ddn\". } 모듈길 { 로컬: \"./lib\". } }.".to_string(),
+                    utf8_text: "(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"app/main.ddn\",원문=\"app/main.ddn\"),(이름=계산,머리=\"lib/계산.ddn\",원문=\"lib/계산.ddn\")], 시작=(모듈=앱,정의=앱)) 얽음.".to_string(),
                 },
                 VirtualProjectFileSource {
                     path: "app/main.ddn".to_string(),
                     role: "ddn_source".to_string(),
-                    utf8_text: r#"쓰임 { 계산: "./lib/계산". }
-매틱:움직씨 = {
+                    utf8_text: r#"(계산=계산) 쓰임.
+앱:움직씨 := {
   채비 {
-    목록:(수)차림 <- (1, 2, 3) 차림.
-    합:수 <- 0.
+    목록:(수)차림 := (1, 2, 3) 차림.
+    합:수 := 0.
   }.
   목록마다 { () 계산.누적하기. }.
   (합: 합) 보임.
@@ -6489,8 +7715,8 @@ mod tests {
                 VirtualProjectFileSource {
                     path: "lib/계산.ddn".to_string(),
                     role: "ddn_source".to_string(),
-                    utf8_text: r#"드러냄 { 누적. }
-(값:수) 누적:움직씨 = {
+                    utf8_text: r#"(누적=누적) 드러냄.
+(값:수) 누적:움직씨 := {
   합 <- 합 + 값.
 }"#.to_string(),
                 },
@@ -6524,7 +7750,7 @@ mod tests {
         assert!(summary.linked_execution_source.contains("목록마다"));
         assert!(summary
             .linked_execution_canonical_ddn
-            .contains("목록:값 누적기."));
+            .contains("(목록):값 누적기."), "{}", summary.linked_execution_canonical_ddn);
         assert!(!summary.linked_execution_canonical_ddn.contains("목록마다"));
     }
 
@@ -6689,6 +7915,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "beta-project-features")]
     fn prepares_bounded_model_project_without_legacy_preprocess() {
         let prepared = build_project_prepare_link(sample_bounded_model_source(), "앱", true, false)
             .expect("typed model project prepare/link");
@@ -6851,17 +8078,17 @@ mod tests {
                 VirtualProjectFileSource {
                     path: "뿌리.ddn".to_string(),
                     role: "root".to_string(),
-                    utf8_text: crate::self_contained_test_sources::MULTIFILE_ROOT.to_string(),
+                    utf8_text: "(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"app/main.ddn\",원문=\"app/main.ddn\"),(이름=도움,머리=\"lib/도움.ddn\",원문=\"lib/도움.ddn\")], 시작=(모듈=앱,정의=앱)) 얽음.".into(),
                 },
                 VirtualProjectFileSource {
                     path: "app/main.ddn".to_string(),
                     role: "ddn_source".to_string(),
-                    utf8_text: crate::self_contained_test_sources::MULTIFILE_ENTRY.to_string(),
+                    utf8_text: "(도움=도움) 쓰임.\n시간 := 0.\n각도 := 도움.시작값.\n앱:움직씨 := {\n(매마디)마다 {\n시간 <- 시간 + 1.\n각도 <- 각도 + 도움.증가값.\n(경과: 시간 * 1@s, 각도: 각도 * 1@rad, 증가량: 도움.증가값) 보임.\n}.\n}.".into(),
                 },
                 VirtualProjectFileSource {
                     path: "lib/도움.ddn".to_string(),
                     role: "ddn_source".to_string(),
-                    utf8_text: crate::self_contained_test_sources::MULTIFILE_HELPER.to_string(),
+                    utf8_text: "(시작값=시작값, 증가값=증가값) 드러냄.\n시작값 := 20.\n증가값 := 3.".into(),
                 },
             ],
         }
@@ -6893,6 +8120,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "beta-project-features")]
     fn accepts_only_the_sealed_dataset_portable_file_roles_added_by_w1() {
         let mut source = sample_source();
         source.files.extend([
@@ -6946,6 +8174,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "beta-project-features")]
     fn project_normalize_validates_domain_evidence_role_against_dataset_rows_and_columns() {
         use crate::domain_evidence_manifest::{
             seal_domain_evidence_manifest, DomainEvidenceManifest,
@@ -7116,7 +8345,8 @@ mod tests {
         assert_eq!(prepared.schema, "ddn.local_project.prepare_link.v1");
         assert_eq!(prepared.frontdoor, "wasm_project_prepare_link_json");
         assert_eq!(prepared.target_path, "app/main.ddn");
-        assert!(prepared.linked_execution_source.contains("속도 <- 7."));
+        // The exported name is now an authored D9 Definition, not a legacy binding.
+        assert!(prepared.linked_execution_source.contains("속도:수 := 7."));
         assert!(prepared.linked_execution_source.contains("속도 보여주기."));
         assert!(!prepared.linked_execution_source_sha256.is_empty());
         assert!(prepared.symbol_boundary.output_rows.is_empty());
@@ -7133,6 +8363,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "beta-project-features")]
     fn prepare_link_and_project_run_bind_verified_dataset_identity_to_execution() {
         let source = sample_sealed_dataset_project();
         let symbols =
@@ -7202,7 +8433,7 @@ mod tests {
             .find(|file| file.path == "app/main.ddn")
             .expect("entry file");
         entry.utf8_text =
-            "쓰임 { 운동: \"./lib/운동\". }\n(매마디)마다 {\n  운동.속도 보여주기.\n}.".to_string();
+            "(운동=운동) 쓰임.\n앱:움직씨 := { (매마디)마다 {\n  운동.속도 보여주기.\n}. }.".to_string();
         let prepared = build_project_prepare_link(source, "앱", true, true).expect("prepare/link");
         assert_eq!(
             prepared.runtime_execution_envelope["execution_mode_decision"]["mode"],
@@ -7241,8 +8472,8 @@ mod tests {
             prepared.runtime_execution_envelope["execution_mode_decision"]["mode"],
             "live"
         );
-        assert!(prepared.linked_execution_source.contains("시작값 <- 20."));
-        assert!(prepared.linked_execution_source.contains("증가값 <- 3."));
+        assert!(prepared.linked_execution_source.contains("시작값 := 20."));
+        assert!(prepared.linked_execution_source.contains("증가값 := 3."));
         assert!(
             prepared.linked_execution_source.contains("증가량: 증가값"),
             "{}",
@@ -7312,7 +8543,7 @@ mod tests {
             .find(|file| file.path == "app/main.ddn")
             .unwrap();
         main.utf8_text =
-            "쓰임 { 운동: \"./lib/운동\". }\n\"./lib/운동\" 보여주기.\n# ./lib/운동은 설명 문자열"
+            "(운동=운동) 쓰임.\n앱:움직씨 := { \"./lib/운동\" 보여주기. }.\n# ./lib/운동은 설명 문자열"
                 .to_string();
         let before_hash = virtual_project_source_sha256(&source).expect("hash");
         let plan = build_project_edit_plan(ProjectEditPlanRequest {
@@ -7339,7 +8570,7 @@ mod tests {
             .iter()
             .find(|file| file.path == "app/main.ddn")
             .unwrap();
-        assert!(main.utf8_text.contains("쓰임 { 운동: \"./lib/힘\". }"));
+        assert!(main.utf8_text.contains("(운동=운동) 쓰임."));
         assert!(main.utf8_text.contains("\"./lib/운동\" 보여주기."));
         assert!(main.utf8_text.contains("# ./lib/운동은 설명 문자열"));
         let root = plan
@@ -7348,7 +8579,9 @@ mod tests {
             .iter()
             .find(|file| file.path == PROJECT_ROOT_FILE)
             .unwrap();
-        assert!(root.utf8_text.contains("모듈길 { 로컬: \"./lib\". }"));
+        assert!(root.utf8_text.contains("머리=\"lib/힘.ddn\""));
+        assert!(root.utf8_text.contains("원문=\"lib/힘.ddn\""));
+        assert!(!root.utf8_text.contains("lib/운동.ddn"));
     }
 
     #[test]
@@ -7411,7 +8644,30 @@ mod tests {
     }
 
     #[test]
-    fn structural_edit_plan_supports_add_module_duplicate_and_set_entry() {
+    fn structural_module_add_rejects_duplicate_names_injection_and_root_escape() {
+        for (path, name) in [
+            ("lib/새.ddn", "앱"),
+            ("lib/새.ddn", "\"새\""),
+            ("lib/새.ddn", "새, 머리=\"lib/새.ddn\""),
+        ] {
+            let source = sample_multifile_source();
+            let before = virtual_project_source_sha256(&source).unwrap();
+            assert!(build_project_edit_plan(edit_request(source.clone(),
+                ProjectEditOperation::AddModule { path: path.into(), module_name: name.into() })).is_err());
+            assert_eq!(virtual_project_source_sha256(&source).unwrap(), before);
+        }
+        let mut source = sample_multifile_source();
+        source.root_path = "work/뿌리.ddn".into();
+        source.entry_path = "work/app/main.ddn".into();
+        for file in &mut source.files { file.path = format!("work/{}", file.path); }
+        let error = build_project_edit_plan(edit_request(source,
+            ProjectEditOperation::AddModule { path: "outside.ddn".into(), module_name: "밖".into() }))
+            .expect_err("cannot add a module outside the root directory");
+        assert_eq!(error.code, "E_PROJECT_PATH_ESCAPE");
+    }
+
+    #[test]
+    fn structural_edit_adds_declared_module_and_rejects_implicit_membership_and_start() {
         let source = sample_multifile_source();
         let added = build_project_edit_plan(edit_request(
             source,
@@ -7422,44 +8678,86 @@ mod tests {
         ))
         .expect("add module");
         assert_eq!(added.operation, "add_module");
+        assert!(added.atomic_apply);
+        assert_eq!(added.patches.len(), 2);
         assert!(added.project_source.files.iter().any(|file| {
-            file.path == "lib/힘.ddn" && file.utf8_text.contains("드러냄 { 값. }")
+            file.path == "lib/힘.ddn"
+                && file.utf8_text.contains("(값=값) 드러냄.")
+                && file.utf8_text.contains("값:수 := 0.")
+                && !file.utf8_text.contains("드러냄 {")
+                && !file.utf8_text.contains("채비 {")
         }));
 
+        let generated_texts = added
+            .project_source
+            .files
+            .iter()
+            .map(|file| (file.path.clone(), file.utf8_text.clone()))
+            .collect::<BTreeMap<_, _>>();
+        let generated_directives = current_module_directives(
+            generated_texts
+                .get("lib/힘.ddn")
+                .expect("generated module text"),
+            "lib/힘.ddn",
+            &generated_texts,
+        )
+        .expect("generated current module directives")
+        .expect("generated current module directive surface");
+        assert_eq!(
+            generated_directives
+                .exports
+                .iter()
+                .map(|entry| (entry.external_name.as_str(), entry.internal_name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("값", "값")]
+        );
+
+        let mut cross_module = added.project_source.clone();
+        cross_module
+            .files
+            .iter_mut()
+            .find(|file| file.path == "app/main.ddn")
+            .expect("entry file")
+            .utf8_text = "(힘=힘) 쓰임.\n앱:움직씨 := { 힘.값 보여주기. }.\n".to_string();
+        let boundary = build_linked_project_with_options(cross_module, None, false, None)
+            .expect("generated current module must resolve through the local-project linker")
+            .symbol_boundary;
+        assert!(boundary.exports.iter().any(|export| {
+            export.module_path == "lib/힘.ddn"
+                && export.external_name == "값"
+                && export.internal_name == "값"
+        }));
+        assert!(boundary.resolved_symbols.iter().any(|symbol| {
+            symbol.alias == "힘"
+                && symbol.symbol == "값"
+                && symbol.module_path == "lib/힘.ddn"
+                && symbol.internal_name == "값"
+        }));
+
+        // D9: a copied file does not become a module without an authored
+        // declaration, and a file path does not identify an executable definition.
         let duplicated = build_project_edit_plan(edit_request(
-            added.project_source,
+            added.project_source.clone(),
             ProjectEditOperation::DuplicateFile {
                 from_path: "lib/힘.ddn".to_string(),
                 to_path: "lib/힘_복사.ddn".to_string(),
             },
         ))
-        .expect("duplicate");
-        assert_eq!(duplicated.operation, "duplicate_file");
-        assert!(duplicated
-            .project_source
-            .files
-            .iter()
-            .any(|file| file.path == "lib/힘_복사.ddn"));
+        .expect_err("undeclared duplicate must not silently enter the module closure");
+        assert_eq!(duplicated.code, "E_PROJECT_UNDECLARED_SOURCE");
 
         let entry = build_project_edit_plan(edit_request(
-            duplicated.project_source,
+            added.project_source,
             ProjectEditOperation::SetEntry {
-                path: "lib/힘_복사.ddn".to_string(),
+                path: "lib/힘.ddn".to_string(),
             },
         ))
-        .expect("set entry");
-        assert_eq!(entry.project_source.entry_path, "lib/힘_복사.ddn");
-        let root = entry
-            .project_source
-            .files
-            .iter()
-            .find(|file| file.path == PROJECT_ROOT_FILE)
-            .unwrap();
-        assert!(root.utf8_text.contains("첫글: \"./lib/힘_복사.ddn\""));
-        assert!(root.utf8_text.contains("앱: \"./lib/힘_복사.ddn\""));
+        .expect_err("path-only start must not infer a definition");
+        assert_eq!(entry.code, "E_PROJECT_START_REFERENCE_REQUIRED");
     }
 
     #[test]
+    #[cfg(feature = "beta-project-features")]
     fn sealed_dataset_binding_edit_uses_verified_handle_and_real_runtime_call() {
         let mut source = sample_sealed_dataset_project();
         source
@@ -7467,9 +8765,7 @@ mod tests {
             .iter_mut()
             .find(|file| file.path == "app/main.ddn")
             .expect("entry")
-            .utf8_text =
-            "설정 { 제목: \"봉인 자료 연결\". 마디수: 1. }.\n\n(매마디)마다 {\n  첫행 <- (자료값.행, 0) 차림.값.\n  첫셀 <- (첫행.cells, 0) 차림.값.\n  (월: 첫셀.value.value) 보임.\n}.\n"
-                .to_string();
+            .utf8_text = "앱:움직씨 := {\n  값:수 := 1.\n  값 보여주기.\n}\n".to_string();
         let handle = project_asset_registry_from_source(&source)
             .expect("asset registry")
             .expect("asset registry present")
@@ -7494,14 +8790,14 @@ mod tests {
             .iter()
             .find(|file| file.path == "app/main.ddn")
             .expect("bound entry");
-        let binding = "자료값 <- (@\"datasets/project-runtime/envelope.json\") 자료.열기.";
+        let binding = "자료값:묶음 := (@\"datasets/project-runtime/envelope.json\") 자료.열기.";
         assert!(entry.utf8_text.contains(binding));
         assert!(
             entry.utf8_text.find(binding).expect("binding")
                 < entry
                     .utf8_text
-                    .find("첫행 <- (자료값.행, 0) 차림.값.")
-                    .expect("consumer")
+                    .find("값:수 := 1.")
+                    .expect("current consumer")
         );
         let summary =
             build_project_run_summary(plan.project_source, "앱", true, false).expect("project run");
@@ -7521,6 +8817,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "beta-project-features")]
     fn execution_recipe_identity_binds_prepare_link_and_setup_without_state_hash_changes() {
         let prepared =
             build_project_prepare_link(sample_sealed_dataset_project(), "앱", true, false)
@@ -7636,12 +8933,14 @@ mod tests {
     #[test]
     fn gaji_extraction_plan_uses_structural_exports_and_dependency_closure() {
         let mut source = sample_multifile_source();
+        source.files.iter_mut().find(|file| file.path == "뿌리.ddn").unwrap().utf8_text =
+            "(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"app/main.ddn\",원문=\"app/main.ddn\"),(이름=운동,머리=\"lib/운동.ddn\",원문=\"lib/운동.ddn\"),(이름=수치,머리=\"lib/수치.ddn\",원문=\"lib/수치.ddn\")], 시작=(모듈=앱,정의=앱)) 얽음.".into();
         source.files.iter_mut().find(|file| file.path == "lib/운동.ddn").unwrap().utf8_text =
-            "쓰임 { 수치: \"./lib/수치\". }\n드러냄 { 속도. }\n# 드러냄 { 가짜. }\n설명 <- \"드러냄 { 문자열가짜. }\".\n속도 <- 수치.기본값.".to_string();
+            "(수치=수치) 쓰임.\n(속도=속도) 드러냄.\n// 드러냄 { 가짜. }\n설명 := \"드러냄 { 문자열가짜. }\".\n속도 := 수치.기본값.".to_string();
         source.files.push(VirtualProjectFileSource {
             path: "lib/수치.ddn".to_string(),
             role: "ddn_source".to_string(),
-            utf8_text: "드러냄 { 기본값. }\n기본값 <- 7.".to_string(),
+            utf8_text: "(기본값=기본값) 드러냄.\n기본값 := 7.".to_string(),
         });
         let first = build_gaji_extraction_plan(extraction_request(source.clone())).expect("plan");
         let second = build_gaji_extraction_plan(extraction_request(source)).expect("plan repeat");
@@ -7838,6 +9137,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "beta-project-features")]
     fn gaji_lifecycle_installs_with_lock_and_removes_unused_atomically() {
         let artifact =
             build_local_gaji_artifact(extraction_request(sample_multifile_source())).unwrap();
@@ -7874,6 +9174,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "beta-project-features")]
     fn gaji_lifecycle_rejects_stale_source_and_referenced_remove_without_mutation() {
         let source = sample_multifile_source();
         let artifact = build_local_gaji_artifact(extraction_request(source.clone())).unwrap();
@@ -7913,6 +9214,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "beta-project-features")]
     fn gaji_lifecycle_updates_with_diff_and_rolls_back_to_retained_bytes() {
         let source = sample_multifile_source();
         let artifact_v1 = build_local_gaji_artifact(extraction_request(source.clone())).unwrap();
@@ -7992,12 +9294,16 @@ mod tests {
     fn missing_module_diagnostic_points_to_importing_alias() {
         let mut source = sample_multifile_source();
         source.files.retain(|file| file.path != "lib/운동.ddn");
+        source.files.iter_mut().find(|file| file.path == "뿌리.ddn").unwrap().utf8_text =
+            "(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"app/main.ddn\",원문=\"app/main.ddn\")], 시작=(모듈=앱,정의=앱)) 얽음.".into();
+        let entry_text = source.files.iter().find(|file| file.path == "app/main.ddn")
+            .unwrap().utf8_text.clone();
         let error = build_project_symbol_boundary(source).unwrap_err();
         assert_eq!(error.code, "E_MODULE_MISSING");
         assert_eq!(error.path.as_deref(), Some("app/main.ddn"));
         let (start, end) = error.source_span.expect("import alias span");
         assert_eq!(
-            &"쓰임 { 운동: \"./lib/운동\". }\n운동.속도 보여주기."[start..end],
+            &entry_text[start..end],
             "운동"
         );
         let json = error.to_json_value();
@@ -8014,15 +9320,15 @@ mod tests {
     }
 
     #[test]
-    fn discovers_virtual_root_before_project_json_fallback() {
+    fn discovers_only_explicit_virtual_root_without_project_json_fallback() {
         let request = ProjectRootDiscoveryRequest {
             schema: PROJECT_ROOT_DISCOVERY_REQUEST_SCHEMA.to_string(),
-            start_path: "app/main.ddn".to_string(),
+            start_path: "chosen.ddn".to_string(),
             explicit_project_path: None,
             files: vec![
                 ProjectRootDiscoveryFile {
-                    path: PROJECT_ROOT_FILE.to_string(),
-                    utf8_text: None,
+                    path: "chosen.ddn".to_string(),
+                    utf8_text: Some("(글판=\"v25\", 모듬=차림[(이름=앱, 머리=\"app/main.ddn\", 원문=\"app/main.ddn\")]) 얽음.".into()),
                 },
                 ProjectRootDiscoveryFile {
                     path: PROJECT_JSON_FILE.to_string(),
@@ -8035,8 +9341,10 @@ mod tests {
             ],
         };
         let result = discover_virtual_project_root(request).expect("discover");
-        assert_eq!(result.root_kind, "root_ddn");
-        assert_eq!(result.root_marker_path.as_deref(), Some(PROJECT_ROOT_FILE));
+        assert_eq!(result.root_kind, "explicit_work_root");
+        assert_eq!(result.root_marker_path.as_deref(), Some("chosen.ddn"));
+        assert!(!result.used_fallback);
+        assert!(result.project_json_path.is_none());
     }
 
     #[test]
@@ -8058,7 +9366,8 @@ mod tests {
         };
         assert_eq!(
             discover_virtual_project_root(request).unwrap_err().code,
-            "E_LEGACY_PROJECT_ROOT_NAME"
+            // A3/RD526: reject absent explicit root before examining filenames.
+            "E_PROJECT_ROOT_EXPLICIT_REQUIRED"
         );
     }
 }

@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>셈그림 결정적 작업대 · 1.0.0-alpha.2 · 알파 후보</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./workbench.css" />
+  </head>
+  <body>
+    <div class="app-frame" data-testid="approved-workbench-root">
+      <header class="topbar">
+        <div class="brand" aria-label="셈그림 작업대">
+          <span class="brand-mark" aria-hidden="true">DDN</span>
+          <span>
+            <strong>셈그림 작업대</strong>
+            <small data-testid="product-version" style="display: block">1.0.0-alpha.2 · 알파 후보</small>
+          </span>
+        </div>
+        <nav class="global-nav" aria-label="전역 탐색">
+          <button type="button" class="global-nav-btn" data-testid="project-rail-toggle" aria-expanded="false" aria-controls="project-rail" title="프로젝트 목록 열기">
+            프로젝트
+          </button>
+          <button type="button" class="global-nav-btn active" data-global-entry="ddn-search" data-testid="global-ddn-search" title="DDN 찾기">
+            DDN 찾기
+          </button>
+          <button type="button" class="global-nav-btn" data-global-entry="first-steps" data-testid="global-first-steps" title="정의 중심 10차시 첫걸음">
+            첫걸음
+          </button>
+          <button type="button" class="global-nav-btn" data-global-entry="official-collection" data-testid="global-official-collection" title="공식 모음">
+            공식 모음
+          </button>
+          <button type="button" class="global-nav-btn" data-global-entry="my-work" data-testid="global-my-work" title="내 작업">
+            내 작업
+          </button>
+        </nav>
+      </header>
+
+      <main class="main-shell" aria-label="결정적 프로젝트 작업대">
+        <aside id="project-rail" class="project-rail" data-testid="project-rail">
+          <div class="rail-heading">
+            <strong>프로젝트</strong>
+            <span id="project-count">0</span>
+          </div>
+          <button type="button" class="panel-action new-ddn-button" data-testid="new-ddn-project" title="새 DDN 프로젝트 만들기" aria-label="새 DDN 프로젝트 만들기">새 프로젝트</button>
+          <label class="search-box">
+            <span>찾기</span>
+            <input id="project-search" data-testid="project-search" type="search" autocomplete="off" placeholder="DDN 이름, 태그" />
+          </label>
+          <section class="my-work-panel hidden" data-testid="my-work-panel" aria-label="내 작업">
+            <div class="rail-heading">
+              <strong>내 작업</strong>
+              <span data-testid="my-work-count">0</span>
+            </div>
+            <div class="my-work-list" data-testid="my-work-list"></div>
+          </section>
+          <div id="project-list" class="project-list" data-testid="project-list" role="listbox" aria-label="DDN 프로젝트 목록"></div>
+        </aside>
+
+        <section class="workbench" data-testid="project-workbench">
+          <div class="workbench-toolbar">
+            <div class="project-title-block">
+              <span class="eyebrow" id="project-kind">DDN 프로젝트</span>
+              <h1 id="project-title">프로젝트를 여는 중</h1>
+              <p id="project-summary">한 DDN 파일도 프로젝트로 다룹니다.</p>
+            </div>
+            <div class="project-actions" aria-label="프로젝트 저장">
+              <details class="first-steps-guide hidden" data-testid="first-steps-guide">
+                <summary class="panel-action" data-testid="first-steps-open">학습 안내</summary>
+                <section class="first-steps-panel" data-testid="first-steps-panel" aria-label="첫걸음 활동">
+                  <div class="drawer-header">
+                    <strong data-testid="first-steps-title"></strong>
+                    <button type="button" class="panel-action" data-testid="first-steps-close">닫기</button>
+                  </div>
+                  <p>안내 읽기 → 결과 예상 → 실행 → 값과 규칙 수정 → 해설 확인</p>
+                  <div class="first-steps-documents">
+                    <a href="../../first_steps/학생용_첫걸음_10차시.pdf" target="_blank" rel="noopener">학생용 안내 PDF</a>
+                    <a href="../../first_steps/교사용_안내와_해답.pdf" target="_blank" rel="noopener">교사용 안내·해답 PDF</a>
+                  </div>
+                  <button type="button" class="panel-action" data-testid="first-steps-previous">이전 활동</button>
+                  <button type="button" class="panel-action" data-testid="first-steps-next">다음 활동</button>
+                  <details data-testid="first-steps-expected">
+                    <summary>먼저 예상한 뒤 결과·해설 확인</summary>
+                    <pre></pre>
+                    <p data-testid="first-steps-reason"></p>
+                  </details>
+                </section>
+              </details>
+              <button type="button" class="panel-action icon-label-action" data-testid="portable-project-export" title="휴대형 프로젝트 내보내기" aria-label="휴대형 프로젝트 내보내기">⇩ 내보내기</button>
+              <button type="button" class="panel-action icon-label-action" data-testid="portable-project-import" title="휴대형 프로젝트 가져오기" aria-label="휴대형 프로젝트 가져오기">⇧ 가져오기</button>
+              <input type="file" class="hidden-file-input" data-testid="portable-project-import-input" accept=".json,.seamgrim-project.json,application/json" aria-label="휴대형 프로젝트 파일 선택" />
+              <button type="button" class="panel-action" data-testid="project-save" title="프로젝트 저장" aria-label="프로젝트 저장">저장</button>
+              <button type="button" class="panel-action" data-testid="project-reopen" title="프로젝트 재열기" aria-label="프로젝트 재열기">재열기</button>
+              <span data-testid="project-save-status">아직 저장하지 않음</span>
+              <span class="portable-status" data-testid="portable-project-export-status" aria-live="polite"></span>
+              <button type="button" class="panel-action" data-testid="project-verification-open">오류·진단</button>
+              <details class="project-more-menu" data-testid="project-more-menu">
+                <summary title="프로젝트 세부 도구">세부</summary>
+                <div class="project-more-actions">
+                  <button type="button" class="panel-action" data-testid="project-storage-open">저장·리비전</button>
+                  <button type="button" class="panel-action" data-testid="authored-project-open">작성 정체 자료</button>
+                  <button type="button" class="panel-action" data-testid="project-history-open">기록</button>
+                  <button type="button" class="panel-action" data-testid="portable-project-settings">가져오기·내보내기 설정</button>
+                  <button type="button" class="panel-action" data-testid="gaji-shelf-open" title="표준·나눔·내 가지곳간 검색" aria-label="가지 선반 열기">가지 관리</button>
+                </div>
+              </details>
+            </div>
+            <div class="mode-switch" role="tablist" aria-label="보기 모드">
+              <button type="button" role="tab" class="mode-btn active" data-mode="ddn-main" data-testid="mode-ddn-main" title="원문을 넓게 보기">
+                원문 중심
+              </button>
+              <button type="button" role="tab" class="mode-btn" data-mode="bogae-main" data-testid="mode-bogae-main" title="보개를 넓게 보기">
+                보개 중심
+              </button>
+              <button type="button" role="tab" class="mode-btn" data-mode="bogae-full" data-testid="mode-bogae-full" title="보개만 보기">
+                보개 전체
+              </button>
+            </div>
+          </div>
+
+          <dialog class="workbench-drawer" data-testid="project-storage-drawer" aria-labelledby="project-storage-title">
+            <div class="drawer-header">
+              <strong id="project-storage-title">저장·리비전</strong>
+              <button type="button" class="panel-action" data-testid="project-storage-close" title="저장 창 닫기">닫기</button>
+            </div>
+          <section class="project-server-panel" data-testid="project-server-panel" aria-label="서버 프로젝트 저장소">
+            <div class="project-server-summary">
+              <strong data-testid="project-server-title">서버 저장소</strong>
+              <span data-testid="project-server-meta">아직 서버 저장 전</span>
+            </div>
+            <div class="project-link-row" aria-label="프로젝트 링크">
+              <a data-testid="project-edit-link" href="#" aria-disabled="true">편집 링크 없음</a>
+              <a data-testid="project-view-link" href="#" aria-disabled="true">보기 링크 없음</a>
+              <button type="button" class="panel-action" data-testid="project-clone" title="현재 프로젝트를 내 편집본으로 복제">내 버전 만들기</button>
+            </div>
+            <div class="project-revision-list" data-testid="project-revision-list" aria-label="리비전 목록">
+              <span>저장 이력 없음</span>
+            </div>
+            <div class="project-conflict-panel hidden" data-testid="project-conflict-panel" aria-live="polite">
+              <strong data-testid="project-conflict-message">다른 창에서 먼저 저장되었습니다.</strong>
+              <span data-testid="project-conflict-server">server: -</span>
+              <span data-testid="project-conflict-local">local: -</span>
+              <textarea data-testid="project-conflict-local-package" readonly aria-label="보존된 로컬 프로젝트 패키지"></textarea>
+              <button type="button" class="panel-action" data-testid="project-conflict-copy-local" title="로컬 변경 보존 확인">로컬 변경 보존</button>
+            </div>
+          </section>
+          </dialog>
+
+          <dialog class="workbench-drawer" data-testid="project-history-drawer" aria-labelledby="project-history-title">
+            <div class="drawer-header">
+              <strong id="project-history-title">실행·프로젝트 기록</strong>
+              <button type="button" class="panel-action" data-testid="project-history-close" title="기록 창 닫기">닫기</button>
+            </div>
+            <div class="project-lineage-row" data-testid="portable-lineage-panel" aria-label="프로젝트 계보">
+              <span data-testid="portable-lineage-origin">원본: -</span>
+              <span data-testid="portable-lineage-file">받은 파일: -</span>
+              <span data-testid="portable-lineage-version">내 버전: -</span>
+            </div>
+            <div class="drawer-records" aria-label="실행 계보와 보관 기록">
+              <div>
+                <button type="button" class="panel-action" data-testid="input-tape-export">입력 기록 저장</button>
+                <button type="button" class="panel-action" data-testid="input-tape-import">입력 기록 확인</button>
+                <input type="file" data-testid="input-tape-file" hidden />
+                <span data-testid="input-tape-status" aria-live="polite"></span>
+              </div>
+              <span class="run-hash" data-testid="run-lineage">run: -</span>
+              <span class="run-hash" data-testid="run-archive-status">보관 기록: -</span>
+              <div class="run-archive-list" data-testid="run-archive-list" aria-label="저장된 실행 목록"></div>
+              <section class="run-archive-detail" data-testid="run-archive-detail" aria-live="polite" hidden>
+                <strong data-testid="run-archive-detail-title">실행 상세</strong>
+                <ol data-testid="run-archive-checkpoint-list" aria-label="보관된 마디 목록"></ol>
+              </section>
+            </div>
+          </dialog>
+
+          <dialog class="portable-project-dialog" data-testid="portable-project-dialog" aria-labelledby="portable-project-dialog-title">
+            <div class="drawer-header">
+              <strong id="portable-project-dialog-title">가져오기·내보내기 설정</strong>
+              <button type="button" class="panel-action" data-testid="portable-project-dialog-close" title="가져오기·내보내기 창 닫기">닫기</button>
+            </div>
+          <section class="portable-import-panel hidden" data-testid="portable-project-import-preview" aria-label="휴대형 프로젝트 가져오기 미리보기" aria-live="polite">
+            <div class="portable-import-summary">
+              <strong data-testid="portable-project-import-title">가져올 프로젝트 없음</strong>
+              <span data-testid="portable-project-import-integrity">무결성: -</span>
+              <span data-testid="portable-project-import-trust">공식 여부 확인 안 됨</span>
+            </div>
+            <p data-testid="portable-project-import-details">파일을 선택하면 실행 전 미리보기를 표시합니다.</p>
+            <div class="portable-import-actions">
+              <button type="button" class="panel-action" data-testid="portable-project-open" title="검증된 파일을 받은 프로젝트로 열기">열기</button>
+              <button type="button" class="panel-action" data-testid="portable-project-cancel" title="가져오기 취소">취소</button>
+            </div>
+          </section>
+
+          <section class="portable-metadata-panel" data-testid="portable-metadata-panel" aria-label="콘텐츠 정보">
+            <div class="portable-metadata-heading">
+              <strong>콘텐츠 정보</strong>
+              <span data-testid="portable-metadata-status">제목·설명은 저장 파일에 함께 기록됩니다</span>
+            </div>
+            <div class="portable-metadata-grid">
+              <label>
+                제목
+                  <input data-testid="portable-meta-title" aria-label="프로젝트 제목" type="text" maxlength="80" autocomplete="off" />
+              </label>
+              <label>
+                설명
+                  <input data-testid="portable-meta-summary" aria-label="프로젝트 요약" type="text" maxlength="180" autocomplete="off" />
+              </label>
+              <label>
+                분류
+                <select data-testid="portable-meta-content-kind">
+                  <option value="simulation">시뮬레이션</option>
+                  <option value="game">게임</option>
+                  <option value="lesson">수업·교과</option>
+                  <option value="korean_manim">한국어 Manim</option>
+                  <option value="ai_gym">AI Gym</option>
+                  <option value="test_or_proof">시험·증명</option>
+                </select>
+              </label>
+              <label>
+                태그
+                  <input data-testid="portable-meta-tags" aria-label="프로젝트 태그" type="text" maxlength="140" autocomplete="off" />
+              </label>
+              <label>
+                교과
+                  <input data-testid="portable-meta-subject" aria-label="프로젝트 과목" type="text" maxlength="40" autocomplete="off" />
+              </label>
+              <label>
+                수준
+                  <input data-testid="portable-meta-level" aria-label="프로젝트 수준" type="text" maxlength="40" autocomplete="off" />
+              </label>
+              <label>
+                필요한 보기
+                  <input data-testid="portable-meta-required-views" aria-label="필수 보기" type="text" maxlength="120" autocomplete="off" />
+              </label>
+              <label>
+                필요한 가지
+                  <input data-testid="portable-meta-required-gaji" aria-label="필수 가지" type="text" maxlength="120" autocomplete="off" />
+              </label>
+            </div>
+          </section>
+            <div class="portable-dialog-actions">
+              <button type="button" class="panel-action primary" data-testid="portable-project-export-confirm">현재 정보로 내보내기</button>
+            </div>
+          </dialog>
+
+          <dialog class="workbench-drawer" data-testid="project-verification-drawer" aria-labelledby="project-verification-title">
+            <div class="drawer-header">
+              <strong id="project-verification-title">검증·진단</strong>
+              <button type="button" class="panel-action" data-testid="project-verification-close" title="진단 닫기">닫기</button>
+            </div>
+            <ul class="diagnostic-list" data-testid="diagnostic-list" aria-live="polite">
+              <li>문제가 발견되지 않았습니다.</li>
+            </ul>
+            <div class="control-card" data-testid="view-controls">
+              <div class="control-title">
+                <strong>보기·결정성</strong>
+                <span>state_hash 밖 설정 분리</span>
+              </div>
+              <p data-testid="view-status">view: 역할 전환은 state_hash 밖</p>
+              <span class="run-hash" data-testid="run-hash">state_hash: -</span>
+            </div>
+          </dialog>
+
+          <div class="run-strip" aria-label="실행 수명주기">
+            <button type="button" class="icon-command" data-testid="lifecycle-run" title="실행" aria-label="실행">▶</button>
+            <button type="button" class="icon-command" data-testid="lifecycle-step" title="한 마디 앞으로" aria-label="한 마디 앞으로">↦</button>
+            <button type="button" class="icon-command" data-testid="lifecycle-stop" title="중지" aria-label="중지">■</button>
+            <button type="button" class="icon-command" data-testid="history-back" title="한 마디 뒤로 보기" aria-label="한 마디 뒤로 보기">↤</button>
+            <button type="button" class="icon-command" data-testid="history-branch" title="현재 마디에서 갈라치기" aria-label="현재 마디에서 갈라치기">⑂</button>
+            <span class="run-status" data-testid="run-status">준비 중</span>
+            <span data-testid="playback-rate" title="화면 재생은 초당 60마디를 목표로 합니다. 계산이 오래 걸려도 마디를 건너뛰지 않으며 세계의 시간간격은 1입니다.">화면 60마디/초 · 세계 dt=1</span>
+            <span class="run-hash" data-testid="current-madi">madi: -</span>
+          </div>
+
+          <div class="file-tabs" data-testid="file-tabs" role="tablist" aria-label="열린 파일"></div>
+          <p data-testid="example-guide" role="note"></p>
+          <p data-testid="host-stop-notice" role="status" hidden></p>
+
+          <div class="workbench-layout" data-testid="workbench-layout" data-mode="ddn-main">
+            <section class="panel source-panel" data-testid="source-panel" aria-label="DDN 원문">
+              <div class="panel-header">
+                <strong id="source-panel-title">lesson.ddn</strong>
+                <button type="button" class="panel-action" data-testid="source-access-button" title="DDN 원문 보기" aria-label="DDN 원문 보기">
+                  원문
+                </button>
+              </div>
+              <div class="source-editor-shell">
+                <textarea id="source-editor" data-testid="source-editor" spellcheck="false" aria-label="DDN 원문" aria-controls="completion-popup" aria-autocomplete="list"></textarea>
+                <div id="completion-popup" data-testid="completion-popup" class="completion-popup" role="listbox" aria-label="또니랑 자동완성" hidden></div>
+              </div>
+            </section>
+
+            <div class="panel-divider" data-testid="panel-divider" role="separator" tabindex="0" aria-label="원문과 보개 너비 조절" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="75" aria-valuenow="60"></div>
+            <section class="panel bogae-panel" data-testid="bogae-panel" aria-label="보개">
+              <div class="panel-header">
+                <strong>보개</strong>
+                <details hidden><summary>보개 선택</summary><label title="원문에 보개 후보가 여러 개일 때 표시할 이름을 지정합니다.">원문 이름 <input data-testid="bogae-entry" aria-label="표시할 보개 이름" size="12"></label></details>
+                <div class="view-roles" aria-label="보기 인스턴스 관리">
+                  <button type="button" class="panel-action" data-testid="spatial-fit" title="지금까지의 궤적에 화면 맞추기">맞춤</button>
+                  <button type="button" class="panel-action" data-testid="spatial-reset" title="처음 보기 범위로 돌아가기">처음</button>
+                  <button type="button" class="panel-action" data-testid="spatial-trail" aria-pressed="true" title="화면이 기록한 지난 마디의 위치를 연결합니다. 세계 계산에는 영향을 주지 않습니다.">지나온 자리</button>
+                  <button type="button" class="view-role active" data-view-action="focus-primary" data-testid="view-role-primary" title="으뜸보기로 초점 이동">으뜸 1</button>
+                  <button type="button" class="view-role" data-view-action="add-side" data-testid="view-role-side" title="독립 곁보기 추가" hidden>+ 곁</button>
+                  <button type="button" class="view-role" data-view-action="toggle-overlay" data-testid="view-role-overlay" title="으뜸보기 좌표에 겹보기 켜기" aria-pressed="false" hidden>겹 켜기</button>
+                  <button type="button" class="view-role" data-view-action="open-magnifier" data-testid="view-role-magnifier" title="선택한 대상 돋보기 열기" disabled hidden>돋보기</button>
+                  <button type="button" class="panel-action bogae-source-access" data-testid="bogae-source-access" title="DDN 원문으로 이동">DDN</button>
+                </div>
+              </div>
+              <div class="authored-view-toolbar" aria-label="겹·곁·돋 제어"><div data-testid="authored-view-controls"></div><button type="button" data-testid="authored-close-sides" hidden>곁 모두 닫기</button></div>
+              <div class="bogae-stage" data-testid="bogae-stage" data-side-open="false">
+                <div class="canvas-wrap" data-testid="bogae-canvas-wrap">
+                  <canvas id="canvas-bogae" data-testid="bogae-canvas" width="900" height="540" tabindex="0" aria-label="결정적 보개 미리보기"></canvas>
+                </div>
+                <aside class="side-view-panel" data-testid="side-view-panel" aria-label="곁 보기">
+                  <div class="panel-header">
+                    <strong data-testid="side-view-title">열린 곁보기</strong>
+                    <button type="button" class="panel-action" data-testid="side-view-close" title="곁보기 모두 닫기" aria-label="곁보기 모두 닫기">모두 닫기</button>
+                  </div>
+                  <p data-testid="side-view-body"></p>
+                  <div class="side-view-list" data-testid="side-view-list" aria-live="polite"></div>
+                </aside>
+              </div>
+              <details data-testid="bogae-text-output" hidden>
+                <summary>문자 출력</summary>
+                <pre data-testid="bogae-text-output-lines"></pre>
+              </details>
+              <section class="control-grid" data-testid="control-grid" aria-label="현재 프로젝트 조절과 행동" hidden>
+                <div class="control-card" data-testid="setup-controls" hidden>
+                  <div class="control-title">
+                    <strong>초기값 조절</strong>
+                    <span>현재 실행은 바뀌지 않습니다</span>
+                  </div>
+                  <div class="setup-control-list" data-testid="setup-control-list"></div>
+                  <button type="button" data-testid="setup-apply" title="다음 실행의 초기값 저장">초기값 저장</button>
+                  <p data-testid="setup-status">저장한 초기값은 다음 실행부터 적용됩니다.</p>
+                </div>
+                <div class="control-card" data-testid="action-controls" hidden>
+                  <div class="control-title"><strong>실행 중 입력</strong><span>다음 마디에 적용</span></div>
+                  <div class="action-buttons" data-testid="action-button-list"></div>
+                  <p data-testid="action-status">대기 중인 입력이 없습니다.</p>
+                </div>
+              </section>
+              <div class="bogae-meta" data-testid="bogae-meta">
+                <span id="mode-ratio-label">DDN 60 / 보개 40</span>
+                <span id="view-grade-label"></span>
+              </div>
+              <div class="semantic-view-contract" data-testid="semantic-view-contract">
+                <span data-testid="layout-policy"></span>
+                <span data-testid="view-role-summary"></span>
+                <div class="semantic-observations" data-testid="semantic-observations" aria-label="핵심 관찰값">
+                  <span>observations: -</span>
+                </div>
+              </div>
+            </section>
+
+            <aside class="panel file-drawer hidden" data-testid="file-drawer" aria-label="프로젝트 파일">
+              <div class="panel-header">
+                <strong>프로젝트 파일</strong>
+                <span id="file-count">0</span>
+              </div>
+              <div class="file-actions" data-testid="file-actions" aria-label="파일 작업">
+                <button type="button" class="panel-action" data-testid="file-add" title="DDN 파일 추가">+ 파일</button>
+                <button type="button" class="panel-action" data-testid="module-add" title="모듈 시작본 추가">+ 모듈</button>
+                <button type="button" class="panel-action" data-testid="gaji-bundle-open" title="선택한 모듈을 재사용 가지로 묶기" aria-label="선택한 모듈을 가지로 묶기">가지로 묶기</button>
+                <button type="button" class="panel-action" data-testid="project-edit-undo" title="최근 구조 변경 되돌리기">↶ 되돌리기</button>
+              </div>
+              <label class="search-box compact">
+                <span>파일</span>
+                <input id="file-search" data-testid="file-search" type="search" autocomplete="off" placeholder="파일 검색" />
+              </label>
+              <div id="file-list" class="file-list" data-testid="file-list"></div>
+              <details class="project-graph-drawer" data-testid="project-graph-drawer">
+                <summary>프로젝트 구조와 진단</summary>
+                <div data-testid="project-graph-summary">graph: 확인 전</div>
+                <div class="project-graph-list" data-testid="project-graph-list"></div>
+                <div class="project-graph-diagnostics" data-testid="project-graph-diagnostics"></div>
+              </details>
+            </aside>
+          </div>
+        </section>
+      </main>
+    </div>
+    <dialog class="project-create-dialog" data-testid="project-create-dialog" aria-labelledby="project-create-title">
+      <form method="dialog" data-testid="project-create-form">
+        <div class="panel-header">
+          <strong id="project-create-title">새 DDN 프로젝트</strong>
+          <button type="button" class="panel-action" data-testid="project-create-close" title="새 프로젝트 만들기 취소" aria-label="새 프로젝트 만들기 취소">닫기</button>
+        </div>
+        <label>
+          프로젝트 이름
+            <input data-testid="project-create-name" aria-label="새 프로젝트 이름" name="project-name" type="text" maxlength="80" required autocomplete="off" value="새 물리 실험" />
+        </label>
+        <fieldset>
+          <legend>시작 방식</legend>
+            <label><input type="radio" name="project-template" value="physics" aria-label="물리 실험 시작본" checked /> 물리 실험 시작본</label>
+            <label><input type="radio" name="project-template" value="single" aria-label="한 파일 시작본" /> 한 파일 시작본</label>
+            <label><input type="radio" name="project-template" value="empty" aria-label="빈 DDN 프로젝트" /> 빈 DDN 프로젝트</label>
+        </fieldset>
+        <p class="dialog-note">한 파일 또는 뿌리.ddn부터 시작하는 다중 파일 프로젝트를 새로 만듭니다.</p>
+        <div class="dialog-actions">
+          <button type="button" class="panel-action" data-testid="project-create-cancel">취소</button>
+          <button type="submit" class="panel-action primary" data-testid="project-create-submit">프로젝트 만들기</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog class="project-create-dialog project-edit-dialog" data-testid="project-edit-dialog" aria-labelledby="project-edit-title">
+      <form method="dialog">
+        <div class="panel-header">
+          <strong id="project-edit-title">프로젝트 구조 변경 미리보기</strong>
+          <button type="button" class="panel-action" data-testid="project-edit-close" title="구조 변경 취소">닫기</button>
+        </div>
+        <p data-testid="project-edit-summary">변경 계획 없음</p>
+        <pre class="project-edit-preview" data-testid="project-edit-preview" tabindex="0"></pre>
+        <div class="dialog-actions">
+          <button type="button" class="panel-action" data-testid="project-edit-cancel">취소</button>
+          <button type="button" class="panel-action primary" data-testid="project-edit-apply">원자적으로 적용</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog class="project-create-dialog project-edit-dialog" data-testid="gaji-bundle-dialog" aria-labelledby="gaji-bundle-title">
+      <form method="dialog" data-testid="gaji-bundle-form">
+        <div class="panel-header">
+          <strong id="gaji-bundle-title">선택한 모듈을 가지로 묶기</strong>
+          <button type="button" class="panel-action" data-testid="gaji-bundle-close" title="가지 묶기 취소" aria-label="가지 묶기 취소">닫기</button>
+        </div>
+        <label>가지 id <input data-testid="gaji-bundle-id" aria-label="가지 id" required maxlength="60" autocomplete="off" /></label>
+        <label>버전 <input data-testid="gaji-bundle-version" aria-label="가지 버전" required value="1.0.0" maxlength="24" autocomplete="off" /></label>
+        <label>설명 <input data-testid="gaji-bundle-description" aria-label="가지 설명" maxlength="180" autocomplete="off" /></label>
+        <label>태그 <input data-testid="gaji-bundle-tags" maxlength="120" autocomplete="off" placeholder="쉼표로 구분" /></label>
+        <label>가지곳간
+          <select data-testid="gaji-bundle-profile"><option value="내">내 가지곳간</option></select>
+        </label>
+        <p data-testid="gaji-bundle-selected">선택 모듈: -</p>
+        <pre class="project-edit-preview" data-testid="gaji-bundle-preview" tabindex="0">미리보기 전</pre>
+        <p data-testid="gaji-bundle-status" aria-live="polite">확인 전에는 발행하지 않습니다.</p>
+        <div class="dialog-actions">
+          <button type="button" class="panel-action" data-testid="gaji-bundle-cancel">취소</button>
+          <button type="submit" class="panel-action" data-testid="gaji-bundle-plan">미리보기</button>
+          <button type="button" class="panel-action primary" data-testid="gaji-bundle-publish" disabled>내 가지곳간에 발행</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog class="project-create-dialog project-edit-dialog gaji-shelf-dialog" data-testid="gaji-shelf-dialog" aria-labelledby="gaji-shelf-title">
+      <form method="dialog">
+        <div class="panel-header">
+          <strong id="gaji-shelf-title">가지 선반</strong>
+          <button type="button" class="panel-action" data-testid="gaji-store-export">곳간 내보내기</button>
+          <button type="button" class="panel-action" data-testid="gaji-store-import">곳간 가져오기</button>
+          <input type="file" class="hidden-file-input" data-testid="gaji-store-import-input" aria-label="가지 artifact 파일 가져오기" accept=".json,.detjson,application/json" />
+          <button type="button" class="panel-action" data-testid="gaji-shelf-close" title="가지 선반 닫기" aria-label="가지 선반 닫기">닫기</button>
+        </div>
+        <label>검색 <input type="search" data-testid="gaji-shelf-search" autocomplete="off" placeholder="이름·설명·태그·공개 심볼" /></label>
+        <fieldset class="gaji-profile-filters" data-testid="gaji-profile-filters">
+          <legend>가지곳간</legend>
+          <label><input type="checkbox" value="표준" aria-label="표준 가지곳간" checked /> 표준</label>
+          <label><input type="checkbox" value="나눔" aria-label="나눔 가지곳간" checked /> 나눔</label>
+          <label><input type="checkbox" value="내" aria-label="내 가지곳간" checked /> 내</label>
+        </fieldset>
+        <div class="gaji-shelf-layout">
+          <div data-testid="gaji-shelf-results" role="listbox" aria-label="가지 검색 결과"></div>
+          <section>
+            <label>프로젝트 alias <input data-testid="gaji-install-alias" aria-label="설치할 프로젝트 alias" maxlength="40" autocomplete="off" /></label>
+            <pre class="project-edit-preview" data-testid="gaji-install-preview" tabindex="0">설치할 가지를 선택하세요.</pre>
+            <p data-testid="gaji-install-status" aria-live="polite">검색 준비</p>
+            <button type="button" class="panel-action primary" data-testid="gaji-install-apply" disabled>원자적으로 설치</button>
+            <button type="button" class="panel-action" data-testid="gaji-install-remove" disabled>프로젝트에서 제거</button>
+            <button type="button" class="panel-action" data-testid="gaji-remix-start" disabled>내 버전 만들기</button>
+            <div data-testid="gaji-remix-editor" hidden>
+              <label>새 가지 id <input data-testid="gaji-remix-id" aria-label="리믹스 가지 id" maxlength="60" autocomplete="off" /></label>
+              <label>새 버전 <input data-testid="gaji-remix-version" aria-label="리믹스 버전" value="1.0.0" autocomplete="off" /></label>
+              <label>주 모듈 수정 <textarea data-testid="gaji-remix-source" aria-label="리믹스 주 모듈 DDN" rows="8" spellcheck="false"></textarea></label>
+              <button type="button" class="panel-action primary" data-testid="gaji-remix-publish">리믹스 발행</button>
+            </div>
+          </section>
+        </div>
+      </form>
+    </dialog>
+    <script type="module" src="./workbench.js"></script>
+    <dialog data-testid="authored-project-drawer" aria-label="작성 정체 자료">
+      <h2>작성 정체 자료</h2>
+      <p>명시적으로 정체를 만들 때만 영구 ID를 만듭니다. 편집·저장·재열기는 ID를 유지하고 명시 복제는 새 ID를 만듭니다. 한 파일이나 여러 모듈의 보개짜임 정의를 소유 모듈과 원문으로 등록합니다. 여러 모듈은 명시한 얽음 뿌리와 쓰임·드러냄으로 연결합니다. 모듈 소유 변경은 아직 지원하지 않습니다.</p>
+      <p>작품 ID: <code data-authored-identity>아직 없음</code></p>
+      <div>
+        <button type="button" data-authored-create>현재 작품에 정체 만들기</button>
+        <button type="button" data-authored-save>이 기기에 저장</button>
+        <button type="button" data-authored-reopen>저장 자료 다시 열기</button>
+        <button type="button" data-authored-clone>새 ID로 복제</button>
+        <button type="button" data-authored-export>파일 내보내기</button>
+        <button type="button" data-authored-import>파일 가져오기</button>
+        <button type="button" data-authored-close>닫기</button>
+      </div>
+      <div>
+        <label>소유 모듈 <input data-authored-module value="앱" aria-label="보개 소유 모듈" /></label>
+        <label>소유 원문 <input data-authored-source aria-label="보개 소유 원문 경로" placeholder="비우면 작품의 실행 원문" /></label>
+        <label>보개짜임 정의 <input data-authored-composition aria-label="등록할 보개짜임 정의" placeholder="예: 일차함수짜임" /></label>
+        <button type="button" data-authored-register>이 정의를 보개 시작으로 등록</button>
+      </div>
+      <details>
+        <summary>이름·경로를 바꾸고 기존 정체 유지하기</summary>
+        <p>이름 변경은 원문 선언·참조를 먼저 수정하세요. 경로 변경은 아래 경로로 파일을 옮기며, 얽음의 경로 참조는 먼저 수정하세요. 맞지 않으면 저장 자료를 바꾸지 않고 거부합니다.</p>
+        <label>바꿀 정의 <select data-authored-rename-target aria-label="정체를 유지할 정의"></select></label>
+        <label>새 이름 <input data-authored-new-name aria-label="정의의 새 이름" /></label>
+        <button type="button" data-authored-rename>정체를 유지하여 이름 변경 적용</button>
+        <br>
+        <label>이전 경로 <input data-authored-old-path aria-label="원문의 이전 경로" /></label>
+        <label>새 경로 <input data-authored-new-path aria-label="원문의 새 경로" /></label>
+        <button type="button" data-authored-relocate>정체를 유지하여 경로 변경 적용</button>
+      </details>
+      <input type="file" accept=".json,application/json" class="hidden-file-input" aria-label="작성 자료 파일" />
+      <p data-authored-status role="status">한 파일 실행만으로는 영구 정체를 만들지 않습니다.</p>
+      <label>새 버전 저장 구간 (읽기 전용)<br><textarea data-authored-contents readonly rows="12" cols="80" aria-label="작성 정체 저장 구간"></textarea></label>
+    </dialog>
+  </body>
+</html>

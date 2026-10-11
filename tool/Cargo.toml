@@ -3,6 +3,7 @@
 [package]
 name = "ddonirang-tool"
 version = "0.1.0"
+license = "Apache-2.0"
 edition = "2021"
 
 [lib]
@@ -22,7 +23,17 @@ name = "ddonirang"
 path = "src/bin/ddonirang.rs"
 
 [features]
+default = ["internal-tools"]
+# Internal SSOT/prompt management is not part of the public runtime build.
+internal-tools = []
+# Owner D10/G1-B: retained development paths, excluded from alpha builds.
+beta-project-features = []
 wasm = ["wasm-bindgen", "js-sys", "web-sys"]
+
+[[bin]]
+name = "ddonirang-tool"
+path = "src/main.rs"
+required-features = ["internal-tools"]
 
 [dependencies]
 # 이전 설계 가이드에서 드린 의존성들을 여기에 적습니다
@@ -33,6 +44,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 libm = "0.2"
 regex = "1.11"
+getrandom = { version = "0.3", features = ["wasm_js"] }
 unicode-normalization = "0.1"
 num-bigint = "0.4"
 num-rational = "0.4"

@@ -36,7 +36,9 @@ pub fn decide(
     candidates.dedup();
 
     let (status, diagnostic_code, primary) = match candidates.as_slice() {
-        [] => ("absent", Some("E_PRIMARY_VIEW_ABSENT"), Value::Null),
+        // RD-608: a run that did not request a Bogae projection is a valid
+        // full-headless execution. Absence is a state, not an execution error.
+        [] => ("absent", None, Value::Null),
         [family] => (
             "selected",
             None,
@@ -104,13 +106,14 @@ mod tests {
     }
 
     #[test]
-    fn reports_absent_without_heuristic_fallback() {
+    fn reports_headless_absence_without_error_or_heuristic_fallback() {
         let result = d(json!({
             "public_observation_trace": {"schema": "ddn.public_observation_trace.v1"},
             "project_id": "projectile"
         }));
         assert_eq!(result["status"], "absent");
-        assert_eq!(result["diagnostic"]["code"], "E_PRIMARY_VIEW_ABSENT");
+        assert!(result["diagnostic"].is_null());
+        assert!(result["primary"].is_null());
     }
 
     #[test]

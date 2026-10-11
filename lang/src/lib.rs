@@ -11,6 +11,7 @@ pub mod age_gate;
 pub mod ast;
 pub mod canonicalizer;
 pub mod currentline;
+pub mod ddl;
 pub mod delivery;
 pub mod dialect;
 pub mod execution_mode;
@@ -18,7 +19,10 @@ pub mod frontdoor;
 pub mod lexer;
 pub mod migration;
 pub mod model;
+pub mod module_directive;
+pub mod work_root;
 pub mod normalizer;
+pub mod ordinary_callable;
 pub mod parser;
 pub mod runtime;
 pub mod source_coordinate;
@@ -28,8 +32,9 @@ pub mod term_map;
 
 pub use age_gate::{age_not_available_error, AgeTarget};
 pub use ast::*;
-pub use canonicalizer::{canonicalize, CanonicalizeReport, LintWarning};
+pub use canonicalizer::{canonicalize, canonicalize_ddl_wave1, CanonicalizeReport, LintWarning};
 pub use currentline::{apply_currentline_cell, apply_currentline_cell_v25, CurrentLineResult};
+pub use ddl::{parse_ddl_wave1, DdlError};
 pub use delivery::{
     canonical_provider_occurrences, plan_delivery_occurrence, plan_internal_delivery_occurrence,
     select_exactly_one_endpoint, AsyncSend, DeliveryOccurrence, DeliveryOccurrenceFailure,
@@ -51,9 +56,10 @@ pub use frontdoor::{
     find_legacy_root_hide_directive, find_legacy_root_surface, has_legacy_boim_surface,
     has_natural_foreach_surface, has_right_assignment_arrow, has_simple_assignment_arrow,
     normalize_for_lang_parity, owner_inner_seum_canon_rows, owner_state_symbol_table_rows,
-    preprocess_frontdoor_source, validate_no_legacy_boim_surface, validate_no_legacy_header,
-    validate_no_legacy_range_comment, validate_no_legacy_root_hide_directive,
-    validate_no_legacy_root_surface, wrap_lang_parity_source,
+    parse_module_directive_frontdoor_with_mode, preprocess_frontdoor_source,
+    validate_no_legacy_boim_surface, validate_no_legacy_header, validate_no_legacy_range_comment,
+    validate_no_legacy_root_hide_directive, validate_no_legacy_root_surface,
+    wrap_lang_parity_source, ModuleDirectiveFrontdoorResult,
 };
 pub use lexer::{LexError, Lexer, Token, TokenKind};
 pub use migration::{
@@ -62,7 +68,8 @@ pub use migration::{
 };
 pub use model::{
     fixed_default_precise_recipe, has_model_surface, model_ir_candidate_json, parse_model_program,
-    parse_model_program_with_source_file, validate_model_capabilities, validate_model_ir_bindings,
+    parse_model_program_with_source_file, parse_model_recipe_library_with_source_file,
+    validate_model_capabilities, validate_model_ir_bindings,
     AuthoredIdentity, ConnectionClause, ConnectionMode, DerivativeIdentity, ExactPreludeBinding,
     ExecutionContractProfile, ExecutionContractProvenance, ExecutionEvidencePolicy,
     ExecutionExternalIngressPolicy, ExecutionPerformancePolicy, ExecutionReplayPolicy,
@@ -79,7 +86,17 @@ pub use model::{
     EXECUTION_CONTRACT_SCHEMA_CANDIDATE, FIXED_DEFAULT_PRECISE_RECIPE_NAME,
     MODEL_IR_SCHEMA_CANDIDATE, STANDARD_REPRO_PROFILE_IDENTITY,
 };
+pub use module_directive::{
+    canonicalize_module_directive_document, parse_module_directive_document,
+    parse_module_directive_prefix, ModuleDirective, ModuleDirectiveContext, ModuleDirectiveDocument,
+    ModuleDirectiveEntry, ModuleDirectiveKind,
+};
 pub use normalizer::{normalize, normalize_expression_identity, NormalizationLevel, Normalizer};
+pub use ordinary_callable::{
+    is_v1_ordinary_callable, ordinary_callable_input_signature, proven_same_input_domain,
+    validate_ordinary_callable_admission, OrdinaryCallableAdmissionEvidence,
+    OrdinaryCallableAdmissionFailure, OrdinaryCallablePairDisposition,
+};
 pub use parser::{resolve_known_call_target, ParseError, ParseMode, Parser};
 pub use runtime::{
     input_just_pressed, input_pressed, list_add, list_len, list_new, list_nth, list_remove,
@@ -1380,7 +1397,15 @@ mod integration_tests {
 }
 "#;
         let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
-        assert!(normalized.contains("보드 <- 보드:대상 2:i 3:값 차림.바꾼값."));
+        assert!(normalized.contains("보드[2] <- 3."));
+    }
+
+    #[test]
+    fn alpha2_nested_index_assignment_roundtrips_v25() {
+        let source = "판 <- 차림[차림[0, 0], 차림[0, 0]]. 판[1][0] <- 7.";
+        let first = parse_v25_and_normalize(source, "nested.ddn", NormalizationLevel::N1).unwrap();
+        let second = parse_v25_and_normalize(&first, "nested.ddn", NormalizationLevel::N1).unwrap();
+        assert_eq!(first, second);
     }
 
     #[test]
@@ -1448,7 +1473,7 @@ mod integration_tests {
 }
 "#;
         let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
-        assert!(normalized.contains("보드 <- 보드:대상 2:i 3:값 차림.바꾼값."));
+        assert!(normalized.contains("보드[2] <- 3."));
     }
 
     #[test]
@@ -3511,6 +3536,16 @@ Test:셈씨 = {
             .expect("테스트 seed");
         let body = seed.body.as_ref().expect("테스트 body");
         assert!(matches!(body.stmts.first(), Some(Stmt::HookWhile { .. })));
+    }
+
+    #[test]
+    fn top_level_drawing_is_preserved_in_source_order() {
+        let source = "값 <- 2. 모양 { 원(값, 0, r=1). }. 값 보여주기.";
+        let program = parse_v25(source, "root-shape.ddn").expect("parse root drawing");
+        assert_eq!(program.root_stmts.len(), 3);
+        assert!(matches!(&program.root_stmts[1], Stmt::MetaBlock {
+            kind: MetaBlockKind::Bogae, entries, ..
+        } if entries.len() == 1));
     }
 
     #[test]

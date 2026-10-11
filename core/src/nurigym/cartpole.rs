@@ -1,4 +1,5 @@
 use crate::fixed64::Fixed64;
+use crate::signals::ArithmeticFaultKind;
 
 #[derive(Clone, Debug)]
 pub struct CartPoleConfig {
@@ -89,7 +90,12 @@ impl CartPoleEnv {
         }
         let action = normalize_action(action)?;
         let obs = self.state.observation();
-        apply_step(&mut self.state, action, &self.config);
+        // Compute a complete candidate before changing the live state.  A
+        // checked Fixed64 fault therefore cannot publish a partial solver
+        // frame or advance the environment.
+        let candidate = apply_step(&self.state, action, &self.config)
+            .map_err(nurigym_arithmetic_error)?;
+        self.state = candidate;
         let next_obs = self.state.observation();
         let done_after = is_done(&self.state, &self.config);
         let reward = if done_after {
@@ -159,22 +165,40 @@ fn normalize_action(action: i64) -> Result<i64, String> {
     }
 }
 
-fn apply_step(state: &mut CartPoleState, action: i64, config: &CartPoleConfig) {
+fn apply_step(
+    state: &CartPoleState,
+    action: i64,
+    config: &CartPoleConfig,
+) -> Result<CartPoleState, ArithmeticFaultKind> {
     let act = Fixed64::from_i64(action);
 
     let accel = act
-        .saturating_mul(config.force)
-        .saturating_sub(state.v.saturating_mul(config.friction));
-    state.v = state.v + accel.saturating_mul(config.dt);
-    state.x = state.x + state.v.saturating_mul(config.dt);
+        .checked_mul(config.force)?
+        .checked_sub(state.v.checked_mul(config.friction)?)?;
+    let next_v = state.v.checked_add(accel.checked_mul(config.dt)?)?;
+    let next_x = state.x.checked_add(next_v.checked_mul(config.dt)?)?;
 
     let ang_accel = act
-        .saturating_mul(config.force)
-        .saturating_mul(config.angle_stiffness)
-        .saturating_sub(state.theta.saturating_mul(config.gravity))
-        .saturating_sub(state.omega.saturating_mul(config.angle_damping));
-    state.omega = state.omega + ang_accel.saturating_mul(config.dt);
-    state.theta = state.theta + state.omega.saturating_mul(config.dt);
+        .checked_mul(config.force)?
+        .checked_mul(config.angle_stiffness)?
+        .checked_sub(state.theta.checked_mul(config.gravity)?)?
+        .checked_sub(state.omega.checked_mul(config.angle_damping)?)?;
+    let next_omega = state.omega.checked_add(ang_accel.checked_mul(config.dt)?)?;
+    let next_theta = state.theta.checked_add(next_omega.checked_mul(config.dt)?)?;
+    Ok(CartPoleState {
+        x: next_x,
+        v: next_v,
+        theta: next_theta,
+        omega: next_omega,
+    })
+}
+
+fn nurigym_arithmetic_error(kind: ArithmeticFaultKind) -> String {
+    match kind {
+        ArithmeticFaultKind::Overflow => "E_NURIGYM_ARITH_OVERFLOW".to_string(),
+        ArithmeticFaultKind::DivByZero => "E_NURIGYM_ARITH_DIV_ZERO".to_string(),
+        ArithmeticFaultKind::DimensionMismatch { .. } => "E_NURIGYM_ARITH_DIMENSION".to_string(),
+    }
 }
 
 fn is_done(state: &CartPoleState, config: &CartPoleConfig) -> bool {
@@ -221,4 +245,57 @@ fn splitmix64(mut x: u64) -> u64 {
     z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
     z ^ (z >> 31)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn checked_overflow_rejects_without_advancing_cartpole_state() {
+        let mut config = CartPoleConfig::default_v1();
+        config.dt = Fixed64::MAX;
+        config.force = Fixed64::MAX;
+        let mut env = CartPoleEnv::new(7, config);
+        env.state = CartPoleState {
+            x: Fixed64::ZERO,
+            v: Fixed64::ZERO,
+            theta: Fixed64::ZERO,
+            omega: Fixed64::ZERO,
+        };
+        let before = env.state.clone();
+
+        assert_eq!(
+            env.step(1).expect_err("overflow must fail"),
+            "E_NURIGYM_ARITH_OVERFLOW"
+        );
+        assert_eq!(env.state.x, before.x);
+        assert_eq!(env.state.v, before.v);
+        assert_eq!(env.state.theta, before.theta);
+        assert_eq!(env.state.omega, before.omega);
+        assert!(!env.done);
+    }
+
+    #[test]
+    fn checked_velocity_friction_overflow_is_not_saturated() {
+        let mut config = CartPoleConfig::default_v1();
+        config.dt = Fixed64::ZERO;
+        config.force = Fixed64::ONE;
+        config.friction = Fixed64::from_i64(2);
+        let mut env = CartPoleEnv::new(13, config);
+        env.state = CartPoleState {
+            x: Fixed64::ZERO,
+            v: Fixed64::MAX,
+            theta: Fixed64::ZERO,
+            omega: Fixed64::ZERO,
+        };
+        let before = env.state.clone();
+
+        assert_eq!(
+            env.step(1).expect_err("friction overflow must fail"),
+            "E_NURIGYM_ARITH_OVERFLOW"
+        );
+        assert_eq!(env.state.v, before.v);
+        assert_eq!(env.state.x, before.x);
+    }
 }

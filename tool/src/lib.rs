@@ -1,4 +1,4 @@
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "internal-tools"))]
 pub mod ai_prompt;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod ai_extract_workflow;
@@ -9,6 +9,13 @@ pub mod bogae_bundle_workflow;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod bogae_playback_workflow;
 pub mod canon;
+pub mod bogae_composition;
+pub mod bogae_projection;
+pub mod bogae_recipe;
+pub mod scene_value;
+pub mod authored_project;
+pub mod authored_bogae;
+pub mod completion;
 pub mod corpus_authoring;
 pub mod corpus_csv;
 #[cfg(not(target_arch = "wasm32"))]
@@ -21,6 +28,7 @@ pub mod repl_workflow;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod replay_diff;
 pub mod ddn_runtime;
+pub mod result_place;
 pub mod deterministic_debug;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod dotbogi_workflow;
@@ -43,6 +51,8 @@ pub mod scan_workflow;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod intent_workflow;
 pub mod input_tape;
+pub mod logical_input_tape;
+pub mod input_receipt;
 pub mod host_resource;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod live_input;
@@ -96,7 +106,10 @@ pub mod gaji_plan_workflow;
 pub mod local_project;
 pub mod lint;
 pub mod lsp;
+pub use lsp::diagnostics;
+pub use lsp::hover;
 pub mod model_runtime;
+pub mod module_directive_analysis;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod numeric_workflow;
 #[cfg(not(target_arch = "wasm32"))]
@@ -123,6 +136,8 @@ pub mod social_workflow;
 pub mod test_workflow;
 pub mod unit_wire;
 pub mod work_cost;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod workbench_host;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod warp_workflow;
 #[cfg(not(target_arch = "wasm32"))]

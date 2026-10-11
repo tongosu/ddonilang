@@ -5,8 +5,12 @@ use std::path::Path;
 
 use ddonirang_core::{KEY_A, KEY_D, KEY_S, KEY_W};
 
-const MAGIC: &[u8] = b"DDN_INPUT_TAPE_V1\n";
-const VERSION: u32 = 1;
+const MAGIC_V1: &[u8] = b"DDN_INPUT_TAPE_V1\n";
+const MAGIC_V2: &[u8] = b"DDN_INPUT_TAPE_V2\n";
+const VERSION_V1: u32 = 1;
+const VERSION_V2: u32 = 2;
+pub const CONTROL_REGISTRY_ID: &str = "KEY_REGISTRY_V2_CONTROL";
+pub const CONTROL_REGISTRY_KEYS: [&str; 8] = ["ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp", "Space", "Enter", "KeyZ", "KeyX"];
 
 pub const KEY_REGISTRY_ID: &str = "KEY_REGISTRY_V1_MIN";
 pub const KEY_REGISTRY_KEYS: [&str; 9] = [
@@ -25,10 +29,40 @@ pub const KEY_REGISTRY_KEYS: [&str; 9] = [
 pub struct InputRecord {
     pub madi: u32,
     pub held_mask: Vec<u8>,
+    pub events: Vec<InputEvent>,
+}
+
+impl InputRecord {
+    pub(crate) fn runtime_edges(&self) -> (u64, u64) {
+        let mut pressed = 0;
+        let mut released = 0;
+        for event in &self.events {
+            match event.kind {
+                InputEventKind::Press => pressed |= event.key_bit,
+                InputEventKind::Release => released |= event.key_bit,
+            }
+        }
+        (tape_mask_to_runtime_keys(pressed), tape_mask_to_runtime_keys(released))
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InputEventKind {
+    Press,
+    Release,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InputEvent {
+    pub sequence: u64,
+    pub key_bit: u16,
+    pub kind: InputEventKind,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InputTape {
+    /// V1 remains snapshot-only provenance; it is never implicitly upgraded.
+    pub version: u32,
     pub madi_hz: u32,
     pub records: Vec<InputRecord>,
 }
@@ -124,7 +158,7 @@ pub fn parse_held_mask(line: &str) -> Result<u16, String> {
         if token.is_empty() {
             continue;
         }
-        let idx = key_index(token).ok_or_else(|| format!("unknown key token: {token}"))?;
+        let idx = key_index(token).ok_or_else(|| format!("알 수 없는 키 이름입니다: {token}"))?;
         mask |= 1u16 << idx;
     }
     Ok(mask)
@@ -139,13 +173,17 @@ pub fn mask_from_bytes(bytes: &[u8]) -> Result<u16, String> {
     let needed = expected_mask_len();
     if bytes.len() != needed {
         return Err(format!(
-            "held_mask length mismatch: expected {needed}, got {}",
+            "held_mask 길이가 다릅니다: 기대 {needed}, 실제 {}",
             bytes.len()
         ));
     }
     let mut raw = [0u8; 2];
     raw[..needed].copy_from_slice(bytes);
-    Ok(u16::from_le_bytes(raw))
+    let mask = u16::from_le_bytes(raw);
+    if mask & !((1u16 << KEY_REGISTRY_KEYS.len()) - 1) != 0 {
+        return Err("E_SAM_TAPE_FOOTER_INVALID 등록되지 않은 키 비트입니다".into());
+    }
+    Ok(mask)
 }
 
 /// Builds the versioned input tape consumed by every product runtime frontdoor.
@@ -154,26 +192,27 @@ pub fn mask_from_bytes(bytes: &[u8]) -> Result<u16, String> {
 /// key-registry bounds and the tape identity stay in this shared authority.
 pub fn input_tape_from_masks(madi_hz: u32, masks: &[u16]) -> Result<InputTape, String> {
     if madi_hz == 0 {
-        return Err("madi_hz must be greater than zero".to_string());
+        return Err("madi_hz는 0보다 커야 합니다".to_string());
     }
     if masks.len() > u32::MAX as usize {
-        return Err("input tape record count exceeds u32".to_string());
+        return Err("입력 테이프 기록 수가 u32 한계를 넘었습니다".to_string());
     }
     let allowed_mask = (1u16 << KEY_REGISTRY_KEYS.len()) - 1;
     let mut records = Vec::with_capacity(masks.len());
     for (index, mask) in masks.iter().copied().enumerate() {
         if mask & !allowed_mask != 0 {
             return Err(format!(
-                "input mask contains unregistered key bits: {:#x}",
+                "입력 mask에 등록되지 않은 키 비트가 있습니다: {:#x}",
                 mask & !allowed_mask
             ));
         }
         records.push(InputRecord {
             madi: index as u32,
             held_mask: mask_to_bytes(mask),
+            events: Vec::new(),
         });
     }
-    Ok(InputTape { madi_hz, records })
+    Ok(InputTape { version: VERSION_V1, madi_hz, records })
 }
 
 /// Converts the versioned input-tape key registry into the runtime key mask.
@@ -235,22 +274,76 @@ pub fn write_input_tape(path: &Path, tape: &InputTape) -> Result<(), String> {
 }
 
 pub fn encode_input_tape(tape: &InputTape) -> Result<Vec<u8>, String> {
-    for record in &tape.records {
-        mask_from_bytes(&record.held_mask)?;
+    if !matches!(tape.version, VERSION_V1 | VERSION_V2) {
+        return Err("E_SAM_TAPE_VERSION_UNSUPPORTED 지원하지 않는 테이프 버전입니다".into());
+    }
+    if tape.madi_hz == 0 || tape.records.len() > u32::MAX as usize {
+        return Err("E_SAM_TAPE_FOOTER_INVALID 마디 속도 또는 기록 개수가 잘못되었습니다".into());
+    }
+    let mut previous_sequence = None;
+    let mut held = 0u16;
+    for (index, record) in tape.records.iter().enumerate() {
+        let mask = mask_from_bytes(&record.held_mask)?;
+        if record.madi != index as u32 {
+            return Err("E_SAM_RECORD_ORDER_MISMATCH 기록의 마디 순서가 다릅니다".into());
+        }
+        if tape.version == VERSION_V2 && mask & (1 << 6) != 0 {
+            return Err("E_SAM_TAPE_HOST_KEY_FORBIDDEN Escape는 호스트 종료키입니다".into());
+        }
+        if record.events.len() > 1024 {
+            return Err("E_SAM_LIVE_QUEUE_OVERFLOW 마디별 사건 수가 1024개를 넘었습니다".into());
+        }
+        if tape.version == VERSION_V1 && !record.events.is_empty() {
+            return Err("E_SAM_TAPE_VERSION_UNSUPPORTED V1에는 사건 순번을 기록할 수 없습니다".into());
+        }
+        for event in &record.events {
+            validate_event(event, previous_sequence)?;
+            previous_sequence = Some(event.sequence);
+            match event.kind {
+                InputEventKind::Press => held |= event.key_bit,
+                InputEventKind::Release => held &= !event.key_bit,
+            }
+        }
+        if tape.version == VERSION_V2 && held != mask_from_bytes(&record.held_mask)? {
+            return Err("E_SAM_TAPE_FOOTER_INVALID 사건 순서와 최종 held mask가 다릅니다".into());
+        }
     }
     let mut out = Vec::new();
-    out.extend_from_slice(MAGIC);
-    out.extend_from_slice(&VERSION.to_le_bytes());
-    let registry_id = KEY_REGISTRY_ID.as_bytes();
+    out.extend_from_slice(if tape.version == VERSION_V2 { MAGIC_V2 } else { MAGIC_V1 });
+    out.extend_from_slice(&tape.version.to_le_bytes());
+    let registry_id = if tape.version == VERSION_V2 { CONTROL_REGISTRY_ID } else { KEY_REGISTRY_ID }.as_bytes();
     out.extend_from_slice(&(registry_id.len() as u32).to_le_bytes());
     out.extend_from_slice(registry_id);
-    out.extend_from_slice(&key_registry_hash());
+    let registry_hash = if tape.version == VERSION_V2 { *blake3::hash(CONTROL_REGISTRY_KEYS.join("\n").as_bytes()).as_bytes() } else { key_registry_hash() };
+    out.extend_from_slice(&registry_hash);
     out.extend_from_slice(&tape.madi_hz.to_le_bytes());
     out.extend_from_slice(&(tape.records.len() as u32).to_le_bytes());
     for record in &tape.records {
         out.extend_from_slice(&record.madi.to_le_bytes());
-        out.extend_from_slice(&(record.held_mask.len() as u32).to_le_bytes());
-        out.extend_from_slice(&record.held_mask);
+        if tape.version == VERSION_V2 {
+            let mask = mask_from_bytes(&record.held_mask)?;
+            out.extend_from_slice(&1u32.to_le_bytes());
+            out.push(((mask & 0x3f) | ((mask & 0x180) >> 1)) as u8);
+        } else {
+            out.extend_from_slice(&(record.held_mask.len() as u32).to_le_bytes());
+            out.extend_from_slice(&record.held_mask);
+        }
+        if tape.version == VERSION_V1 { continue; }
+        out.extend_from_slice(&(record.events.len() as u32).to_le_bytes());
+        for event in &record.events {
+            out.extend_from_slice(&event.sequence.to_le_bytes());
+            let internal_index = event.key_bit.trailing_zeros() as u16;
+            let key_index = if internal_index > 6 { internal_index - 1 } else { internal_index };
+            out.extend_from_slice(&key_index.to_le_bytes());
+            out.push(match event.kind {
+                InputEventKind::Press => 0,
+                InputEventKind::Release => 1,
+            });
+        }
+    }
+    if tape.version == VERSION_V2 {
+        let digest = blake3::hash(&out);
+        out.extend_from_slice(digest.as_bytes());
     }
     Ok(out)
 }
@@ -263,40 +356,122 @@ pub fn read_input_tape(path: &Path) -> Result<InputTape, String> {
 
 pub fn decode_input_tape(bytes: &[u8]) -> Result<InputTape, String> {
     let mut idx = 0usize;
-    if take_bytes(bytes, &mut idx, MAGIC.len())? != MAGIC {
-        return Err("invalid input tape magic".to_string());
+    let magic = take_bytes(bytes, &mut idx, MAGIC_V1.len())?;
+    if magic != MAGIC_V1 && magic != MAGIC_V2 {
+        return Err("입력 테이프 형식 식별자가 잘못되었습니다".to_string());
     }
     let version = read_u32(bytes, &mut idx)?;
-    if version != VERSION {
-        return Err(format!("unsupported input tape version: {version}"));
+    if (magic == MAGIC_V1 && version != VERSION_V1) || (magic == MAGIC_V2 && version != VERSION_V2)
+    {
+        return Err(format!("E_SAM_TAPE_VERSION_UNSUPPORTED 지원하지 않는 테이프 버전입니다: {version}"));
     }
     let registry_len = read_u32(bytes, &mut idx)? as usize;
-    if take_bytes(bytes, &mut idx, registry_len)? != KEY_REGISTRY_ID.as_bytes() {
-        return Err("key registry id mismatch".to_string());
+    let registry_id = if version == VERSION_V2 { CONTROL_REGISTRY_ID } else { KEY_REGISTRY_ID };
+    if take_bytes(bytes, &mut idx, registry_len)? != registry_id.as_bytes() {
+        return Err("키 레지스트리 식별자가 다릅니다 (key registry id mismatch)".to_string());
     }
-    if take_bytes(bytes, &mut idx, 32)? != key_registry_hash() {
-        return Err("key registry hash mismatch".to_string());
+    let registry_hash = if version == VERSION_V2 { *blake3::hash(CONTROL_REGISTRY_KEYS.join("\n").as_bytes()).as_bytes() } else { key_registry_hash() };
+    if take_bytes(bytes, &mut idx, 32)? != registry_hash {
+        return Err("키 레지스트리 해시가 다릅니다 (key registry hash mismatch)".to_string());
     }
     let madi_hz = read_u32(bytes, &mut idx)?;
     let record_count = read_u32(bytes, &mut idx)? as usize;
-    let mut records = Vec::with_capacity(record_count);
+    if version == VERSION_V2 {
+        verify_control_envelope(bytes, idx, record_count)?;
+    }
+    let mut records = Vec::with_capacity(record_count.min(4096));
+    let mut previous_sequence = None;
     for _ in 0..record_count {
         let madi = read_u32(bytes, &mut idx)?;
         let mask_len = read_u32(bytes, &mut idx)? as usize;
-        let held_mask = take_bytes(bytes, &mut idx, mask_len)?.to_vec();
+        let held_mask = if version == VERSION_V2 {
+            if mask_len != 1 { return Err("E_SAM_TAPE_FOOTER_INVALID 제어키 mask 길이가 다릅니다".into()); }
+            let raw = u16::from(take_bytes(bytes, &mut idx, 1)?[0]);
+            mask_to_bytes((raw & 0x3f) | ((raw & 0xc0) << 1))
+        } else { take_bytes(bytes, &mut idx, mask_len)?.to_vec() };
         mask_from_bytes(&held_mask)?;
-        records.push(InputRecord { madi, held_mask });
+        let events = if version == VERSION_V2 {
+            let event_count = read_u32(bytes, &mut idx)? as usize;
+            if event_count > 1024 { return Err("E_SAM_LIVE_QUEUE_OVERFLOW 마디별 사건 수가 1024개를 넘었습니다".into()); }
+            if event_count > (bytes.len().saturating_sub(idx) / 11) {
+                return Err("E_SAM_TAPE_TRUNCATED 입력 사건 기록이 잘렸습니다".to_string());
+            }
+            let mut events = Vec::with_capacity(event_count);
+            for _ in 0..event_count {
+                let sequence = read_u64(bytes, &mut idx)?;
+                let key_index = read_u16(bytes, &mut idx)?;
+                if usize::from(key_index) >= CONTROL_REGISTRY_KEYS.len() {
+                    return Err("E_SAM_TAPE_HOST_KEY_FORBIDDEN 허용되지 않은 제어키 식별자입니다".into());
+                }
+                let key_bit = 1u16 << if key_index >= 6 { key_index + 1 } else { key_index };
+                let kind = match take_bytes(bytes, &mut idx, 1)?[0] {
+                    0 => InputEventKind::Press,
+                    1 => InputEventKind::Release,
+                    _ => return Err("E_SAM_TAPE_FOOTER_INVALID 입력 사건 종류가 잘못되었습니다".to_string()),
+                };
+                let event = InputEvent {
+                    sequence,
+                    key_bit,
+                    kind,
+                };
+                validate_event(&event, previous_sequence)?;
+                previous_sequence = Some(sequence);
+                events.push(event);
+            }
+            events
+        } else {
+            Vec::new()
+        };
+        records.push(InputRecord {
+            madi,
+            held_mask,
+            events,
+        });
+    }
+    if version == VERSION_V2 {
+        take_bytes(bytes, &mut idx, 32)?;
     }
     if idx != bytes.len() {
-        return Err("extra bytes at end of input tape".to_string());
+        return Err("E_SAM_TAPE_TRAILING_BYTES 테이프 끝에 불필요한 바이트가 있습니다".to_string());
     }
-    Ok(InputTape { madi_hz, records })
+    let tape = InputTape { version, madi_hz, records };
+    encode_input_tape(&tape)?;
+    Ok(tape)
+}
+
+/// Inspect bounded framing and verify all canonical bytes before allocating events.
+fn verify_control_envelope(bytes: &[u8], mut index: usize, records: usize) -> Result<(), String> {
+    if records > bytes.len().saturating_sub(index) / 13 {
+        return Err("E_SAM_TAPE_TRUNCATED 마디 기록이 잘렸습니다".into());
+    }
+    for _ in 0..records {
+        read_u32(bytes, &mut index)?;
+        let mask_len = read_u32(bytes, &mut index)? as usize;
+        if mask_len != 1 {
+            return Err("E_SAM_TAPE_FOOTER_INVALID 제어키 mask 길이가 다릅니다".into());
+        }
+        take_bytes(bytes, &mut index, 1)?;
+        let events = read_u32(bytes, &mut index)? as usize;
+        if events > 1024 {
+            return Err("E_SAM_LIVE_QUEUE_OVERFLOW 마디별 사건 수가 1024개를 넘었습니다".into());
+        }
+        take_bytes(bytes, &mut index, events * 11)?;
+    }
+    let body_end = index;
+    let digest = take_bytes(bytes, &mut index, 32)?;
+    if index != bytes.len() {
+        return Err("E_SAM_TAPE_TRAILING_BYTES footer 뒤에 불필요한 바이트가 있습니다".into());
+    }
+    if digest != blake3::hash(&bytes[..body_end]).as_bytes() {
+        return Err("E_SAM_TAPE_DIGEST_MISMATCH 입력 테이프가 손상되었습니다. 원본 기록을 확인하세요".into());
+    }
+    Ok(())
 }
 
 fn take_bytes<'a>(bytes: &'a [u8], idx: &mut usize, len: usize) -> Result<&'a [u8], String> {
     let end = idx.saturating_add(len);
     if end > bytes.len() {
-        return Err("unexpected EOF while reading input tape".to_string());
+        return Err("E_SAM_TAPE_TRUNCATED 입력 테이프가 잘렸습니다. 원본 기록을 확인하세요".to_string());
     }
     let out = &bytes[*idx..end];
     *idx = end;
@@ -308,16 +483,60 @@ fn read_u32(bytes: &[u8], idx: &mut usize) -> Result<u32, String> {
     Ok(u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]))
 }
 
+fn read_u16(bytes: &[u8], idx: &mut usize) -> Result<u16, String> {
+    let raw = take_bytes(bytes, idx, 2)?;
+    Ok(u16::from_le_bytes([raw[0], raw[1]]))
+}
+fn read_u64(bytes: &[u8], idx: &mut usize) -> Result<u64, String> {
+    let raw = take_bytes(bytes, idx, 8)?;
+    Ok(u64::from_le_bytes([
+        raw[0], raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7],
+    ]))
+}
+
+fn validate_event(event: &InputEvent, previous_sequence: Option<u64>) -> Result<(), String> {
+    if previous_sequence.is_some_and(|previous| event.sequence <= previous) {
+        return Err("E_SAM_TAPE_FOOTER_INVALID 입력 사건 순번이 중복되거나 역전되었습니다".to_string());
+    }
+    if event.key_bit == 0
+        || event.key_bit.count_ones() != 1
+        || event.key_bit.trailing_zeros() as usize >= KEY_REGISTRY_KEYS.len()
+    {
+        return Err("E_SAM_TAPE_FOOTER_INVALID 입력 키 비트가 잘못되었습니다".to_string());
+    }
+    if event.key_bit == (1u16 << 6) {
+        return Err("E_SAM_TAPE_HOST_KEY_FORBIDDEN Escape는 호스트 종료키이므로 기록할 수 없습니다".to_string());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         decode_input_tape, encode_input_tape, input_tape_from_masks, runtime_keys_to_tape_mask,
-        tape_mask_to_runtime_keys, InputRecord, InputTape,
+        tape_mask_to_runtime_keys, InputEvent, InputEventKind, InputRecord, InputTape,
     };
     use ddonirang_core::{KEY_A, KEY_D, KEY_S, KEY_W};
 
     fn sample() -> InputTape {
         input_tape_from_masks(60, &[0b10, 0]).expect("shared input tape")
+    }
+
+    fn v1_bytes(tape: &InputTape) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(super::MAGIC_V1);
+        bytes.extend_from_slice(&super::VERSION_V1.to_le_bytes());
+        bytes.extend_from_slice(&(super::KEY_REGISTRY_ID.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(super::KEY_REGISTRY_ID.as_bytes());
+        bytes.extend_from_slice(&super::key_registry_hash());
+        bytes.extend_from_slice(&tape.madi_hz.to_le_bytes());
+        bytes.extend_from_slice(&(tape.records.len() as u32).to_le_bytes());
+        for record in &tape.records {
+            bytes.extend_from_slice(&record.madi.to_le_bytes());
+            bytes.extend_from_slice(&(record.held_mask.len() as u32).to_le_bytes());
+            bytes.extend_from_slice(&record.held_mask);
+        }
+        bytes
     }
 
     #[test]
@@ -337,6 +556,21 @@ mod tests {
     }
 
     #[test]
+    fn v1_is_an_explicit_read_compatibility_format_without_v2_event_claims() {
+        let tape = sample();
+        let decoded = decode_input_tape(&v1_bytes(&tape)).expect("read v1");
+        assert_eq!(decoded.madi_hz, tape.madi_hz);
+        assert_eq!(decoded.records.len(), tape.records.len());
+        assert!(decoded
+            .records
+            .iter()
+            .all(|record| record.events.is_empty()));
+        assert!(encode_input_tape(&decoded)
+            .expect("explicit V1 preservation")
+            .starts_with(super::MAGIC_V1));
+    }
+
+    #[test]
     fn registry_hash_mutation_fails_closed() {
         let mut bytes = encode_input_tape(&sample()).expect("encode");
         let offset = b"DDN_INPUT_TAPE_V1\n".len()
@@ -345,20 +579,22 @@ mod tests {
             + super::KEY_REGISTRY_ID.len();
         bytes[offset] ^= 1;
         let error = decode_input_tape(&bytes).expect_err("mutated registry must fail");
-        assert_eq!(error, "key registry hash mismatch");
+        assert_eq!(error, "키 레지스트리 해시가 다릅니다 (key registry hash mismatch)");
     }
 
     #[test]
     fn invalid_record_is_rejected_before_publication_bytes_exist() {
         let tape = InputTape {
+            version: 1,
             madi_hz: 60,
             records: vec![InputRecord {
                 madi: 0,
                 held_mask: vec![0],
+                events: Vec::new(),
             }],
         };
         let error = encode_input_tape(&tape).expect_err("invalid mask must fail");
-        assert!(error.contains("held_mask length mismatch"), "{error}");
+        assert!(error.contains("held_mask 길이가 다릅니다"), "{error}");
         assert!(input_tape_from_masks(0, &[0]).is_err());
         assert!(input_tape_from_masks(60, &[1 << 9]).is_err());
     }
@@ -379,5 +615,108 @@ mod tests {
                 mask
             );
         }
+    }
+
+    #[test]
+    fn v2_preserves_press_release_sequence_and_rejects_digest_tamper() {
+        let tape = InputTape {
+            version: 2,
+            madi_hz: 60,
+            records: vec![InputRecord {
+                madi: 0,
+                held_mask: super::mask_to_bytes(0),
+                events: vec![
+                    InputEvent {
+                        sequence: 4,
+                        key_bit: 1,
+                        kind: InputEventKind::Press,
+                    },
+                    InputEvent {
+                        sequence: 5,
+                        key_bit: 1,
+                        kind: InputEventKind::Release,
+                    },
+                ],
+            }],
+        };
+        let bytes = encode_input_tape(&tape).expect("encode v2");
+        assert_eq!(decode_input_tape(&bytes).expect("decode v2"), tape);
+        let mut tampered = bytes.clone();
+        let body_byte = tampered.len() - 35;
+        tampered[body_byte] ^= 1;
+        assert!(decode_input_tape(&tampered)
+            .expect_err("body tamper")
+            .contains("DIGEST_MISMATCH"));
+        let mut footer_tampered = bytes;
+        let last = footer_tampered.len() - 1;
+        footer_tampered[last] ^= 1;
+        assert!(decode_input_tape(&footer_tampered)
+            .expect_err("footer tamper")
+            .contains("DIGEST_MISMATCH"));
+    }
+
+    #[test]
+    fn v2_rejects_host_stop_and_trailing_bytes() {
+        let tape = InputTape {
+            version: 2,
+            madi_hz: 60,
+            records: vec![InputRecord {
+                madi: 0,
+                held_mask: super::mask_to_bytes(0),
+                events: vec![InputEvent {
+                    sequence: 0,
+                    key_bit: 1 << 6,
+                    kind: InputEventKind::Press,
+                }],
+            }],
+        };
+        assert!(encode_input_tape(&tape)
+            .expect_err("host key")
+            .contains("HOST_KEY_FORBIDDEN"));
+        let valid = InputTape { version: 2, madi_hz: 60, records: vec![InputRecord {
+            madi: 0, held_mask: super::mask_to_bytes(0), events: Vec::new(),
+        }] };
+        let mut good = encode_input_tape(&valid).expect("encode");
+        good.push(0);
+        assert!(decode_input_tape(&good)
+            .expect_err("trailing bytes")
+            .contains("TRAILING_BYTES"));
+
+        let mut truncated = encode_input_tape(&valid).expect("encode");
+        truncated.truncate(truncated.len() - 1);
+        assert!(decode_input_tape(&truncated)
+            .expect_err("truncated")
+            .contains("TRUNCATED"));
+    }
+
+    #[test]
+    fn v2_footer_digest_corruption_is_rejected() {
+        let tape = InputTape { version: 2, madi_hz: 60, records: Vec::new() };
+        let mut bytes = encode_input_tape(&tape).unwrap();
+        *bytes.last_mut().unwrap() ^= 1;
+        assert!(decode_input_tape(&bytes).expect_err("corrupt footer cannot yield a tape").contains("DIGEST_MISMATCH"));
+    }
+
+    #[test]
+    fn v2_control_registry_empty_tail_and_invalid_sequences() {
+        let mut tape = InputTape { version: 2, madi_hz: 60, records: Vec::new() };
+        let empty = encode_input_tape(&tape).unwrap();
+        assert_eq!(decode_input_tape(&empty).unwrap(), tape);
+        assert!(empty.windows(super::CONTROL_REGISTRY_ID.len()).any(|part| part == super::CONTROL_REGISTRY_ID.as_bytes()));
+        assert_eq!(&empty[empty.len()-32..], blake3::hash(&empty[..empty.len()-32]).as_bytes());
+        tape.records = vec![InputRecord { madi: 0, held_mask: super::mask_to_bytes(1 << 7), events: vec![InputEvent {
+            sequence: 0, key_bit: 1 << 7, kind: InputEventKind::Press,
+        }] }, InputRecord { madi: 1, held_mask: super::mask_to_bytes(1 << 7), events: Vec::new() }];
+        let bytes = encode_input_tape(&tape).unwrap();
+        assert_eq!(decode_input_tape(&bytes).unwrap(), tape);
+        let mut unsupported = bytes.clone();
+        let offset = super::MAGIC_V2.len();
+        unsupported[offset..offset+4].copy_from_slice(&3u32.to_le_bytes());
+        assert!(decode_input_tape(&unsupported).unwrap_err().contains("VERSION_UNSUPPORTED"));
+        tape.records[1].events.push(InputEvent { sequence: 0, key_bit: 1 << 7, kind: InputEventKind::Press });
+        assert!(encode_input_tape(&tape).unwrap_err().contains("입력 사건 순번이 중복되거나 역전되었습니다"));
+        tape.records[1].events[0].sequence = 1;
+        tape.records[1].events[0].kind = InputEventKind::Release;
+        assert!(encode_input_tape(&tape).unwrap_err().contains("held mask"));
     }
 }

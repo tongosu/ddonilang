@@ -16,6 +16,7 @@ use serde_json::{json, Map, Value as JsonValue};
 use wasm_bindgen::prelude::*;
 
 use crate::canon;
+use crate::completion;
 use crate::corpus_csv;
 use crate::ddn_runtime::{
     formula_from_resource_value, formula_summary_parts, resolve_supported_source_profile,
@@ -26,17 +27,99 @@ use crate::deterministic_debug::{
     build_public_observation_trace, deterministic_debug_operation, public_observation_events_json,
     DebugEvaluator,
 };
-use crate::fixed64_boundary::Fixed64FloatBoundary;
 use crate::host_resource;
 use crate::local_project;
+use crate::module_directive_analysis;
 use crate::project_authoring;
 use crate::runtime_surface;
 use crate::source_analysis;
+pub(crate) use crate::unit_wire::json_to_fixed64;
 use crate::unit_wire::{RESOURCE_SNAPSHOT_SCHEMA_V2, UNIT_VALUE_WIRE_SCHEMA_V2};
 
 const DEFAULT_UPDATE_NAME: &str = "매마디";
+
+#[wasm_bindgen]
+pub fn authored_project_operation(operation: &str, artifact_json: &str) -> Result<String, JsValue> {
+    crate::authored_project::operate(operation, artifact_json).map_err(|error| JsValue::from_str(&error))
+}
 const ENGINE_RESPONSE_SCHEMA: &str = "seamgrim.engine_response.v0";
 const WASM_STATE_SNAPSHOT_SCHEMA_V2: &str = "ddn.wasm_state_snapshot.v2";
+
+/// Live logical input uses the same transactional session as file replay.
+/// Device mapping remains outside this VM; no raw-key/default-input fallback.
+#[wasm_bindgen]
+pub struct DdnLogicalInputVm {
+    session: crate::logical_input_tape::LogicalInputSession,
+}
+
+#[wasm_bindgen]
+impl DdnLogicalInputVm {
+    pub fn bind_source_json(source: &str, binding_json: &str) -> Result<String, JsValue> {
+        let binding = serde_json::from_str(binding_json)
+            .map_err(|error| JsValue::from_str(&format!("E_LOGICAL_INPUT_BINDING_JSON: {error}")))?;
+        let bound = crate::logical_input_tape::LogicalInputSession::bind_source_for_fresh_run(source, binding)
+            .map_err(|error| JsValue::from_str(&error))?;
+        serde_json::to_string(&bound).map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
+    #[wasm_bindgen(constructor)]
+    pub fn new(source: &str, binding_json: &str) -> Result<DdnLogicalInputVm, JsValue> {
+        let binding = serde_json::from_str(binding_json)
+            .map_err(|_| JsValue::from_str("E_LOGICAL_INPUT_BINDING: 논리 입력 결속 필드가 올바르지 않습니다"))?;
+        let session = crate::logical_input_tape::LogicalInputSession::new(source, binding)
+            .map_err(|reason| JsValue::from_str(&reason))?;
+        Ok(Self { session })
+    }
+
+    pub fn step_json(&mut self, snapshot_json: &str) -> Result<String, JsValue> {
+        let snapshot = serde_json::from_str(snapshot_json).map_err(|_| {
+            let reason = "E_LOGICAL_INPUT_SNAPSHOT: 논리 입력 필드가 올바르지 않습니다";
+            self.session.reject_input(reason.to_string());
+            JsValue::from_str(reason)
+        })?;
+        let result = self.session.step(&snapshot)
+            .map_err(|reason| JsValue::from_str(&reason))?;
+        serde_json::to_string(&result).map_err(|reason| JsValue::from_str(&reason.to_string()))
+    }
+
+    pub fn summary_json(&self) -> String {
+        self.session.summary().to_string()
+    }
+
+    /// Display projection only. The shared accepted world is never mutated.
+    pub fn view_json(&self) -> String {
+        build_view_meta(self.session.committed_world()).to_string()
+    }
+
+    /// Host input loss is explicit failure, not a manufactured Release event.
+    pub fn abort_input(&mut self, message: &str) {
+        self.session.reject_input(format!("E_LOGICAL_INPUT_LOST: {message}"));
+    }
+
+    pub fn seal_json(&self) -> Result<String, JsValue> {
+        let bytes = self.session.seal().map_err(|reason| JsValue::from_str(&reason))?;
+        Ok(json!({"tape_bytes":bytes,"summary":self.session.summary()}).to_string())
+    }
+}
+
+/// Host snapshot recording and replay use the same Rust executor as Native.
+/// These entrypoints do not accept old tape versions or raw device inputs.
+#[wasm_bindgen]
+pub fn logical_input_record(source: &str, request_json: &str) -> Result<String, JsValue> {
+    let request = serde_json::from_str(request_json)
+        .map_err(|_| JsValue::from_str("E_LOGICAL_INPUT_REQUEST: 입력 요청 필드가 올바르지 않습니다"))?;
+    let (bytes, summary) = crate::logical_input_tape::record_source(source, &request)
+        .map_err(|error| JsValue::from_str(&error))?;
+    Ok(json!({"tape_bytes": bytes, "summary": summary}).to_string())
+}
+
+#[wasm_bindgen]
+pub fn logical_input_replay(source: &str, tape: &[u8], binding_json: &str) -> Result<String, JsValue> {
+    let binding = serde_json::from_str(binding_json)
+        .map_err(|_| JsValue::from_str("E_LOGICAL_INPUT_BINDING: 입력 계약 필드가 올바르지 않습니다"))?;
+    crate::logical_input_tape::replay_source(source, tape, &binding)
+        .map(|summary| summary.to_string()).map_err(|error| JsValue::from_str(&error))
+}
 const SPACE2D_SCHEMA: &str = "seamgrim.space2d.v0";
 const BOGAE_DRAWLIST_TAG: &str = "보개_그림판_목록";
 const BOGAE_WIDTH_TAG: &str = "보개_그림판_가로";
@@ -128,6 +211,8 @@ fn parse_program_for_wasm(
         .map_err(|err| JsValue::from_str(&format!("WASM preprocess 실패: {err}")))?;
     let program = DdnProgram::from_source_with_mode(source, source_path, mode)
         .map_err(|err| JsValue::from_str(&err))?;
+    source_analysis::validate_program_for_execution(program.canonical_program())
+        .map_err(|err| JsValue::from_str(&err))?;
     Ok((program, prepared.execution_mode_decision))
 }
 
@@ -162,6 +247,14 @@ pub fn wasm_preprocess_source(source: &str) -> Result<String, JsValue> {
 #[wasm_bindgen]
 pub fn wasm_source_analysis_snapshot_json(request_json: &str) -> Result<String, JsValue> {
     source_analysis::source_analysis_snapshot_json(request_json)
+        .map_err(|err| JsValue::from_str(&err))
+}
+
+/// Additive internal candidate carrier for lexer-backed RD-457 metadata.
+/// It deliberately does not alter the established source-analysis v1 export.
+#[wasm_bindgen]
+pub fn wasm_module_directive_analysis_snapshot_json(request_json: &str) -> Result<String, JsValue> {
+    module_directive_analysis::module_directive_analysis_snapshot_json(request_json)
         .map_err(|err| JsValue::from_str(&err))
 }
 
@@ -225,6 +318,89 @@ pub fn wasm_run_summary_with_source_profile_json(
     )
     .map(|summary| summary.to_string())
     .map_err(|err| JsValue::from_str(&err))
+}
+
+/// Typed host-resource request entrypoint for RuntimeBridge/Workbench.
+#[wasm_bindgen]
+pub fn wasm_run_summary_with_bogae_entry_json(
+    source:&str, source_path:&str, requested_ticks:i32, source_profile:&str, entry:&str,
+) -> Result<String,JsValue> {
+    let requested=if requested_ticks<0 {None} else {Some(requested_ticks as u32)};
+    runtime_surface::run_summary_with_bogae_entry(source,require_wasm_source_path(source_path)?,requested,source_profile,entry)
+        .map(|summary|summary.to_string()).map_err(|err|JsValue::from_str(&err))
+}
+
+#[wasm_bindgen]
+pub fn wasm_run_summary_with_authored_bogae_json(
+    source: &str, source_path: &str, requested_ticks: i32, source_profile: &str,
+    artifact_json: &str, receipts_json: Option<String>, param_overrides_json: Option<String>,
+) -> Result<String, JsValue> {
+    let receipts = receipts_json.as_deref().map(serde_json::from_str::<JsonValue>)
+        .transpose().map_err(|error| JsValue::from_str(&format!("E_INPUT_RECEIPT_INVALID: {error}")))?;
+    let params = param_overrides_json.as_deref().map(|text| {
+        let json: JsonValue = serde_json::from_str(text)
+            .map_err(|error| format!("E_WASM_STATE_PARAMS_INVALID: {error}"))?;
+        parse_param_overrides(&json)
+    }).transpose().map_err(|error| JsValue::from_str(&error))?;
+    runtime_surface::run_summary_with_authored_bogae(
+        source, require_wasm_source_path(source_path)?,
+        if requested_ticks < 0 { None } else { Some(requested_ticks as u32) },
+        source_profile, artifact_json, receipts.as_ref(), params.as_ref(),
+    ).map(|summary| summary.to_string()).map_err(|error| JsValue::from_str(&error))
+}
+
+/// Typed host-resource request entrypoint for RuntimeBridge/Workbench.
+#[wasm_bindgen]
+pub fn wasm_run_summary_with_source_profile_input_receipts_json(
+    source: &str, source_path: &str, requested_ticks: i32,
+    source_profile_identity: &str, receipts_json: &str,
+    param_overrides_json: Option<String>,
+    bogae_entry: Option<String>,
+) -> Result<String, JsValue> {
+    let receipts: JsonValue = serde_json::from_str(receipts_json)
+        .map_err(|error| JsValue::from_str(&format!("E_INPUT_RECEIPT_INVALID: {error}")))?;
+    let rows = receipts.as_array()
+        .ok_or_else(|| JsValue::from_str("E_INPUT_RECEIPT_INVALID: 입력 영수증 목록이 필요합니다"))?;
+    for row in rows {
+        let input = crate::input_receipt::parse_receipt_snapshot(row)
+            .map_err(|error| JsValue::from_str(&error))?;
+        crate::input_receipt::validate_alpha_host_dt(input.dt)
+            .map_err(|error| JsValue::from_str(&error))?;
+    }
+    let path = require_wasm_source_path(source_path)?;
+    let ticks = if requested_ticks < 0 { None } else { Some(requested_ticks as u32) };
+    let params = param_overrides_json.as_deref().map(|text| {
+        let json: JsonValue = serde_json::from_str(text)
+            .map_err(|error| format!("E_WASM_STATE_PARAMS_INVALID: {error}"))?;
+        parse_param_overrides(&json)
+    }).transpose().map_err(|error| JsValue::from_str(&error))?;
+    runtime_surface::run_summary_with_receipts_and_bogae_entry(
+        source, path, ticks, Some(source_profile_identity), &receipts, params.as_ref(), bogae_entry.as_deref(),
+    ).map(|summary| summary.to_string()).map_err(|error| JsValue::from_str(&error))
+}
+
+/// Existing Tape V1 bytes only; no full-input receipt file replay format.
+#[wasm_bindgen]
+pub fn wasm_export_input_tape_v1(receipts_json: &str, madi_hz: u32) -> Result<Vec<u8>, JsValue> {
+    let receipts: JsonValue = serde_json::from_str(receipts_json)
+        .map_err(|error| JsValue::from_str(&format!("E_INPUT_RECEIPT_INVALID: {error}")))?;
+    crate::input_receipt::encode_tape_v1_from_receipts(&receipts, madi_hz)
+        .map_err(|error| JsValue::from_str(&error))
+}
+
+#[wasm_bindgen]
+pub fn wasm_run_summary_with_source_profile_tape_v1_json(
+    source: &str, source_path: &str, source_profile_identity: &str, tape_bytes: &[u8],
+) -> Result<String, JsValue> {
+    let tape = crate::input_tape::decode_input_tape(tape_bytes)
+        .map_err(|error| JsValue::from_str(&error))?;
+    if tape.version != 1 {
+        return Err(JsValue::from_str("E_SAM_TAPE_VERSION_UNSUPPORTED: 이 입구는 Tape V1만 받습니다"));
+    }
+    let path = require_wasm_source_path(source_path)?;
+    runtime_surface::run_summary_from_supported_source_profile_with_input_tape(
+        source, path, None, Some(source_profile_identity), &tape,
+    ).map(|summary| summary.to_string()).map_err(|error| JsValue::from_str(&error))
 }
 
 /// Typed host-resource request entrypoint for RuntimeBridge/Workbench.
@@ -414,6 +590,13 @@ pub fn wasm_project_authoring_hover_json(request_json: &str) -> Result<String, J
 
 #[wasm_bindgen]
 pub fn wasm_project_authoring_completion_json(request_json: &str) -> Result<String, JsValue> {
+    let request_schema = serde_json::from_str::<Map<String, JsonValue>>(request_json)
+        .ok()
+        .and_then(|request| request.get("schema").and_then(JsonValue::as_str).map(str::to_owned));
+    if request_schema.as_deref() == Some(completion::SHARED_COMPLETION_SCHEMA) {
+        return completion::build_structured_completion_json(request_json)
+            .map_err(|err| JsValue::from_str(&err));
+    }
     project_authoring::build_project_authoring_completion_json(request_json)
         .map_err(|err| JsValue::from_str(&err.to_json_value().to_string()))
 }
@@ -776,6 +959,7 @@ pub struct DdnWasmVm {
     input_pointer_y_i32: i32,
     input_dt: Fixed64,
     last_patch: Option<Patch>,
+    last_bogae_projection: Option<JsonValue>,
     pending_ai_injections: Vec<(String, String)>,
     lang_mode: ParseMode,
     parse_warnings: Vec<DdnParseWarning>,
@@ -808,11 +992,13 @@ fn update_wasm_logic_with_supported_source_profile(
         profile,
     )
     .map_err(|error| JsValue::from_str(&error))?;
+    source_analysis::validate_program_for_execution(program.canonical_program())
+        .map_err(|error| JsValue::from_str(&error))?;
     let canonical_ddn = program.canonical_ddn();
     vm.configured_madi = program.configured_madi().unwrap_or(0);
     vm.execution_mode_decision = program.execution_mode_decision();
     vm.parse_warnings = program.parse_warnings().to_vec();
-    vm.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME);
+    vm.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME).with_bogae_activation();
     vm.runner
         .set_project_asset_registry(vm.project_asset_registry.clone());
     vm.source_bytes_sha256 = runtime_surface::sha256_hex(source.as_bytes());
@@ -828,7 +1014,6 @@ fn apply_currentline_result_to_vm(
     result: ddonirang_lang::CurrentLineResult,
     source_profile_identity: Option<&str>,
 ) -> Result<JsValue, JsValue> {
-    let _ = vm.reset(Some(false))?;
     if let Some(source_profile_identity) = source_profile_identity {
         update_wasm_logic_with_supported_source_profile(
             vm,
@@ -838,6 +1023,8 @@ fn apply_currentline_result_to_vm(
     } else {
         vm.update_logic(&result.project_source)?;
     }
+    // A rejected edit must not erase the state of the previous valid program.
+    let _ = vm.reset(Some(false))?;
     let state = vm.run_ticks(1)?;
     let state_text = state
         .as_string()
@@ -879,6 +1066,7 @@ fn refresh_wasm_public_observation_surface(vm: &mut DdnWasmVm) -> Result<(), Str
 }
 
 fn reset_wasm_public_observation_surface(vm: &mut DdnWasmVm) -> Result<(), String> {
+    vm.last_bogae_projection = None;
     vm.last_public_observations.clear();
     vm.public_observation_frames.clear();
     refresh_wasm_public_observation_surface(vm)
@@ -921,14 +1109,7 @@ fn require_schema(
 
 fn parse_restored_input(payload: Option<&JsonValue>) -> Result<RestoredInputState, String> {
     let Some(payload) = payload else {
-        return Ok(RestoredInputState {
-            keys_pressed: 0,
-            last_key_name: String::new(),
-            pointer_x_i32: 0,
-            pointer_y_i32: 0,
-            rng_seed: 0,
-            dt: Fixed64::from_i64(1),
-        });
+        return Err("E_INPUT_RECORD_LEGACY_UNSUPPORTED: 입력 기록이 없어 정확한 dt를 확인할 수 없습니다".into());
     };
     let JsonValue::Object(obj) = payload else {
         return Err("E_WASM_STATE_INPUT_INVALID: state.input은 object여야 합니다".to_string());
@@ -959,11 +1140,7 @@ fn parse_restored_input(payload: Option<&JsonValue>) -> Result<RestoredInputStat
         }
         None => String::new(),
     };
-    let dt = match obj.get("dt") {
-        Some(value) => json_to_fixed64(value)
-            .ok_or_else(|| "E_WASM_STATE_INPUT_INVALID: state.input.dt".to_string())?,
-        None => Fixed64::from_i64(1),
-    };
+    let dt = crate::input_receipt::parse_recorded_dt(payload)?;
     Ok(RestoredInputState {
         keys_pressed: parse_u64("keys_pressed")?.unwrap_or(0),
         last_key_name,
@@ -1087,7 +1264,7 @@ impl DdnWasmVm {
         let mut defaults = HashMap::new();
         seed_bogae_defaults(&mut defaults);
         Ok(DdnWasmVm {
-            runner: DdnRunner::new(program, DEFAULT_UPDATE_NAME),
+            runner: DdnRunner::new(program, DEFAULT_UPDATE_NAME).with_bogae_activation(),
             world: DetNuri::new(),
             defaults,
             param_overrides: BTreeMap::new(),
@@ -1101,8 +1278,9 @@ impl DdnWasmVm {
             input_last_key_name: String::new(),
             input_pointer_x_i32: 0,
             input_pointer_y_i32: 0,
-            input_dt: Fixed64::from_i64(1),
+            input_dt: crate::input_receipt::alpha_host_dt(),
             last_patch: None,
+            last_bogae_projection: None,
             pending_ai_injections: Vec::new(),
             lang_mode: ParseMode::Strict,
             parse_warnings,
@@ -1142,7 +1320,7 @@ impl DdnWasmVm {
         let mut defaults = HashMap::new();
         seed_bogae_defaults(&mut defaults);
         Ok(DdnWasmVm {
-            runner: DdnRunner::new(program, DEFAULT_UPDATE_NAME),
+            runner: DdnRunner::new(program, DEFAULT_UPDATE_NAME).with_bogae_activation(),
             world: DetNuri::new(),
             defaults,
             param_overrides: BTreeMap::new(),
@@ -1156,8 +1334,9 @@ impl DdnWasmVm {
             input_last_key_name: String::new(),
             input_pointer_x_i32: 0,
             input_pointer_y_i32: 0,
-            input_dt: Fixed64::from_i64(1),
+            input_dt: crate::input_receipt::alpha_host_dt(),
             last_patch: None,
+            last_bogae_projection: None,
             pending_ai_injections: Vec::new(),
             lang_mode: mode,
             parse_warnings,
@@ -1210,7 +1389,7 @@ impl DdnWasmVm {
         self.configured_madi = program.configured_madi().unwrap_or(0);
         self.execution_mode_decision = execution_mode_decision;
         self.parse_warnings = program.parse_warnings().to_vec();
-        self.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME);
+        self.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME).with_bogae_activation();
         self.runner
             .set_project_asset_registry(self.project_asset_registry.clone());
         self.source_path = source_path.to_string();
@@ -1226,6 +1405,23 @@ impl DdnWasmVm {
         self.configured_madi
     }
 
+    /// Bind the entry selected by the explicit work-root linker. Call again
+    /// after installing a replacement program; no filename or name inference.
+    pub fn configure_project_entry(&mut self, name: &str) -> Result<(), JsValue> {
+        self.runner.configure_project_entry(name).map_err(|err| JsValue::from_str(&err))
+    }
+
+    pub fn configure_bogae_entry(&mut self, name: &str) -> Result<(), JsValue> {
+        self.runner.configure_bogae_entry(name).map_err(|err|JsValue::from_str(&err))
+    }
+
+    pub fn configure_authored_bogae(&mut self, artifact_json: &str) -> Result<(), JsValue> {
+        if self.tick_id != 0 {
+            return Err(JsValue::from_str("E_AUTHORED_BOGAE_LIFECYCLE: 실행을 시작한 뒤 정체를 교체할 수 없습니다"));
+        }
+        self.runner.configure_authored_bogae(artifact_json).map_err(|err| JsValue::from_str(&err))
+    }
+
     pub fn get_execution_mode_decision_json(&self) -> String {
         runtime_surface::execution_mode_decision_json(self.execution_mode_decision).to_string()
     }
@@ -1239,7 +1435,7 @@ impl DdnWasmVm {
         self.configured_madi = program.configured_madi().unwrap_or(0);
         self.execution_mode_decision = execution_mode_decision;
         self.parse_warnings = program.parse_warnings().to_vec();
-        self.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME);
+        self.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME).with_bogae_activation();
         self.runner
             .set_project_asset_registry(self.project_asset_registry.clone());
         self.lang_mode = mode;
@@ -1350,21 +1546,46 @@ impl DdnWasmVm {
         self.view_prefixes.clear();
     }
 
-    pub fn set_input(
+    pub fn set_input_fixed64_v1(
         &mut self,
         keys_pressed: u32,
         last_key_name: &str,
         pointer_x_i32: i32,
         pointer_y_i32: i32,
-        dt: f64,
-    ) {
-        self.input_keys_pressed = u64::from(keys_pressed);
-        self.input_last_key_name = last_key_name.to_string();
-        self.input_pointer_x_i32 = pointer_x_i32;
-        self.input_pointer_y_i32 = pointer_y_i32;
-        if dt.is_finite() {
-            self.input_dt = fixed64_from_f64_checked(dt);
-        }
+        dt_high_i32: i32,
+        dt_low_u32: u32,
+    ) -> Result<JsValue, JsValue> {
+        crate::input_receipt::validate_alpha_host_dt(fixed64_from_q31_32_parts(dt_high_i32, dt_low_u32))
+            .map_err(|message| JsValue::from_str(&message))?;
+        let dt = self.set_input_fixed64_parts(
+            keys_pressed,
+            last_key_name,
+            pointer_x_i32,
+            pointer_y_i32,
+            dt_high_i32,
+            dt_low_u32,
+        );
+        Ok(JsValue::from_str(&json!({
+            "ok": true,
+            "diag": [],
+            "input_dt": fixed64_q31_32_parts(dt),
+        }).to_string()))
+    }
+
+    /// Canonical textual admission for a Workbench frame duration.  JavaScript
+    /// carries only this decimal text and the returned Q31.32 pair; the
+    /// numeric conversion itself remains owned by Fixed64.
+    pub fn fixed64_from_decimal_v1(&self, decimal: &str) -> Result<JsValue, JsValue> {
+        let value = Fixed64::parse_decimal_exact(decimal).ok_or_else(|| {
+            wasm_error(
+                "E_FIXED64_UNREPRESENTABLE_CONVERSION",
+                "Fixed64 decimal input is not exactly representable",
+                "provide an exact Q31.32-compatible decimal value",
+            )
+        })?;
+        Ok(JsValue::from_str(
+            &json!({"ok": true, "diag": [], "value": fixed64_q31_32_parts(value)}).to_string(),
+        ))
     }
 
     pub fn set_keys_pressed(&mut self, keys_pressed: u32) {
@@ -1380,10 +1601,43 @@ impl DdnWasmVm {
         self.input_pointer_y_i32 = pointer_y_i32;
     }
 
-    pub fn set_dt_f64(&mut self, dt: f64) {
-        if dt.is_finite() {
-            self.input_dt = fixed64_from_f64_checked(dt);
-        }
+    pub fn set_dt_fixed64_v1(
+        &mut self,
+        dt_high_i32: i32,
+        dt_low_u32: u32,
+    ) -> Result<JsValue, JsValue> {
+        crate::input_receipt::validate_alpha_host_dt(fixed64_from_q31_32_parts(dt_high_i32, dt_low_u32))
+            .map_err(|message| JsValue::from_str(&message))?;
+        let dt = self.set_dt_fixed64_parts(dt_high_i32, dt_low_u32);
+        Ok(JsValue::from_str(&json!({
+            "ok": true,
+            "diag": [],
+            "input_dt": fixed64_q31_32_parts(dt),
+        }).to_string()))
+    }
+
+    fn set_input_fixed64_parts(
+        &mut self,
+        keys_pressed: u32,
+        last_key_name: &str,
+        pointer_x_i32: i32,
+        pointer_y_i32: i32,
+        dt_high_i32: i32,
+        dt_low_u32: u32,
+    ) -> Fixed64 {
+        let dt = fixed64_from_q31_32_parts(dt_high_i32, dt_low_u32);
+        self.input_keys_pressed = u64::from(keys_pressed);
+        self.input_last_key_name = last_key_name.to_string();
+        self.input_pointer_x_i32 = pointer_x_i32;
+        self.input_pointer_y_i32 = pointer_y_i32;
+        self.input_dt = dt;
+        dt
+    }
+
+    fn set_dt_fixed64_parts(&mut self, dt_high_i32: i32, dt_low_u32: u32) -> Fixed64 {
+        let dt = fixed64_from_q31_32_parts(dt_high_i32, dt_low_u32);
+        self.input_dt = dt;
+        dt
     }
 
     pub fn columns(&self) -> JsValue {
@@ -1421,8 +1675,8 @@ impl DdnWasmVm {
         let parsed = js_scalar_to_runtime_value(&value).ok_or_else(|| {
             wasm_error(
                 "PARAM_VALUE_INVALID",
-                "set_param: value는 수/참거짓/글 스칼라만 허용됩니다",
-                "수/참거짓/글 스칼라만 전달해 주세요.",
+                "set_param: Fixed64 수는 raw setter만 허용하며 참거짓/글만 직접 허용됩니다",
+                "Fixed64는 set_param_fixed64_str 또는 versioned raw carrier를 사용해 주세요.",
             )
         })?;
         apply_param_value(self.world.world_mut(), key, &parsed).map_err(|err| {
@@ -1520,7 +1774,7 @@ impl DdnWasmVm {
         self.input_last_key_name.clear();
         self.input_pointer_x_i32 = 0;
         self.input_pointer_y_i32 = 0;
-        self.input_dt = Fixed64::from_i64(1);
+        self.input_dt = crate::input_receipt::alpha_host_dt();
         self.last_patch = None;
         self.pending_ai_injections.clear();
         self.runner.reset_transient_state();
@@ -1567,21 +1821,23 @@ impl DdnWasmVm {
         Ok(JsValue::from_str(&payload.to_string()))
     }
 
-    pub fn step_one_with_input(
+    pub fn step_one_with_input_fixed64_v1(
         &mut self,
         keys_pressed: u32,
         last_key_name: &str,
         pointer_x_i32: i32,
         pointer_y_i32: i32,
-        dt: f64,
+        dt_high_i32: i32,
+        dt_low_u32: u32,
     ) -> Result<JsValue, JsValue> {
-        self.set_input(
+        self.set_input_fixed64_v1(
             keys_pressed,
             last_key_name,
             pointer_x_i32,
             pointer_y_i32,
-            dt,
-        );
+            dt_high_i32,
+            dt_low_u32,
+        )?;
         self.step_one()
     }
 
@@ -1632,6 +1888,7 @@ impl DdnWasmVm {
             .apply_patch(&output.patch, input.tick_id, &mut sink);
 
         self.last_patch = Some(output.patch);
+        self.last_bogae_projection = output.bogae_projection;
         let state_hash = current_state_hash(&self.world, &self.view_prefixes);
         let resources = serialize_world_resources(self.world.world());
         let (columns, row) = collect_columns_and_row(self.world.world());
@@ -1647,6 +1904,8 @@ impl DdnWasmVm {
         );
         let snapshot_resources = serialize_world_resources_snapshot(self.world.world());
         let snapshot_params = serialize_param_overrides(&self.param_overrides);
+        // 한 프레임의 두 공개 경로는 같은 Patch를 담는다. 정본 변환은 한 번만
+        // 수행하고 JSON 값만 복제하여 전체 연산 순서와 payload 모양을 보존한다.
         let patch_json = self
             .last_patch
             .as_ref()
@@ -1659,6 +1918,9 @@ impl DdnWasmVm {
             "state_hash": state_hash,
             "input_snapshot": input_json,
             "public_observations": public_observations,
+            "input_snapshot_sha256": crate::input_receipt::snapshot_sha256(&input),
+            "input_reads": output.input_reads,
+            "tape_v1_recording_error": crate::input_receipt::validate_tape_v1_reads(&output.input_reads).err(),
         }));
         if let Err(err) = refresh_wasm_public_observation_surface(self) {
             self.public_observation_frames.pop();
@@ -1697,13 +1959,14 @@ impl DdnWasmVm {
             })
         };
         self.last_debug_evidence = debug_evidence.clone();
-        let payload = json!({
+        let mut payload = json!({
             "schema": ENGINE_RESPONSE_SCHEMA,
             "tick_id": input.tick_id,
             "committed_madi": input.tick_id,
+            "input_receipt": crate::input_receipt::receipt(&input, &output.input_reads),
             "state_hash": state_hash,
             "input": input_json.clone(),
-            "resources": resources,
+            "resources": resources.clone(),
             "channels": columns.clone(),
             "row": row.clone(),
             "observation_columns": observation_columns.clone(),
@@ -1714,21 +1977,17 @@ impl DdnWasmVm {
             "public_observations": public_observations.clone(),
             "debug_pause": debug_evidence.clone(),
             "streams": streams.clone(),
-            "patch": patch_json,
+            "patch": patch_json.clone(),
             "state": {
                 "tick_id": input.tick_id,
                 "committed_madi": input.tick_id,
                 "input": input_json,
-                "resources": serialize_world_resources(self.world.world()),
+                "resources": resources,
                 "channels": columns,
                 "row": row,
                 "public_observations": public_observations,
                 "debug_pause": debug_evidence,
-                "patch": self
-                    .last_patch
-                    .as_ref()
-                    .map(serialize_patch)
-                    .unwrap_or_else(|| JsonValue::Array(Vec::new())),
+                "patch": patch_json,
                 "streams": streams,
                 "snapshot_v2": build_wasm_state_snapshot_v2(
                     snapshot_resources,
@@ -1741,6 +2000,7 @@ impl DdnWasmVm {
             "view_hash": view_hash,
             "primary_view_decision": primary_view_decision,
         });
+        crate::bogae_projection::attach(&mut payload, self.last_bogae_projection.as_ref());
         Ok(JsValue::from_str(&payload.to_string()))
     }
 
@@ -1856,7 +2116,7 @@ impl DdnWasmVm {
             .cloned()
             .unwrap_or_else(|| JsonValue::Array(Vec::new()));
         let committed_madi = last_committed_madi(&self.public_observation_frames);
-        let payload = json!({
+        let mut payload = json!({
             "schema": ENGINE_RESPONSE_SCHEMA,
             "tick_id": self.tick_id,
             "committed_madi": committed_madi.clone(),
@@ -1895,6 +2155,7 @@ impl DdnWasmVm {
             "view_hash": view_hash,
             "primary_view_decision": primary_view_decision,
         });
+        crate::bogae_projection::attach(&mut payload, self.last_bogae_projection.as_ref());
         JsValue::from_str(&payload.to_string())
     }
 
@@ -1922,6 +2183,8 @@ impl DdnWasmVm {
             &self.canonical_ddn_sha256,
         )
         .map_err(|err| JsValue::from_str(&format!("restore_state: {err}")))?;
+        crate::input_receipt::validate_alpha_host_dt(staged.input.dt)
+            .map_err(|message| JsValue::from_str(&message))?;
         let state_hash = current_state_hash(&staged.world, &self.view_prefixes);
         let view_hash = hash_json_string(&build_view_meta(staged.world.world()));
         let diag = restore_hash_diags(&payload, &state_hash, &view_hash);
@@ -2048,18 +2311,17 @@ fn wasm_error(code: &str, detail: &str, hint: &str) -> JsValue {
     JsValue::from_str(&payload.to_string())
 }
 
-fn fixed64_from_f64_checked(value: f64) -> Fixed64 {
-    let result = Fixed64::from_f64_lossy(value);
-    #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
-    {
-        let roundtrip = result.raw_i64() as f64 / Fixed64::ONE_RAW as f64;
-        if (value - roundtrip).abs() > 1e-10 {
-            web_sys::console::warn_1(
-                &format!("Fixed64 정밀도 손실: {value} -> {roundtrip}").into(),
-            );
-        }
-    }
-    result
+fn fixed64_from_q31_32_parts(high_i32: i32, low_u32: u32) -> Fixed64 {
+    let raw = (i64::from(high_i32) << 32) | i64::from(low_u32);
+    Fixed64::from_raw_i64(raw)
+}
+
+fn fixed64_q31_32_parts(value: Fixed64) -> JsonValue {
+    let raw = value.raw_i64();
+    json!({
+        "high_i32": (raw >> 32) as i32,
+        "low_u32": raw as u32,
+    })
 }
 
 fn build_view_meta(world: &ddonirang_core::platform::NuriWorld) -> JsonValue {
@@ -2096,7 +2358,10 @@ fn build_view_meta(world: &ddonirang_core::platform::NuriWorld) -> JsonValue {
             out.insert("grid2d".to_string(), grid2d);
             available_families.push("grid2d");
         }
-    } else if let Some(space2d_json) = derive_space2d_from_bogae(world) {
+    }
+    // 격자 전용 투영이 일반 그림판 출력을 가리지 않게 한다.
+    // 두 투영 모두 같은 게시된 drawlist에서만 만들어진다.
+    if let Some(space2d_json) = derive_space2d_from_bogae(world) {
         if let Ok(space2d) = serde_json::from_str::<JsonValue>(&space2d_json) {
             out.insert("space2d".to_string(), space2d);
             available_families.push("space2d");
@@ -2559,6 +2824,85 @@ mod tests {
     use ddonirang_core::platform::ResourceMapEntry;
     use sha2::{Digest, Sha256};
 
+    #[test]
+    fn d9_wasm_vm_binds_named_project_entry_after_profile_update() {
+        let source = "중력:수 := 9.8. 실행:움직씨 := { 중력 보여주기. }";
+        let mut vm = DdnWasmVm::new("1 보여주기.").unwrap();
+        vm.update_logic_with_source_profile(source, "v1-core-v25").unwrap();
+        vm.configure_project_entry("실행").unwrap();
+        let input = InputSnapshot {
+            tick_id: 0, dt: Fixed64::from_i64(1), keys_pressed: 0,
+            last_key_name: String::new(), pointer_x_i32: 0, pointer_y_i32: 0,
+            ai_injections: Vec::new(), net_events: Vec::new(),
+            frame_source: InputSource::Person, rng_seed: 0,
+        };
+        let output = vm.runner.run_update_with_param_overrides(vm.world.world(), &input,
+            &vm.defaults, &vm.param_overrides).unwrap();
+        assert!(output.resources.contains_key("중력"));
+    }
+
+    #[test]
+    fn wasm_vm_profile_update_replaces_inert_bootstrap_with_v25_source() {
+        let source = "매마디:움직씨 := {\n    값:수 := 1.\n    값 <- 2.\n    값 보여주기.\n}\n";
+        let mut vm = DdnWasmVm::new("1 보여주기.").expect("inert bootstrap VM");
+        vm.update_logic_with_source_profile(source, "v1-core-v25")
+            .expect("V25 profile update");
+        assert_eq!(vm.get_configured_madi(), 0);
+        assert_eq!(vm.source_bytes_sha256, runtime_surface::sha256_hex(source.as_bytes()));
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[test]
+    fn wo02_invalid_vm_update_preserves_installed_source() {
+        let valid = "값 <- 1. 값 보여주기.";
+        let invalid = "값 <- 1. 값 <- \"가\".";
+        assert!(DdnWasmVm::new(invalid).is_err());
+        let mut vm = DdnWasmVm::new(valid).expect("valid source");
+        let before = vm.source_bytes_sha256.clone();
+        assert!(vm.update_logic(invalid).is_err());
+        assert_eq!(vm.source_bytes_sha256, before);
+        assert!(vm.update_logic_with_mode(invalid, "strict").is_err());
+        assert_eq!(vm.source_bytes_sha256, before);
+        assert!(vm.update_logic_with_source_profile(invalid, "v1-core-v25").is_err());
+        assert_eq!(vm.source_bytes_sha256, before);
+    }
+
+    #[test]
+    fn wasm_fixed64_input_v1_reconstructs_q31_32_without_f64_conversion() {
+        let mut vm = DdnWasmVm::new("1 보여주기.").expect("inert bootstrap VM");
+
+        vm.set_input_fixed64_parts(7, "k", -3, 9, i32::MIN, 0);
+        assert_eq!(vm.input_dt, Fixed64::MIN);
+        assert_eq!(vm.input_keys_pressed, 7);
+        assert_eq!(vm.input_last_key_name, "k");
+        assert_eq!(vm.input_pointer_x_i32, -3);
+        assert_eq!(vm.input_pointer_y_i32, 9);
+
+        vm.set_dt_fixed64_parts(0, 1);
+        assert_eq!(vm.input_dt, Fixed64::from_raw_i64(1));
+        assert_eq!(
+            fixed64_q31_32_parts(Fixed64::MIN),
+            json!({"high_i32": i32::MIN, "low_u32": 0})
+        );
+        for value in [
+            Fixed64::MIN,
+            Fixed64::MAX,
+            Fixed64::from_raw_i64(-1),
+            Fixed64::from_raw_i64(1),
+            Fixed64::from_raw_i64(0x0000_0000_FFFF_FFFF),
+        ] {
+            let parts = fixed64_q31_32_parts(value);
+            let high = parts["high_i32"].as_i64().expect("high") as i32;
+            let low = parts["low_u32"].as_u64().expect("low") as u32;
+            assert_eq!(fixed64_from_q31_32_parts(high, low), value);
+        }
+        assert_eq!(
+            Fixed64::parse_decimal_exact("0.5"),
+            Some(fixed64_from_q31_32_parts(0, 0x8000_0000))
+        );
+    }
+
+
     fn sealed_external_test_request() -> (ProcessLocalCapabilityStore, ExternalBoundaryRequest) {
         let binding = CapabilityBinding::new("owner-a", "world-a", 7, 3);
         let mut store = ProcessLocalCapabilityStore::new(7);
@@ -2687,6 +3031,10 @@ mod tests {
                 "vc12-collection-parity.ddn",
                 "매마디:움직씨 := {\n    값들:차림 := (1, 2, 3) 차림.\n    값들 보여주기.\n}\n",
             ),
+            (
+                "pg-cli-result-flow-parity.ddn",
+                "매마디:움직씨 := {\n    판:(수)차림 := 차림[0, 0].\n    1 -> 판[0].\n    판 보여주기.\n}\n",
+            ),
         ];
         for (path, source) in cases {
             let native = runtime_surface::run_summary_from_supported_source_profile(
@@ -2730,6 +3078,25 @@ mod tests {
             wasm_source_analysis_snapshot_json(&request).expect("WASM source analysis"),
             source_analysis::source_analysis_snapshot_json(&request)
                 .expect("native source analysis")
+        );
+
+        let module_request = serde_json::json!({
+            "schema": module_directive_analysis::MODULE_DIRECTIVE_ANALYSIS_SCHEMA,
+            "source_text": "(운동=\"./lib/😀\") 쓰임.\n(속도=중력) 드러냄.\n계산:움직씨 := {\n  값:수 := 1.\n}\n",
+            "path": "운동😀.ddn",
+            "analysis_generation": 202,
+            "source_profile_identity": "v1-core-v25",
+            "module_registry": {
+                "known_import_targets": ["./lib/😀"],
+                "public_definition_targets": ["중력"]
+            }
+        })
+        .to_string();
+        assert_eq!(
+            wasm_module_directive_analysis_snapshot_json(&module_request)
+                .expect("WASM module directive analysis"),
+            module_directive_analysis::module_directive_analysis_snapshot_json(&module_request)
+                .expect("native module directive analysis")
         );
     }
 
@@ -3473,6 +3840,64 @@ a.기준점 <- b.꼭짓점.
     }
 
     #[test]
+    fn actual_grid_lesson_projects_canonical_rectangles() {
+        let source = include_str!("../../solutions/seamgrim_ui_mvp/lessons/rep_grid_game_state_drop_v1/lesson.ddn");
+        let mut vm = DdnWasmVm::new(source).expect("actual grid source");
+        let input = InputSnapshot {
+            tick_id: 0, dt: Fixed64::from_i64(1), keys_pressed: 0,
+            last_key_name: String::new(), pointer_x_i32: 0, pointer_y_i32: 0,
+            ai_injections: Vec::new(), net_events: Vec::new(),
+            frame_source: InputSource::Person, rng_seed: 0,
+        };
+        let output = vm.runner.run_update_with_param_overrides(vm.world.world(), &input,
+            &vm.defaults, &vm.param_overrides).expect("actual grid execution");
+        vm.world.apply_patch(&output.patch, 0, &mut ddonirang_core::signals::VecSignalSink::default());
+        let before = vm.world.world().state_hash();
+        let meta = build_view_meta(vm.world.world());
+        let rows = meta["space2d"]["drawlist"].as_array().unwrap();
+        assert_eq!(rows.len(), 64);
+        for row in rows {
+            assert_eq!(row["kind"], "rect");
+            let x = row["x"].as_f64().unwrap();
+            let y = row["y"].as_f64().unwrap();
+            assert_eq!(row["x1"], x);
+            assert_eq!(row["y1"], y);
+            assert_eq!(row["x2"], x + row["w"].as_f64().unwrap());
+            assert_eq!(row["y2"], y + row["h"].as_f64().unwrap());
+        }
+        assert_eq!(vm.world.world().state_hash(), before);
+        println!("GRID_PROJECTION:{}", json!({"state_hash": current_state_hash(&vm.world, &vm.view_prefixes),
+            "source_hash": "actual_grid_source", "tick_id": 0, "view_meta": meta}));
+    }
+
+    #[test]
+    fn grid_drawlist_keeps_grid_and_space_projections_without_mutating_world() {
+        let mut world = DetNuri::new();
+        let cells = (0..64).map(|index| {
+            let ResourceValue::Map(mut fields) = draw_item_resource("rect") else {
+                unreachable!()
+            };
+            fields.insert("id".to_string(), ResourceMapEntry {
+                key: ResourceValue::String("id".to_string()),
+                value: ResourceValue::String(format!("격자게임셀_{index}")),
+            });
+            ResourceValue::Map(fields)
+        }).collect();
+        world.world_mut().set_resource_value(BOGAE_DRAWLIST_TAG.to_string(), ResourceValue::List(cells));
+        world.world_mut().set_resource_fixed64(BOGAE_WIDTH_TAG.to_string(), Fixed64::from_i64(32));
+        world.world_mut().set_resource_fixed64(BOGAE_HEIGHT_TAG.to_string(), Fixed64::from_i64(32));
+        let before = world.world().state_hash();
+        let meta = build_view_meta(world.world());
+        assert_eq!(meta["grid2d"]["schema"], "seamgrim.grid2d.v0");
+        assert_eq!(meta["space2d"]["schema"], "seamgrim.space2d.v0");
+        assert_eq!(meta["grid2d"]["drawlist"], meta["space2d"]["drawlist"]);
+        assert_eq!(meta["space2d"]["drawlist"].as_array().unwrap().len(), 64);
+        assert_eq!(meta["space2d"]["camera"]["x_max"], 32.0);
+        assert_eq!(meta["primary"]["family"], "grid2d");
+        assert_eq!(world.world().state_hash(), before);
+    }
+
+    #[test]
     fn build_view_meta_emits_primary_and_secondary_stack() {
         let mut world = DetNuri::new();
         world.world_mut().set_resource_value(
@@ -3722,6 +4147,31 @@ a.기준점 <- b.꼭짓점.
     }
 
     #[test]
+    fn wo09_shared_patch_projection_preserves_both_payload_paths() {
+        let mut patch = Patch::default();
+        for length in 0..4 {
+            patch.ops.push(PatchOp::SetResourceValue {
+                tag: "출력".into(),
+                value: ResourceValue::List((0..length)
+                    .map(|n| ResourceValue::String(format!("행{n}")))
+                    .collect()),
+            });
+        }
+        let original = json!({
+            "patch": serialize_patch(&patch),
+            "state": {"patch": serialize_patch(&patch)},
+        });
+        let projected = serialize_patch(&patch);
+        let shared = json!({
+            "patch": projected.clone(),
+            "state": {"patch": projected},
+        });
+        assert_eq!(original.to_string(), shared.to_string());
+        assert_eq!(shared["patch"].as_array().unwrap().len(), 4);
+        assert_eq!(shared["state"]["patch"], shared["patch"]);
+    }
+
+    #[test]
     fn restore_hash_diags_detect_mismatch_codes() {
         let payload = json!({
             "state_hash": "blake3:expected-state",
@@ -3814,6 +4264,29 @@ a.기준점 <- b.꼭짓점.
     }
 
     #[test]
+    fn bogae_kind_mapping_requires_an_exact_existing_identity() {
+        assert_eq!(map_bogae_kind("선"), "line");
+        assert_eq!(map_bogae_kind("사각형"), "rect");
+        assert_eq!(map_bogae_kind("다각형"), "polygon");
+        assert_eq!(map_bogae_kind("화살표"), "arrow");
+        assert_eq!(map_bogae_kind("#보개/2D.Rect"), "rect");
+
+        for unsupported in [
+            "prefix-line",
+            "line-suffix",
+            "LINE",
+            "사각형처럼",
+            "원형",
+            "sprite",
+            "#보개/2D.Rect.extra",
+            "#보개/2d.rect",
+            "",
+        ] {
+            assert_eq!(map_bogae_kind(unsupported), unsupported);
+        }
+    }
+
+    #[test]
     fn unit_value_wire_v2_is_explicit_and_roundtrips_ninth_axis() {
         let value = ResourceValue::Unit(ddonirang_core::UnitValue::new(
             Fixed64::from_i64(2),
@@ -3836,6 +4309,25 @@ a.기준점 <- b.꼭짓점.
         assert_eq!(
             resource_value_from_detjson(&encoded).expect("v2 roundtrip"),
             value
+        );
+    }
+
+    #[test]
+    fn wasm_snapshot_number_admission_matches_checked_textual_fixed64_boundary() {
+        let three_halves_ulp: JsonValue =
+            serde_json::from_str("0.000000000349245965480804443359375")
+                .expect("three halves ULP JSON number");
+        let overflow: JsonValue = serde_json::from_str("2147483648")
+            .expect("out-of-range JSON number");
+
+        assert_eq!(
+            json_to_fixed64(&three_halves_ulp),
+            None
+        );
+        assert_eq!(json_to_fixed64(&overflow), None);
+        assert_eq!(
+            json_to_fixed64(&json!("0.000000000349245965480804443359375")),
+            Some(Fixed64::from_raw_i64(2))
         );
     }
 
@@ -3911,11 +4403,14 @@ a.기준점 <- b.꼭짓점.
                     "pointer_x_i32": 2,
                     "pointer_y_i32": 3,
                     "rng_base_seed": 4,
-                    "dt": {"raw_i64": Fixed64::ONE_RAW.to_string()},
+                    // 입력 기록 identity 변경: 옛 raw/text 혼용이 아닌 정확 정본 기록.
+                    // 이 fixture의 목적(restore 원자성/자원 보존)은 유지한다.
+                    "input_encoding": crate::input_receipt::SNAPSHOT_ENCODING,
+                    "dt": "1",
                 },
                 "snapshot_v2": build_wasm_state_snapshot_v2(
                     resources,
-                    json!({"속도": 2}),
+                    json!({"속도": {"raw_i64": "2"}}),
                     Vec::new(),
                     7,
                 ),
@@ -4024,13 +4519,35 @@ a.기준점 <- b.꼭짓점.
             before_hash
         );
     }
+
+    #[test]
+    fn snapshot_param_overrides_use_the_shared_fixed64_raw_carrier() {
+        let exact = Fixed64::from_raw_i64(2);
+        let params = BTreeMap::from([
+            ("고정".to_string(), Value::Fixed64(exact)),
+            ("글".to_string(), Value::String("2".to_string())),
+        ]);
+
+        let serialized = serialize_param_overrides(&params);
+        assert_eq!(serialized["고정"], json!({"raw_i64": "2"}));
+        assert_eq!(serialized["글"], json!("2"));
+        assert_eq!(parse_param_overrides(&serialized).expect("raw carrier restore"), params);
+
+        let binary_number = parse_param_overrides(&json!({"고정": 2}));
+        assert!(
+            binary_number
+                .err()
+                .expect("binary JSON number must fail closed")
+                .contains("E_WASM_STATE_PARAMS_INVALID")
+        );
+    }
 }
 
 fn serialize_param_overrides(params: &BTreeMap<String, Value>) -> JsonValue {
     let mut out = Map::new();
     for (key, value) in params {
         let raw = match value {
-            Value::Fixed64(v) => json!(fixed64_to_f64(*v)),
+            Value::Fixed64(v) => json!({ "raw_i64": v.raw_i64().to_string() }),
             Value::Bool(v) => JsonValue::Bool(*v),
             Value::String(v) => JsonValue::String(v.clone()),
             _ => continue,
@@ -4049,15 +4566,14 @@ fn parse_param_overrides(payload: &JsonValue) -> Result<BTreeMap<String, Value>,
         let parsed = match value {
             JsonValue::Bool(v) => Value::Bool(*v),
             JsonValue::String(v) => Value::String(v.clone()),
-            JsonValue::Number(_) => {
-                let n = value
-                    .as_f64()
-                    .ok_or_else(|| format!("param_overrides[{key}] 숫자 파싱 실패"))?;
-                if !n.is_finite() {
-                    return Err(format!("param_overrides[{key}] 유한 숫자가 아닙니다"));
-                }
-                Value::Fixed64(fixed64_from_f64_checked(n))
-            }
+            JsonValue::Object(_) => json_to_fixed64(value)
+                .map(Value::Fixed64)
+                .ok_or_else(|| format!(
+                    "E_WASM_STATE_PARAMS_INVALID: param_overrides[{key}] Fixed64 raw_i64 형식 오류"
+                ))?,
+            JsonValue::Number(_) => return Err(format!(
+                "E_WASM_STATE_PARAMS_INVALID: param_overrides[{key}] binary JSON number는 Fixed64 authority가 아닙니다"
+            )),
             _ => {
                 return Err(format!(
                     "E_WASM_STATE_PARAMS_INVALID: param_overrides[{key}] 지원하지 않는 값"
@@ -4207,19 +4723,6 @@ fn restore_world_resources(
     Ok(())
 }
 
-fn json_to_fixed64(value: &JsonValue) -> Option<Fixed64> {
-    match value {
-        JsonValue::Number(n) => n.as_f64().map(fixed64_from_f64_checked),
-        JsonValue::String(s) => Fixed64::parse_decimal(s),
-        JsonValue::Object(obj) => obj
-            .get("raw_i64")
-            .and_then(JsonValue::as_str)
-            .and_then(|raw| raw.parse::<i64>().ok())
-            .map(Fixed64::from_raw_i64),
-        _ => None,
-    }
-}
-
 fn parse_handle_string(text: &str) -> Result<u64, String> {
     let trimmed = text.trim();
     let without_handle = trimmed.strip_prefix("handle:").unwrap_or(trimmed);
@@ -4267,7 +4770,7 @@ fn serialize_world_resources(world: &ddonirang_core::platform::NuriWorld) -> Jso
     let mut fixed_map = Map::new();
     for (tag, value) in world.resource_fixed64_entries() {
         value_json_map.insert(tag.clone(), json!(fixed64_to_f64(value)));
-        fixed_map.insert(tag, JsonValue::String(value.to_string()));
+        fixed_map.insert(tag, JsonValue::String(value.display_rounded_six()));
     }
     out.insert("fixed64".to_string(), JsonValue::Object(fixed_map));
 
@@ -4327,75 +4830,19 @@ fn seulgi_intent_json(intent: &SeulgiIntent) -> JsonValue {
 }
 
 fn serialize_input_snapshot(input: &InputSnapshot, rng_base_seed: Option<u64>) -> JsonValue {
-    let mut out = Map::new();
-    out.insert("keys_pressed".to_string(), json!(input.keys_pressed));
-    out.insert("last_key_name".to_string(), json!(input.last_key_name));
-    out.insert("pointer_x_i32".to_string(), json!(input.pointer_x_i32));
-    out.insert("pointer_y_i32".to_string(), json!(input.pointer_y_i32));
-    out.insert("dt".to_string(), json!(input.dt.to_string()));
-    out.insert(
-        "frame_source".to_string(),
-        json!(input.frame_source.label()),
-    );
-    out.insert(
-        "frame_source_code".to_string(),
-        json!(input.frame_source.code_u8()),
-    );
-    out.insert("rng_seed".to_string(), json!(input.rng_seed));
-    if let Some(base_seed) = rng_base_seed {
-        out.insert("rng_base_seed".to_string(), json!(base_seed));
-    }
-    out.insert(
-        "ai_injections".to_string(),
-        JsonValue::Array(
-            input
-                .ai_injections
-                .iter()
-                .map(|packet| {
-                    json!({
-                        "agent_id": packet.agent_id,
-                        "recv_seq": packet.recv_seq,
-                        "accepted_madi": packet.accepted_madi,
-                        "target_madi": packet.target_madi,
-                        "source": packet.source.label(),
-                        "source_code": packet.source.code_u8(),
-                        "source_meta": input_source_json(packet.source),
-                        "intent": seulgi_intent_json(&packet.intent),
-                    })
-                })
-                .collect(),
-        ),
-    );
-    out.insert(
-        "net_events".to_string(),
-        JsonValue::Array(
-            input
-                .net_events
-                .iter()
-                .map(|event| {
-                    json!({
-                        "sender": event.sender.as_str(),
-                        "seq": event.seq,
-                        "order_key": event.order_key.as_str(),
-                        "payload_detjson": event.payload_detjson.as_str(),
-                        "source": event.source.label(),
-                        "source_code": event.source.code_u8(),
-                        "source_meta": input_source_json(event.source),
-                    })
-                })
-                .collect(),
-        ),
-    );
-    JsonValue::Object(out)
+    runtime_surface::serialize_input_snapshot(input, rng_base_seed)
 }
 
 fn serialize_input_state(vm: &DdnWasmVm) -> JsonValue {
     json!({
+        "alpha2_host_madi_hz": crate::input_receipt::alpha2_host_madi_hz(),
+        "alpha_host_dt": crate::input_receipt::exact_dt_text(crate::input_receipt::alpha_host_dt()),
         "keys_pressed": vm.input_keys_pressed,
         "last_key_name": vm.input_last_key_name,
         "pointer_x_i32": vm.input_pointer_x_i32,
         "pointer_y_i32": vm.input_pointer_y_i32,
-        "dt": vm.input_dt.to_string(),
+        "input_encoding": crate::input_receipt::SNAPSHOT_ENCODING,
+        "dt": crate::input_receipt::exact_dt_text(vm.input_dt),
         "frame_source": InputSource::Person.label(),
         "frame_source_code": InputSource::Person.code_u8(),
         "rng_seed": vm.rng_seed,
@@ -4520,10 +4967,7 @@ fn resource_value_to_scalar(value: &ResourceValue) -> Option<(String, JsonValue)
 }
 
 fn js_scalar_to_runtime_value(value: &JsValue) -> Option<Value> {
-    if let Some(v) = value.as_f64() {
-        if v.is_finite() {
-            return Some(Value::Fixed64(fixed64_from_f64_checked(v)));
-        }
+    if value.as_f64().is_some() {
         return None;
     }
     if let Some(v) = value.as_bool() {
@@ -4742,6 +5186,23 @@ fn resource_value_to_draw_item(value: &ResourceValue) -> Option<JsonValue> {
     }
     if let Some(raw) = kind_raw {
         obj.insert("kind".to_string(), JsonValue::String(map_bogae_kind(&raw)));
+        // 기존 격자 생산자의 정확한 Rect 식별자만 표준 꼭짓점으로 투영한다.
+        // 세계의 x/y/w/h 값은 변경하지 않고, 잘못된 값은 그대로 거부된다.
+        if raw == "#보개/2D.Rect" {
+            if let (Some(x), Some(y), Some(w), Some(h)) = (
+                obj.get("x").and_then(JsonValue::as_f64),
+                obj.get("y").and_then(JsonValue::as_f64),
+                obj.get("w").and_then(JsonValue::as_f64),
+                obj.get("h").and_then(JsonValue::as_f64),
+            ) {
+                if [x, y, w, h, x + w, y + h].iter().all(|n| n.is_finite()) {
+                    obj.insert("x1".to_string(), json!(x));
+                    obj.insert("y1".to_string(), json!(y));
+                    obj.insert("x2".to_string(), json!(x + w));
+                    obj.insert("y2".to_string(), json!(y + h));
+                }
+            }
+        }
     }
     Some(JsonValue::Object(obj))
 }
@@ -4793,56 +5254,20 @@ fn resource_value_to_json(value: &ResourceValue) -> JsonValue {
 }
 
 fn map_bogae_kind(raw: &str) -> String {
-    let lower = raw.to_lowercase();
-    if lower.contains("rect") {
-        return "rect".to_string();
+    // A draw kind is an existing typed projection identity.  Do not infer it
+    // from a display label, case-folded spelling, or a substring: unknown
+    // values are deliberately preserved for the projection boundary to reject.
+    match raw {
+        "rect" | "사각형" | "#보개/2D.Rect" => "rect".to_string(),
+        "text" | "글" => "text".to_string(),
+        "circle" | "원" => "circle".to_string(),
+        "polygon" | "다각형" => "polygon".to_string(),
+        "polyline" | "선들" => "polyline".to_string(),
+        "line" | "선" => "line".to_string(),
+        "point" | "점" => "point".to_string(),
+        "arrow" | "화살표" => "arrow".to_string(),
+        _ => raw.to_string(),
     }
-    if lower.contains("text") {
-        return "text".to_string();
-    }
-    if lower.contains("circle") {
-        return "circle".to_string();
-    }
-    if lower.contains("polygon") {
-        return "polygon".to_string();
-    }
-    if lower.contains("poly") {
-        return "polyline".to_string();
-    }
-    if lower.contains("line") {
-        return "line".to_string();
-    }
-    if lower.contains("point") {
-        return "point".to_string();
-    }
-    if lower.contains("arrow") {
-        return "arrow".to_string();
-    }
-    if lower.contains("sprite") {
-        return "rect".to_string();
-    }
-    if lower.contains("사각") || lower.contains("네모") {
-        return "rect".to_string();
-    }
-    if lower.contains("동그라미") || lower == "원" || lower.contains("원형") {
-        return "circle".to_string();
-    }
-    if lower.contains("선분") || lower == "선" {
-        return "line".to_string();
-    }
-    if lower == "점" || lower.contains("점형") {
-        return "point".to_string();
-    }
-    if lower.contains("화살") || lower.contains("살표") {
-        return "arrow".to_string();
-    }
-    if lower == "글" || lower.contains("글자") || lower.contains("문자") {
-        return "text".to_string();
-    }
-    if lower.contains("다각") {
-        return "polygon".to_string();
-    }
-    raw.to_string()
 }
 
 fn fixed64_to_f64(value: Fixed64) -> f64 {

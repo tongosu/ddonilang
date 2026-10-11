@@ -1,6 +1,10 @@
 use serde_json::{Map, Value};
 use std::fmt;
 
+pub const MAX_HEADER_SECTION_BYTES: usize = 16 * 1024;
+pub const MAX_CONTENT_LENGTH_BYTES: usize = 16 * 1024 * 1024;
+pub const MAX_PENDING_FRAME_BYTES: usize = MAX_HEADER_SECTION_BYTES + MAX_CONTENT_LENGTH_BYTES;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum RpcMessage {
     Request {
@@ -49,6 +53,10 @@ pub enum FrameError {
     DuplicateContentLength,
     InvalidHeader,
     InvalidContentLength,
+    HeaderTooLarge,
+    ContentLengthTooLarge,
+    FrameTooLarge,
+    DecoderLimitExceeded,
     TruncatedBody,
     InvalidUtf8,
     InvalidJson,
@@ -62,6 +70,10 @@ impl fmt::Display for FrameError {
             Self::DuplicateContentLength => "Content-Length header가 중복되거나 충돌합니다",
             Self::InvalidHeader => "잘못된 JSON-RPC header입니다",
             Self::InvalidContentLength => "Content-Length가 십진수가 아닙니다",
+            Self::HeaderTooLarge => "JSON-RPC header가 허용 크기를 초과했습니다",
+            Self::ContentLengthTooLarge => "JSON-RPC Content-Length가 허용 크기를 초과했습니다",
+            Self::FrameTooLarge => "JSON-RPC frame이 허용 크기를 초과했습니다",
+            Self::DecoderLimitExceeded => "JSON-RPC decoder가 자원 상한 초과 상태입니다",
             Self::TruncatedBody => "JSON-RPC body가 잘렸습니다",
             Self::InvalidUtf8 => "JSON-RPC body가 UTF-8이 아닙니다",
             Self::InvalidJson => "JSON-RPC body가 JSON이 아닙니다",
@@ -76,32 +88,56 @@ impl std::error::Error for FrameError {}
 #[derive(Debug, Default, Clone)]
 pub struct FrameDecoder {
     buffer: Vec<u8>,
+    poisoned: bool,
 }
 
 impl FrameDecoder {
-    pub fn push(&mut self, bytes: &[u8]) -> Result<Vec<RpcMessage>, FrameError> {
-        self.buffer.extend_from_slice(bytes);
+    pub fn push(&mut self, mut bytes: &[u8]) -> Result<Vec<RpcMessage>, FrameError> {
+        if self.poisoned {
+            return Err(FrameError::DecoderLimitExceeded);
+        }
+
         let mut messages = Vec::new();
-        loop {
-            let Some(header_end) = find_header_end(&self.buffer) else {
-                break;
+        while !bytes.is_empty() {
+            let append_limit = if find_header_end(&self.buffer).is_none() {
+                MAX_HEADER_SECTION_BYTES
+                    .checked_sub(self.buffer.len())
+                    .ok_or_else(|| self.poison(FrameError::HeaderTooLarge))?
+            } else {
+                MAX_PENDING_FRAME_BYTES
+                    .checked_sub(self.buffer.len())
+                    .ok_or_else(|| self.poison(FrameError::FrameTooLarge))?
             };
-            let content_length = parse_headers(&self.buffer[..header_end])?;
-            let body_start = header_end + 4;
-            let body_end = body_start
-                .checked_add(content_length)
-                .ok_or(FrameError::InvalidContentLength)?;
-            if self.buffer.len() < body_end {
-                break;
+            if append_limit == 0 {
+                let error = if find_header_end(&self.buffer).is_none() {
+                    FrameError::HeaderTooLarge
+                } else {
+                    FrameError::FrameTooLarge
+                };
+                return Err(self.poison(error));
             }
-            let body = self.buffer[body_start..body_end].to_vec();
-            self.buffer.drain(..body_end);
-            messages.push(parse_message(&body)?);
+
+            let take = bytes.len().min(append_limit);
+            let new_len = self
+                .buffer
+                .len()
+                .checked_add(take)
+                .ok_or_else(|| self.poison(FrameError::FrameTooLarge))?;
+            if new_len > MAX_PENDING_FRAME_BYTES {
+                return Err(self.poison(FrameError::FrameTooLarge));
+            }
+            self.buffer.reserve_exact(take);
+            self.buffer.extend_from_slice(&bytes[..take]);
+            bytes = &bytes[take..];
+            self.process_complete_frames(&mut messages)?;
         }
         Ok(messages)
     }
 
     pub fn finish(&self) -> Result<(), FrameError> {
+        if self.poisoned {
+            return Err(FrameError::DecoderLimitExceeded);
+        }
         if self.buffer.is_empty() {
             Ok(())
         } else {
@@ -111,6 +147,48 @@ impl FrameDecoder {
 
     pub fn buffered_len(&self) -> usize {
         self.buffer.len()
+    }
+
+    fn process_complete_frames(
+        &mut self,
+        messages: &mut Vec<RpcMessage>,
+    ) -> Result<(), FrameError> {
+        loop {
+            let Some(header_end) = find_header_end(&self.buffer) else {
+                if self.buffer.len() > MAX_HEADER_SECTION_BYTES {
+                    return Err(self.poison(FrameError::HeaderTooLarge));
+                }
+                return Ok(());
+            };
+            let header_section_len = header_end
+                .checked_add(4)
+                .ok_or_else(|| self.poison(FrameError::FrameTooLarge))?;
+            if header_section_len > MAX_HEADER_SECTION_BYTES {
+                return Err(self.poison(FrameError::HeaderTooLarge));
+            }
+
+            let content_length = parse_headers(&self.buffer[..header_end])?;
+            let frame_end = match header_section_len.checked_add(content_length) {
+                Some(frame_end) => frame_end,
+                None => return Err(self.poison(FrameError::FrameTooLarge)),
+            };
+            if content_length > MAX_CONTENT_LENGTH_BYTES {
+                return Err(self.poison(FrameError::ContentLengthTooLarge));
+            }
+            if self.buffer.len() < frame_end {
+                return Ok(());
+            }
+
+            let body = self.buffer[header_section_len..frame_end].to_vec();
+            self.buffer.drain(..frame_end);
+            messages.push(parse_message(&body)?);
+        }
+    }
+
+    fn poison(&mut self, error: FrameError) -> FrameError {
+        self.buffer.clear();
+        self.poisoned = true;
+        error
     }
 }
 

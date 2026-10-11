@@ -4,13 +4,24 @@ use std::path::Path;
 use ddonirang_tool::ddn_runtime::DdnProgram;
 
 const CANDIDATES: &[(&str, &str, bool, bool, &str, &str)] = &[
+    // WO03 D7 removes the blanket ':='-presence rejection. Explicit V25 now
+    // reaches its parser: SPEC01/03/04/05 and VIEW cases retain rejection, but
+    // expose the actual syntax error instead of a guessed migration category.
+    // SPEC06 now has correct top-level source references after the root visitor
+    // fix. RD-106 historical observation/result-table intent does not require
+    // a missing source-map error. This parser census does NOT admit the old
+    // observation spelling as the successor surface (RD-313), nor prove that
+    // its unbound time expression can execute. PROJECTILE/RICH_TEXT reach
+    // definition-vs-binding validation. HELLO/TENSOR contain ordinary binding
+    // syntax accepted by V25 (not proof of full execution or product admission).
+    // GRID_CURRENT is the individually migrated D8 deployment source.
     (
         "SPEC01",
         "publish/spec/v0.5.0/examples/01_result_and_optional.ddn",
         false,
         false,
         "UNCLASSIFIED",
-        "E_V25_DEFINITION_MIGRATION_REQUIRED",
+        "UNCLASSIFIED",
     ),
     (
         "SPEC02",
@@ -26,7 +37,7 @@ const CANDIDATES: &[(&str, &str, bool, bool, &str, &str)] = &[
         false,
         false,
         "UNCLASSIFIED",
-        "E_V25_DEFINITION_MIGRATION_REQUIRED",
+        "UNCLASSIFIED",
     ),
     (
         "SPEC04",
@@ -34,7 +45,7 @@ const CANDIDATES: &[(&str, &str, bool, bool, &str, &str)] = &[
         false,
         false,
         "UNCLASSIFIED",
-        "E_V25_DEFINITION_MIGRATION_REQUIRED",
+        "UNCLASSIFIED",
     ),
     (
         "SPEC05",
@@ -42,15 +53,15 @@ const CANDIDATES: &[(&str, &str, bool, bool, &str, &str)] = &[
         false,
         false,
         "UNCLASSIFIED",
-        "E_V25_DEFINITION_MIGRATION_REQUIRED",
+        "UNCLASSIFIED",
     ),
     (
         "SPEC06",
         "publish/spec/v0.5.0/examples/06_observation_and_mol.ddn",
         true,
-        false,
+        true,
         "NONE",
-        "E_V25_DEFINITION_MIGRATION_REQUIRED",
+        "NONE",
     ),
     (
         "SPEC07",
@@ -72,9 +83,9 @@ const CANDIDATES: &[(&str, &str, bool, bool, &str, &str)] = &[
         "HELLO",
         "pack/edu_ddn_mc_l01_hello_det/lesson.ddn",
         true,
-        false,
+        true,
         "NONE",
-        "E_V25_DEFINITION_MIGRATION_REQUIRED",
+        "NONE",
     ),
     (
         "PROJECTILE",
@@ -82,15 +93,15 @@ const CANDIDATES: &[(&str, &str, bool, bool, &str, &str)] = &[
         true,
         false,
         "NONE",
-        "E_V25_DEFINITION_MIGRATION_REQUIRED",
+        "E_V25_DEFINITION_BINDING_CATEGORY",
     ),
     (
         "GRID_CURRENT",
         "solutions/seamgrim_ui_mvp/lessons/rep_grid_game_state_drop_v1/lesson.ddn",
         true,
-        false,
+        true,
         "NONE",
-        "E_V25_DEFINITION_MIGRATION_REQUIRED",
+        "NONE",
     ),
     (
         "CONSOLE_VIEW",
@@ -98,7 +109,7 @@ const CANDIDATES: &[(&str, &str, bool, bool, &str, &str)] = &[
         false,
         false,
         "UNCLASSIFIED",
-        "E_V25_DEFINITION_MIGRATION_REQUIRED",
+        "UNCLASSIFIED",
     ),
     (
         "GRID2D_VIEW",
@@ -106,7 +117,7 @@ const CANDIDATES: &[(&str, &str, bool, bool, &str, &str)] = &[
         false,
         false,
         "UNCLASSIFIED",
-        "E_V25_DEFINITION_MIGRATION_REQUIRED",
+        "UNCLASSIFIED",
     ),
     (
         "RICH_TEXT",
@@ -114,15 +125,15 @@ const CANDIDATES: &[(&str, &str, bool, bool, &str, &str)] = &[
         true,
         false,
         "NONE",
-        "E_V25_DEFINITION_MIGRATION_REQUIRED",
+        "E_V25_DEFINITION_BINDING_CATEGORY",
     ),
     (
         "TENSOR",
         "pack/tensor_stdlib_phase0/input.ddn",
         true,
-        false,
+        true,
         "NONE",
-        "E_V25_DEFINITION_MIGRATION_REQUIRED",
+        "NONE",
     ),
 ];
 
@@ -136,6 +147,7 @@ fn error_family(message: &str) -> &str {
 #[test]
 fn inventory_candidate_examples_by_real_product_parser() {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let mut mismatches = Vec::new();
     for (id, relative, expected_pre, expected_v25, expected_pre_error, expected_v25_error) in
         CANDIDATES
     {
@@ -157,24 +169,14 @@ fn inventory_candidate_examples_by_real_product_parser() {
                 .map(|error| error_family(error))
                 .unwrap_or("NONE"),
         );
-        assert_eq!(pre.is_ok(), *expected_pre, "{id}: pre-V25 acceptance drift");
-        assert_eq!(v25.is_ok(), *expected_v25, "{id}: V25 acceptance drift");
-        assert_eq!(
-            pre.as_ref()
-                .err()
-                .map(|error| error_family(error))
-                .unwrap_or("NONE"),
-            *expected_pre_error,
-            "{id}: pre-V25 diagnostic family drift",
-        );
-        assert_eq!(
-            v25.as_ref()
-                .err()
-                .map(|error| error_family(error))
-                .unwrap_or("NONE"),
-            *expected_v25_error,
-            "{id}: V25 diagnostic family drift",
-        );
+        let actual = (pre.is_ok(), v25.is_ok(),
+            pre.as_ref().err().map(|error| error_family(error)).unwrap_or("NONE"),
+            v25.as_ref().err().map(|error| error_family(error)).unwrap_or("NONE"));
+        let expected = (*expected_pre, *expected_v25, *expected_pre_error, *expected_v25_error);
+        if actual != expected {
+            mismatches.push(format!("{id}: actual={actual:?} expected={expected:?}"));
+        }
     }
     assert_eq!(CANDIDATES.len(), 15);
+    assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
 }

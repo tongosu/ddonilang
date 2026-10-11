@@ -62,3 +62,9 @@ cargo check --locked
 개발에는 AI 도구도 활용하고 있습니다. 이름은 **또니랑**, 영문 이름은 **Ddonilang**입니다.
 
 소스의 이용 조건은 [LICENSE](LICENSE)를 확인해 주세요. 사용한 외부 라이브러리에는 각각의 이용 조건이 적용됩니다.
+
+## 알파 체험판
+
+[알파2](publish/releases/alpha2.md) · [알파3](publish/releases/alpha3.md) · [알파4](publish/releases/alpha4.md)
+
+최신 체험판과 사용법은 [GitHub Releases](https://github.com/tongosu/ddonilang/releases)에서 확인하세요. 개발 중인 판이며 알려진 제한은 각 판 안내에 적었습니다.

@@ -327,13 +327,13 @@ impl ResourceValue {
             ResourceValue::None => "없음".to_string(),
             ResourceValue::Bool(true) => "참".to_string(),
             ResourceValue::Bool(false) => "거짓".to_string(),
-            ResourceValue::Fixed64(value) => value.to_string(),
+            ResourceValue::Fixed64(value) => value.canonical_decimal_text(),
             ResourceValue::Unit(value) => {
                 let suffix = value
                     .display_symbol()
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| value.dim.format());
-                format!("{}@{}", value.value, suffix)
+                format!("{}@{}", value.value.canonical_decimal_text(), suffix)
             }
             ResourceValue::String(value) => {
                 format!("\"{}\"", Self::escape_canon_string(value))
@@ -1289,7 +1289,17 @@ impl Nuri for DetNuri {
             .iter()
             .any(|(entity, _)| patch.origin.is_entity(*entity));
 
-        for op in &patch.ops {
+        // 이 commit의 다른 op는 resources_value를 읽지 않는다. 공개 Patch는
+        // 그대로 순회하되 즉시 덮일 payload의 중간 deep clone만 생략한다.
+        let mut last_value_writes = BTreeMap::new();
+        if !skip_assignments {
+            for (index, op) in patch.ops.iter().enumerate() {
+                if let PatchOp::SetResourceValue { tag, .. } = op {
+                    last_value_writes.insert(tag.as_str(), index);
+                }
+            }
+        }
+        for (index, op) in patch.ops.iter().enumerate() {
             match op {
                 PatchOp::SetComponentJson { entity, tag, json } => {
                     if skip_assignments {
@@ -1324,7 +1334,7 @@ impl Nuri for DetNuri {
                     self.world.set_resource_handle(tag.clone(), *handle);
                 }
                 PatchOp::SetResourceValue { tag, value } => {
-                    if skip_assignments {
+                    if skip_assignments || last_value_writes.get(tag.as_str()) != Some(&index) {
                         continue;
                     }
                     self.world.set_resource_value(tag.clone(), value.clone());
@@ -1453,6 +1463,224 @@ impl Nuri for DetNuri {
     }
 }
 
+// 최적화 전 순차 적용 본문을 테스트 전용 참조로 보존한다.
+#[cfg(test)]
+fn apply_patch_sequential_reference(
+    nuri: &mut DetNuri,
+    patch: &Patch,
+    tick_id: TickId,
+    sink: &mut dyn SignalSink,
+) {
+    let mut diag_seq = 0u64;
+    let mut guard_entities = Vec::new();
+    for op in &patch.ops {
+        if let PatchOp::GuardViolation { entity, rule_id } = op {
+            guard_entities.push((*entity, rule_id.clone()));
+            let event = DiagEvent {
+                madi: tick_id,
+                seq: diag_seq,
+                fault_id: "GUARD_VIOLATION".to_string(),
+                rule_id: rule_id.clone(),
+                reason: "GUARD_VIOLATION".to_string(),
+                sub_reason: None,
+                mode: None,
+                contract_kind: None,
+                origin: Origin::Entity(*entity).label(),
+                targets: vec![format!("entity:{}", entity.0)],
+                sam_hash: None,
+                source_span: None,
+                expr: None,
+                message: None,
+            };
+            sink.emit(Signal::Diag { event });
+            diag_seq += 1;
+        }
+    }
+
+    if !guard_entities.is_empty() {
+        guard_entities.sort_by_key(|(entity, _)| entity.0);
+        guard_entities.dedup_by_key(|(entity, _)| entity.0);
+        for (entity, _) in &guard_entities {
+            nuri.world.set_component_json(
+                *entity,
+                ComponentTag("#규칙위반".to_string()),
+                "참".to_string(),
+            );
+            nuri.world.set_component_json(
+                *entity,
+                ComponentTag("#휴면".to_string()),
+                "참".to_string(),
+            );
+        }
+    }
+
+    let skip_assignments = guard_entities
+        .iter()
+        .any(|(entity, _)| patch.origin.is_entity(*entity));
+
+    for op in &patch.ops {
+        match op {
+            PatchOp::SetComponentJson { entity, tag, json } => {
+                if skip_assignments {
+                    continue;
+                }
+                nuri.world
+                    .set_component_json(*entity, tag.clone(), json.clone());
+            }
+            PatchOp::RemoveComponent { entity, tag } => {
+                if skip_assignments {
+                    continue;
+                }
+                nuri.world.remove_component(*entity, tag);
+            }
+            PatchOp::SetResourceJson { tag, json } => {
+                if skip_assignments {
+                    continue;
+                }
+                nuri.world.set_resource_json(tag.clone(), json.clone());
+            }
+
+            PatchOp::SetResourceFixed64 { tag, value } => {
+                if skip_assignments {
+                    continue;
+                }
+                nuri.world.set_resource_fixed64(tag.clone(), *value);
+            }
+            PatchOp::SetResourceHandle { tag, handle } => {
+                if skip_assignments {
+                    continue;
+                }
+                nuri.world.set_resource_handle(tag.clone(), *handle);
+            }
+            PatchOp::SetResourceValue { tag, value } => {
+                if skip_assignments {
+                    continue;
+                }
+                nuri.world.set_resource_value(tag.clone(), value.clone());
+            }
+
+            PatchOp::DivAssignResourceFixed64 {
+                tag,
+                rhs,
+                tick_id: op_tick_id,
+                location,
+                source_span,
+                expr,
+            } => {
+                if skip_assignments {
+                    continue;
+                }
+                // Missing resource defaults to zero; commit only if division succeeds.
+                let cur = nuri
+                    .world
+                    .get_resource_fixed64(tag)
+                    .unwrap_or(Fixed64::ZERO);
+                let ctx = FaultContext {
+                    tick_id: *op_tick_id,
+                    location,
+                    source_span: source_span.clone(),
+                    expr: expr.clone(),
+                };
+                match cur.try_div(*rhs) {
+                    Ok(next) => nuri.world.set_resource_fixed64(tag.clone(), next),
+                    Err(kind) => {
+                        sink.emit(Signal::ArithmeticFault {
+                            ctx,
+                            kind: kind.clone(),
+                        });
+                        let reason = match kind {
+                            crate::signals::ArithmeticFaultKind::DimensionMismatch { .. } => {
+                                "UNIT_MISMATCH"
+                            }
+                            _ => "ARITH_FAULT",
+                        };
+                        let sub_reason = match kind {
+                            crate::signals::ArithmeticFaultKind::DimensionMismatch { .. } => {
+                                Some("DIM_MISMATCH".to_string())
+                            }
+                            _ => Some("DIV0".to_string()),
+                        };
+                        let event = DiagEvent {
+                            madi: tick_id,
+                            seq: diag_seq,
+                            fault_id: reason.to_string(),
+                            rule_id: String::new(),
+                            reason: reason.to_string(),
+                            sub_reason,
+                            mode: None,
+                            contract_kind: None,
+                            origin: patch.origin.label(),
+                            targets: vec![format!("resource:{}", tag)],
+                            sam_hash: None,
+                            source_span: source_span.clone(),
+                            expr: expr.clone(),
+                            message: None,
+                        };
+                        sink.emit(Signal::Diag { event });
+                        diag_seq += 1;
+                    }
+                }
+            }
+            PatchOp::EmitSignal { signal, targets } => match signal {
+                Signal::Diag { event } => {
+                    let mut event = event.clone();
+                    event.madi = tick_id;
+                    event.seq = diag_seq;
+                    if event.targets.is_empty() {
+                        event.targets = if targets.is_empty() {
+                            vec!["unknown".to_string()]
+                        } else {
+                            targets.clone()
+                        };
+                    }
+                    sink.emit(Signal::Diag { event });
+                    diag_seq += 1;
+                }
+                Signal::ArithmeticFault { ctx, kind } => {
+                    sink.emit(signal.clone());
+                    let reason = match kind {
+                        crate::signals::ArithmeticFaultKind::DimensionMismatch { .. } => {
+                            "UNIT_MISMATCH"
+                        }
+                        _ => "ARITH_FAULT",
+                    };
+                    let sub_reason = match kind {
+                        crate::signals::ArithmeticFaultKind::DimensionMismatch { .. } => {
+                            Some("DIM_MISMATCH".to_string())
+                        }
+                        _ => Some("DIV0".to_string()),
+                    };
+                    let diag_targets = if targets.is_empty() {
+                        vec!["unknown".to_string()]
+                    } else {
+                        targets.clone()
+                    };
+                    let event = DiagEvent {
+                        madi: tick_id,
+                        seq: diag_seq,
+                        fault_id: reason.to_string(),
+                        rule_id: String::new(),
+                        reason: reason.to_string(),
+                        sub_reason,
+                        mode: None,
+                        contract_kind: None,
+                        origin: patch.origin.label(),
+                        targets: diag_targets,
+                        sam_hash: None,
+                        source_span: ctx.source_span.clone(),
+                        expr: ctx.expr.clone(),
+                        message: None,
+                    };
+                    sink.emit(Signal::Diag { event });
+                    diag_seq += 1;
+                }
+                _ => sink.emit(signal.clone()),
+            },
+            PatchOp::GuardViolation { .. } => {}
+        }
+    }
+}
+
 pub struct InMemoryGeoul {
     q: VecDeque<TickFrame>,
 }
@@ -1481,6 +1709,195 @@ impl Geoul for InMemoryGeoul {
 mod tests {
     use super::{NuriWorld, ResourceMapEntry, ResourceValue};
     use crate::{Fixed64, Unit, UnitValue};
+
+    fn assert_value_commit_matches_sequential(patch: &super::Patch) {
+        use super::{DetNuri, Nuri};
+        use crate::signals::VecSignalSink;
+        let mut reference = DetNuri::new();
+        reference
+            .world
+            .set_resource_value("shared".into(), ResourceValue::String("이전".into()));
+        reference
+            .world
+            .set_resource_fixed64("shared".into(), Fixed64::from_i64(12));
+        let saved = reference.world.clone();
+        let mut optimized = DetNuri {
+            world: saved.clone(),
+        };
+        let original_patch = patch.clone();
+        let original_patch_bytes = format!("{patch:?}").into_bytes();
+        let mut expected_sink = VecSignalSink::default();
+        let mut actual_sink = VecSignalSink::default();
+        super::apply_patch_sequential_reference(&mut reference, patch, 17, &mut expected_sink);
+        optimized.apply_patch(patch, 17, &mut actual_sink);
+        assert_eq!(
+            optimized.world.encode_canonical(),
+            reference.world.encode_canonical()
+        );
+        assert_eq!(optimized.state_hash(), reference.state_hash());
+        assert_eq!(actual_sink.signals, expected_sink.signals);
+        assert_eq!(actual_sink.diag_events, expected_sink.diag_events);
+        assert_eq!(patch, &original_patch, "공개 Patch의 전체 op와 순서 보존");
+        assert_eq!(format!("{patch:?}").into_bytes(), original_patch_bytes);
+        // 기존 소유 snapshot 복원 후 같은 Patch를 적용하는 결과도 보존한다.
+        reference.world = saved.clone();
+        optimized.world = saved;
+        let mut expected_sink = VecSignalSink::default();
+        let mut actual_sink = VecSignalSink::default();
+        super::apply_patch_sequential_reference(&mut reference, patch, 18, &mut expected_sink);
+        optimized.apply_patch(patch, 18, &mut actual_sink);
+        assert_eq!(
+            optimized.world.encode_canonical(),
+            reference.world.encode_canonical()
+        );
+        assert_eq!(actual_sink.signals, expected_sink.signals);
+        assert_eq!(actual_sink.diag_events, expected_sink.diag_events);
+    }
+
+    #[test]
+    fn value_commit_last_write_preserves_repeated_payloads_and_other_tags() {
+        use super::{Origin, Patch, PatchOp};
+        let mut ops = Vec::new();
+        for count in 0..128 {
+            ops.push(PatchOp::SetResourceValue {
+                tag: "output_log".into(),
+                value: ResourceValue::List(
+                    (0..count)
+                        .map(|index| ResourceValue::String(format!("원 관찰 {index}")))
+                        .collect(),
+                ),
+            });
+            ops.push(PatchOp::SetResourceValue {
+                tag: "shared".into(),
+                value: ResourceValue::Fixed64(Fixed64::from_i64(count)),
+            });
+        }
+        assert_value_commit_matches_sequential(&Patch {
+            ops,
+            origin: Origin::system("ddn"),
+        });
+    }
+
+    #[test]
+    fn value_commit_last_write_keeps_other_resource_maps_and_signal_order() {
+        use super::{Origin, Patch, PatchOp};
+        use crate::resource::ResourceHandle;
+        use crate::signals::{ArithmeticFaultKind, FaultContext, Signal};
+        let patch = Patch {
+            origin: Origin::system("ddn"),
+            ops: vec![
+                PatchOp::SetResourceValue {
+                    tag: "shared".into(),
+                    value: ResourceValue::String("초기".into()),
+                },
+                PatchOp::SetResourceJson {
+                    tag: "shared".into(),
+                    json: "독립 글".into(),
+                },
+                PatchOp::SetResourceFixed64 {
+                    tag: "shared".into(),
+                    value: Fixed64::from_i64(10),
+                },
+                PatchOp::EmitSignal {
+                    signal: Signal::Alrim { name: "first" },
+                    targets: vec![],
+                },
+                PatchOp::DivAssignResourceFixed64 {
+                    tag: "shared".into(),
+                    rhs: Fixed64::from_i64(2),
+                    tick_id: 17,
+                    location: "test",
+                    source_span: None,
+                    expr: None,
+                },
+                PatchOp::SetResourceValue {
+                    tag: "shared".into(),
+                    value: ResourceValue::Bool(true),
+                },
+                PatchOp::SetResourceHandle {
+                    tag: "shared".into(),
+                    handle: ResourceHandle::from_raw(7),
+                },
+                PatchOp::DivAssignResourceFixed64 {
+                    tag: "shared".into(),
+                    rhs: Fixed64::ZERO,
+                    tick_id: 17,
+                    location: "test",
+                    source_span: None,
+                    expr: None,
+                },
+                PatchOp::EmitSignal {
+                    signal: Signal::ArithmeticFault {
+                        ctx: FaultContext {
+                            tick_id: 17,
+                            location: "test",
+                            source_span: None,
+                            expr: None,
+                        },
+                        kind: ArithmeticFaultKind::DivByZero,
+                    },
+                    targets: vec!["shared".into()],
+                },
+                PatchOp::SetResourceValue {
+                    tag: "shared".into(),
+                    value: ResourceValue::None,
+                },
+                PatchOp::EmitSignal {
+                    signal: Signal::Alrim { name: "last" },
+                    targets: vec![],
+                },
+            ],
+        };
+        assert_value_commit_matches_sequential(&patch);
+    }
+
+    #[test]
+    fn value_commit_last_write_preserves_guard_origin_and_component_effects() {
+        use super::{ComponentTag, EntityId, Origin, Patch, PatchOp};
+        use crate::signals::Signal;
+        for origin in [
+            Origin::system("ddn"),
+            Origin::Entity(EntityId(3)),
+            Origin::Entity(EntityId(4)),
+        ] {
+            let patch = Patch {
+                origin,
+                ops: vec![
+                    PatchOp::SetResourceValue {
+                        tag: "shared".into(),
+                        value: ResourceValue::Bool(false),
+                    },
+                    PatchOp::SetComponentJson {
+                        entity: EntityId(3),
+                        tag: ComponentTag("기존".into()),
+                        json: "1".into(),
+                    },
+                    PatchOp::GuardViolation {
+                        entity: EntityId(3),
+                        rule_id: "원 규칙".into(),
+                    },
+                    PatchOp::EmitSignal {
+                        signal: Signal::Alrim { name: "guarded" },
+                        targets: vec![],
+                    },
+                    PatchOp::SetResourceValue {
+                        tag: "shared".into(),
+                        value: ResourceValue::Bool(true),
+                    },
+                    PatchOp::GuardViolation {
+                        entity: EntityId(3),
+                        rule_id: "중복 규칙".into(),
+                    },
+                    PatchOp::RemoveComponent {
+                        entity: EntityId(3),
+                        tag: ComponentTag("기존".into()),
+                    },
+                ],
+            };
+            assert_value_commit_matches_sequential(&patch);
+        }
+        assert_value_commit_matches_sequential(&Patch::default());
+    }
 
     #[test]
     fn state_hash_filter_excludes_bogae_prefix() {

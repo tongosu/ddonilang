@@ -26,8 +26,8 @@ use crate::deterministic_debug::{
     public_observation_events_json,
 };
 use crate::gate0_registry::ProjectAssetRegistry;
-use crate::input_tape::{encode_input_tape, mask_from_bytes, tape_mask_to_runtime_keys, InputTape};
 use crate::host_resource::PreparedHostResources;
+use crate::input_tape::{encode_input_tape, mask_from_bytes, tape_mask_to_runtime_keys, InputRecord, InputTape};
 use crate::preprocess::{
     execution_mode_decision_from_source_with_path, preprocess_source_for_parse, split_file_meta,
     validate_no_legacy_boim_surface, validate_no_legacy_header, ExecutionDiagnostic,
@@ -116,6 +116,25 @@ pub struct PreparedSource {
     pub execution_mode_decision: ExecutionModeDecision,
 }
 
+// Historical adapter only. Current callers must use the explicit profile API.
+// Never select a grammar epoch from tokens in the document (RD-492).
+fn program_from_legacy_source(
+    source: &str,
+    source_path: &str,
+    mode: ParseMode,
+) -> Result<DdnProgram, String> {
+    DdnProgram::from_source_with_mode(source, source_path, mode)
+}
+
+fn program_from_legacy_source_with_age_target(
+    source: &str,
+    source_path: &str,
+    mode: ParseMode,
+    age_target: AgeTarget,
+) -> Result<DdnProgram, String> {
+    DdnProgram::from_source_with_mode_and_age_target(source, source_path, mode, age_target)
+}
+
 pub fn prepare_source_for_execution(source: &str) -> Result<PreparedSource, String> {
     prepare_source_for_execution_with_path(source, "<execution-source>")
         .map_err(|err| err.to_string())
@@ -176,8 +195,7 @@ pub fn prepare_source_for_execution_with_path(
     })?;
     let execution_mode_decision =
         execution_mode_decision_from_source_with_path(&meta.stripped, source_path)?;
-    let preprocessed =
-        preprocess_source_for_parse(&meta.stripped).map_err(|message| ExecutionDiagnostic {
+    let preprocessed = preprocess_source_for_parse(&meta.stripped).map_err(|message| ExecutionDiagnostic {
             code: "E_EXECUTION_PREPROCESS",
             message,
             source_path: source_path.to_string(),
@@ -189,9 +207,7 @@ pub fn prepare_source_for_execution_with_path(
             actual: None,
         })?;
     let execution_source = ddonirang_lang::preprocess_frontdoor_source(&preprocessed);
-    if let Err(err) =
-        ddonirang_lang::parse_with_mode(&execution_source, source_path, ParseMode::Strict)
-    {
+    if let Err(err) = ddonirang_lang::parse_with_mode(&execution_source, source_path, ParseMode::Strict) {
         if matches!(
             err.code(),
             "E_FIELD_MISSING" | "E_FIELD_TARGET_TYPE" | "E_FIELD_POSSESSIVE_SURFACE_FORBIDDEN"
@@ -214,7 +230,7 @@ pub fn prepare_source_for_execution_with_path(
             });
         }
     }
-    let canonical_ddn = DdnProgram::from_source_with_mode(source, source_path, ParseMode::Strict)
+    let canonical_ddn = program_from_legacy_source(source, source_path, ParseMode::Strict)
         .map_err(|message| ExecutionDiagnostic {
             code: "E_SHARED_CANONICAL",
             message,
@@ -237,7 +253,7 @@ pub fn prepare_source_for_execution_with_path(
     })
 }
 
-fn prepare_supported_source_for_execution_with_program(
+pub(crate) fn prepare_supported_source_for_execution_with_program(
     source: &str,
     source_path: &str,
     program: &DdnProgram,
@@ -256,7 +272,9 @@ fn prepare_supported_source_for_execution_with_program(
         });
     }
     let meta = split_file_meta(source);
-    let preprocessed =
+    let preprocessed = if program.has_root_program() {
+        meta.stripped.clone()
+    } else {
         preprocess_source_for_parse(&meta.stripped).map_err(|message| ExecutionDiagnostic {
             code: "E_EXECUTION_PREPROCESS",
             message,
@@ -267,8 +285,13 @@ fn prepare_supported_source_for_execution_with_program(
             offending_field: None,
             expected: None,
             actual: None,
-        })?;
-    let execution_source = ddonirang_lang::preprocess_frontdoor_source(&preprocessed);
+        })?
+    };
+    let execution_source = if program.has_root_program() {
+        preprocessed.clone()
+    } else {
+        ddonirang_lang::preprocess_frontdoor_source(&preprocessed)
+    };
     Ok(PreparedSource {
         stripped_source: meta.stripped,
         preprocessed_source: preprocessed,
@@ -277,6 +300,34 @@ fn prepare_supported_source_for_execution_with_program(
         meta_lines: meta.meta_lines,
         execution_mode_decision: program.execution_mode_decision(),
     })
+}
+
+// Preserve structured parser failures at the existing string-returning
+// DdnProgram boundary. Reparse only a rejected input, with the same explicit
+// epoch; never retry execution or route it through legacy preprocessing.
+fn supported_source_parse_diagnostic(
+    source: &str, path: &str, message: &str,
+) -> Option<ExecutionDiagnostic> {
+    if source.starts_with('\u{feff}') {
+        return Some(run_summary_diagnostic(
+            "E_SOURCE_UTF8_BOM_FORBIDDEN", message.to_string(), path, "source_ingress",
+        ));
+    }
+    if message.starts_with("E_BOGAE_TIME_POLICY_UNSUPPORTED:") {
+        return Some(run_summary_diagnostic(
+            "E_BOGAE_TIME_POLICY_UNSUPPORTED", message.to_string(), path, "source_ingress",
+        ));
+    }
+    let stripped = split_file_meta(source).stripped;
+    let error = ddonirang_lang::parse_v25_with_mode(&stripped, path, ParseMode::Strict).err()?;
+    (error.code() != "E_PARSE" && message.contains(error.code()))
+        .then(|| {
+            let mut diagnostic = ExecutionDiagnostic::execution_mode_parse(error, path);
+            // DdnProgram already formats the original line/column and caret.
+            // Keep that same message at CLI and WASM frontdoors.
+            diagnostic.message = message.to_string();
+            diagnostic
+        })
 }
 
 pub fn canonicalize_shared_source(source: &str) -> Result<CanonOutput, String> {
@@ -296,7 +347,7 @@ pub fn canonicalize_shared_source(source: &str) -> Result<CanonOutput, String> {
     }
     let meta = crate::file_meta::split_file_meta(source);
     let program =
-        DdnProgram::from_source_with_mode(source, "<shared-canonical>", ParseMode::Strict)?;
+        program_from_legacy_source(source, "<shared-canonical>", ParseMode::Strict)?;
     let warnings = program
         .parse_warnings()
         .iter()
@@ -427,6 +478,26 @@ pub fn execution_envelope_from_source_with_path(
     source_path: &str,
     requested_ticks: Option<u32>,
 ) -> Result<JsonValue, ExecutionDiagnostic> {
+    execution_envelope_internal(source, source_path, requested_ticks, None)
+}
+
+pub fn execution_envelope_from_source_with_profile(
+    source: &str,
+    source_path: &str,
+    requested_ticks: Option<u32>,
+    source_profile_identity: Option<&str>,
+) -> Result<JsonValue, ExecutionDiagnostic> {
+    let profile = resolve_supported_source_profile(source_profile_identity)
+        .map_err(|error| run_summary_diagnostic(error.code, error.message, source_path, "source_profile"))?;
+    execution_envelope_internal(source, source_path, requested_ticks, Some(profile))
+}
+
+fn execution_envelope_internal(
+    source: &str,
+    source_path: &str,
+    requested_ticks: Option<u32>,
+    profile: Option<SupportedSourceProfile>,
+) -> Result<JsonValue, ExecutionDiagnostic> {
     if ddonirang_lang::has_model_surface(source) {
         validate_model_oneshot_ticks(requested_ticks).map_err(|message| ExecutionDiagnostic {
             code: "E_MODEL_TICK_POLICY",
@@ -448,10 +519,18 @@ pub fn execution_envelope_from_source_with_path(
             diagnostic
         });
     }
-    let prepared = prepare_source_for_execution_with_path(source, source_path)?;
-    let program = DdnProgram::from_source_with_mode(source, source_path, ParseMode::Strict)
-        .map_err(|message| ExecutionDiagnostic {
-            code: "E_EXECUTION_PARSE",
+    let program = match profile {
+        Some(profile) => DdnProgram::from_supported_source_profile_with_mode(source, source_path, ParseMode::Strict, profile),
+        None => program_from_legacy_source(source, source_path, ParseMode::Strict),
+    }
+        .map_err(|message| {
+            if profile.is_some() {
+                if let Some(diagnostic) = supported_source_parse_diagnostic(source, source_path, &message) {
+                    return diagnostic;
+                }
+            }
+            ExecutionDiagnostic {
+            code: "E_PARSE",
             message,
             source_path: source_path.to_string(),
             span: None,
@@ -460,7 +539,11 @@ pub fn execution_envelope_from_source_with_path(
             offending_field: None,
             expected: None,
             actual: None,
-        })?;
+        }})?;
+    let prepared = match profile {
+        Some(_) => prepare_supported_source_for_execution_with_program(source, source_path, &program)?,
+        None => prepare_source_for_execution_with_path(source, source_path)?,
+    };
     let configured_madi = program.configured_madi().unwrap_or(0);
     let execution_mode_decision = prepared.execution_mode_decision;
     let effective_ticks = requested_ticks
@@ -584,6 +667,46 @@ pub fn run_summary_from_source_with_seed(
     .map_err(|err| err.to_json_value().to_string())
 }
 
+/// Runs the shared runtime with one already-admitted held-key mask per tick.
+/// The CLI owns host collection; this owner remains responsible for parsing,
+/// typed execution, and the all-or-nothing public summary boundary.
+pub fn run_summary_from_source_with_live_input<F>(
+    source: &str,
+    file_path: &str,
+    requested_ticks: Option<u32>,
+    rng_base_seed: u64,
+    source_profile_identity: Option<&str>,
+    madi_hz: u32,
+    mut next_mask: F,
+) -> Result<JsonValue, String>
+where
+    F: FnMut(u64) -> Result<InputRecord, String>,
+{
+    let profile = source_profile_identity.map(|identity| resolve_supported_source_profile(Some(identity)))
+        .transpose().map_err(|error| error.message)?;
+    if madi_hz == 0 {
+        return Err("E_SAM_BAD_MADI_HZ --초당-마디(--madi-hz)는 0보다 커야 합니다".into());
+    }
+    run_summary_from_source_with_assets_diagnostic_with_update_name(
+        source,
+        file_path,
+        requested_ticks,
+        None,
+        None,
+        None,
+        profile,
+        None,
+        rng_base_seed,
+        DEFAULT_UPDATE_NAME,
+        Some((madi_hz, &mut next_mask)),
+        false,
+        None,
+        None,
+        None,
+    )
+    .map_err(|err| err.to_json_value().to_string())
+}
+
 pub fn run_summary_from_source_with_age_target(
     source: &str,
     file_path: &str,
@@ -671,6 +794,117 @@ pub fn run_summary_from_supported_source_profile_diagnostic(
         None,
         0,
     )
+}
+
+/// Runs a current source through the supported profile using the caller's
+/// already-selected update callable.  Local Project targets are typed source
+/// identities, not a request to rewrite that callable to the legacy default.
+pub fn run_summary_from_supported_source_profile_with_update_name_diagnostic(
+    source: &str,
+    file_path: &str,
+    requested_ticks: Option<u32>,
+    source_profile_identity: Option<&str>,
+    update_name: &str,
+    project_asset_registry: Option<Arc<ProjectAssetRegistry>>,
+) -> Result<JsonValue, ExecutionDiagnostic> {
+    let profile = resolve_supported_source_profile(source_profile_identity).map_err(|error| {
+        run_summary_diagnostic(error.code, error.message, file_path, "source_profile")
+    })?;
+    run_summary_from_source_with_assets_diagnostic_with_update_name(
+        source,
+        file_path,
+        requested_ticks,
+        project_asset_registry,
+        None,
+        None,
+        Some(profile),
+        None,
+        0,
+        update_name,
+        None,
+        true,
+        None,
+        None,
+        None,
+    )
+}
+
+pub fn run_summary_from_supported_source_profile_with_receipts(
+    source: &str,
+    file_path: &str,
+    requested_ticks: Option<u32>,
+    source_profile_identity: Option<&str>,
+    receipts: &JsonValue,
+    param_overrides: Option<&BTreeMap<String, Value>>,
+) -> Result<JsonValue, String> {
+    run_summary_with_receipts_and_bogae_entry(source,file_path,requested_ticks,
+        source_profile_identity,receipts,param_overrides,None)
+}
+
+pub fn run_summary_with_receipts_and_bogae_entry(
+    source: &str, file_path: &str, requested_ticks: Option<u32>,
+    source_profile_identity: Option<&str>, receipts: &JsonValue,
+    param_overrides: Option<&BTreeMap<String, Value>>, bogae_entry: Option<&str>,
+) -> Result<JsonValue, String> {
+    let profile = resolve_supported_source_profile(source_profile_identity)
+        .map_err(|error| error.message)?;
+    // In-process host admission only. A saved run summary is not an approved
+    // Alpha input format and must never be accepted as an executable record.
+    let records = receipts.as_array()
+        .ok_or("E_INPUT_RECEIPT_INVALID: 실행 중 전달된 입력 영수증 목록만 받습니다")?;
+    let inputs = records.iter().map(crate::input_receipt::parse_receipt_snapshot)
+        .collect::<Result<Vec<_>, _>>()?;
+    let summary = run_summary_from_source_with_assets_diagnostic_with_update_name(
+        source, file_path, requested_ticks, None, None, None, Some(profile),
+        None, 0, DEFAULT_UPDATE_NAME, None, false, Some(&inputs), param_overrides, bogae_entry,
+    ).map_err(|error| error.to_json_value().to_string())?;
+    Ok(summary)
+}
+
+/// Explicit product activation selection. It never rewrites source or guesses
+/// a root by spelling/order, and it creates no persistent authored identity.
+pub fn run_summary_with_bogae_entry(
+    source: &str, file_path: &str, requested_ticks: Option<u32>,
+    profile_identity: &str, entry: &str,
+) -> Result<JsonValue, String> {
+    let profile=resolve_supported_source_profile(Some(profile_identity)).map_err(|error|error.message)?;
+    run_summary_from_source_with_assets_diagnostic_with_update_name(
+        source,file_path,requested_ticks,None,None,None,Some(profile),None,0,
+        DEFAULT_UPDATE_NAME,None,false,None,None,Some(entry),
+    ).map_err(|error|error.to_json_value().to_string())
+}
+
+/// Permanent identity is admitted from the sealed authoring artifact. Receipts
+/// remain in-process input evidence, not a new executable recording format.
+pub fn run_summary_with_authored_bogae(
+    source: &str, file_path: &str, requested_ticks: Option<u32>,
+    profile_identity: &str, artifact_json: &str,
+    receipts: Option<&JsonValue>, param_overrides: Option<&BTreeMap<String, Value>>,
+) -> Result<JsonValue, String> {
+    let profile = resolve_supported_source_profile(Some(profile_identity))
+        .map_err(|error| error.message)?;
+    let project = crate::authored_project::open(artifact_json.as_bytes())?;
+    if project.source_profile != profile_identity {
+        return Err("E_AUTHORED_BOGAE_PROFILE: 작성 자료와 실행 프로필이 다릅니다".into());
+    }
+    let (authored_source, _, project_start) = project.execution_source()?;
+    if authored_source != source {
+        return Err("E_AUTHORED_BOGAE_SOURCE: 실행 원문과 작성 자료의 공통 연결 원문이 다릅니다".into());
+    }
+    let inputs = receipts.map(|receipts| {
+        receipts.as_array().ok_or_else(|| "E_INPUT_RECEIPT_INVALID: 입력 영수증 목록만 받습니다".to_string())?
+            .iter().map(|row| {
+                let input = crate::input_receipt::parse_receipt_snapshot(row)?;
+                crate::input_receipt::validate_alpha_host_dt(input.dt)?;
+                Ok(input)
+            }).collect::<Result<Vec<_>, String>>()
+    }).transpose()?;
+    run_summary_from_source_with_authored_bogae(
+        source, file_path, requested_ticks, None, None, None, Some(profile),
+        None, 0, project_start.as_deref().unwrap_or(DEFAULT_UPDATE_NAME), None,
+        project_start.is_some(), inputs.as_deref(),
+        param_overrides, None, Some(artifact_json),
+    ).map_err(|error| error.to_json_value().to_string())
 }
 
 pub fn run_summary_from_supported_source_profile(
@@ -939,10 +1173,72 @@ fn run_summary_from_source_with_assets_diagnostic(
     input_tape: Option<&InputTape>,
     rng_base_seed: u64,
 ) -> Result<JsonValue, ExecutionDiagnostic> {
+    run_summary_from_source_with_assets_diagnostic_with_update_name(
+        source,
+        file_path,
+        requested_ticks,
+        project_asset_registry,
+        standard_limits,
+        age_target,
+        source_profile,
+        input_tape,
+        rng_base_seed,
+        DEFAULT_UPDATE_NAME,
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+}
+
+/// The old source frontdoor remains a temporary-identity execution route.
+fn run_summary_from_source_with_assets_diagnostic_with_update_name(
+    source: &str, file_path: &str, requested_ticks: Option<u32>,
+    project_asset_registry: Option<Arc<ProjectAssetRegistry>>,
+    standard_limits: Option<StandardResourceLimitsV1>, age_target: Option<AgeTarget>,
+    source_profile: Option<SupportedSourceProfile>, input_tape: Option<&InputTape>,
+    rng_base_seed: u64, update_name: &str,
+    live_next_mask: Option<(u32, &mut dyn FnMut(u64) -> Result<InputRecord, String>)>,
+    named_entry_after_definitions: bool, input_snapshots: Option<&[InputSnapshot]>,
+    param_overrides: Option<&BTreeMap<String, Value>>, bogae_entry: Option<&str>,
+) -> Result<JsonValue, ExecutionDiagnostic> {
+    run_summary_from_source_with_authored_bogae(
+        source, file_path, requested_ticks, project_asset_registry, standard_limits,
+        age_target, source_profile, input_tape, rng_base_seed, update_name,
+        live_next_mask, named_entry_after_definitions, input_snapshots,
+        param_overrides, bogae_entry, None)
+}
+
+fn run_summary_from_source_with_authored_bogae(
+    source: &str,
+    file_path: &str,
+    requested_ticks: Option<u32>,
+    project_asset_registry: Option<Arc<ProjectAssetRegistry>>,
+    standard_limits: Option<StandardResourceLimitsV1>,
+    age_target: Option<AgeTarget>,
+    source_profile: Option<SupportedSourceProfile>,
+    input_tape: Option<&InputTape>,
+    rng_base_seed: u64,
+    update_name: &str,
+    mut live_next_mask: Option<(u32, &mut dyn FnMut(u64) -> Result<InputRecord, String>)>,
+    named_entry_after_definitions: bool,
+    input_snapshots: Option<&[InputSnapshot]>,
+    param_overrides: Option<&BTreeMap<String, Value>>,
+    bogae_entry: Option<&str>,
+    authored_artifact: Option<&str>,
+) -> Result<JsonValue, ExecutionDiagnostic> {
     #[cfg(test)]
     RUN_SUMMARY_DIAGNOSTIC_INVOCATIONS.with(|count| count.set(count.get() + 1));
 
     if ddonirang_lang::has_model_surface(source) {
+        if authored_artifact.is_some() {
+            return Err(run_summary_diagnostic("E_AUTHORED_BOGAE_MODEL_UNSUPPORTED",
+                "모델 원문의 영구 보개 정체 연결은 아직 지원하지 않습니다", file_path, "authored_bogae"));
+        }
+        if live_next_mask.is_some() || input_snapshots.is_some() {
+            return Err(run_summary_diagnostic("E_SHARED_RUNTIME_OPTION_UNSUPPORTED", "모델 실행 경로는 실시간 제어입력을 지원하지 않습니다", file_path, "live_input"));
+        }
         if rng_base_seed != 0 {
             return Err(run_summary_diagnostic(
                 "E_MODEL_SEED_UNSUPPORTED",
@@ -970,6 +1266,9 @@ fn run_summary_from_source_with_assets_diagnostic(
                 effective_age_target,
             )
             .map_err(|message| {
+                if let Some(diagnostic) = supported_source_parse_diagnostic(source, file_path, &message) {
+                    return diagnostic;
+                }
                 let code = if message.contains(E_V1_CORE_RECURSION_UNSUPPORTED) {
                     E_V1_CORE_RECURSION_UNSUPPORTED
                 } else if message.contains("E_V25_DEFINITION_MIGRATION_REQUIRED") {
@@ -977,7 +1276,7 @@ fn run_summary_from_source_with_assets_diagnostic(
                 } else if message.contains("E_AGE_NOT_AVAILABLE") {
                     "E_AGE_NOT_AVAILABLE"
                 } else {
-                    "E_EXECUTION_PARSE"
+                    "E_PARSE"
                 };
                 run_summary_diagnostic(code, message, file_path, "execution_parse")
             })?;
@@ -987,7 +1286,7 @@ fn run_summary_from_source_with_assets_diagnostic(
         }
         None => {
             let prepared = prepare_source_for_execution_with_path(source, file_path)?;
-            let program = DdnProgram::from_source_with_mode_and_age_target(
+            let program = program_from_legacy_source_with_age_target(
                 source,
                 file_path,
                 ParseMode::Strict,
@@ -997,13 +1296,17 @@ fn run_summary_from_source_with_assets_diagnostic(
                 let code = if message.contains("E_AGE_NOT_AVAILABLE") {
                     "E_AGE_NOT_AVAILABLE"
                 } else {
-                    "E_EXECUTION_PARSE"
+                    "E_PARSE"
                 };
                 run_summary_diagnostic(code, message, file_path, "execution_parse")
             })?;
             (prepared, program)
         }
     };
+    crate::source_analysis::validate_program_for_execution(program.canonical_program())
+        .map_err(|message| {
+            run_summary_diagnostic("E_STATIC_VALIDATION", message, file_path, "static_validation")
+        })?;
     let configured_madi = program.configured_madi().unwrap_or(0);
     let execution_mode_decision = prepared.execution_mode_decision;
     let parse_warnings = program.parse_warnings().to_vec();
@@ -1094,14 +1397,32 @@ fn run_summary_from_source_with_assets_diagnostic(
             })?
             .as_bytes(),
     );
-    let mut runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME);
+    let mut runner = DdnRunner::new(program, update_name).with_bogae_activation();
+    if let Some(artifact) = authored_artifact {
+        runner.configure_authored_bogae(artifact).map_err(|message|
+            run_summary_diagnostic("E_AUTHORED_BOGAE_ADMISSION", message, file_path, "authored_bogae"))?;
+    }
+    if let Some(entry) = bogae_entry {
+        runner.configure_bogae_entry(entry).map_err(|message|
+            run_summary_diagnostic("E_BOGAE_ENTRY_UNRESOLVED", message, file_path, "bogae_entry"))?;
+    }
+    if named_entry_after_definitions {
+        runner = runner.with_named_entry_after_definitions();
+    }
     if let Some(limits) = standard_limits {
         runner = runner.with_standard_resource_limits(limits);
     }
-    let sealed_input_bytes = input_tape
+    let mut sealed_input_bytes = input_tape
         .and_then(|tape| encode_input_tape(tape).ok())
         .map(|bytes| source.len().saturating_add(bytes.len()))
         .unwrap_or(source.len());
+    if let Some(inputs) = input_snapshots {
+        let bytes = json!(inputs.iter().map(crate::input_receipt::snapshot_value)
+            .collect::<Vec<_>>()).to_string().len();
+        sealed_input_bytes = sealed_input_bytes.checked_add(bytes).ok_or_else(||
+            run_summary_diagnostic("E_INPUT_RECEIPT_SIZE", "입력 기록 크기가 표현 범위를 넘었습니다",
+                file_path, "resource_preflight"))?;
+    }
     runner
         .set_sealed_input_bytes(sealed_input_bytes)
         .map_err(|failure| {
@@ -1114,7 +1435,7 @@ fn run_summary_from_source_with_assets_diagnostic(
     let mut defaults = HashMap::new();
     seed_bogae_defaults(&mut defaults);
     let mut tick_id = 0u64;
-    let input_dt = Fixed64::from_i64(1);
+    let input_dt = crate::input_receipt::alpha_host_dt();
     let mut last_patch = Patch::default();
     let mut last_input = serialize_input_state(0, "", 0, 0, input_dt, rng_base_seed, rng_base_seed);
     let source_identity = format!("sha256:{}", sha256_hex(source.as_bytes()));
@@ -1128,16 +1449,27 @@ fn run_summary_from_source_with_assets_diagnostic(
             .as_bytes()
         )
     );
-    let input_identity_suffix = sealed_input_tape_sha256
+    if let Some(inputs) = input_snapshots {
+        if input_tape.is_some() || live_next_mask.is_some() || inputs.len() != effective_ticks as usize
+            || inputs.iter().enumerate().any(|(index, input)| input.tick_id != index as u64) {
+            return Err(run_summary_diagnostic("E_INPUT_RECEIPT_SEQUENCE_INVALID",
+                "입력 기록의 마디 수·순서 또는 입력 경로가 다릅니다", file_path, "input_receipt"));
+        }
+    }
+    let input_record_sha256 = input_snapshots.map(crate::input_receipt::record_sha256);
+    let mut input_identity_suffix = sealed_input_tape_sha256
         .as_deref()
         .map(|identity| format!("\0input_tape_sha256={identity}"))
         .unwrap_or_default();
+    if let Some(identity) = &input_record_sha256 {
+        input_identity_suffix.push_str(&format!("\0input_record_sha256={identity}"));
+    }
     let seed_identity_suffix = if rng_base_seed == 0 {
         String::new()
     } else {
         format!("\0rng_base_seed={rng_base_seed}")
     };
-    let run_identity_material = match age_target {
+    let run_identity_material = |input_identity_suffix: &str| match age_target {
         Some(age_target) => format!(
             "{}\0{}\0{}\0{}\0age_target={}{}{}",
             file_path,
@@ -1158,7 +1490,10 @@ fn run_summary_from_source_with_assets_diagnostic(
             seed_identity_suffix
         ),
     };
-    let run_id = format!("run:{}", sha256_hex(run_identity_material.as_bytes()));
+    let mut run_id = format!("run:{}", sha256_hex(run_identity_material(&input_identity_suffix).as_bytes()));
+    let mut live_records = Vec::new();
+    let mut input_receipts = Vec::new();
+    let mut last_bogae_projection = None;
     let mut observation_frames = preflight_observation_frames(&runner, effective_ticks as usize)
         .map_err(|failure| {
             work_cost_failure_diagnostic(failure, file_path, "resource_preflight")
@@ -1166,10 +1501,32 @@ fn run_summary_from_source_with_assets_diagnostic(
 
     for tick_index in 0..effective_ticks {
         let tick_seed = rng_base_seed ^ tick_id;
-        let input = InputSnapshot {
+        let keys_pressed = match live_next_mask.as_mut() {
+            Some((_, next_mask)) => {
+                let record = next_mask(tick_id).map_err(|message| {
+                    let code = match message.split_whitespace().next() {
+                        Some("E_SAM_LIVE_QUEUE_OVERFLOW") => "E_SAM_LIVE_QUEUE_OVERFLOW",
+                        Some("E_SAM_LIVE_SEQUENCE_OVERFLOW") => "E_SAM_LIVE_SEQUENCE_OVERFLOW",
+                        Some("E_SAM_LIVE_INPUT_POLL") => "E_SAM_LIVE_INPUT_POLL",
+                        Some("E_SAM_LIVE_INPUT_READ") => "E_SAM_LIVE_INPUT_READ",
+                        Some("E_SAM_LIVE_RAW_RESTORE") => "E_SAM_LIVE_RAW_RESTORE",
+                        _ => "E_SAM_LIVE_INPUT",
+                    };
+                    run_summary_diagnostic(code, message, file_path, "live_input")
+                })?;
+                if u64::from(record.madi) != tick_id {
+                    return Err(run_summary_diagnostic("E_SAM_RECORD_ORDER_MISMATCH", "실시간 입력의 마디 순서가 다릅니다", file_path, "live_input"));
+                }
+                let mask = mask_from_bytes(&record.held_mask).map_err(|message| run_summary_diagnostic("E_SAM_TAPE", message, file_path, "live_input"))?;
+                live_records.push(record);
+                tape_mask_to_runtime_keys(mask)
+            },
+            None => input_masks.get(tick_index as usize).copied().unwrap_or(0),
+        };
+        let input = input_snapshots.map(|inputs| inputs[tick_index as usize].clone()).unwrap_or_else(|| InputSnapshot {
             tick_id,
             dt: input_dt,
-            keys_pressed: input_masks.get(tick_index as usize).copied().unwrap_or(0),
+            keys_pressed,
             last_key_name: String::new(),
             pointer_x_i32: 0,
             pointer_y_i32: 0,
@@ -1177,9 +1534,16 @@ fn run_summary_from_source_with_assets_diagnostic(
             net_events: Vec::new(),
             frame_source: InputSource::Person,
             rng_seed: tick_seed,
+        });
+        let control_edges = if live_next_mask.is_some() {
+            live_records.last().map(InputRecord::runtime_edges)
+        } else {
+            input_tape.filter(|tape| tape.version == 2)
+                .and_then(|tape| tape.records.get(tick_index as usize))
+                .map(InputRecord::runtime_edges)
         };
         let output = runner
-            .run_update_diagnostic(world.world(), &input, &defaults)
+            .run_update_diagnostic_with_control_edges(world.world(), &input, &defaults, control_edges, param_overrides)
             .map_err(|error| {
                 let (code, message, span) = error.diagnostic_parts();
                 let phase = error.diagnostic_phase();
@@ -1207,6 +1571,11 @@ fn run_summary_from_source_with_assets_diagnostic(
                     actual,
                 }
             })?;
+        if input_tape.is_some_and(|tape| tape.version == 1) {
+            crate::input_receipt::validate_tape_v1_reads(&output.input_reads)
+                .map_err(|message| run_summary_diagnostic(
+                    "E_INPUT_TAPE_V1_UNRECORDED_READ", message, file_path, "input_tape"))?;
+        }
         let public_observations = public_observation_events_json(&output.public_observations)
             .map_err(|message| {
                 run_summary_diagnostic(
@@ -1219,6 +1588,7 @@ fn run_summary_from_source_with_assets_diagnostic(
         let mut sink = ddonirang_core::signals::VecSignalSink::default();
         world.apply_patch(&output.patch, input.tick_id, &mut sink);
         let input_json = serialize_input_snapshot(&input, Some(rng_base_seed));
+        input_receipts.push(crate::input_receipt::receipt(&input, &output.input_reads));
         observation_frames.push(json!({
             "run_id": run_id,
             "source_identity": source_identity,
@@ -1229,11 +1599,26 @@ fn run_summary_from_source_with_assets_diagnostic(
             "public_observations": public_observations,
         }));
         last_patch = output.patch;
+        last_bogae_projection = output.bogae_projection;
         last_input = serialize_input_snapshot(&input, Some(rng_base_seed));
         tick_id = tick_id.saturating_add(1);
     }
 
+    if let Some((madi_hz, _)) = live_next_mask {
+        let bytes = encode_input_tape(&InputTape { version: 2, madi_hz, records: live_records })
+            .map_err(|message| run_summary_diagnostic("E_SAM_TAPE", message, file_path, "live_input"))?;
+        let sealed_bytes = source.len().checked_add(bytes.len()).ok_or_else(||
+            run_summary_diagnostic("E_SAM_TAPE", "입력 크기가 표현 범위를 넘었습니다", file_path, "live_input"))?;
+        runner.set_sealed_input_bytes(sealed_bytes).map_err(|failure|
+            work_cost_failure_diagnostic(failure, file_path, "resource_preflight"))?;
+        // All frames are private candidates until input sealing and host restoration succeed.
+        run_id = format!("run:{}", sha256_hex(run_identity_material(&format!("\0input_tape_sha256={}", sha256_hex(&bytes))).as_bytes()));
+        for frame in &mut observation_frames {
+            frame["run_id"] = json!(run_id);
+        }
+    }
     let mut state = build_engine_state_json(&world, tick_id, last_input, &last_patch);
+    crate::bogae_projection::attach(&mut state, last_bogae_projection.as_ref());
     let trace_bundle = build_public_observation_trace(&json!({
         "project_id": "",
         "run_id": run_id,
@@ -1355,6 +1740,18 @@ fn run_summary_from_source_with_assets_diagnostic(
         rng_base_seed,
     );
     if let Some(envelope) = execution_envelope.as_object_mut() {
+        envelope.insert("input_record_sha256".into(), json!(input_record_sha256));
+        if let Some(inputs) = input_snapshots {
+            envelope.insert("input_snapshots".into(), json!(inputs.iter()
+                .map(crate::input_receipt::snapshot_value).collect::<Vec<_>>()));
+            envelope.insert("input_snapshot".into(), if inputs.len() == 1 {
+                serialize_input_snapshot(&inputs[0], None)
+            } else { JsonValue::Null });
+            envelope.insert("dt".into(), if inputs.first().is_some_and(|first|
+                inputs.iter().all(|input| input.dt == first.dt)) {
+                json!(crate::input_receipt::exact_dt_text(inputs[0].dt))
+            } else { JsonValue::Null });
+        }
         envelope.insert(
             "sealed_dataset_identity_sha256".to_string(),
             JsonValue::String(sealed_dataset_identity_sha256.clone()),
@@ -1376,7 +1773,7 @@ fn run_summary_from_source_with_assets_diagnostic(
     let mut summary = json!({
         "schema": "ddn.ddonirang_tool.shared_run_summary.v1",
         "runtime_schema": ENGINE_RESPONSE_SCHEMA,
-        "update_name": DEFAULT_UPDATE_NAME,
+        "update_name": update_name,
         "source_path": file_path,
         "source_profile_identity": source_profile_identity,
         "canonical_ddn": prepared.canonical_ddn,
@@ -1389,17 +1786,19 @@ fn run_summary_from_source_with_assets_diagnostic(
         "view_hash": state.get("view_hash").cloned().unwrap_or(JsonValue::String(String::new())),
         "primary_view_decision": primary_view_decision,
         "final_row": final_row,
-        "resources": state.get("resources").cloned().unwrap_or_else(|| JsonValue::Object(Map::new())),
-        "channels": state.get("channels").cloned().unwrap_or_else(|| JsonValue::Array(Vec::new())),
-        "row": state.get("row").cloned().unwrap_or_else(|| JsonValue::Array(Vec::new())),
-        "observation_columns": observation_columns,
-        "public_observation_trace": observation_trace,
-        "public_observation_trace_hash": observation_trace_hash,
-        "public_observation_table_projection": observation_table_projection,
-        "output_log_texts": output_log_texts,
-        "output_rows": output_rows,
-        "engine_state": state,
+        "resources": JsonValue::Null,
+        "channels": JsonValue::Null,
+        "row": JsonValue::Null,
+        "observation_columns": JsonValue::Null,
+        "public_observation_trace": JsonValue::Null,
+        "public_observation_trace_hash": JsonValue::Null,
+        "public_observation_table_projection": JsonValue::Null,
+        "output_log_texts": JsonValue::Null,
+        "output_rows": JsonValue::Null,
+        "engine_state": JsonValue::Null,
         "execution_envelope": execution_envelope,
+        "input_receipts": input_receipts,
+        "input_record_sha256": input_record_sha256,
         "sealed_dataset_identity_sha256": sealed_dataset_identity_sha256,
         "sealed_dataset_assets": sealed_dataset_assets,
         "parity_surface": {
@@ -1410,23 +1809,55 @@ fn run_summary_from_source_with_assets_diagnostic(
         "work_cost_receipt": runner.work_cost_receipt(),
         "meta_lines": prepared.meta_lines
     });
+    // engine_state는 이미 완성된 공개 JSON이다. 동일 슬롯으로 옮겨 큰 상태의
+    // json! to_value 재변환을 피한다. 공개 사본·필드·bytes는 바꾸지 않는다.
+    for key in ["resources", "channels", "row"] {
+        summary[key] = state.get(key).cloned().unwrap_or_else(|| {
+            if key == "resources" { JsonValue::Object(Map::new()) }
+            else { JsonValue::Array(Vec::new()) }
+        });
+    }
+    for (key, value) in [
+        ("observation_columns", observation_columns),
+        ("public_observation_trace", observation_trace),
+        ("public_observation_trace_hash", observation_trace_hash),
+        ("public_observation_table_projection", observation_table_projection),
+        ("output_rows", output_rows),
+    ] {
+        summary[key] = value;
+    }
+    summary["output_log_texts"] = JsonValue::Array(
+        output_log_texts.into_iter().map(JsonValue::String).collect());
+    summary["engine_state"] = state;
+    crate::bogae_projection::attach(&mut summary, last_bogae_projection.as_ref());
     if let Some(age_target) = age_target {
         summary.as_object_mut().expect("summary object").insert(
             "age_target_identity".to_string(),
             JsonValue::String(age_target.label().to_string()),
         );
     }
+    let serialize_error = |error: serde_json::Error| {
+        run_summary_diagnostic(
+            "E_RESULT_ARTIFACT_SERIALIZE",
+            error.to_string(),
+            file_path,
+            "resource_commit",
+        )
+    };
+    let initial_bytes = serialized_json_byte_count(&summary).map_err(&serialize_error)?;
+    let initial_receipt_bytes = serialized_json_byte_count(&summary["work_cost_receipt"])
+        .map_err(&serialize_error)?;
+    // 조립 완료 뒤에는 영수증 값만 바뀐다. 키·구분자·다른 공개 필드의
+    // UTF-8 바이트는 고정이므로 전체를 다시 순회하지 않고 분해한 크기를 쓴다.
+    let outside_receipt_bytes = initial_bytes.checked_sub(initial_receipt_bytes)
+        .ok_or_else(|| serialize_error(serde_json::Error::io(std::io::Error::new(
+            std::io::ErrorKind::Other, "JSON byte count overflow"))))?;
     for _ in 0..16 {
-        let bytes = serde_json::to_vec(&summary)
-            .map_err(|error| {
-                run_summary_diagnostic(
-                    "E_RESULT_ARTIFACT_SERIALIZE",
-                    error.to_string(),
-                    file_path,
-                    "resource_commit",
-                )
-            })?
-            .len();
+        let receipt_bytes = serialized_json_byte_count(&summary["work_cost_receipt"])
+            .map_err(&serialize_error)?;
+        let bytes = outside_receipt_bytes.checked_add(receipt_bytes)
+            .ok_or_else(|| serialize_error(serde_json::Error::io(std::io::Error::new(
+                std::io::ErrorKind::Other, "JSON byte count overflow"))))?;
         if runner.work_cost_receipt().counters.result_artifact_bytes == bytes as u64 {
             return Ok(summary);
         }
@@ -1449,6 +1880,32 @@ fn run_summary_from_source_with_assets_diagnostic(
         file_path,
         "resource_commit",
     ))
+}
+
+#[derive(Default)]
+struct JsonByteCounter {
+    bytes: usize,
+}
+
+impl std::io::Write for JsonByteCounter {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        let next = self.bytes.checked_add(buffer.len()).ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::Other, "JSON byte count overflow")
+        })?;
+        self.bytes = next;
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn serialized_json_byte_count(value: &JsonValue) -> Result<usize, serde_json::Error> {
+    // 영수증은 같은 UTF-8 직렬화 바이트 수를 요구하지만 결과 버퍼는 필요 없다.
+    let mut counter = JsonByteCounter::default();
+    serde_json::to_writer(&mut counter, value)?;
+    Ok(counter.bytes)
 }
 
 fn validate_model_oneshot_ticks(requested_ticks: Option<u32>) -> Result<(), String> {
@@ -1832,30 +2289,41 @@ pub fn build_engine_state_json(
     let view_meta = build_view_meta(world.world());
     let view_hash = hash_json_string(&view_meta);
     let patch_json = serialize_patch(patch);
-    json!({
+    let mut result = json!({
         "schema": ENGINE_RESPONSE_SCHEMA,
         "tick_id": tick_id,
         "committed_madi": committed_madi,
         "state_hash": current_state_hash(world.world()),
-        "input": input_json.clone(),
-        "resources": resources.clone(),
-        "channels": columns.clone(),
-        "row": row.clone(),
+        "input": JsonValue::Null,
+        "resources": JsonValue::Null,
+        "channels": JsonValue::Null,
+        "row": JsonValue::Null,
         "streams": JsonValue::Object(Map::new()),
-        "patch": patch_json.clone(),
+        "patch": JsonValue::Null,
         "state": {
             "tick_id": tick_id,
             "committed_madi": committed_madi,
-            "input": input_json,
-            "resources": resources,
-            "channels": columns,
-            "row": row,
-            "patch": patch_json,
+            "input": JsonValue::Null,
+            "resources": JsonValue::Null,
+            "channels": JsonValue::Null,
+            "row": JsonValue::Null,
+            "patch": JsonValue::Null,
             "streams": JsonValue::Object(Map::new())
         },
-        "view_meta": view_meta,
+        "view_meta": JsonValue::Null,
         "view_hash": view_hash
-    })
+    });
+    // 이미 정본 JSON인 값은 다시 직렬화하지 않는다. 공개 두 경로를 그대로
+    // 유지하고 각 값의 필수 사본 하나만 만든 뒤 원 값을 중첩 상태로 옮긴다.
+    for (key, value) in [("input", input_json), ("resources", resources),
+        ("channels", JsonValue::Array(columns)), ("row", JsonValue::Array(row))] {
+        result[key] = value.clone();
+        result["state"][key] = value;
+    }
+    result["view_meta"] = view_meta;
+    result["patch"] = patch_json.clone();
+    result["state"]["patch"] = patch_json;
+    result
 }
 
 fn index_row_from_state(state: &JsonValue) -> JsonValue {
@@ -1962,7 +2430,7 @@ pub fn serialize_world_resources(world: &ddonirang_core::platform::NuriWorld) ->
     let mut fixed_map = Map::new();
     for (tag, value) in world.resource_fixed64_entries() {
         value_json_map.insert(tag.clone(), json!(fixed64_to_f64(value)));
-        fixed_map.insert(tag, JsonValue::String(value.to_string()));
+        fixed_map.insert(tag, JsonValue::String(value.display_rounded_six()));
     }
     out.insert("fixed64".to_string(), JsonValue::Object(fixed_map));
 
@@ -2126,13 +2594,14 @@ fn serialize_patch(patch: &Patch) -> JsonValue {
     JsonValue::Array(items)
 }
 
-fn serialize_input_snapshot(input: &InputSnapshot, rng_base_seed: Option<u64>) -> JsonValue {
+pub(crate) fn serialize_input_snapshot(input: &InputSnapshot, rng_base_seed: Option<u64>) -> JsonValue {
     let mut out = Map::new();
+    out.insert("input_encoding".into(), json!(crate::input_receipt::SNAPSHOT_ENCODING));
     out.insert("keys_pressed".to_string(), json!(input.keys_pressed));
     out.insert("last_key_name".to_string(), json!(input.last_key_name));
     out.insert("pointer_x_i32".to_string(), json!(input.pointer_x_i32));
     out.insert("pointer_y_i32".to_string(), json!(input.pointer_y_i32));
-    out.insert("dt".to_string(), json!(input.dt.to_string()));
+    out.insert("dt".to_string(), json!(crate::input_receipt::exact_dt_text(input.dt)));
     out.insert(
         "frame_source".to_string(),
         json!(input.frame_source.label()),
@@ -2203,7 +2672,8 @@ fn serialize_input_state(
         "last_key_name": last_key_name,
         "pointer_x_i32": pointer_x_i32,
         "pointer_y_i32": pointer_y_i32,
-        "dt": dt.to_string(),
+        "input_encoding": crate::input_receipt::SNAPSHOT_ENCODING,
+        "dt": crate::input_receipt::exact_dt_text(dt),
         "frame_source": InputSource::Person.label(),
         "frame_source_code": InputSource::Person.code_u8(),
         "rng_seed": rng_seed,
@@ -2769,10 +3239,319 @@ fn fixed64_to_f64(value: Fixed64) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    // 이전 제품의 전체 JSON 재직렬화 루프. 실행이 끝난 동일 공개 후보에서
+    // 영수증 초기값만 복원하여 최적화 경로와 완성 바이트/실패 영수증을 대조한다.
+    fn receipt_full_scan_reference(mut summary: super::JsonValue,
+        limits: super::StandardResourceLimitsV1, file_path: &str)
+        -> Result<super::JsonValue, super::ExecutionDiagnostic> {
+        use super::*;
+        let mut counters: crate::work_cost::WorkCostCounters =
+            serde_json::from_value(summary["work_cost_receipt"]["counters"].clone()).unwrap();
+        counters.result_artifact_bytes = 0;
+        let mut meter = crate::work_cost::WorkCostMeter::from_receipt_parts(
+            counters, limits, summary["work_cost_receipt"]["rd206_resource_capability"].as_bool().unwrap());
+        summary["work_cost_receipt"] = serde_json::to_value(meter.receipt()).unwrap();
+        for _ in 0..16 {
+            let bytes = serialized_json_byte_count(&summary).map_err(|error|
+                run_summary_diagnostic("E_RESULT_ARTIFACT_SERIALIZE", error.to_string(), file_path, "resource_commit"))?;
+            if meter.receipt().counters.result_artifact_bytes == bytes as u64 { return Ok(summary); }
+            meter.set_result_artifact_bytes(bytes).map_err(|failure|
+                work_cost_failure_diagnostic(failure, file_path, "resource_commit"))?;
+            summary["work_cost_receipt"] = serde_json::to_value(meter.receipt()).unwrap();
+        }
+        Err(run_summary_diagnostic("E_RESULT_ARTIFACT_SIZE_FIXED_POINT",
+            "결과 artifact byte 크기와 WorkCostV1 영수증이 수렴하지 않았습니다", file_path, "resource_commit"))
+    }
+
+    #[test]
+    fn receipt_cache_matches_full_scan_source_1_2_40_and_exact_limit_plus_one() {
+        use super::*;
+        for source in ["(매마디)마다 { }.",
+            "(매마디)마다 { 글 <- \"한글🙂\\n\\t\\\"\". 글 보여주기. }."] {
+            for ticks in [1, 2, 40] {
+                let file = "receipt-cache.ddn";
+                let execute = |limits| run_summary_from_source_with_assets_diagnostic(
+                    source, file, Some(ticks), None, Some(limits), None, None, None, 0);
+                let actual = execute(StandardResourceLimitsV1::CANDIDATE).unwrap();
+                let old = receipt_full_scan_reference(actual.clone(), StandardResourceLimitsV1::CANDIDATE, file).unwrap();
+                assert_eq!(serde_json::to_vec(&actual).unwrap(), serde_json::to_vec(&old).unwrap());
+                assert_eq!(hash_json_string(&actual), hash_json_string(&old));
+                // limit의 자릿수도 영수증 바이트에 포함된다. 원 루프로 정확한 경계를 구한다.
+                let mut exact = serialized_json_byte_count(&actual).unwrap() as u64;
+                for _ in 0..16 {
+                    let limits = StandardResourceLimitsV1 { result_artifact_bytes: exact,
+                        ..StandardResourceLimitsV1::CANDIDATE };
+                    let bounded = receipt_full_scan_reference(actual.clone(), limits, file).unwrap();
+                    let next = serialized_json_byte_count(&bounded).unwrap() as u64;
+                    if next == exact { break; }
+                    exact = next;
+                }
+                let limits = StandardResourceLimitsV1 { result_artifact_bytes: exact,
+                    ..StandardResourceLimitsV1::CANDIDATE };
+                let expected = receipt_full_scan_reference(actual.clone(), limits, file).unwrap();
+                assert_eq!(serde_json::to_vec(&execute(limits).unwrap()).unwrap(), serde_json::to_vec(&expected).unwrap());
+                let below = StandardResourceLimitsV1 { result_artifact_bytes: exact - 1, ..limits };
+                let expected_failure = receipt_full_scan_reference(actual.clone(), below, file).unwrap_err();
+                let actual_failure = execute(below).unwrap_err();
+                assert_eq!(actual_failure.to_json_value(), expected_failure.to_json_value());
+                assert_eq!(actual_failure.phase, "resource_commit");
+            }
+        }
+    }
+
+    #[test]
+    fn receipt_cache_decomposition_handles_unicode_empty_values_and_checked_overflow() {
+        use super::*;
+        for receipt in [JsonValue::Null, json!({}), json!(""),
+            json!({"counter": 0, "text": "한글🙂\"\\\n\u{0000}"})] {
+            for samples in [1, 2, 40] {
+                let mut summary = json!({"work_cost_receipt": receipt,
+                    "outside": (0..samples).map(|i|json!({"i":i,"text":"공개 🙂\\n"})).collect::<Vec<_>>()});
+                let outside = serialized_json_byte_count(&summary).unwrap()
+                    .checked_sub(serialized_json_byte_count(&summary["work_cost_receipt"]).unwrap()).unwrap();
+                for replacement in [json!({}), json!({"counter": 999999}), json!("새 영수증🙂\n")] {
+                    summary["work_cost_receipt"] = replacement;
+                    let receipt_bytes = serialized_json_byte_count(&summary["work_cost_receipt"]).unwrap();
+                    assert_eq!(outside.checked_add(receipt_bytes).unwrap(), serde_json::to_vec(&summary).unwrap().len());
+                }
+            }
+        }
+        let outside = usize::MAX;
+        let error = outside.checked_add(1).ok_or_else(|| serde_json::Error::io(std::io::Error::new(
+            std::io::ErrorKind::Other, "JSON byte count overflow"))).unwrap_err();
+        let mut counter = JsonByteCounter { bytes: outside };
+        let original_error = serde_json::to_writer(&mut counter, &json!("x")).unwrap_err();
+        assert_eq!(error.to_string(), original_error.to_string());
+        assert_eq!(error.is_io(), original_error.is_io());
+        assert_eq!(counter.bytes, usize::MAX);
+    }
+
+    // 최적화 전 literal을 그대로 유지한 공개 바이트 oracle.
+    fn engine_state_literal_reference(world: &super::DetNuri, tick_id: u64,
+        input_json: super::JsonValue, patch: &super::Patch) -> super::JsonValue {
+        use super::*;
+        let committed_madi = tick_id.saturating_sub(1);
+        let resources = serialize_world_resources(world.world());
+        let (columns, row) = collect_columns_and_row(world.world());
+        let view_meta = build_view_meta(world.world());
+        let view_hash = hash_json_string(&view_meta);
+        let patch_json = serialize_patch(patch);
+        json!({
+            "schema": ENGINE_RESPONSE_SCHEMA,
+            "tick_id": tick_id,
+            "committed_madi": committed_madi,
+            "state_hash": current_state_hash(world.world()),
+            "input": input_json.clone(),
+            "resources": resources.clone(),
+            "channels": columns.clone(),
+            "row": row.clone(),
+            "streams": JsonValue::Object(Map::new()),
+            "patch": patch_json.clone(),
+            "state": {
+                "tick_id": tick_id,
+                "committed_madi": committed_madi,
+                "input": input_json,
+                "resources": resources,
+                "channels": columns,
+                "row": row,
+                "patch": patch_json,
+                "streams": JsonValue::Object(Map::new())
+            },
+            "view_meta": view_meta,
+            "view_hash": view_hash
+        })
+    }
+
+    fn assert_engine_state_literal_bytes(world: &super::DetNuri, tick: u64,
+        input: super::JsonValue, patch: &super::Patch) {
+        let before_hash = super::current_state_hash(world.world());
+        let expected = engine_state_literal_reference(world, tick, input.clone(), patch);
+        let actual = super::build_engine_state_json(world, tick, input, patch);
+        assert_eq!(serde_json::to_vec(&actual).unwrap(), serde_json::to_vec(&expected).unwrap());
+        assert_eq!(serde_json::to_string_pretty(&actual).unwrap(),
+            serde_json::to_string_pretty(&expected).unwrap());
+        assert_eq!(super::hash_json_string(&actual), super::hash_json_string(&expected));
+        assert_eq!(super::current_state_hash(world.world()), before_hash);
+        assert!(actual.as_object().unwrap().contains_key("patch"));
+        assert!(actual["state"].as_object().unwrap().contains_key("patch"));
+        assert!(actual["patch"].is_array());
+        assert_eq!(actual["patch"], actual["state"]["patch"]);
+        assert_eq!(actual["patch"].as_array().unwrap().len(), patch.ops.len());
+    }
+
+    #[test]
+    fn engine_state_patch_move_matches_literal_nested_unicode_unit_shape_and_empty() {
+        use super::*;
+        let mut world = DetNuri::new();
+        let nested = ResourceValue::List(vec![
+            ResourceValue::String("한글🙂\"\\\n\t\u{0000}".into()),
+            ResourceValue::List(vec![ResourceValue::None, ResourceValue::Bool(true)]),
+            ResourceValue::Unit(ddonirang_core::UnitValue::new(
+                Fixed64::from_i64(2), ddonirang_core::Unit::Mole)),
+        ]);
+        let shape = ResourceValue::map_from_entries(vec![
+            ddonirang_core::platform::ResourceMapEntry { key: ResourceValue::String("kind".into()), value: ResourceValue::String("polyline".into()) },
+            ddonirang_core::platform::ResourceMapEntry { key: ResourceValue::String("points".into()), value: ResourceValue::List(vec![
+                ResourceValue::List(vec![ResourceValue::Fixed64(Fixed64::ZERO),
+                    ResourceValue::Fixed64(Fixed64::ONE)]),
+            ]) },
+        ]);
+        let mut patch = Patch::default();
+        patch.ops.push(PatchOp::SetResourceValue { tag: "중첩".into(), value: nested.clone() });
+        patch.ops.push(PatchOp::SetResourceValue { tag: "그림".into(), value: shape });
+        patch.ops.push(PatchOp::SetResourceJson { tag: "json".into(), json: "{\"문장\":\"🙂\\n\"}".into() });
+        patch.ops.push(PatchOp::SetResourceValue { tag: "중첩".into(), value: nested });
+        world.apply_patch(&patch, 0, &mut ddonirang_core::signals::VecSignalSink::default());
+        assert_engine_state_literal_bytes(&world, 1, json!({"text":"입력🙂", "nested":[1,null]}), &patch);
+        assert_engine_state_literal_bytes(&world, 0, JsonValue::Null, &Patch::default());
+    }
+
+    #[test]
+    fn engine_state_patch_move_matches_literal_source_observations_and_receipt() {
+        use super::*;
+        let source = "채비 { 시간 <- 0. }. (매마디)마다 { 시간 <- 시간 + 1. (시간: 시간 * 1@s, 값: 시간) 보임. 시간 보여주기. }.";
+        let program = DdnProgram::from_source(source, "patch-move.ddn").unwrap();
+        let mut runner = DdnRunner::new(program, "매마디");
+        let mut world = DetNuri::new();
+        let mut defaults = HashMap::new();
+        seed_bogae_defaults(&mut defaults);
+        for tick in 0..3 {
+            let input = InputSnapshot { tick_id: tick, dt: Fixed64::ONE, keys_pressed: 0,
+                last_key_name: String::new(), pointer_x_i32: 0, pointer_y_i32: 0,
+                ai_injections: Vec::new(), net_events: Vec::new(),
+                frame_source: InputSource::Person, rng_seed: tick };
+            let output = runner.run_update(world.world(), &input, &defaults).unwrap();
+            assert!(!output.public_observations.is_empty());
+            world.apply_patch(&output.patch, tick, &mut ddonirang_core::signals::VecSignalSink::default());
+            let receipt_before = serde_json::to_vec(&runner.work_cost_receipt()).unwrap();
+            assert_engine_state_literal_bytes(&world, tick + 1,
+                serialize_input_snapshot(&input, Some(0)), &output.patch);
+            assert_eq!(serde_json::to_vec(&runner.work_cost_receipt()).unwrap(), receipt_before);
+        }
+    }
+
+    #[test]
+    fn json_byte_count_matches_allocating_serialization() {
+        let fixtures = [
+            json!("한글🙂\"\\\n\t\u{0000}"),
+            json!({"중첩": [null, true, -12.5, {"escaped": "\r\n\\\""}]}),
+            json!({"rows": (0..4096).map(|index| json!({
+                "index": index, "text": "원 표본과 공개 필드 🙂", "values": [1, 2, 3]
+            })).collect::<Vec<_>>()}),
+        ];
+        for fixture in fixtures {
+            assert_eq!(super::serialized_json_byte_count(&fixture).unwrap(),
+                serde_json::to_vec(&fixture).unwrap().len());
+        }
+        let summary = super::run_summary_from_supported_source_profile(
+            "(매마디)마다 { a <- -0.08. a 보여주기. }.",
+            "byte-count.ddn", Some(2), Some("v1-core-v25"),
+        ).expect("public summary executes");
+        let bytes = serde_json::to_vec(&summary).unwrap().len();
+        assert_eq!(super::serialized_json_byte_count(&summary).unwrap(), bytes);
+        assert_eq!(summary["work_cost_receipt"]["counters"]["result_artifact_bytes"], bytes);
+    }
+
+    #[test]
+    fn summary_json_moves_preserve_all_public_duplicate_slots() {
+        let summary = super::run_summary_from_supported_source_profile(
+            "(매마디)마다 { 값 <- -0.08. (시간: 1@s, 값: 값) 보여주기. \"한글🙂\\n\" 보여주기. }.",
+            "summary-move.ddn", Some(2), Some("v1-core-v25"),
+        ).expect("public observations and output execute");
+        let state = &summary["engine_state"];
+        let mut literal_reference = summary.clone();
+        for key in ["resources", "channels", "row", "observation_columns",
+            "public_observation_trace", "public_observation_trace_hash",
+            "public_observation_table_projection", "output_rows"] {
+            assert!(!summary[key].is_null(), "{key} must be published");
+            literal_reference[key] = serde_json::to_value(&state[key]).unwrap();
+        }
+        literal_reference["output_log_texts"] = serde_json::to_value(
+            super::output_log_texts_from_state_json(state)).unwrap();
+        assert_eq!(serde_json::to_vec(&summary).unwrap(),
+            serde_json::to_vec(&literal_reference).unwrap());
+        assert_eq!(serde_json::to_vec_pretty(&summary).unwrap(),
+            serde_json::to_vec_pretty(&literal_reference).unwrap());
+    }
+
+    #[test]
+    fn json_byte_counter_is_non_allocating_and_overflow_is_atomic() {
+        use std::io::Write;
+        assert_eq!(std::mem::size_of::<super::JsonByteCounter>(), std::mem::size_of::<usize>());
+        let mut counter = super::JsonByteCounter { bytes: usize::MAX - 1 };
+        counter.write_all(b"x").unwrap();
+        assert_eq!(counter.bytes, usize::MAX);
+        let error = serde_json::to_writer(&mut counter, &json!("x")).unwrap_err();
+        assert!(error.is_io());
+        assert_eq!(error.io_error_kind(), Some(std::io::ErrorKind::Other));
+        assert_eq!(counter.bytes, usize::MAX);
+        assert_eq!(counter.write(b"").unwrap(), 0);
+        counter.flush().unwrap();
+    }
+
+    #[test]
+    fn wo09_signed_fixed64_resource_display_matches_numeric_value() {
+        let source = "(매마디)마다 { a <- -0.08. b <- -1.5. c <- -2. d <- 0.25. }.";
+        let summary = super::run_summary_from_supported_source_profile(
+            source, "wo09-display.ddn", Some(1), Some("v1-core-v25"),
+        ).expect("canonical source executes");
+        for (name, expected) in [("a", "-0.08"), ("b", "-1.5"), ("c", "-2"), ("d", "0.25")] {
+            assert_eq!(summary["resources"]["fixed64"][name], expected, "{name}");
+        }
+    }
+
     use super::*;
     use ddonirang_core::KEY_D;
 
     const P1A_V1_CORE_PROFILE: &str = "v1-core-v25";
+
+    #[test]
+    fn wo03_explicit_profile_controls_arithmetic_without_token_inference() {
+        for source in [
+            "(1 / 0) 보여주기.",
+            "값 <- (1 / 0). 값 보여주기.",
+            "값 := (1 / 0). 값 보여주기.",
+            "(매마디)마다 { (1 / 0) 보여주기. }.",
+        ] {
+            let error = run_summary_from_supported_source_profile(source, "wo03.ddn", Some(1), Some(P1A_V1_CORE_PROFILE))
+                .expect_err("numeric failure is not a successful signal");
+            assert!(error.contains("0으로 나눌 수 없습니다"), "{error}");
+            assert!(run_summary_from_supported_source_profile(source, "wo03.ddn", Some(1), None).is_err());
+        }
+        for source in ["(1 / 0) 보여주기.", "값 <- (1 / 0). 값 보여주기."] {
+            let error = run_summary_from_source(source, "legacy.ddn", Some(1)).expect_err("legacy numeric fault also fails");
+            assert!(error.contains("0으로 나눌 수 없습니다"), "{error}");
+        }
+    }
+
+    #[test]
+    fn wo02_summary_entrypoints_reject_inferred_type_change_before_execution() {
+        for source in [
+            "값 := 1. 값 <- \"가\". 값 보여주기.",
+            "값 <- 1. 값 <- \"가\". 값 보여주기.",
+        ] {
+            // D7: current sources bind their profile explicitly; the legacy
+            // internal path is not authority for V25 validation semantics.
+            for profile in [Some(P1A_V1_CORE_PROFILE)] {
+                let error = run_summary_from_source_with_assets_diagnostic(
+                    source, "wo02-rebind.ddn", Some(1), None, None, None,
+                    profile.map(|_| resolve_supported_source_profile(profile).unwrap()),
+                    None, 0,
+                ).expect_err("all execution frontdoors must reject the same type change");
+                assert_eq!(error.phase, "static_validation");
+                assert!(error.message.contains("E_"));
+            }
+        }
+    }
+
+    #[test]
+    fn wo02_summary_checks_even_skipped_logical_operand_before_execution() {
+        for source in ["거짓 그리고 1 보여주기.", "참 또는 1 보여주기."] {
+            let error = run_summary_from_source_diagnostic(source, "wo02-logical.ddn", Some(1))
+                .expect_err("short circuit does not skip static type checks");
+            assert_eq!(error.phase, "static_validation");
+        }
+    }
 
     #[test]
     fn shared_sha256_identity_preserves_product_artifact_contract() {
@@ -2870,22 +3649,71 @@ mod tests {
     }
 
     #[test]
+    fn live_control_input_and_v2_replay_share_ddn_result_state_and_trace() {
+        use crate::input_tape::{mask_to_bytes, InputEvent, InputEventKind};
+        let source = include_str!("../../tools/teul-cli/tests/fixtures/cli_control_input_r1.ddn");
+        let tape = InputTape { version: 2, madi_hz: 60, records: vec![
+            InputRecord { madi: 0, held_mask: mask_to_bytes(2), events: vec![InputEvent { sequence: 0, key_bit: 2, kind: InputEventKind::Press }] },
+            InputRecord { madi: 1, held_mask: mask_to_bytes(0), events: vec![InputEvent { sequence: 1, key_bit: 2, kind: InputEventKind::Release }] },
+            InputRecord { madi: 2, held_mask: mask_to_bytes(2), events: vec![InputEvent { sequence: 2, key_bit: 2, kind: InputEventKind::Press }] },
+        ] };
+        let live = run_summary_from_source_with_live_input(source, "control-input.ddn", Some(3), 0,
+            Some(P1A_V1_CORE_PROFILE), 60, |madi| Ok(tape.records[madi as usize].clone())).expect("live DDN execution");
+        let bytes = encode_input_tape(&tape).expect("V2 candidate");
+        let replay_tape = crate::input_tape::decode_input_tape(&bytes).expect("V2 admission");
+        let replay = run_summary_from_supported_source_profile_with_input_tape(source, "control-input.ddn", Some(3), Some(P1A_V1_CORE_PROFILE), &replay_tape).expect("replay");
+        assert_eq!(live["output_log_texts"], json!(["참", "거짓", "참"]));
+        assert_eq!(live, replay, "all result, input frames, state/trace hashes and receipts must match");
+        let failure = run_summary_from_source_with_live_input(source, "control-input.ddn", Some(3), 0,
+            Some(P1A_V1_CORE_PROFILE), 60, |madi| {
+                if madi == 1 { Err("E_SAM_LIVE_QUEUE_OVERFLOW 입력 대기열 오류".into()) }
+                else { Ok(tape.records[madi as usize].clone()) }
+            }).expect_err("no partial summary after a later input failure");
+        assert!(failure.contains("E_SAM_LIVE_QUEUE_OVERFLOW"));
+        assert_eq!(serde_json::from_str::<JsonValue>(&failure).unwrap()["code"], "E_SAM_LIVE_QUEUE_OVERFLOW");
+        assert!(!failure.contains("output_log_texts"));
+        assert!(!failure.contains("state_hash"));
+    }
+
+    #[test]
+    fn live_control_same_madi_edges_survive_shared_runtime_and_replay() {
+        use crate::input_tape::{mask_to_bytes, InputEvent, InputEventKind};
+        let source = "매마디:움직씨 := {\n    누름 <- (\"right\") 눌렸나.\n    순간 <- (\"right\") 막눌렸나.\n    누름 보여주기.\n    순간 보여주기.\n}\n";
+        let tape = InputTape { version: 2, madi_hz: 60, records: vec![
+            InputRecord { madi: 0, held_mask: mask_to_bytes(0), events: vec![
+                InputEvent { sequence: 0, key_bit: 2, kind: InputEventKind::Press },
+                InputEvent { sequence: 1, key_bit: 2, kind: InputEventKind::Release },
+            ] },
+            InputRecord { madi: 1, held_mask: mask_to_bytes(0), events: Vec::new() },
+        ] };
+        let live = run_summary_from_source_with_live_input(source, "transient.ddn", Some(2), 0, Some(P1A_V1_CORE_PROFILE), 60,
+            |madi| Ok(tape.records[madi as usize].clone())).unwrap();
+        let replay = run_summary_from_supported_source_profile_with_input_tape(source, "transient.ddn", Some(2), Some(P1A_V1_CORE_PROFILE), &tape).unwrap();
+        assert_eq!(live["output_log_texts"], json!(["거짓", "참", "거짓", "거짓"]));
+        assert_eq!(live, replay);
+    }
+
+    #[test]
     fn supported_profile_run_replays_shared_input_tape_without_private_cli_runtime() {
         let source = "매마디:움직씨 := {\n    1 보여주기.\n}\n";
         let tape = InputTape {
+            version: 1,
             madi_hz: 60,
             records: vec![
                 crate::input_tape::InputRecord {
                     madi: 0,
                     held_mask: crate::input_tape::mask_to_bytes(0),
+                    events: Vec::new(),
                 },
                 crate::input_tape::InputRecord {
                     madi: 1,
                     held_mask: crate::input_tape::mask_to_bytes(1 << 1),
+                    events: Vec::new(),
                 },
                 crate::input_tape::InputRecord {
                     madi: 2,
                     held_mask: crate::input_tape::mask_to_bytes(1 << 1),
+                    events: Vec::new(),
                 },
             ],
         };
@@ -2943,10 +3771,12 @@ mod tests {
     fn shared_input_tape_fails_closed_before_partial_execution() {
         let source = "매마디:움직씨 := {\n    1 보여주기.\n}\n";
         let tape = InputTape {
+            version: 1,
             madi_hz: 60,
             records: vec![crate::input_tape::InputRecord {
                 madi: 1,
                 held_mask: crate::input_tape::mask_to_bytes(0),
+                events: Vec::new(),
             }],
         };
 
@@ -2961,6 +3791,29 @@ mod tests {
         let diagnostic: JsonValue = serde_json::from_str(&error).expect("structured diagnostic");
         assert_eq!(diagnostic["code"], "E_SAM_RECORD_ORDER_MISMATCH");
         assert!(diagnostic.get("summary").is_none());
+    }
+
+    #[test]
+    fn c1_review_source_diagnostics_preserve_code_and_location() {
+        for (source, code) in [
+            ("\u{feff}값 <- 1.", "E_SOURCE_UTF8_BOM_FORBIDDEN"),
+            ("만약 참 이라면 { 1 보여주기. }.", "E_V25_IF_SURFACE"),
+            ("시간 := (마디=2) 표준시간.고정마디.", "E_BOGAE_TIME_POLICY_UNSUPPORTED"),
+            ("시간 := (차이=-1) 표준시간.상대마디.", "E_BOGAE_TIME_POLICY_UNSUPPORTED"),
+        ] {
+            let error = run_summary_from_supported_source_profile_diagnostic(
+                source, "review.ddn", Some(1), Some(P1A_V1_CORE_PROFILE),
+            ).expect_err("invalid source must be rejected without masking its code");
+            assert_eq!(error.code, code);
+            assert!(error.message.contains(code));
+        }
+        let source = include_str!("../../solutions/seamgrim_ui_mvp/alpha1/잘못된입력/03_함수표_인자누락.ddn");
+        let error = run_summary_from_supported_source_profile_diagnostic(
+            source, "missing-pin.ddn", Some(1), Some(P1A_V1_CORE_PROFILE),
+        ).expect_err("missing pin must preserve its original location");
+        assert_eq!(error.code, "E_CALL_REQUIRED_PIN_MISSING");
+        assert!(error.message.contains("(4:1)"), "{}", error.message);
+        assert!(error.span.is_some());
     }
 
     #[test]
@@ -2980,7 +3833,7 @@ mod tests {
     }
 
     #[test]
-    fn supported_profile_canon_is_explicit_and_preserves_legacy_default() {
+    fn supported_profile_canon_is_explicit_and_roundtrips_without_default_inference() {
         let source = "매마디:움직씨 := {\n    글:글 := \"첫\\줄둘\\따옴인용\\따옴\".\n}\n";
         let first =
             canonicalize_shared_source_with_supported_profile(source, Some(P1A_V1_CORE_PROFILE))
@@ -2994,6 +3847,8 @@ mod tests {
         assert!(first.ddn.contains("\\n"));
         assert!(first.ddn.contains("\\\"인용\\\""));
 
+        // D7 supersedes token-driven current-default selection. A legacy
+        // internal canon path must not silently reinterpret V25 definitions.
         assert!(canonicalize_shared_source(source).is_err());
         let omitted = match canonicalize_shared_source_with_supported_profile(source, None) {
             Ok(_) => panic!("profile is required"),

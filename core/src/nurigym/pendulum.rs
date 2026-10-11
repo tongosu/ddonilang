@@ -1,4 +1,5 @@
 use crate::fixed64::Fixed64;
+use crate::signals::ArithmeticFaultKind;
 
 #[derive(Clone, Debug)]
 pub struct PendulumConfig {
@@ -79,7 +80,11 @@ impl PendulumEnv {
         }
         let action = normalize_action(action)?;
         let obs = self.state.observation();
-        apply_step(&mut self.state, action, &self.config);
+        // Do not let an overflowing intermediate alter the live solver
+        // state.  Candidate construction is entirely checked first.
+        let candidate = apply_step(&self.state, action, &self.config)
+            .map_err(nurigym_arithmetic_error)?;
+        self.state = candidate;
         let next_obs = self.state.observation();
         let done_after = is_done(&self.state, &self.config);
         let reward = if done_after {
@@ -150,14 +155,30 @@ fn normalize_action(action: i64) -> Result<i64, String> {
     }
 }
 
-fn apply_step(state: &mut PendulumState, action: i64, config: &PendulumConfig) {
+fn apply_step(
+    state: &PendulumState,
+    action: i64,
+    config: &PendulumConfig,
+) -> Result<PendulumState, ArithmeticFaultKind> {
     let act = Fixed64::from_i64(action);
-    let torque = act.saturating_mul(config.torque);
+    let torque = act.checked_mul(config.torque)?;
     let accel = torque
-        .saturating_sub(state.theta.saturating_mul(config.gravity))
-        .saturating_sub(state.omega.saturating_mul(config.damping));
-    state.omega = state.omega + accel.saturating_mul(config.dt);
-    state.theta = state.theta + state.omega.saturating_mul(config.dt);
+        .checked_sub(state.theta.checked_mul(config.gravity)?)?
+        .checked_sub(state.omega.checked_mul(config.damping)?)?;
+    let next_omega = state.omega.checked_add(accel.checked_mul(config.dt)?)?;
+    let next_theta = state.theta.checked_add(next_omega.checked_mul(config.dt)?)?;
+    Ok(PendulumState {
+        theta: next_theta,
+        omega: next_omega,
+    })
+}
+
+fn nurigym_arithmetic_error(kind: ArithmeticFaultKind) -> String {
+    match kind {
+        ArithmeticFaultKind::Overflow => "E_NURIGYM_ARITH_OVERFLOW".to_string(),
+        ArithmeticFaultKind::DivByZero => "E_NURIGYM_ARITH_DIV_ZERO".to_string(),
+        ArithmeticFaultKind::DimensionMismatch { .. } => "E_NURIGYM_ARITH_DIMENSION".to_string(),
+    }
 }
 
 fn is_done(state: &PendulumState, config: &PendulumConfig) -> bool {
@@ -201,4 +222,48 @@ fn splitmix64(mut x: u64) -> u64 {
     z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
     z ^ (z >> 31)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn checked_overflow_rejects_without_advancing_pendulum_state() {
+        let mut config = PendulumConfig::default_v1();
+        config.dt = Fixed64::MAX;
+        config.torque = Fixed64::MAX;
+        let mut env = PendulumEnv::new(11, config);
+        let before = env.state.clone();
+
+        assert_eq!(
+            env.step(1).expect_err("overflow must fail"),
+            "E_NURIGYM_ARITH_OVERFLOW"
+        );
+        assert_eq!(env.state.theta, before.theta);
+        assert_eq!(env.state.omega, before.omega);
+        assert!(!env.done);
+    }
+
+    #[test]
+    fn checked_gravity_overflow_is_not_saturated() {
+        let mut config = PendulumConfig::default_v1();
+        config.dt = Fixed64::ZERO;
+        config.torque = Fixed64::ONE;
+        config.gravity = Fixed64::from_i64(2);
+        config.angle_limit = Fixed64::MAX;
+        let mut env = PendulumEnv::new(17, config);
+        env.state = PendulumState {
+            theta: Fixed64::MAX,
+            omega: Fixed64::ZERO,
+        };
+        let before = env.state.clone();
+
+        assert_eq!(
+            env.step(1).expect_err("gravity overflow must fail"),
+            "E_NURIGYM_ARITH_OVERFLOW"
+        );
+        assert_eq!(env.state.theta, before.theta);
+        assert_eq!(env.state.omega, before.omega);
+    }
 }

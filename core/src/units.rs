@@ -1,4 +1,5 @@
 use crate::fixed64::Fixed64;
+use crate::signals::ArithmeticFaultKind;
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
@@ -643,6 +644,7 @@ impl Unit {
 pub enum UnitError {
     DimensionMismatch { left: UnitDim, right: UnitDim },
     DivisionByZero,
+    Overflow,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -667,6 +669,22 @@ impl UnitValue {
             value: (value + spec.offset) * spec.scale,
             dim: spec.dim,
         }
+    }
+
+    pub fn try_from_spec(value: Fixed64, spec: UnitSpec) -> Result<Self, UnitError> {
+        let value = if spec.dim == UnitDim::TEMPERATURE {
+            try_temperature_to_kelvin(value, spec.symbol)?
+        } else {
+            value
+                .checked_add(spec.offset)
+                .map_err(unit_arithmetic_error)?
+                .checked_mul(spec.scale)
+                .map_err(unit_arithmetic_error)?
+        };
+        Ok(Self {
+            value,
+            dim: spec.dim,
+        })
     }
 
     pub fn is_dimensionless(self) -> bool {
@@ -707,10 +725,7 @@ impl UnitValue {
     }
 
     pub fn div(self, other: UnitValue) -> Result<UnitValue, UnitError> {
-        let value = self
-            .value
-            .try_div(other.value)
-            .map_err(|_| UnitError::DivisionByZero)?;
+        let value = self.value.try_div(other.value).map_err(unit_arithmetic_error)?;
         Ok(UnitValue {
             value,
             dim: self.dim.sub(other.dim),
@@ -725,10 +740,7 @@ impl UnitValue {
     }
 
     pub fn div_scalar(self, scalar: Fixed64) -> Result<UnitValue, UnitError> {
-        let value = self
-            .value
-            .try_div(scalar)
-            .map_err(|_| UnitError::DivisionByZero)?;
+        let value = self.value.try_div(scalar).map_err(unit_arithmetic_error)?;
         Ok(UnitValue {
             value,
             dim: self.dim,
@@ -743,17 +755,25 @@ impl UnitValue {
             });
         }
         if spec.dim == UnitDim::TEMPERATURE {
-            return Ok(kelvin_to_temperature(self.value, spec.symbol));
+            return try_kelvin_to_temperature(self.value, spec.symbol);
         }
         let unscaled = self
             .value
             .try_div(spec.scale)
-            .map_err(|_| UnitError::DivisionByZero)?;
-        Ok(unscaled - spec.offset)
+            .map_err(unit_arithmetic_error)?;
+        unscaled.checked_sub(spec.offset).map_err(unit_arithmetic_error)
     }
 
     pub fn display_symbol(self) -> Option<&'static str> {
         base_unit_symbol_for_dim(self.dim)
+    }
+}
+
+fn unit_arithmetic_error(error: ArithmeticFaultKind) -> UnitError {
+    match error {
+        ArithmeticFaultKind::DivByZero => UnitError::DivisionByZero,
+        ArithmeticFaultKind::Overflow => UnitError::Overflow,
+        ArithmeticFaultKind::DimensionMismatch { .. } => UnitError::Overflow,
     }
 }
 
@@ -775,17 +795,39 @@ fn temperature_to_kelvin(value: Fixed64, symbol: &str) -> Fixed64 {
     }
 }
 
-fn kelvin_to_temperature(value: Fixed64, symbol: &str) -> Fixed64 {
+fn try_temperature_to_kelvin(value: Fixed64, symbol: &str) -> Result<Fixed64, UnitError> {
     match symbol {
-        "C" => value - Fixed64::from_ratio(27_315, 100),
-        "F" => {
-            let shifted = value - Fixed64::from_ratio(27_315, 100);
-            let scaled = (shifted * Fixed64::from_i64(9))
-                .try_div(Fixed64::from_i64(5))
-                .unwrap_or(Fixed64::MAX);
-            scaled + Fixed64::from_i64(32)
-        }
-        _ => value,
+        "C" => value
+            .checked_add(Fixed64::from_ratio(27_315, 100))
+            .map_err(unit_arithmetic_error),
+        "F" => value
+            .checked_sub(Fixed64::from_i64(32))
+            .map_err(unit_arithmetic_error)?
+            .checked_mul(Fixed64::from_i64(5))
+            .map_err(unit_arithmetic_error)?
+            .try_div(Fixed64::from_i64(9))
+            .map_err(unit_arithmetic_error)?
+            .checked_add(Fixed64::from_ratio(27_315, 100))
+            .map_err(unit_arithmetic_error),
+        _ => Ok(value),
+    }
+}
+
+fn try_kelvin_to_temperature(value: Fixed64, symbol: &str) -> Result<Fixed64, UnitError> {
+    match symbol {
+        "C" => value
+            .checked_sub(Fixed64::from_ratio(27_315, 100))
+            .map_err(unit_arithmetic_error),
+        "F" => value
+            .checked_sub(Fixed64::from_ratio(27_315, 100))
+            .map_err(unit_arithmetic_error)?
+            .checked_mul(Fixed64::from_i64(9))
+            .map_err(unit_arithmetic_error)?
+            .try_div(Fixed64::from_i64(5))
+            .map_err(unit_arithmetic_error)?
+            .checked_add(Fixed64::from_i64(32))
+            .map_err(unit_arithmetic_error),
+        _ => Ok(value),
     }
 }
 
@@ -872,6 +914,24 @@ mod tests {
         let time = UnitValue::new(Fixed64::from_i64(2), Unit::Second);
         let speed = distance.div(time).expect("div");
         assert_eq!(speed.dim, UnitDim::SPEED);
+    }
+
+    #[test]
+    fn unit_division_preserves_overflow_instead_of_misclassifying_it_as_zero_division() {
+        let max = UnitValue {
+            value: Fixed64::MAX,
+            dim: UnitDim::NONE,
+        };
+        let smallest = UnitValue {
+            value: Fixed64::from_raw_i64(1),
+            dim: UnitDim::NONE,
+        };
+
+        assert_eq!(max.div(smallest), Err(UnitError::Overflow));
+        assert_eq!(
+            max.div_scalar(Fixed64::from_raw_i64(1)),
+            Err(UnitError::Overflow)
+        );
     }
 
     #[test]

@@ -3,7 +3,8 @@
 //! 벽시계, 호스트 부하, FPS는 이 모듈의 입력이 아니다. RD186 slice 한도는
 //! 영수증에 계측만 하고, sealed continuation이 생기기 전까지 집행하지 않는다.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::OnceLock;
 
 use ddonirang_lang::model::EventDetectionPolicy;
 use ddonirang_lang::{
@@ -560,6 +561,7 @@ pub fn stmt_registry_key(stmt: &Stmt) -> &'static str {
         Stmt::DeclBlock { .. } => "stmt.decl_block",
         Stmt::Definition { .. } => "stmt.definition",
         Stmt::Mutate { .. } => "stmt.mutate",
+        Stmt::ResultFlow { .. } => "stmt.result_flow",
         Stmt::Expr { .. } => "stmt.expr",
         Stmt::Receive { .. } => "stmt.receive",
         Stmt::Send { .. } => "stmt.send",
@@ -594,6 +596,8 @@ pub fn expr_registry_key(expr: &ExprKind) -> &'static str {
         ExprKind::FieldAccess { .. } => "expr.field_access",
         ExprKind::SeedLiteral { .. } => "expr.seed_literal",
         ExprKind::Call { .. } => "expr.call",
+        ExprKind::CollectionConstructor { .. } => "expr.collection_constructor",
+        ExprKind::SelectionPlace { .. } => "expr.selection_place",
         ExprKind::Infix { .. } => "expr.infix",
         ExprKind::Suffix { .. } => "expr.suffix",
         ExprKind::Thunk(_) => "expr.thunk",
@@ -724,6 +728,12 @@ pub fn connection_mode_registry_key(mode: &ConnectionMode) -> &'static str {
 }
 
 pub const STDLIB_SIGNATURE_ROW_COUNT_V1: usize = 256;
+pub const STDLIB_SIGNATURE_ROW_COUNT_ALPHA2: usize = 268;
+pub const LOGICAL_INPUT_SIGNATURE_LEDGER_SHA256_ALPHA2: &str =
+    "a7c266477fa661dcdcf48e2143528afc9d3b531ff1c3d6bc36e1930faf9d17ab";
+// 기존 V1 봉인을 유지한 채 RD-123/RD-520 생성자를 별도로 봉인한다.
+pub const VIEW_SIGNATURE_LEDGER_SHA256_ALPHA2: &str =
+    "3b59752370ca506e9517deacb8fa106c057f639d2cde1af675df40de5f2b25e3";
 /// G2 source inventory hash. The source-text extractor retained one trailing
 /// comma in a multiline parameter row, so product totality uses the semantic
 /// signature hash below rather than treating Rust formatting as runtime identity.
@@ -823,12 +833,14 @@ fn stdlib_signature_rows() -> Vec<(&'static str, ddonirang_lang::stdlib::Functio
         "numeric_type_constructor_sigs",
         ddonirang_lang::stdlib::numeric_type_constructor_sigs
     );
+    extend_group!("view_function_sigs", ddonirang_lang::stdlib::view_function_sigs);
+    extend_group!("logical_input_function_sigs", ddonirang_lang::stdlib::logical_input_function_sigs);
     rows
 }
 
-fn stdlib_signature_ledger() -> String {
+fn signature_ledger_rows(rows: Vec<(&'static str, ddonirang_lang::stdlib::FunctionSig)>) -> String {
     let mut ledger_rows = Vec::new();
-    for (group, sig) in stdlib_signature_rows() {
+    for (group, sig) in rows {
         let params = sig
             .params
             .iter()
@@ -841,24 +853,48 @@ fn stdlib_signature_ledger() -> String {
 }
 
 pub fn stdlib_signature_ledger_sha256() -> String {
-    hex::encode(Sha256::digest(stdlib_signature_ledger().as_bytes()))
+    hex::encode(Sha256::digest(signature_ledger_rows(stdlib_signature_rows()).as_bytes()))
 }
 
 pub fn verify_stdlib_registry_totality() -> Result<(), WorkCostFailure> {
+    // These signatures and expected seals are compiled into this executable,
+    // not supplied by a project or input tape. Rechecking their full SHA-256
+    // ledger on every dispatch changes physical cost, not semantic WorkCost.
+    // Cache the complete Result so a failed seal remains fail-closed as well.
+    static VERIFIED: OnceLock<Result<(), WorkCostFailure>> = OnceLock::new();
+    VERIFIED.get_or_init(verify_stdlib_registry_totality_uncached).clone()
+}
+
+fn verify_stdlib_registry_totality_uncached() -> Result<(), WorkCostFailure> {
     let signatures = ddonirang_lang::stdlib::minimal_stdlib_sigs();
-    let actual_hash = stdlib_signature_ledger_sha256();
-    if signatures.len() != STDLIB_SIGNATURE_ROW_COUNT_V1
+    let (logical_rows, other_rows): (Vec<_>, Vec<_>) = stdlib_signature_rows()
+        .into_iter().partition(|(group, _)| *group == "logical_input_function_sigs");
+    let logical_count = logical_rows.len();
+    let logical_hash = hex::encode(Sha256::digest(signature_ledger_rows(logical_rows).as_bytes()));
+    let (view_rows, base_rows): (Vec<_>, Vec<_>) = other_rows
+        .into_iter().partition(|(group, _)| *group == "view_function_sigs");
+    let base_count = base_rows.len();
+    let view_count = view_rows.len();
+    let actual_hash = hex::encode(Sha256::digest(signature_ledger_rows(base_rows).as_bytes()));
+    let view_hash = hex::encode(Sha256::digest(signature_ledger_rows(view_rows).as_bytes()));
+    if signatures.len() != STDLIB_SIGNATURE_ROW_COUNT_ALPHA2
+        || base_count != STDLIB_SIGNATURE_ROW_COUNT_V1
+        || view_count != 11
         || actual_hash != STDLIB_SIGNATURE_LEDGER_SHA256_V1
+        || view_hash != VIEW_SIGNATURE_LEDGER_SHA256_ALPHA2
+        || logical_count != 1
+        || logical_hash != LOGICAL_INPUT_SIGNATURE_LEDGER_SHA256_ALPHA2
     {
         return Err(WorkCostMeter::default().failure(
             E_WORK_COST_REGISTRY_MISSING_CANDIDATE,
             format!(
-                "stdlib_signature_ledger:rows={}:sha256={}",
+                "stdlib_signature_ledger:rows={}:base_sha256={}:view_sha256={}",
                 signatures.len(),
-                actual_hash
+                actual_hash,
+                view_hash
             ),
             signatures.len() as u64,
-            Some(STDLIB_SIGNATURE_ROW_COUNT_V1 as u64),
+            Some(STDLIB_SIGNATURE_ROW_COUNT_ALPHA2 as u64),
         ));
     }
     Ok(())
@@ -959,7 +995,7 @@ const MANUAL_COLLECTION_VISIT_BUILTINS: &[&str] = &[
 /// source checker가 실패해야 한다.
 pub const RUNTIME_ONLY_BUILTINS: &[&str] = &[
     "abs", "acos", "asin", "atan", "atan2", "clamp", "cos", "max", "min", "powi", "sin", "sqrt",
-    "tan", "셈수",
+    "tan", "셈수", "있는가", "없는가",
 ];
 
 const SOLVER_BUILTINS: &[&str] = &[
@@ -1008,7 +1044,7 @@ fn signature_has_collection_surface(sig: &ddonirang_lang::stdlib::FunctionSig) -
         .any(|surface| TOKENS.iter().any(|token| surface.contains(token)))
 }
 
-/// 256개 봉인 signature row 각각에 대한 규칙을 반환한다. signature ledger
+/// V1과 알파2 확장에 봉인된 signature row 각각의 규칙을 반환한다. signature ledger
 /// hash가 달라지면 이 함수보다 먼저 totality gate가 실패하므로 새 primitive가
 /// dispatch-only 규칙으로 자동 유입되지 않는다.
 fn builtin_work_cost_rule_unchecked(canonical_name: &str) -> Option<BuiltinWorkCostRule> {
@@ -1020,7 +1056,7 @@ fn builtin_work_cost_rule_unchecked(canonical_name: &str) -> Option<BuiltinWorkC
     if matching.is_empty() && !RUNTIME_ONLY_BUILTINS.contains(&canonical_name) {
         return None;
     }
-    let visit_collection_arguments = matching
+    let visit_collection_arguments = canonical_name == "찾기" || matching
         .iter()
         .any(|sig| signature_has_collection_surface(sig))
         && !MANUAL_COLLECTION_VISIT_BUILTINS.contains(&canonical_name);
@@ -1066,12 +1102,47 @@ pub fn builtin_work_cost_rule(
     canonical_name: &str,
 ) -> Result<Option<BuiltinWorkCostRule>, WorkCostFailure> {
     verify_stdlib_registry_totality()?;
-    Ok(builtin_work_cost_rule_unchecked(canonical_name))
+    // Only immutable, sealed registry names enter this table. Unknown names
+    // are never inserted, and admission still runs before reading the table.
+    static RULES: OnceLock<BTreeMap<&'static str, BuiltinWorkCostRule>> = OnceLock::new();
+    let rules = RULES.get_or_init(|| {
+        ddonirang_lang::stdlib::minimal_stdlib_sigs().into_iter()
+            .map(|sig| ddonirang_lang::stdlib::canonicalize_stdlib_alias(sig.name))
+            .chain(RUNTIME_ONLY_BUILTINS.iter().copied())
+            .filter_map(|name| builtin_work_cost_rule_unchecked(name).map(|rule| (name, rule)))
+            .collect()
+    });
+    Ok(rules.get(canonical_name).copied())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stdlib_registry_cache_preserves_exact_verification_result() {
+        let expected = verify_stdlib_registry_totality_uncached();
+        assert!(expected.is_ok());
+        for _ in 0..8 {
+            assert_eq!(verify_stdlib_registry_totality(), expected);
+        }
+        // Admission still owns each callable's identity; successful seal
+        // verification must not turn an unknown callable into a builtin.
+        assert_eq!(builtin_work_cost_rule("없는_내장_함수").unwrap(), None);
+    }
+
+    #[test]
+    fn builtin_rule_cache_matches_every_uncached_registry_rule() {
+        for name in ddonirang_lang::stdlib::minimal_stdlib_sigs().into_iter()
+            .map(|sig| ddonirang_lang::stdlib::canonicalize_stdlib_alias(sig.name))
+            .chain(RUNTIME_ONLY_BUILTINS.iter().copied())
+            .chain(["없는_내장_함수", "갈라놓기", ""])
+        {
+            let expected = builtin_work_cost_rule_unchecked(name);
+            assert_eq!(builtin_work_cost_rule(name).unwrap(), expected, "{name}");
+            assert_eq!(builtin_work_cost_rule(name).unwrap(), expected, "{name}");
+        }
+    }
 
     fn eval_call_static_dispatch_names() -> BTreeSet<String> {
         let source = include_str!("ddn_runtime.rs");
@@ -1222,13 +1293,16 @@ mod tests {
         verify_stdlib_registry_totality().unwrap();
         assert_eq!(
             ddonirang_lang::stdlib::minimal_stdlib_sigs().len(),
-            STDLIB_SIGNATURE_ROW_COUNT_V1
+            STDLIB_SIGNATURE_ROW_COUNT_ALPHA2
         );
         assert_eq!(
-            stdlib_signature_ledger_sha256(),
+            hex::encode(Sha256::digest(signature_ledger_rows(stdlib_signature_rows()
+                .into_iter().filter(|(group, _)| !matches!(*group, "view_function_sigs" | "logical_input_function_sigs")).collect()).as_bytes())),
             STDLIB_SIGNATURE_LEDGER_SHA256_V1
         );
-        assert_eq!(registered_stdlib_names().unwrap().len(), 251);
+        // RD-520 composition and Owner-approved Alpha2 event query; V1 unchanged.
+        // RD-520 adds 겹 and 곁 to the existing registry; the V1 base seal stays fixed.
+        assert_eq!(registered_stdlib_names().unwrap().len(), 263);
         for sig in ddonirang_lang::stdlib::minimal_stdlib_sigs() {
             let canonical = ddonirang_lang::stdlib::canonicalize_stdlib_alias(sig.name);
             assert!(
@@ -1248,7 +1322,15 @@ mod tests {
     #[test]
     fn every_static_runtime_dispatch_arm_has_a_work_cost_rule() {
         let dispatch_names = eval_call_static_dispatch_names();
-        assert_eq!(dispatch_names.len(), 226, "eval_call dispatch ledger drift");
+        // Preserve WO-01's 228 dispatch names. Separately enumerate RD-123/520
+        // constructors and the 2026-10-07 Owner-approved logical event query.
+        let alpha2_names = ["표준장면.원", "표준장면.다각형", "표준장면.글", "표준장면.평면", "표준보기.장면", "표준보기.결과표", "표준보개.으뜸", "표준보개.겹", "표준보개.곁", "표준보개.돋", "표준보개.짜임", "입력사상.사건들"];
+        for name in alpha2_names {
+            assert!(dispatch_names.contains(name), "missing approved Alpha2 function: {name}");
+        }
+        assert_eq!(dispatch_names.iter().filter(|name| !alpha2_names.contains(&name.as_str())).count(),
+            228, "base eval_call dispatch ledger drift");
+        assert_eq!(dispatch_names.len(), 240, "alpha2 eval_call dispatch ledger drift");
         let missing = dispatch_names
             .into_iter()
             .filter_map(|name| {
@@ -1268,7 +1350,7 @@ mod tests {
     #[test]
     fn every_stdlib_overload_row_has_an_exact_cost_ledger_entry() {
         let ledger = builtin_work_cost_ledger().expect("sealed stdlib ledger");
-        assert_eq!(ledger.len(), STDLIB_SIGNATURE_ROW_COUNT_V1);
+        assert_eq!(ledger.len(), STDLIB_SIGNATURE_ROW_COUNT_ALPHA2);
         assert!(ledger.iter().all(|row| !row.group.is_empty()));
         assert!(ledger.iter().all(|row| !row.name.is_empty()));
         assert!(ledger.iter().all(|row| !row.canonical_name.is_empty()));
@@ -1284,7 +1366,7 @@ mod tests {
                 )
             })
             .collect::<BTreeSet<_>>();
-        assert_eq!(identities.len(), STDLIB_SIGNATURE_ROW_COUNT_V1);
+        assert_eq!(identities.len(), STDLIB_SIGNATURE_ROW_COUNT_ALPHA2);
     }
 
     #[test]

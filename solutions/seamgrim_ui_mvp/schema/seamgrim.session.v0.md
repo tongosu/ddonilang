@@ -1,0 +1,60 @@
+﻿# seamgrim.session.v0
+
+## 개요
+- 교과/입력/뷰/오버레이 상태를 저장하는 세션
+
+## 필드
+- `schema`: `"seamgrim.session.v0"`
+- `ts`: 저장 시각(ISO)
+- `lesson`: 활성 교과 ID
+- `ddn_text`: 현재 DDN 텍스트
+- `controls`: `#control` 메타/값
+- `inputs`: 입력원 레지스트리/선택
+  - `registry[]`: {id, type, label, payload, derived_ddn, ts}
+  - `selected_id`: 선택된 입력원 ID
+- `text_doc`: 문서 보개 상태(선택)
+- `space2d`: 2D 보개 상태(선택)
+- `space2d_view`: 2D 카메라/뷰 설정
+- `time`: 시간 샘플링 설정
+- `view`: 표시 범위/뷰포트 설정
+- `view_combo`: 그래프+2D 레이아웃 설정
+- `ui_layout`: UI 레이아웃 상태(화면/탭 복원)
+  - `screen_mode`: `explore | run`
+  - `workspace_mode`: `basic | advanced`
+  - `main_tab`: `lesson-tab | ddn-tab | run-tab | tools-tab`
+  - `active_view`: `view-graph | view-2d | view-table | view-text | view-structure`
+- `table_view`: 표 표시 설정
+- `structure_view`: 구조 표시 설정
+- `view_meta`(선택): 뷰 힌트/레이아웃 메타 슬롯
+  - `graph_hints[]`(선택): 그래프 소스 힌트
+  - `layout_preset`(선택): 레이아웃 프리셋 문자열
+- `runs[]`: 실행 목록
+  - `compare_role`(선택): `baseline | variant`
+  - `space2d`/`text_doc`(선택)
+  - `update`/`tick`/`ticks[]`(선택): run 재생 규칙
+- `active_run_id`: 선택된 실행 ID
+- `layers[]` (세션 저장용 레이어 스냅샷)
+  - `id`, `order`, `visible`
+  - `group_id`(선택)
+  - `update`: `append | replace`
+  - `tick`(선택)
+  - `ticks[]`(선택): tick 시퀀스
+- `last_state_hash`(선택): 마지막 실행 상태 해시
+- `last_view_hash`(선택): 마지막 뷰 메타 해시(디버그/검증용)
+- `compare`(선택): baseline+variant 비교 상태
+  - `enabled`: 비교 모드 여부
+  - `baseline_id`: 기준 run ID
+  - `variant_id`: 비교 run ID
+  - 복원 검증 규칙:
+    - `runs[].compare_role`가 있으면 `compare.baseline_id/variant_id`보다 우선한다.
+    - `baseline_id == variant_id`인 경우 `variant`는 자동 해제한다.
+    - `graph_kind`, `x_kind`, `x_unit`, `y_kind`, `y_unit`, `series_id`가 baseline/variant에서 모두 같아야 비교를 유지한다.
+    - 불일치 시 variant는 비교쌍에서 해제되고(표시 OFF), UI 상태에 차단 사유를 노출한다.
+- `ui_layout` 복원 규칙:
+  - 미지정/잘못된 값은 기본값(`explore/basic/lesson-tab/view-graph`)으로 복원한다.
+  - `workspace_mode=advanced`일 때 `main_tab`은 `tools-tab`으로 고정된다.
+  - `workspace_mode=basic`일 때 `main_tab=tools-tab`은 `lesson-tab`으로 폴백된다.
+- `view_combo` 복원 규칙:
+  - 미지정/잘못된 값은 기본값(`enabled=false`, `layout=horizontal`, `overlay_order=graph`)으로 복원한다.
+  - `layout` 허용값: `horizontal | vertical | overlay`
+  - `overlay_order` 허용값: `graph | space2d`

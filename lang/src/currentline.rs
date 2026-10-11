@@ -353,8 +353,10 @@ impl CurrentLineSession {
         if stmt.starts_with('(') && stmt.trim_end().ends_with("보임") {
             return self.execute_public_observation(stmt, actor, binds);
         }
-        if stmt.starts_with("보임") {
-            return Err("E_BOIM_LEGACY_REMOVED: `보임 {}` 블록은 제거되었습니다".to_string());
+        if let Some(rest) = stmt.strip_prefix("보임") {
+            if rest.trim_start().starts_with('{') {
+                return Err("E_BOIM_LEGACY_REMOVED: `보임 {}` 블록은 제거되었습니다".to_string());
+            }
         }
         if self.fail_unknown_statement {
             return Err(format!(
@@ -1062,6 +1064,13 @@ mod tests {
         let err = apply_currentline_cell("보임 { 각도: 15. }.", None)
             .expect_err("legacy public observation must fail");
         assert!(err.starts_with("E_BOIM_LEGACY_REMOVED:"));
+    }
+
+    #[test]
+    fn currentline_only_classifies_the_retired_boim_block_as_legacy() {
+        let err = apply_currentline_cell_v25("보임값.", None)
+            .expect_err("an unrelated current identifier must not be legacy syntax");
+        assert!(err.starts_with("E_EXECUTION_PREPROCESS:"));
     }
 
     #[test]

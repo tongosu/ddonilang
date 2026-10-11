@@ -579,6 +579,34 @@ fn append_trimmed_trailing_ws_lines(out: &mut Vec<u8>, bytes: &[u8]) {
 mod tests {
     use super::*;
 
+    // Synthetic, pinned generator input; not a language-authority snapshot.
+    // 88dd727d bound the old golden to v24.15.1 but left its input as the
+    // mutable default SSOT directory. Keep live authority out of unit tests.
+    struct PromptFixture(PathBuf);
+
+    impl PromptFixture {
+        fn new() -> Self {
+            static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let nonce = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH).expect("clock").as_nanos();
+            let path = std::env::temp_dir().join(format!("ddn-prompt-fixture-{}-{nonce}-{}",
+                std::process::id(), NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
+            fs::create_dir(&path).expect("create prompt fixture");
+            for name in profile_file_names("lean", "v0.0.1").expect("fixture names") {
+                fs::write(path.join(name), "# 테스트 전용\n").expect("write fixture");
+            }
+            fs::write(path.join("SSOT_ALL_MANIFEST_v0.0.1.md"), "# 테스트 전용\n")
+                .expect("write fixture authority marker");
+            Self(path)
+        }
+    }
+
+    impl Drop for PromptFixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
     #[test]
     fn ai_prompt_bundle_hash_vector_matches() {
         let files = vec![
@@ -600,13 +628,14 @@ mod tests {
 
     #[test]
     fn ai_prompt_output_invariants_hold() {
+        let fixture = PromptFixture::new();
         let args = AiPromptArgs {
             profile: "lean".to_string(),
             out_path: None,
-            bundle_path: None,
+            bundle_path: Some(fixture.0.clone()),
         };
         let output = build_ai_prompt(&args).expect("build ai prompt");
-        let (bundle_kind, source) = resolve_bundle_source(None).expect("bundle source");
+        let (bundle_kind, source) = resolve_bundle_source(Some(&fixture.0)).expect("bundle source");
         let ssot_version = resolve_ssot_version(&source).expect("ssot version");
         assert!(!output.contains(&b'\r'));
         let output_str = String::from_utf8(output.clone()).expect("utf8");
@@ -652,6 +681,8 @@ mod tests {
         let files = load_profile_files(&source, &expected_files).expect("load files");
         let expected_hash = format!("BUNDLE_HASH = {}", compute_bundle_hash(&files));
         assert_eq!(bundle_hash_line, expected_hash);
+        assert_eq!(bundle_hash_line,
+            "BUNDLE_HASH = sha256:8dccbd1d8ca8263754d92bc50011da12dbc0776d79b2f0739714ebaf913118f0");
 
         let mut cursor = output_str.as_str();
         for file in &files {
@@ -711,10 +742,11 @@ mod tests {
 
     #[test]
     fn ai_prompt_output_matches_golden() {
+        let fixture = PromptFixture::new();
         let args = AiPromptArgs {
             profile: "lean".to_string(),
             out_path: None,
-            bundle_path: None,
+            bundle_path: Some(fixture.0.clone()),
         };
         let output = build_ai_prompt(&args).expect("build ai prompt");
         let golden_path = default_golden_prompt_path();
@@ -727,12 +759,7 @@ mod tests {
     }
 
     fn default_golden_prompt_path() -> PathBuf {
-        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let root = manifest_dir
-            .parent()
-            .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")));
-        root.join("tests")
-            .join("toolchain_golden")
-            .join("ai_prompt_lean.txt")
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/ai_prompt/lean_v0.0.1.txt")
     }
 }

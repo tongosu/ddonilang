@@ -4,7 +4,7 @@ use std::fs;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 
-use crate::artifact_output::write_text_artifact_atomic;
+use crate::artifact_output::{existing_input_output_alias, write_text_artifact_atomic};
 use crate::lint::{analyze_lint_source, write_lint_patch_atomic};
 use crate::preprocess::preprocess_source_for_parse;
 use crate::runtime_surface::canonicalize_shared_source_with_supported_profile;
@@ -105,17 +105,39 @@ pub fn run_check_or_build_supported_profile(
     source_profile: &str,
 ) -> Result<(String, i32), SourceFrontdoorError> {
     let source = read_source(file, "E_CLI_SOURCE_READ", "E_CLI_SOURCE_UTF8", false)?;
-    let snapshot = analyze_source(SourceAnalysisRequest {
-        source_text: source,
-        path: file.display().to_string(),
-        analysis_generation: 0,
-        source_profile_identity: source_profile.to_string(),
-    });
+    let snapshot = analyze_supported_source(&source, file, source_profile);
     let exit_code = if snapshot.outcome == "ACCEPTED" { 0 } else { 1 };
     let output = serde_json::to_string_pretty(&snapshot)
         .map(|text| format!("{text}\n"))
         .map_err(|error| SourceFrontdoorError::runtime(format!("E_CLI_JSON_SERIALIZE {error}")))?;
     Ok((output, exit_code))
+}
+
+pub fn validate_supported_source_for_execution(
+    source: &str,
+    file: &Path,
+    source_profile: &str,
+) -> Result<(), SourceFrontdoorError> {
+    let snapshot = analyze_supported_source(source, file, source_profile);
+    if snapshot.outcome == "ACCEPTED" {
+        return Ok(());
+    }
+    let output = serde_json::to_string_pretty(&snapshot)
+        .map_err(|error| SourceFrontdoorError::runtime(format!("E_CLI_JSON_SERIALIZE {error}")))?;
+    Err(SourceFrontdoorError::runtime(output))
+}
+
+fn analyze_supported_source(
+    source: &str,
+    file: &Path,
+    source_profile: &str,
+) -> crate::source_analysis::SourceAnalysisSnapshot {
+    analyze_source(SourceAnalysisRequest {
+        source_text: source.to_string(),
+        path: file.display().to_string(),
+        analysis_generation: 0,
+        source_profile_identity: source_profile.to_string(),
+    })
 }
 
 /// Historical/internal check and build custody routed through the shared
@@ -316,6 +338,12 @@ pub fn run_lint_supported_profile(
             .unwrap_or_else(|| PathBuf::from("ddn.patch.json"))
     });
     let stdout = if let Some(path) = patch_path.as_ref() {
+        // 제안 패치는 원문을 수정하는 apply가 아니다. 쓰기 전 경로 별칭도 거부한다.
+        if existing_input_output_alias(file, path) {
+            return Err(SourceFrontdoorError::input(
+                "E_CLI_OUTPUT_ALIASES_INPUT 패치 저장 경로가 입력 원문과 같습니다. --out에 다른 파일을 지정하세요.",
+            ));
+        }
         write_lint_patch_atomic(path, &analysis.patch_json)
             .map_err(SourceFrontdoorError::runtime)?;
         format!("patch_written={}\n", path.display())

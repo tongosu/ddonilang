@@ -68,7 +68,7 @@ impl ExecutionDiagnostic {
         }
     }
 
-    fn execution_mode_parse(err: ddonirang_lang::ParseError, source_path: &str) -> Self {
+    pub(crate) fn execution_mode_parse(err: ddonirang_lang::ParseError, source_path: &str) -> Self {
         let code = err.code();
         let message = err.message;
         let span = Some((err.span.start, err.span.end));

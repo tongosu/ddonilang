@@ -2,7 +2,7 @@ use ddonirang_core::platform::{ResourceMapEntry, ResourceValue};
 use ddonirang_core::{Fixed64, ResourceHandle, UnitDim, UnitValue};
 use serde_json::{json, Value as JsonValue};
 
-use crate::fixed64_boundary::Fixed64FloatBoundary;
+use crate::fixed64_boundary::reject_binary_json_number;
 
 pub const RESOURCE_SNAPSHOT_SCHEMA_V2: &str = "ddn.resource_snapshot.v2";
 pub const UNIT_VALUE_WIRE_SCHEMA_V2: &str = "ddn.unit_value_wire.v2";
@@ -217,9 +217,9 @@ fn parse_unit_value_v2(
     }))
 }
 
-fn json_to_fixed64(value: &JsonValue) -> Option<Fixed64> {
+pub(crate) fn json_to_fixed64(value: &JsonValue) -> Option<Fixed64> {
     match value {
-        JsonValue::Number(n) => n.as_f64().map(Fixed64::from_f64_lossy),
+        JsonValue::Number(n) => reject_binary_json_number(n),
         JsonValue::String(s) => Fixed64::parse_decimal(s),
         JsonValue::Object(obj) => obj
             .get("raw_i64")
@@ -285,6 +285,21 @@ mod tests {
         assert!(resource_value_from_detjson(&unknown)
             .expect_err("unknown v3")
             .contains("E_UNIT_WIRE_VERSION_MISMATCH"));
+    }
+
+    #[test]
+    fn unit_wire_number_admission_rejects_binary_float_and_keeps_textual_fixed64() {
+        let half_ulp: JsonValue = serde_json::from_str("0.000000000116415321826934814453125")
+            .expect("half ULP JSON number");
+        let overflow: JsonValue = serde_json::from_str("2147483648")
+            .expect("out-of-range JSON number");
+
+        assert_eq!(json_to_fixed64(&half_ulp), None);
+        assert_eq!(json_to_fixed64(&overflow), None);
+        assert_eq!(
+            json_to_fixed64(&json!("0.000000000349245965480804443359375")),
+            Some(Fixed64::from_raw_i64(2))
+        );
     }
 
     #[test]

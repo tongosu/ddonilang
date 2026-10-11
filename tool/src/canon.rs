@@ -118,6 +118,7 @@ enum TokenKind {
     TypeArrow,
     SignalArrow,
     Colon,
+    Define,
     Equals,
     Pipe,
     At,
@@ -353,6 +354,13 @@ impl<'a> Lexer<'a> {
             self.bump();
             return Ok(Token {
                 kind: TokenKind::Comma,
+            });
+        }
+        if ch == ':' && self.peek_next() == Some('=') {
+            self.bump();
+            self.bump();
+            return Ok(Token {
+                kind: TokenKind::Define,
             });
         }
         if ch == ':' {
@@ -1227,6 +1235,7 @@ struct Condition {
 
 #[derive(Debug, Clone, Copy)]
 enum ConditionStyle {
+    Current,
     Plain,
     Thunk,
 }
@@ -1453,6 +1462,10 @@ impl Parser {
 
         if self.peek_is(|k| matches!(k, TokenKind::LBrace)) {
             let condition = self.parse_condition_expr(false)?;
+            if self.peek_is(|k| matches!(k, TokenKind::Ident(name) if name == "이면")) {
+                self.advance();
+                return self.parse_if_stmt_from_condition(condition);
+            }
             if self.peek_is(|k| matches!(k, TokenKind::Ilttae)) {
                 return self.parse_if_stmt(condition);
             }
@@ -1844,6 +1857,13 @@ impl Parser {
             let mut maegim = None;
             let mut kind = DeclKind::Gureut;
             if self.peek_is(|k| matches!(k, TokenKind::Arrow)) {
+                self.advance();
+                let (expr, item_maegim) = self.parse_decl_item_value_and_maegim()?;
+                value = Some(expr);
+                maegim = item_maegim;
+            } else if self.peek_is(|k| matches!(k, TokenKind::Define)) {
+                // V25 `채비` introduces a name with `:=`. It remains a
+                // runtime setup control, distinct from the legacy `=` form.
                 self.advance();
                 let (expr, item_maegim) = self.parse_decl_item_value_and_maegim()?;
                 value = Some(expr);
@@ -2416,7 +2436,12 @@ impl Parser {
 
     fn parse_while_stmt(&mut self, condition: Condition) -> Result<SurfaceStmt, CanonError> {
         self.advance();
-        self.consume_optional_block_header_colon();
+        if self.peek_is(|k| matches!(k, TokenKind::Colon)) {
+            return Err(CanonError::new(
+                "E_WHILE_SURFACE",
+                "동안 다음에는 콜론 없이 '{'가 와야 합니다.",
+            ));
+        }
         let body = self.parse_block_with_chaebi_restriction()?;
         self.consume_optional_terminator();
         Ok(SurfaceStmt::While { condition, body })
@@ -3511,7 +3536,23 @@ impl Parser {
         self.skip_newlines();
         self.expect(TokenKind::RBrace)?;
         self.skip_newlines();
+        if !require_thunk && self.peek_is(|k| matches!(k, TokenKind::Ident(name) if name == "이면")) {
+            return Ok(Condition { expr, style: ConditionStyle::Current, negated: false });
+        }
         let name = self.expect_ident()?;
+        if self.peek_is(|k| matches!(k, TokenKind::During)) {
+            if name != "인" {
+                return Err(CanonError::new(
+                    "E_WHILE_SURFACE",
+                    "일반 반복은 '{ 조건 }인 동안 { ... }.'로 작성해야 합니다.",
+                ));
+            }
+            return Ok(Condition {
+                expr,
+                style: ConditionStyle::Thunk,
+                negated: false,
+            });
+        }
         let negated = match name.as_str() {
             "인것" => false,
             "아닌것" => true,
@@ -4105,6 +4146,16 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
     // successor async/rendezvous canon, and historical async is available only
     // through the explicit migration-evidence API.
     let tokens = Lexer::tokenize(input)?;
+    if tokens.windows(3).any(|window| {
+        matches!(window[0].kind, TokenKind::RBrace)
+            && matches!(&window[1].kind, TokenKind::Ident(name) if name == "인것")
+            && matches!(window[2].kind, TokenKind::During)
+    }) {
+        return Err(CanonError::new(
+            "E_WHILE_SURFACE",
+            "일반 반복은 '{ 조건 }인 동안 { ... }.'로 작성해야 합니다.",
+        ));
+    }
     if tokens
         .iter()
         .any(|token| matches!(token.kind, TokenKind::SignalArrow))
@@ -4133,7 +4184,7 @@ fn maegim_control_literal_locator(
     control_name: &str,
 ) -> Result<Option<(usize, usize, usize, usize, String)>, CanonError> {
     let pattern = format!(
-        r"(?m)^[\t ]*(?P<name>{})[\t ]*:[^\r\n]*?(?:<-|←)[\t ]*\([\t ]*(?P<value>[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+))[\t ]*\)[\t ]*매김[\t ]*\{{",
+        r"(?m)^[\t ]*(?P<name>{})[\t ]*:[^\r\n]*?(?:<-|←|:=)[\t ]*\([\t ]*(?P<value>[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+))[\t ]*\)[\t ]*매김[\t ]*\{{",
         regex::escape(control_name),
     );
     let matcher = regex::Regex::new(&pattern).map_err(|err| {
@@ -4460,12 +4511,17 @@ fn canonicalize_with_fallback_mode(
     let meta_parse = split_file_meta(&prepared);
     validate_decl_item_maegim_contract(&meta_parse.stripped)?;
     let root_hide = has_root_hide_directive(&prepared);
-    let normalized_frontdoor = ddonirang_lang::parse_frontdoor_and_normalize(
+    let normalized_frontdoor = match ddonirang_lang::parse_frontdoor_and_normalize(
         &meta_parse.stripped,
         "<canon-frontdoor-prepared>",
         ddonirang_lang::NormalizationLevel::N1,
-    )
-    .ok();
+    ) {
+        Ok(normalized) => Some(normalized),
+        Err(err) if err.message.contains("E_WHILE_SURFACE:") => {
+            return Err(CanonError::new("E_WHILE_SURFACE", err.message));
+        }
+        Err(_) => None,
+    };
     // Parse the current-line source first. Frontdoor normalization intentionally
     // strips some compatibility-only suffixes (notably decl-item `매김 {}`),
     // so using it as the primary parse input loses control metadata.
@@ -4484,7 +4540,8 @@ fn canonicalize_with_fallback_mode(
         Err(primary_err) => {
             if matches!(
                 primary_err.code(),
-                "E_CHAEBI_IN_LOOP"
+                "E_WHILE_SURFACE"
+                    | "E_CHAEBI_IN_LOOP"
                     | "E_CANON_RECEIVE_OUTSIDE_IMJA"
                     | "E_EVENT_SURFACE_ALIAS_FORBIDDEN"
                     | "E_CANON_HOOK_EVERY_N_MADI_INTERVAL_INVALID"
@@ -4522,7 +4579,7 @@ fn canonicalize_with_fallback_mode(
             }
 
             let fallback_source = normalized.as_deref().unwrap_or(&meta_parse.stripped);
-            let fallback_plans = build_frontdoor_fallback_plans(fallback_source)?;
+            let fallback_plans = build_frontdoor_fallback_plans(fallback_source, &meta_parse.stripped)?;
             let ddn_body =
                 normalized.unwrap_or_else(|| preprocess_frontdoor_source(&meta_parse.stripped));
             let mut ddn = String::new();
@@ -6255,6 +6312,10 @@ struct FallbackMaegimEnvelope {
 struct FallbackMaegimControl {
     name: String,
     decl_kind: &'static str,
+    type_name: String,
+    init_expr_canon: Option<String>,
+    fields: Vec<MaegimControlField>,
+    range: Option<MaegimControlRange>,
     min_expr_canon: Option<String>,
     max_expr_canon: Option<String>,
     inclusive_end: bool,
@@ -6262,11 +6323,13 @@ struct FallbackMaegimControl {
     split_count_expr_canon: Option<String>,
 }
 
-fn build_frontdoor_fallback_plans(source: &str) -> Result<FrontdoorFallbackPlans, CanonError> {
+fn build_frontdoor_fallback_plans(source: &str, maegim_source: &str) -> Result<FrontdoorFallbackPlans, CanonError> {
     let guseong_flat_json = build_frontdoor_fallback_guseong_json(source)?;
     let alrim_plan_json = build_frontdoor_fallback_alrim_json()?;
     let exec_policy_map_json = build_frontdoor_fallback_exec_json()?;
-    let maegim_control_json = build_frontdoor_fallback_maegim_json(source)?;
+    // A normalized fallback can shorten decimal literals. Source editing and
+    // control defaults must remain bound to the original, verified literal.
+    let maegim_control_json = build_frontdoor_fallback_maegim_json(maegim_source)?;
     Ok(FrontdoorFallbackPlans {
         guseong_flat_json,
         alrim_plan_json,
@@ -6341,25 +6404,56 @@ fn build_frontdoor_fallback_exec_json() -> Result<String, CanonError> {
 }
 
 fn build_frontdoor_fallback_maegim_json(source: &str) -> Result<String, CanonError> {
-    let lines = source.lines().collect::<Vec<_>>();
-    let mut idx = 0usize;
     let mut controls = Vec::new();
-    while idx < lines.len() {
-        let line = lines[idx].trim();
+    let mut offset = 0usize;
+    for raw_line in source.split_inclusive('\n') {
+        let line_start = offset;
+        offset += raw_line.len();
+        let line = raw_line.trim();
         if !line.contains("매김 {") {
-            idx += 1;
             continue;
         }
 
         let Some(colon_pos) = line.find(':') else {
-            idx += 1;
             continue;
         };
         let name = line[..colon_pos].trim();
         if name.is_empty() {
-            idx += 1;
             continue;
         }
+        // Keep existing generic fallback controls, but leave an ambiguous or
+        // nonliteral initial value unavailable rather than fabricating one.
+        let init_expr_canon = maegim_control_literal_locator(source, name)?
+            .map(|(_, _, _, _, literal)| literal);
+        let body_start = line_start + raw_line.find("매김 {").unwrap() + "매김 {".len();
+        let body_tokens = ddonirang_lang::Lexer::new(&source[body_start..])
+            .tokenize()
+            .map_err(|err| CanonError::new("E_CANON_MAEGIM_CONTROL_PLAN_JSON", err.to_string()))?;
+        let mut depth = 1usize;
+        let mut body_end = None;
+        for token in &body_tokens {
+            match token.kind {
+                ddonirang_lang::TokenKind::LBrace => depth += 1,
+                ddonirang_lang::TokenKind::RBrace => {
+                    depth -= 1;
+                    if depth == 0 {
+                        body_end = Some(token.span.start);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let Some(body_end) = body_end else { continue; };
+        let body = &source[body_start..body_start + body_end];
+        let fields = fallback_maegim_control_fields(body)?;
+        let type_header = &line[colon_pos + 1..];
+        let type_end = ["<-", "←", ":="]
+            .iter()
+            .filter_map(|operator| type_header.find(operator))
+            .min();
+        let Some(type_end) = type_end else { continue; };
+        let type_name = type_header[..type_end].trim().to_string();
 
         let mut min_expr_canon = None;
         let mut max_expr_canon = None;
@@ -6367,37 +6461,37 @@ fn build_frontdoor_fallback_maegim_json(source: &str) -> Result<String, CanonErr
         let mut step_expr_canon = None;
         let mut split_count_expr_canon = None;
 
-        idx += 1;
-        while idx < lines.len() {
-            let inner = lines[idx].trim();
-            if inner.starts_with("}.") || inner == "}" {
-                break;
-            }
-            if let Some(rest) = inner.strip_prefix("범위:") {
-                let expr = rest.trim().trim_end_matches('.');
-                if let Some((left, right, incl)) = parse_fallback_range(expr) {
+        for field in &fields {
+            if field.name == "범위" {
+                if let Some((left, right, incl)) = parse_fallback_range(&field.value_canon) {
                     min_expr_canon = Some(left);
                     max_expr_canon = Some(right);
                     inclusive_end = incl;
                 }
-            } else if let Some(rest) = inner.strip_prefix("간격:") {
-                step_expr_canon = Some(rest.trim().trim_end_matches('.').to_string());
-            } else if let Some(rest) = inner.strip_prefix("분할수:") {
-                split_count_expr_canon = Some(rest.trim().trim_end_matches('.').to_string());
+            } else if field.name == "간격" {
+                step_expr_canon = Some(field.value_canon.clone());
+            } else if field.name == "분할수" {
+                split_count_expr_canon = Some(field.value_canon.clone());
             }
-            idx += 1;
         }
+        let range = min_expr_canon.clone().zip(max_expr_canon.clone())
+            .map(|(min_expr_canon, max_expr_canon)| MaegimControlRange {
+                min_expr_canon, max_expr_canon, inclusive_end,
+            });
 
         controls.push(FallbackMaegimControl {
             name: name.to_string(),
             decl_kind: "gureut",
+            type_name,
+            init_expr_canon,
+            fields,
+            range,
             min_expr_canon,
             max_expr_canon,
             inclusive_end,
             step_expr_canon,
             split_count_expr_canon,
         });
-        idx += 1;
     }
 
     let envelope = FallbackMaegimEnvelope {
@@ -6412,6 +6506,34 @@ fn build_frontdoor_fallback_maegim_json(source: &str) -> Result<String, CanonErr
                 format!("frontdoor fallback maegim JSON 직렬화 실패: {}", err),
             )
         })
+}
+
+fn fallback_maegim_control_fields(body: &str) -> Result<Vec<MaegimControlField>, CanonError> {
+    use ddonirang_lang::TokenKind as LangTokenKind;
+    let tokens = ddonirang_lang::Lexer::new(body).tokenize()
+        .map_err(|err| CanonError::new("E_CANON_MAEGIM_CONTROL_PLAN_JSON", err.to_string()))?;
+    let mut fields = Vec::new();
+    let mut index = 0usize;
+    while index + 1 < tokens.len() {
+        if let (LangTokenKind::Ident(name), LangTokenKind::Colon) =
+            (&tokens[index].kind, &tokens[index + 1].kind) {
+            let start = tokens[index + 1].span.end;
+            let mut end = index + 2;
+            while end < tokens.len() && !matches!(tokens[end].kind, LangTokenKind::Dot) {
+                end += 1;
+            }
+            if end < tokens.len() {
+                fields.push(MaegimControlField {
+                    name: name.clone(),
+                    value_canon: body[start..tokens[end].span.start].trim().to_string(),
+                });
+                index = end + 1;
+                continue;
+            }
+        }
+        index += 1;
+    }
+    Ok(fields)
 }
 
 fn parse_fallback_range(input: &str) -> Option<(String, String, bool)> {
@@ -7457,6 +7579,28 @@ mod tests {
     };
 
     #[test]
+    fn wo03_explicit_current_condition_canon_keeps_legacy_projection_separate() {
+        // The epoch-less projection in this module remains a legacy adapter.
+        // Current source must use the explicit shared profile, not content inference.
+        let source = "{ 참 }이면 { 1 보여주기. } 아니면 { { 거짓 }이면 { 2 보여주기. }. }.";
+        let current = crate::runtime_surface::canonicalize_shared_source_with_supported_profile(
+            source, Some("v1-core-v25"),
+        ).expect("explicit current conditional");
+        assert!(current.ddn.contains("}이면"));
+        assert!(!current.ddn.contains("만약"));
+        let twice = crate::runtime_surface::canonicalize_shared_source_with_supported_profile(
+            &current.ddn, Some("v1-core-v25"),
+        ).expect("current canon roundtrip");
+        assert_eq!(current.ddn, twice.ddn);
+        let legacy = canonicalize("만약 참 이라면 { 1 보여주기. }.", false)
+            .expect("legacy projection remains available");
+        assert!(legacy.ddn.contains("만약 참 이라면"));
+        assert!(crate::runtime_surface::canonicalize_shared_source_with_supported_profile(
+            &legacy.ddn, Some("v1-core-v25"),
+        ).is_err(), "legacy surface must not become a current alias");
+    }
+
+    #[test]
     fn prompt_extraction_uses_lexer_comment_and_string_boundaries() {
         let source = "// ??(\"가짜\")\n메모 <- \"??(\\\"문자열\\\")\".\n답 <- ??(\"진짜\").\n";
         assert_eq!(
@@ -7808,6 +7952,79 @@ mod tests {
     }
 
     #[test]
+    fn alpha_menu_maegim_survives_full_program_canonicalization() {
+        let source = include_str!("../../solutions/seamgrim_ui_mvp/lessons/rep_phys_projectile_xy_v1/lesson.ddn");
+        let output = canonicalize(source, false).expect("alpha menu canon");
+        let plan: serde_json::Value = serde_json::from_str(&output.maegim_control_json).unwrap();
+        assert_eq!(plan["controls"].as_array().map(Vec::len), Some(5),
+            "full source controls lost; primary parse: {:?}",
+            super::canonicalize_with_fallback_mode(source, false, false).err());
+        assert_eq!(plan["controls"][0]["init_expr_canon"], "8.0",
+            "initial value lost; primary parse: {:?}",
+            super::canonicalize_with_fallback_mode(source, false, false).err());
+    }
+
+    #[test]
+    fn fallback_maegim_plan_keeps_inline_literal_and_range_schema() {
+        let source = "채비 {\n  기준점수: 수 := (60.0) 매김 { 범위: 30..90. 간격: 5. }.\n}.\n";
+        let plan: serde_json::Value = serde_json::from_str(
+            &super::build_frontdoor_fallback_maegim_json(source).unwrap(),
+        ).unwrap();
+        let control = &plan["controls"][0];
+        assert_eq!(control["init_expr_canon"], "60.0");
+        assert_eq!(control["type_name"], "수");
+        assert_eq!(control["range"]["min_expr_canon"], "30");
+        assert_eq!(control["range"]["max_expr_canon"], "90");
+        assert_eq!(control["step_expr_canon"], "5");
+    }
+
+    #[test]
+    fn fallback_maegim_lambda_program_preserves_control_and_edit_bounds() {
+        let source = "채비 {\n  기준점수: 수 := (60.0) 매김 { 범위: 30..90. 간격: 5. }.\n}.\n(매마디)마다 { 원본 <- 차림[45, 60, 90]. 남긴값 <- (원본, {점수 | 점수 >= 기준점수}) 거르기. }.\n";
+        let plan = maegim_control_plan_with_source(source, "lesson.ddn").unwrap();
+        let plan: serde_json::Value = serde_json::from_str(&plan).unwrap();
+        assert_eq!(plan["controls"].as_array().map(Vec::len), Some(1));
+        assert_eq!(plan["controls"][0]["init_expr_canon"], "60.0");
+        assert_eq!(plan["controls"][0]["source_edit"]["status"], "ready");
+        assert_eq!(apply_maegim_source_edit(source, "lesson.ddn", "기준점수", "95")
+            .expect_err("fallback range must reject out-of-range edits").code(),
+            "E_MAEGIM_VALUE_OUT_OF_RANGE");
+    }
+
+    #[test]
+    fn fallback_maegim_preserves_multiline_precision_and_generic_controls() {
+        let source = "채비 {\n  dt: 수 := (0.000000001) 매김 {\n    범위: 0.000000001..0.1.\n    간격: 0.000000001.\n  }.\n  배수: 수 <- (2) 매김 { 범위: 1..5. 분할수: 4. }.\n  계산값: 수 <- (1 + 2) 매김 { 범위: 1..5. 간격: 1. }.\n}.\n";
+        let plan: serde_json::Value = serde_json::from_str(
+            &super::build_frontdoor_fallback_maegim_json(source).unwrap(),
+        ).unwrap();
+        assert_eq!(plan["controls"].as_array().map(Vec::len), Some(3));
+        assert_eq!(plan["controls"][0]["init_expr_canon"], "0.000000001");
+        assert_eq!(plan["controls"][0]["range"]["min_expr_canon"], "0.000000001");
+        assert_eq!(plan["controls"][0]["step_expr_canon"], "0.000000001");
+        assert_eq!(plan["controls"][1]["init_expr_canon"], "2");
+        assert_eq!(plan["controls"][1]["split_count_expr_canon"], "4");
+        assert!(plan["controls"][2]["init_expr_canon"].is_null());
+        assert_eq!(plan["controls"][2]["name"], "계산값");
+    }
+
+    #[test]
+    fn v25_definition_maegim_plan_and_source_edit_keep_definition_surface() {
+        let source = "채비 {\n  초기속도x: 수 := (8.0) 매김 { 범위: 1..30. 간격: 1. }.\n}.\n";
+        let plan = maegim_control_plan_with_source(source, "lesson.ddn")
+            .expect("V25 source-aware maegim plan");
+        let parsed: serde_json::Value = serde_json::from_str(&plan).expect("plan json");
+        let control = &parsed["controls"][0];
+        assert_eq!(control["name"], "초기속도x");
+        assert_eq!(control["source_edit"]["status"], "ready");
+        let edited = apply_maegim_source_edit(source, "lesson.ddn", "초기속도x", "12.5")
+            .expect("V25 source edit");
+        let edited: serde_json::Value = serde_json::from_str(&edited).expect("edit json");
+        let edited_source = edited["source_text"].as_str().expect("edited source");
+        assert!(edited_source.contains("초기속도x: 수 := (12.5) 매김"));
+        assert!(!edited_source.contains("초기속도x: 수 <-"));
+    }
+
+    #[test]
     fn maegim_source_edit_changes_source_and_rechecks_meaning() {
         let source = "채비 {\n  초기속도x: 수 <- (8.0) 매김 { 범위: 1..30. 간격: 1. }.\n}.\n";
         let result = apply_maegim_source_edit(source, "lesson.ddn", "초기속도x", "13.5")
@@ -7907,7 +8124,7 @@ mod tests {
   "side" 보여주기.
 }.
 
-{ t < 2 }인것 동안 {
+{ t < 2 }인 동안 {
   t <- t + 1.
 }.
 
@@ -10718,11 +10935,11 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             then_body,
             else_body,
         } => {
-            out.push_str(&format!(
-                "{}만약 {} 이라면 {{\n",
-                pad,
-                format_if_condition(condition)
-            ));
+            if matches!(condition.style, ConditionStyle::Current) {
+                out.push_str(&format!("{}{{ {} }}이면 {{\n", pad, format_if_condition(condition)));
+            } else {
+                out.push_str(&format!("{}만약 {} 이라면 {{\n", pad, format_if_condition(condition)));
+            }
             for stmt in then_body {
                 format_stmt(stmt, indent + 1, out);
             }
@@ -10854,7 +11071,11 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             out.push_str(&format!("{}}}.\n", pad));
         }
         Stmt::While { condition, body } => {
-            out.push_str(&format!("{}{} 동안 {{\n", pad, format_condition(condition)));
+            out.push_str(&format!(
+                "{}{{ {} }}인 동안 {{\n",
+                pad,
+                format_expr(&condition.expr)
+            ));
             for stmt in body {
                 format_stmt(stmt, indent + 1, out);
             }
@@ -11332,6 +11553,7 @@ fn format_expr_prec(expr: &Expr, parent_prec: u8) -> String {
 fn format_condition(condition: &Condition) -> String {
     let expr = format_expr(&condition.expr);
     match condition.style {
+        ConditionStyle::Current => format!("{{ {} }}", expr),
         ConditionStyle::Plain => expr,
         ConditionStyle::Thunk => {
             let suffix = if condition.negated {

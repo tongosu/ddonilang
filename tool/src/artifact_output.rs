@@ -5,6 +5,16 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+/// 출력 산출물이 읽기 입력의 같은 경로(또는 경로 별칭)를 덮어쓰는지 확인한다.
+/// hard link의 별도 directory entry는 atomic replace가 원본 entry를 바꾸지 않는다.
+pub fn existing_input_output_alias(input: &Path, output: &Path) -> bool {
+    input == output
+        || matches!(
+            (fs::canonicalize(input), fs::canonicalize(output)),
+            (Ok(input), Ok(output)) if input == output
+        )
+}
+
 static ARTIFACT_OUTPUT_NONCE: AtomicU64 = AtomicU64::new(0);
 
 pub fn require_file_artifact_target(path: &Path) -> Result<(), String> {

@@ -8,14 +8,13 @@ use std::sync::Arc;
 
 use crate::fixed64_boundary::Fixed64FloatBoundary;
 use crate::gate0_registry;
-use crate::geoul_snapshot::{
-    input_action_key_aliases, project_keyboard_state, SnapshotStateValue,
-};
+use crate::geoul_snapshot::{input_action_key_aliases, project_keyboard_state, SnapshotStateValue};
 use crate::input_tape::runtime_keys_to_tape_mask;
 use crate::preprocess::{
     preprocess_source_for_parse, split_file_meta, validate_no_legacy_boim_surface,
     validate_no_legacy_header, FileMeta,
 };
+use crate::result_place::ResultPlace;
 use crate::sealed_domain_dataset::{
     DatasetCell, DatasetColumn, DatasetDtype, DatasetRow, DatasetScalar, DatasetSource,
     MissingReason,
@@ -34,22 +33,21 @@ use ddonirang_core::{
     ResourceHandle, Signal, SourceSpan, UnitDim, UnitError, UnitValue,
 };
 use ddonirang_lang::runtime::{
-    check_value_type, input_just_pressed, input_pressed, list_add, list_len, list_new, list_nth, list_remove,
-    map_get, map_key_canon, string_concat, string_contains, string_ends, string_join, string_len,
-    string_split, string_starts, string_to_number, InputState, LambdaValue, MapEntry, RuntimeError,
-    Value,
+    check_value_type, input_just_pressed, input_pressed, list_add, list_len, list_new, list_nth,
+    list_remove, map_get, map_key_canon, string_concat, string_contains, string_ends, string_join,
+    string_len, string_split, string_starts, string_to_number, value_type_name, InputState,
+    LambdaValue, MapEntry, RuntimeError, Value,
 };
 use ddonirang_lang::{
     age_not_available_error, canonicalize, normalize_expression_identity, parse_v25_with_mode,
     parse_with_mode, plan_internal_delivery_occurrence, AgeTarget, Assertion, AtSuffix, Body,
-    CanonProgram, DeliveryOccurrenceIdentity, EndpointRoute,
-    EndpointRouteFailure, EndpointRouteSemantic, ExecutionInstanceIdentity, Expr, ExprKind,
-    Formula, FormulaDialect, InternalDeliveryEnvelopeSemantic,
-    InternalDeliveryOccurrenceFailure, Lexer, Literal, LogicalAsyncQueue, LogicalWaitReceipt,
-    MessageTransfer, NodeId, ParamPin, ParseError, ParseMode,
-    ProviderRegistrationIdentity, QueueAdmission, ReactionProviderRegistry, RegexLiteral, SeedDef,
-    SeedKind, SenderIdentityPredicate, StagedDeliveryOutbox, StateMachine, StateTransition, Stmt,
-    TemplateFormat, TemplatePart, Token, TokenKind, TopLevelItem, TypeRef,
+    CanonProgram, DeliveryOccurrenceIdentity, EndpointRoute, EndpointRouteFailure,
+    EndpointRouteSemantic, ExecutionInstanceIdentity, Expr, ExprKind, Formula, FormulaDialect,
+    InternalDeliveryEnvelopeSemantic, InternalDeliveryOccurrenceFailure, Lexer, Literal,
+    LogicalAsyncQueue, LogicalWaitReceipt, MessageTransfer, NodeId, ParamPin, ParseError,
+    ParseMode, ProviderRegistrationIdentity, QueueAdmission, ReactionProviderRegistry,
+    RegexLiteral, SeedDef, SeedKind, SenderIdentityPredicate, StagedDeliveryOutbox, StateMachine,
+    StateTransition, Stmt, TemplateFormat, TemplatePart, Token, TokenKind, TopLevelItem, TypeRef,
 };
 use libm;
 use num_bigint::{BigInt, Sign};
@@ -65,6 +63,16 @@ pub const V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY: &str = "v1-core-v25";
 pub const E_SOURCE_PROFILE_REQUIRED: &str = "E_SOURCE_PROFILE_REQUIRED";
 pub const E_SOURCE_PROFILE_UNSUPPORTED: &str = "E_SOURCE_PROFILE_UNSUPPORTED";
 pub const E_V1_CORE_RECURSION_UNSUPPORTED: &str = "E_V1_CORE_RECURSION_UNSUPPORTED";
+
+// Current Bogae defaults are Q31.32 values, not host floating-point inputs.
+// These raw values preserve the former truncating values exactly while keeping
+// the active runtime inside the canonical Fixed64 representation.
+const BOGAE_DEFAULT_STROKE_WIDTH: Fixed64 = Fixed64::from_raw_i64(85_899_345);
+const BOGAE_DEFAULT_CIRCLE_RADIUS: Fixed64 = Fixed64::from_raw_i64(343_597_383);
+const BOGAE_DEFAULT_POINT_SIZE: Fixed64 = Fixed64::from_raw_i64(193_273_528);
+const BOGAE_DEFAULT_RECT_WIDTH: Fixed64 = Fixed64::from_raw_i64(858_993_459);
+const BOGAE_DEFAULT_RECT_HEIGHT: Fixed64 = Fixed64::from_raw_i64(515_396_075);
+const BOGAE_DEFAULT_TEXT_SIZE: Fixed64 = Fixed64::from_raw_i64(343_597_383);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SupportedSourceProfile {
@@ -1499,6 +1507,39 @@ fn ensure_dimensionless_unit(value: &UnitValue) -> Result<(), EvalError> {
     Ok(())
 }
 
+fn checked_unit_mul(left: UnitValue, right: UnitValue) -> Result<UnitValue, EvalError> {
+    Ok(UnitValue {
+        value: left.value.checked_mul(right.value)?,
+        dim: left.dim.add(right.dim),
+    })
+}
+
+fn checked_unit_add(left: UnitValue, right: UnitValue) -> Result<UnitValue, EvalError> {
+    if left.dim != right.dim {
+        return Err(unit_error(UnitError::DimensionMismatch {
+            left: left.dim,
+            right: right.dim,
+        }));
+    }
+    Ok(UnitValue {
+        value: left.value.checked_add(right.value)?,
+        dim: left.dim,
+    })
+}
+
+fn checked_unit_sub(left: UnitValue, right: UnitValue) -> Result<UnitValue, EvalError> {
+    if left.dim != right.dim {
+        return Err(unit_error(UnitError::DimensionMismatch {
+            left: left.dim,
+            right: right.dim,
+        }));
+    }
+    Ok(UnitValue {
+        value: left.value.checked_sub(right.value)?,
+        dim: left.dim,
+    })
+}
+
 fn make_std_input_map(bindings: BTreeMap<String, Value>) -> Value {
     let mut fields = BTreeMap::new();
     fields.insert(
@@ -1567,7 +1608,7 @@ fn input_map_action_pressed(
 }
 
 fn seed_keyboard_state_resources(
-    resources: &mut HashMap<String, Value>,
+    resources: &mut ResourceBindings,
     prev_mask: u64,
     next_mask: u64,
 ) {
@@ -1605,6 +1646,28 @@ fn decode_parse_mode(value: u64) -> ParseMode {
         2 => ParseMode::HistoricalMigrationEvidence,
         _ => ParseMode::SuccessorDefault,
     }
+}
+
+fn validate_alpha2_bogae_time_surface(source: &str) -> Result<(), String> {
+    // Tokens exclude comments and text values; no source-content heuristic.
+    let Ok(tokens) = Lexer::new(source).tokenize() else { return Ok(()); };
+    for (index, token) in tokens.iter().enumerate() {
+        let direct = matches!(&token.kind, TokenKind::Ident(name)
+            if crate::source_analysis::unsupported_bogae_time_policy(name));
+        let qualified = matches!(&token.kind, TokenKind::Ident(name) if name == "표준시간")
+            && (index == 0 || !matches!(tokens[index - 1].kind, TokenKind::Dot))
+            && tokens.get(index + 1).is_some_and(|next| matches!(next.kind, TokenKind::Dot))
+            && tokens.get(index + 2).is_some_and(|next| matches!(&next.kind,
+                TokenKind::Ident(name) if matches!(name.as_str(), "고정마디" | "상대마디")));
+        if direct || qualified {
+            let prefix = &source[..token.span.start];
+            let line = prefix.bytes().filter(|byte| *byte == b'\n').count() + 1;
+            let column = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
+            return Err(format!("E_BOGAE_TIME_POLICY_UNSUPPORTED: {} ({line}:{column})\n",
+                crate::source_analysis::BOGAE_TIME_POLICY_UNSUPPORTED));
+        }
+    }
+    Ok(())
 }
 
 fn encode_age_target(age: AgeTarget) -> u64 {
@@ -1652,9 +1715,14 @@ pub fn set_default_age_target(age: AgeTarget) {
 
 #[derive(Clone)]
 pub struct DdnProgram {
+    source_identity: String,
     #[allow(dead_code)]
     program: CanonProgram,
     functions: HashMap<String, SeedDef>,
+    ordinary_overloads: HashMap<String, Vec<SeedDef>>,
+    ordinary_callable_admission_evidence:
+        Vec<ddonirang_lang::OrdinaryCallableAdmissionEvidence>,
+    root_stmts: Vec<ddonirang_lang::Stmt>,
     top_level_decl_names: HashSet<String>,
     #[allow(dead_code)]
     file_meta: FileMeta,
@@ -1758,6 +1826,9 @@ impl DdnProgram {
         v25: bool,
         age_target: AgeTarget,
     ) -> Result<Self, String> {
+        if source.starts_with('\u{feff}') {
+            return Err("E_SOURCE_UTF8_BOM_FORBIDDEN: 원문은 BOM 없는 UTF-8이어야 합니다".to_string());
+        }
         if mode == ParseMode::HistoricalMigrationEvidence {
             return Err(
                 "E_HISTORICAL_ASYNC_MIGRATION_EXECUTION_FORBIDDEN: migration evidence mode cannot enter product execution"
@@ -1766,11 +1837,20 @@ impl DdnProgram {
         }
         validate_no_legacy_header(source)?;
         validate_no_legacy_boim_surface(source)?;
+        validate_alpha2_bogae_time_surface(source)?;
         let meta_parse = split_file_meta(source);
         let top_level_decl_names = collect_top_level_decl_names(&meta_parse.stripped);
         let configured_madi = extract_setting_madi(&meta_parse.stripped)?;
-        let cleaned = preprocess_source_for_parse(&meta_parse.stripped)?;
-        let prepared = ddonirang_lang::preprocess_frontdoor_source(&cleaned);
+        let cleaned = if v25 {
+            meta_parse.stripped.clone()
+        } else {
+            preprocess_source_for_parse(&meta_parse.stripped)?
+        };
+        let prepared = if v25 {
+            cleaned
+        } else {
+            ddonirang_lang::preprocess_frontdoor_source(&cleaned)
+        };
         let mut program = if v25 {
             parse_v25_with_mode(&prepared, file_path, mode)
         } else {
@@ -1810,22 +1890,31 @@ impl DdnProgram {
             .zip(ast_fields)
             .map(|(original, ast)| (ast.id, original))
             .collect();
+        let ordinary_callable_admission_evidence =
+            ddonirang_lang::validate_ordinary_callable_admission(&program)
+                .map_err(|failure| failure.diagnostic_message())?;
         let mut functions = HashMap::new();
-        let tails = ["기", "고", "면", "면서"];
+        let mut ordinary_overloads = HashMap::<String, Vec<SeedDef>>::new();
+        let root_stmts = program.root_stmts.clone();
         for item in &program.items {
             let ddonirang_lang::TopLevelItem::SeedDef(seed) = item;
-            let name = seed.canonical_name.clone();
-            functions.insert(name.clone(), seed.clone());
-            for tail in tails {
-                let alias = format!("{name}{tail}");
-                if !functions.contains_key(&alias) {
-                    functions.insert(alias, seed.clone());
+            for surface in seed.callable_surface_names() {
+                functions.insert(surface.clone(), seed.clone());
+                if ddonirang_lang::is_v1_ordinary_callable(seed) {
+                    ordinary_overloads
+                        .entry(surface)
+                        .or_default()
+                        .push(seed.clone());
                 }
             }
         }
         Ok(Self {
+            source_identity: format!("sha256:{}", crate::runtime_surface::sha256_hex(source.as_bytes())),
             program,
             functions,
+            ordinary_overloads,
+            ordinary_callable_admission_evidence,
+            root_stmts,
             top_level_decl_names,
             file_meta: meta_parse.meta,
             parse_warnings,
@@ -1838,8 +1927,22 @@ impl DdnProgram {
         &self.parse_warnings
     }
 
+    pub fn ordinary_callable_admission_evidence(
+        &self,
+    ) -> &[ddonirang_lang::OrdinaryCallableAdmissionEvidence] {
+        &self.ordinary_callable_admission_evidence
+    }
+
+    pub(crate) fn canonical_program(&self) -> &CanonProgram {
+        &self.program
+    }
+
     pub fn configured_madi(&self) -> Option<u64> {
         self.configured_madi
+    }
+
+    pub fn has_root_program(&self) -> bool {
+        !self.root_stmts.is_empty()
     }
 
     pub fn canonical_ddn(&self) -> String {
@@ -1852,17 +1955,11 @@ impl DdnProgram {
 }
 
 fn validate_v1_core_no_named_callable_recursion(program: &CanonProgram) -> Result<(), String> {
-    const CALL_TAILS: [&str; 4] = ["기", "고", "면", "면서"];
-
     let mut alias_owner = BTreeMap::<String, String>::new();
     for item in &program.items {
         let TopLevelItem::SeedDef(seed) = item;
-        alias_owner.insert(seed.canonical_name.clone(), seed.canonical_name.clone());
-        for tail in CALL_TAILS {
-            alias_owner.insert(
-                format!("{}{tail}", seed.canonical_name),
-                seed.canonical_name.clone(),
-            );
+        for surface in seed.callable_surface_names() {
+            alias_owner.insert(surface, seed.canonical_name.clone());
         }
     }
 
@@ -1878,7 +1975,10 @@ fn validate_v1_core_no_named_callable_recursion(program: &CanonProgram) -> Resul
         if let Some(body) = &seed.body {
             collect_v1_core_named_calls_body(body, &alias_owner, &mut calls);
         }
-        graph.insert(seed.canonical_name.clone(), calls);
+        graph
+            .entry(seed.canonical_name.clone())
+            .or_default()
+            .extend(calls);
     }
 
     fn visit(
@@ -1951,6 +2051,14 @@ fn collect_v1_core_named_calls_body(
             Stmt::Mutate { target, value, .. } => {
                 collect_v1_core_named_calls_expr(target, alias_owner, calls);
                 collect_v1_core_named_calls_expr(value, alias_owner, calls);
+            }
+            Stmt::ResultFlow {
+                producer,
+                destination,
+                ..
+            } => {
+                collect_v1_core_named_calls_expr(producer, alias_owner, calls);
+                collect_v1_core_named_calls_expr(destination, alias_owner, calls);
             }
             Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
                 collect_v1_core_named_calls_expr(expr, alias_owner, calls)
@@ -2070,6 +2178,15 @@ fn collect_v1_core_named_calls_expr(
             for arg in args {
                 collect_v1_core_named_calls_expr(&arg.expr, alias_owner, calls);
             }
+        }
+        ExprKind::CollectionConstructor { elements } => {
+            for element in elements {
+                collect_v1_core_named_calls_expr(element, alias_owner, calls);
+            }
+        }
+        ExprKind::SelectionPlace { target, index } => {
+            collect_v1_core_named_calls_expr(target, alias_owner, calls);
+            collect_v1_core_named_calls_expr(index, alias_owner, calls);
         }
         ExprKind::Infix { left, right, .. } => {
             collect_v1_core_named_calls_expr(left, alias_owner, calls);
@@ -2203,6 +2320,8 @@ fn collect_public_observation_fields(
             collect_public_observation_fields_body(body, &mut fields);
         }
     }
+    collect_public_observation_fields_stmts(&program.root_stmts, &mut fields);
+    fields.sort_by_key(|field| field.span.start);
     fields
 }
 
@@ -2210,7 +2329,14 @@ fn collect_public_observation_fields_body<'a>(
     body: &'a Body,
     fields: &mut Vec<&'a ddonirang_lang::PublicObservationField>,
 ) {
-    for stmt in &body.stmts {
+    collect_public_observation_fields_stmts(&body.stmts, fields);
+}
+
+fn collect_public_observation_fields_stmts<'a>(
+    stmts: &'a [Stmt],
+    fields: &mut Vec<&'a ddonirang_lang::PublicObservationField>,
+) {
+    for stmt in stmts {
         match stmt {
             Stmt::PublicObservation {
                 fields: observed, ..
@@ -2233,6 +2359,14 @@ fn collect_public_observation_fields_body<'a>(
             Stmt::Mutate { target, value, .. } => {
                 collect_public_observation_fields_expr(target, fields);
                 collect_public_observation_fields_expr(value, fields);
+            }
+            Stmt::ResultFlow {
+                producer,
+                destination,
+                ..
+            } => {
+                collect_public_observation_fields_expr(producer, fields);
+                collect_public_observation_fields_expr(destination, fields);
             }
             Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
                 collect_public_observation_fields_expr(expr, fields);
@@ -2348,6 +2482,15 @@ fn collect_public_observation_fields_expr<'a>(
             for arg in args {
                 collect_public_observation_fields_expr(&arg.expr, fields);
             }
+        }
+        ExprKind::CollectionConstructor { elements } => {
+            for element in elements {
+                collect_public_observation_fields_expr(element, fields);
+            }
+        }
+        ExprKind::SelectionPlace { target, index } => {
+            collect_public_observation_fields_expr(target, fields);
+            collect_public_observation_fields_expr(index, fields);
         }
         ExprKind::Infix { left, right, .. } => {
             collect_public_observation_fields_expr(left, fields);
@@ -2495,7 +2638,6 @@ fn collect_decl_names_from_block(block: &str, names: &mut HashSet<String>) {
         }
     }
 }
-
 pub fn extract_setting_madi(source: &str) -> Result<Option<u64>, String> {
     let mut search_start = 0;
     while let Some(rel_idx) = source[search_start..].find("설정") {
@@ -2755,6 +2897,11 @@ fn stmt_regex_feature(stmt: &Stmt) -> Option<&'static str> {
         Stmt::Mutate { target, value, .. } => {
             expr_regex_feature(target).or_else(|| expr_regex_feature(value))
         }
+        Stmt::ResultFlow {
+            producer,
+            destination,
+            ..
+        } => expr_regex_feature(producer).or_else(|| expr_regex_feature(destination)),
         Stmt::Receive {
             condition, body, ..
         } => condition
@@ -2853,6 +3000,11 @@ fn stmt_assertion_feature(stmt: &Stmt) -> Option<&'static str> {
         Stmt::Mutate { target, value, .. } => {
             expr_assertion_feature(target).or_else(|| expr_assertion_feature(value))
         }
+        Stmt::ResultFlow {
+            producer,
+            destination,
+            ..
+        } => expr_assertion_feature(producer).or_else(|| expr_assertion_feature(destination)),
         Stmt::Receive {
             condition, body, ..
         } => condition
@@ -2951,6 +3103,12 @@ fn stmt_state_machine_feature(stmt: &Stmt) -> Option<&'static str> {
         Stmt::Mutate { target, value, .. } => {
             expr_state_machine_feature(target).or_else(|| expr_state_machine_feature(value))
         }
+        Stmt::ResultFlow {
+            producer,
+            destination,
+            ..
+        } => expr_state_machine_feature(producer)
+            .or_else(|| expr_state_machine_feature(destination)),
         Stmt::Receive {
             condition, body, ..
         } => condition
@@ -3045,6 +3203,7 @@ fn stmt_quantifier_feature(stmt: &Stmt) -> Option<&'static str> {
         }
         Stmt::Definition { .. }
         | Stmt::Mutate { .. }
+        | Stmt::ResultFlow { .. }
         | Stmt::Send { .. }
         | Stmt::Expr { .. }
         | Stmt::Show { .. }
@@ -3126,6 +3285,15 @@ fn expr_regex_feature(expr: &Expr) -> Option<&'static str> {
             }
             None
         }
+        ExprKind::CollectionConstructor { elements } => {
+            for element in elements {
+                if let Some(feature) = expr_regex_feature(element) {
+                    return Some(feature);
+                }
+            }
+            None
+        }
+        ExprKind::SelectionPlace { target, index } => expr_regex_feature(target).or_else(|| expr_regex_feature(index)),
         ExprKind::Infix { left, right, .. } => {
             expr_regex_feature(left).or_else(|| expr_regex_feature(right))
         }
@@ -3182,6 +3350,15 @@ fn expr_assertion_feature(expr: &Expr) -> Option<&'static str> {
             }
             None
         }
+        ExprKind::CollectionConstructor { elements } => {
+            for element in elements {
+                if let Some(feature) = expr_assertion_feature(element) {
+                    return Some(feature);
+                }
+            }
+            None
+        }
+        ExprKind::SelectionPlace { target, index } => expr_assertion_feature(target).or_else(|| expr_assertion_feature(index)),
         ExprKind::Infix { left, right, .. } => {
             expr_assertion_feature(left).or_else(|| expr_assertion_feature(right))
         }
@@ -3238,6 +3415,15 @@ fn expr_state_machine_feature(expr: &Expr) -> Option<&'static str> {
             }
             None
         }
+        ExprKind::CollectionConstructor { elements } => {
+            for element in elements {
+                if let Some(feature) = expr_state_machine_feature(element) {
+                    return Some(feature);
+                }
+            }
+            None
+        }
+        ExprKind::SelectionPlace { target, index } => expr_state_machine_feature(target).or_else(|| expr_state_machine_feature(index)),
         ExprKind::Infix { left, right, .. } => {
             expr_state_machine_feature(left).or_else(|| expr_state_machine_feature(right))
         }
@@ -3287,14 +3473,22 @@ impl InternalReactionProgram {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InternalReactionOperation {
-    Set { key: String, value: String },
-    RequireSettledValue { key: String, expected: Option<String> },
+    Set {
+        key: String,
+        value: String,
+    },
+    RequireSettledValue {
+        key: String,
+        expected: Option<String>,
+    },
     StageSend(InternalDeliveryEnvelopeSemantic),
     StageEffect(InternalEffectIntent),
     EmitResult(String),
     EmitTrace(String),
     EmitReceipt(String),
-    Fail { code: String },
+    Fail {
+        code: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -3304,7 +3498,9 @@ pub struct InternalEffectIntent {
 
 impl InternalEffectIntent {
     pub fn new(identity: impl Into<String>) -> Self {
-        Self { identity: identity.into() }
+        Self {
+            identity: identity.into(),
+        }
     }
 }
 
@@ -3333,9 +3529,16 @@ pub struct ReactionGroupCommitCandidate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InternalReactionFailure {
     RouteUnhandled,
-    RouteAmbiguous { count: usize },
-    ProviderIdentity { detail: String },
-    BodyFailure { participant_identity: String, code: String },
+    RouteAmbiguous {
+        count: usize,
+    },
+    ProviderIdentity {
+        detail: String,
+    },
+    BodyFailure {
+        participant_identity: String,
+        code: String,
+    },
     PatchConflict {
         key: String,
         first_participant: String,
@@ -3430,14 +3633,30 @@ impl InternalTypedReactionRuntime {
         }
     }
 
-    pub fn world(&self) -> &BTreeMap<String, String> { &self.world }
-    pub fn revision(&self) -> u64 { self.revision }
-    pub fn published_results(&self) -> &[String] { &self.published_results }
-    pub fn published_traces(&self) -> &[String] { &self.published_traces }
-    pub fn published_receipts(&self) -> &[String] { &self.published_receipts }
-    pub fn released_effects(&self) -> &[String] { &self.released_effects }
-    pub fn pending_delivery_count(&self) -> usize { self.queue.len() }
-    pub fn waiting_delivery_count(&self) -> usize { self.queue.waiting_len() }
+    pub fn world(&self) -> &BTreeMap<String, String> {
+        &self.world
+    }
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+    pub fn published_results(&self) -> &[String] {
+        &self.published_results
+    }
+    pub fn published_traces(&self) -> &[String] {
+        &self.published_traces
+    }
+    pub fn published_receipts(&self) -> &[String] {
+        &self.published_receipts
+    }
+    pub fn released_effects(&self) -> &[String] {
+        &self.released_effects
+    }
+    pub fn pending_delivery_count(&self) -> usize {
+        self.queue.len()
+    }
+    pub fn waiting_delivery_count(&self) -> usize {
+        self.queue.waiting_len()
+    }
     pub fn pop_next_delivery(&mut self) -> Option<InternalDeliveryEnvelopeSemantic> {
         self.queue.pop_front()
     }
@@ -3518,7 +3737,10 @@ impl InternalTypedReactionRuntime {
 
         let mut committed_world = self.world.clone();
         committed_world.extend(group.writes.clone());
-        let committed_revision = self.revision.checked_add(1).expect("internal revision overflow");
+        let committed_revision = self
+            .revision
+            .checked_add(1)
+            .expect("internal revision overflow");
         let mut wait_receipts = Vec::new();
         for (index, staged) in group.staged_outbox.iter().cloned().enumerate() {
             if let QueueAdmission::Waiting(receipt) = self.queue.enqueue_or_wait(
@@ -3532,9 +3754,11 @@ impl InternalTypedReactionRuntime {
 
         self.world = committed_world;
         self.revision = committed_revision;
-        self.published_results.extend(group.result_candidates.clone());
+        self.published_results
+            .extend(group.result_candidates.clone());
         self.published_traces.extend(group.trace_candidates.clone());
-        self.published_receipts.extend(group.receipt_candidates.clone());
+        self.published_receipts
+            .extend(group.receipt_candidates.clone());
 
         let mut released_effect_identities = Vec::new();
         let mut external_release_failures = Vec::new();
@@ -3572,7 +3796,8 @@ impl InternalTypedReactionRuntime {
         reached_registration_keys: I,
         envelope: &InternalDeliveryEnvelopeSemantic,
         execution_identity: ExecutionInstanceIdentity,
-        occurrence_semantic_identity: impl Into<String>, release_effect: F,
+        occurrence_semantic_identity: impl Into<String>,
+        release_effect: F,
     ) -> Result<InternalReactionSuccess, InternalReactionFailure>
     where
         F: FnMut(&InternalEffectIntent, &BTreeMap<String, String>, u64) -> Result<(), String>,
@@ -3590,14 +3815,21 @@ impl InternalTypedReactionRuntime {
     }
 }
 
-fn map_internal_occurrence_failure(failure: InternalDeliveryOccurrenceFailure) -> InternalReactionFailure {
+fn map_internal_occurrence_failure(
+    failure: InternalDeliveryOccurrenceFailure,
+) -> InternalReactionFailure {
     match failure {
-        InternalDeliveryOccurrenceFailure::Endpoint(EndpointRouteFailure::Unhandled) =>
-            InternalReactionFailure::RouteUnhandled,
-        InternalDeliveryOccurrenceFailure::Endpoint(EndpointRouteFailure::Ambiguous { count }) =>
-            InternalReactionFailure::RouteAmbiguous { count },
-        InternalDeliveryOccurrenceFailure::Provider(detail) =>
-            InternalReactionFailure::ProviderIdentity { detail: format!("{detail:?}") },
+        InternalDeliveryOccurrenceFailure::Endpoint(EndpointRouteFailure::Unhandled) => {
+            InternalReactionFailure::RouteUnhandled
+        }
+        InternalDeliveryOccurrenceFailure::Endpoint(EndpointRouteFailure::Ambiguous { count }) => {
+            InternalReactionFailure::RouteAmbiguous { count }
+        }
+        InternalDeliveryOccurrenceFailure::Provider(detail) => {
+            InternalReactionFailure::ProviderIdentity {
+                detail: format!("{detail:?}"),
+            }
+        }
     }
 }
 
@@ -3655,7 +3887,9 @@ fn evaluate_internal_program(
     };
     for operation in &program.operations {
         match operation {
-            InternalReactionOperation::Set { key, value } => { candidate.writes.insert(key.clone(), value.clone()); }
+            InternalReactionOperation::Set { key, value } => {
+                candidate.writes.insert(key.clone(), value.clone());
+            }
             InternalReactionOperation::RequireSettledValue { key, expected } => {
                 if settled.get(key) != expected.as_ref() {
                     return Err(InternalReactionFailure::BodyFailure {
@@ -3722,9 +3956,13 @@ fn merge_internal_candidates(
         group.staged_outbox.extend(candidate.staged_outbox);
         group.result_candidates.extend(candidate.result_candidates);
         group.trace_candidates.extend(candidate.trace_candidates);
-        group.receipt_candidates.extend(candidate.receipt_candidates);
+        group
+            .receipt_candidates
+            .extend(candidate.receipt_candidates);
         group.effect_intents.extend(candidate.effect_intents);
-        group.canonical_participants.push(candidate.participant_identity);
+        group
+            .canonical_participants
+            .push(candidate.participant_identity);
     }
     Ok(group)
 }
@@ -3747,18 +3985,31 @@ fn internal_world_digest(world: &BTreeMap<String, String>) -> String {
 fn internal_reaction_group_digest(group: &ReactionGroupCommitCandidate) -> String {
     let mut hasher = blake3::Hasher::new();
     hasher.update(b"ddonirang.internal-reaction-group.candidate");
-    for participant in &group.canonical_participants { internal_hash_text(&mut hasher, participant); }
-    for (key, value) in &group.writes { internal_hash_text(&mut hasher, key); internal_hash_text(&mut hasher, value); }
-    for value in &group.result_candidates { internal_hash_text(&mut hasher, value); }
-    for value in &group.trace_candidates { internal_hash_text(&mut hasher, value); }
-    for value in &group.receipt_candidates { internal_hash_text(&mut hasher, value); }
+    for participant in &group.canonical_participants {
+        internal_hash_text(&mut hasher, participant);
+    }
+    for (key, value) in &group.writes {
+        internal_hash_text(&mut hasher, key);
+        internal_hash_text(&mut hasher, value);
+    }
+    for value in &group.result_candidates {
+        internal_hash_text(&mut hasher, value);
+    }
+    for value in &group.trace_candidates {
+        internal_hash_text(&mut hasher, value);
+    }
+    for value in &group.receipt_candidates {
+        internal_hash_text(&mut hasher, value);
+    }
     for delivery in &group.staged_outbox {
         internal_hash_text(&mut hasher, &delivery.receiver_identity);
         internal_hash_text(&mut hasher, &delivery.message_type);
         internal_hash_text(&mut hasher, &delivery.sender_identity);
         internal_hash_text(&mut hasher, &delivery.payload_identity);
     }
-    for effect in &group.effect_intents { internal_hash_text(&mut hasher, &effect.identity); }
+    for effect in &group.effect_intents {
+        internal_hash_text(&mut hasher, &effect.identity);
+    }
     hasher.finalize().to_hex().to_string()
 }
 
@@ -3802,6 +4053,10 @@ impl Default for InternalDdnRunnerDispatchState {
 pub struct DdnRunner {
     program: DdnProgram,
     update_name: String,
+    named_entry_after_definitions: bool,
+    bogae_activation_requested: bool,
+    bogae_entry: Option<String>,
+    authored_bogae: Option<crate::authored_bogae::Activation>,
     prev_keys_pressed: u64,
     project_asset_registry: Option<Arc<gate0_registry::ProjectAssetRegistry>>,
     work_cost: Rc<RefCell<WorkCostMeter>>,
@@ -3821,7 +4076,10 @@ pub struct StateTransitionRecord {
 }
 
 pub struct DdnRunOutput {
+    pub bogae_projection: Option<serde_json::Value>,
     pub patch: Patch,
+    /// 실제 실행 중 읽은 입력 필드. 세계 상태에는 넣지 않는다.
+    pub input_reads: BTreeSet<String>,
     pub resources: HashMap<String, Value>,
     /// 성공적으로 commit된 현재 마디의 공개 관찰 event.
     ///
@@ -3924,6 +4182,10 @@ impl DdnRunner {
         Self {
             program,
             update_name: update_name.to_string(),
+            named_entry_after_definitions: false,
+            bogae_activation_requested: false,
+            bogae_entry: None,
+            authored_bogae: None,
             prev_keys_pressed: 0,
             project_asset_registry: None,
             work_cost: Rc::new(RefCell::new(WorkCostMeter::default())),
@@ -3936,6 +4198,88 @@ impl DdnRunner {
     /// I1. Historical receive hooks remain migration evidence only.
     pub fn public_provider_source_ingress_count(&self) -> usize {
         0
+    }
+
+    /// Public run frontdoors activate views; low-level constructor evaluation
+    /// remains separate and does not manufacture an activation request.
+    pub fn with_bogae_activation(mut self) -> Self {
+        self.bogae_activation_requested = true;
+        self
+    }
+
+    /// Product frontdoors supply an explicit authored definition, not a name
+    /// heuristic. Value type is checked before commit by projection admission.
+    pub fn configure_bogae_entry(&mut self, name: &str) -> Result<(), String> {
+        if self.authored_bogae.as_ref().is_some_and(|activation| activation.entry_definition() != Some(name)) {
+            return Err("E_AUTHORED_BOGAE_ENTRY: 저장된 시작 정체를 다른 이름으로 덮어쓸 수 없습니다".into());
+        }
+        if !self.program.root_stmts.iter().any(|stmt| matches!(stmt,
+            Stmt::Definition {name:defined,..} if defined == name)) {
+            return Err("E_BOGAE_ENTRY_UNRESOLVED: 명시 보개 시작 정의가 없습니다".into());
+        }
+        self.bogae_entry = Some(name.to_owned());
+        Ok(())
+    }
+
+    /// Only an explicitly authored, sealed project can supply permanent IDs.
+    /// Admission is atomic and never creates an identity while executing.
+    pub fn configure_authored_bogae(&mut self, artifact_json: &str) -> Result<(), String> {
+        let origin = &self.program.program.origin;
+        let activation = crate::authored_bogae::Activation::from_artifact(
+            artifact_json, &origin.source, &origin.file_path)?;
+        let project = crate::authored_project::open(artifact_json.as_bytes())?;
+        let (_, _, project_start) = project.execution_source()?;
+        // Check both independent entry authorities before modifying the runner.
+        // A supplied graph start must not be replaced by a host-chosen function.
+        if let Some(start) = &project_start {
+            let seed = self.program.functions.get(start)
+                .ok_or_else(|| "E_PROJECT_START_DEFINITION: 저장된 시작 정의가 없습니다".to_string())?;
+            if !seed.params.is_empty() || seed.body.is_none() || seed.seed_kind != SeedKind::Umjikssi {
+                return Err("E_PROJECT_START_SIGNATURE: 저장된 시작은 인자 없는 움직씨여야 합니다".into());
+            }
+            if self.named_entry_after_definitions && self.update_name != *start {
+                return Err("E_PROJECT_START_OVERRIDE: 저장된 작품 시작을 덮어쓸 수 없습니다".into());
+            }
+        }
+        if let Some(entry) = activation.entry_definition() {
+            let entry = entry.to_owned();
+            self.configure_bogae_entry(&entry)?;
+        } else if self.bogae_entry.is_some() {
+            return Err("E_AUTHORED_BOGAE_ENTRY: 명시 저장 시작이 없는 자료에 임시 시작을 덧붙일 수 없습니다".into());
+        }
+        if let Some(start) = project_start {
+            self.configure_project_entry(&start)?;
+        }
+        self.authored_bogae = Some(activation);
+        Ok(())
+    }
+
+    /// Formal work startup evaluates authored root definitions before calling
+    /// the explicitly resolved entry. This is not an implicit source wrapper.
+    pub fn with_named_entry_after_definitions(mut self) -> Self {
+        self.named_entry_after_definitions = true;
+        for stmt in &self.program.root_stmts {
+            if let Stmt::Definition { name, .. } = stmt {
+                self.program.top_level_decl_names.insert(name.clone());
+            }
+        }
+        self
+    }
+
+    pub fn configure_project_entry(&mut self, name: &str) -> Result<(), String> {
+        let entry = self.program.functions.get(name)
+            .ok_or_else(|| format!("E_PROJECT_START_DEFINITION: 시작 정의가 없습니다: {name}"))?;
+        if !entry.params.is_empty() || entry.body.is_none() || !matches!(entry.seed_kind, SeedKind::Umjikssi) {
+            return Err("E_PROJECT_START_SIGNATURE: 시작은 인자 없는 실행 가능한 정의여야 합니다".into());
+        }
+        self.update_name = name.to_owned();
+        self.named_entry_after_definitions = true;
+        for stmt in &self.program.root_stmts {
+            if let Stmt::Definition { name, .. } = stmt {
+                self.program.top_level_decl_names.insert(name.clone());
+            }
+        }
+        Ok(())
     }
 
     /// Product-internal typed registry injection for W1-C2 integration
@@ -3962,7 +4306,10 @@ impl DdnRunner {
         self
     }
 
-    pub(crate) fn with_internal_reaction_runtime(mut self, runtime: InternalTypedReactionRuntime) -> Self {
+    pub(crate) fn with_internal_reaction_runtime(
+        mut self,
+        runtime: InternalTypedReactionRuntime,
+    ) -> Self {
         self.internal_dispatch.runtime = runtime;
         self
     }
@@ -3980,7 +4327,10 @@ impl DdnRunner {
     }
 
     pub(crate) fn internal_effect_sink_observations(&self) -> Vec<InternalEffectSinkObservation> {
-        self.internal_dispatch.effect_sink_observations.borrow().clone()
+        self.internal_dispatch
+            .effect_sink_observations
+            .borrow()
+            .clone()
     }
 
     pub(crate) fn internal_provider_registry_len(&self) -> usize {
@@ -4017,7 +4367,7 @@ impl DdnRunner {
 
     pub fn set_result_artifact_bytes(&mut self, bytes: usize) -> Result<(), WorkCostFailure> {
         self.work_cost.borrow_mut().set_result_artifact_bytes(bytes)
-        }
+    }
 
     pub fn set_replay_capsule_bytes(&mut self, bytes: usize) -> Result<(), WorkCostFailure> {
         self.work_cost.borrow_mut().set_replay_capsule_bytes(bytes)
@@ -4053,6 +4403,40 @@ impl DdnRunner {
             .map_err(|err| err.to_string())
     }
 
+    /// Shared logical-profile execution. Physical key/device inputs are absent,
+    /// not back-filled from actions. The caller owns admitted source/binding
+    /// identity; the returned receipt binds the logical snapshot, not a V1 tape.
+    pub fn run_update_logical(
+        &mut self,
+        world: &NuriWorld,
+        binding: &crate::logical_input_tape::LogicalInputBinding,
+        snapshot: &crate::logical_input_tape::LogicalSnapshot,
+        defaults: &HashMap<String, Value>,
+    ) -> Result<(DdnRunOutput, serde_json::Value), String> {
+        let query = crate::logical_input_tape::query(binding, snapshot)?;
+        let input = InputSnapshot {
+            tick_id: snapshot.madi,
+            dt: Fixed64::from_raw_i64(binding.dt_raw),
+            rng_seed: binding.initial_rng,
+            keys_pressed: 0, last_key_name: String::new(),
+            pointer_x_i32: 0, pointer_y_i32: 0,
+            ai_injections: vec![], net_events: vec![],
+            frame_source: ddonirang_core::InputSource::Person,
+        };
+        let update_name = self.update_name.clone();
+        let output = self.run_named_seed_with_input(
+            world, &input, defaults, None, &update_name, false, None, Some(&query),
+        ).map_err(|error| error.to_string())?;
+        let receipt = serde_json::json!({
+            "input_profile": binding.source_profile,
+            "input_binding": binding,
+            "input_snapshot": snapshot,
+            "input_snapshot_sha256": crate::logical_input_tape::snapshot_digest(snapshot)?,
+            "input_reads": output.input_reads,
+        });
+        Ok((output, receipt))
+    }
+
     pub(crate) fn run_update_diagnostic(
         &mut self,
         world: &NuriWorld,
@@ -4061,6 +4445,18 @@ impl DdnRunner {
     ) -> Result<DdnRunOutput, EvalError> {
         let update_name = self.update_name.clone();
         self.run_named_seed(world, input, defaults, None, &update_name, false)
+    }
+
+    pub(crate) fn run_update_diagnostic_with_control_edges(
+        &mut self,
+        world: &NuriWorld,
+        input: &InputSnapshot,
+        defaults: &HashMap<String, Value>,
+        edges: Option<(u64, u64)>,
+        param_overrides: Option<&BTreeMap<String, Value>>,
+    ) -> Result<DdnRunOutput, EvalError> {
+        let update_name = self.update_name.clone();
+        self.run_named_seed_with_control_edges(world, input, defaults, param_overrides, &update_name, false, edges)
     }
 
     pub fn run_update_with_param_overrides(
@@ -4112,6 +4508,34 @@ impl DdnRunner {
         seed_name: &str,
         missing_is_noop: bool,
     ) -> Result<DdnRunOutput, EvalError> {
+        self.run_named_seed_with_control_edges(world, input, defaults, param_overrides, seed_name, missing_is_noop, None)
+    }
+
+    fn run_named_seed_with_control_edges(
+        &mut self,
+        world: &NuriWorld,
+        input: &InputSnapshot,
+        defaults: &HashMap<String, Value>,
+        param_overrides: Option<&BTreeMap<String, Value>>,
+        seed_name: &str,
+        missing_is_noop: bool,
+        control_edges: Option<(u64, u64)>,
+    ) -> Result<DdnRunOutput, EvalError> {
+        self.run_named_seed_with_input(world, input, defaults, param_overrides,
+            seed_name, missing_is_noop, control_edges, None)
+    }
+
+    fn run_named_seed_with_input(
+        &mut self,
+        world: &NuriWorld,
+        input: &InputSnapshot,
+        defaults: &HashMap<String, Value>,
+        param_overrides: Option<&BTreeMap<String, Value>>,
+        seed_name: &str,
+        missing_is_noop: bool,
+        control_edges: Option<(u64, u64)>,
+        logical_input: Option<&ddonirang_core::input::LogicalInputQuery<String>>,
+    ) -> Result<DdnRunOutput, EvalError> {
         verify_stdlib_registry_totality()?;
         self.work_cost
             .borrow_mut()
@@ -4136,11 +4560,66 @@ impl DdnRunner {
             self.async_queue_capacity,
             self.internal_dispatch.clone(),
         );
+        ctx.logical_input = logical_input.cloned();
+        if logical_input.is_none() {
         ctx.resources.insert(
             "입력키".to_string(),
             Value::String(input.last_key_name.clone()),
         );
         seed_keyboard_state_resources(&mut ctx.resources, prev_keys_pressed, input.keys_pressed);
+        }
+        if let Some((pressed, released)) = control_edges {
+            ctx.control_pressed = Some(pressed);
+            for entry in project_keyboard_state(
+                runtime_keys_to_tape_mask(input.keys_pressed),
+                runtime_keys_to_tape_mask(pressed),
+                runtime_keys_to_tape_mask(released),
+            ) {
+                if let SnapshotStateValue::Number(value) = entry.value {
+                    ctx.resources.insert(entry.key, Value::Fixed64(Fixed64::from_i64(value)));
+                }
+            }
+        }
+        let mut root_bogae_projection = None;
+        if !ctx.program.root_stmts.is_empty()
+            && (!self.named_entry_after_definitions || seed_name == self.update_name) {
+            ctx.root_program_active = true;
+            let mut locals = HashMap::new();
+            // V25 canonicalization moves a top-level `채비` block into the
+            // `매마디` seed while leaving lifecycle hooks at the root.  Run
+            // that setup seed first so the root hooks see the same persistent
+            // initial state as the author's source promised.
+            if let Some(setup) = ctx.program.functions.get(seed_name).filter(|_| !self.named_entry_after_definitions) {
+                if let Err(error) = ctx.eval_seed(setup, Vec::new()) {
+                    self.prev_keys_pressed = prev_keys_pressed;
+                    return Err(error);
+                }
+            }
+            for stmt in &ctx.program.root_stmts {
+                let snapshot = ctx.capture_frame_snapshot(&locals);
+                if let Err(error) = ctx.eval_stmt(&mut locals, stmt) {
+                    ctx.restore_frame_snapshot(&mut locals, &snapshot);
+                    self.prev_keys_pressed = prev_keys_pressed;
+                    return Err(error);
+                }
+                if ctx.aborted {
+                    ctx.restore_frame_snapshot_preserving_abort_contract_diag(&mut locals, &snapshot);
+                    self.prev_keys_pressed = prev_keys_pressed;
+                    return Err("E_ROOT_PROGRAM_ABORTED: 실행이 중단되어 결과를 공개하지 않습니다".to_string().into());
+                }
+            }
+            root_bogae_projection = crate::bogae_projection::resolve_selected(
+                &ctx.program.program, &ctx.program.source_identity, &locals, self.bogae_entry.as_deref());
+            if self.named_entry_after_definitions {
+                let entry = ctx.program.functions.get(seed_name).ok_or_else(|| {
+                    EvalError::Message(format!("시작 정의를 찾을 수 없습니다: {seed_name}"))
+                })?;
+                if let Err(error) = ctx.eval_seed(entry, Vec::new()) {
+                    self.prev_keys_pressed = prev_keys_pressed;
+                    return Err(error);
+                }
+            }
+        } else {
         let update = if let Some(update) = ctx.program.functions.get(seed_name) {
             update
         } else if seed_name == "매마디" {
@@ -4149,11 +4628,13 @@ impl DdnRunner {
             })?
         } else if missing_is_noop {
             return Ok(DdnRunOutput {
+                bogae_projection: None,
                 patch: Patch {
                     ops: Vec::new(),
                     origin: Origin::system("ddn"),
                 },
-                resources: ctx.resources,
+                resources: ctx.resources.into_owned(),
+                input_reads: ctx.input_reads.borrow().clone(),
                 public_observations: Vec::new(),
                 state_transitions: Vec::new(),
                 work_cost: self.work_cost.borrow().receipt(),
@@ -4165,19 +4646,45 @@ impl DdnRunner {
             self.prev_keys_pressed = prev_keys_pressed;
             return Err(error);
         }
+        }
+        if logical_input.is_some() && ctx.input_reads.borrow().contains("logical.forbidden_physical") {
+            self.prev_keys_pressed = prev_keys_pressed;
+            return Err("E_LOGICAL_INPUT_PHYSICAL_UNSUPPORTED: 논리 입력 원문은 물리 입력 자원을 읽지 않습니다".to_string().into());
+        }
         ctx.flush_factor_route_metrics_resource();
         ctx.emit_factor_route_summary_diag();
         let patch = Patch {
-            ops: ctx.patch_ops,
+            ops: ctx.patch_ops.into_owned(),
             origin: Origin::system("ddn"),
         };
         let state_transitions = collect_state_transition_records(&patch.ops);
+        let input_reads = ctx.input_reads.borrow().clone();
+        let resources = ctx.resources.into_owned();
+        let bogae_projection = root_bogae_projection.or_else(|| crate::bogae_projection::resolve_selected(
+            &ctx.program.program, &ctx.program.source_identity, &resources, self.bogae_entry.as_deref()));
+        let bogae_projection = if let Some(activation) = &self.authored_bogae {
+            match activation.apply(bogae_projection) {
+                Ok(projection) => projection,
+                Err(error) => {
+                    self.prev_keys_pressed = prev_keys_pressed;
+                    return Err(error.into());
+                }
+            }
+        } else { bogae_projection };
+        if self.bogae_activation_requested {
+            if let Err(error) = crate::bogae_projection::admit_activation(bogae_projection.as_ref()) {
+                self.prev_keys_pressed = prev_keys_pressed;
+                return Err(error.into());
+            }
+        }
         ctx.work_cost.borrow_mut().note_committed_madi()?;
         let work_cost = ctx.work_cost.borrow().receipt();
         self.internal_dispatch = ctx.internal_dispatch.clone();
         Ok(DdnRunOutput {
+            bogae_projection,
             patch,
-            resources: ctx.resources,
+            resources,
+            input_reads,
             public_observations: ctx.public_observations,
             state_transitions,
             work_cost,
@@ -4190,17 +4697,71 @@ impl DdnRunner {
     }
 }
 
+// Entries are immutable once appended. Snapshots share their payloads while
+// retaining independent prefix membership and the existing rollback flow.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct PatchLog(Vec<Arc<PatchOp>>);
+
+impl PatchLog {
+    fn push(&mut self, op: PatchOp) { self.0.push(Arc::new(op)); }
+    fn clear(&mut self) { self.0.clear(); }
+    fn len(&self) -> usize { self.0.len() }
+    fn is_empty(&self) -> bool { self.0.is_empty() }
+    fn iter(&self) -> impl Iterator<Item = &PatchOp> { self.0.iter().map(Arc::as_ref) }
+    fn extend(&mut self, ops: impl IntoIterator<Item = PatchOp>) {
+        self.0.extend(ops.into_iter().map(Arc::new));
+    }
+    fn into_owned(self) -> Vec<PatchOp> {
+        self.0.into_iter().map(|op| Arc::try_unwrap(op).unwrap_or_else(|op| (*op).clone())).collect()
+    }
+}
+
+// Binding payloads are immutable; replacement/removal changes only this map.
+// Snapshots retain the original values without copying growing output lists.
+#[derive(Clone, Debug, Default)]
+struct ResourceBindings(HashMap<String, Arc<Value>>);
+
+impl ResourceBindings {
+    fn get(&self, name: &str) -> Option<&Value> { self.0.get(name).map(Arc::as_ref) }
+    fn contains_key(&self, name: &str) -> bool { self.0.contains_key(name) }
+    fn insert(&mut self, name: String, value: Value) {
+        self.0.insert(name, Arc::new(value));
+    }
+    fn remove(&mut self, name: &str) -> Option<Value> {
+        self.0.remove(name).map(|value| Arc::try_unwrap(value).unwrap_or_else(|value| (*value).clone()))
+    }
+    fn into_owned(self) -> HashMap<String, Value> {
+        self.0.into_iter().map(|(name, value)|
+            (name, Arc::try_unwrap(value).unwrap_or_else(|value| (*value).clone()))).collect()
+    }
+}
+
+impl From<HashMap<String, Value>> for ResourceBindings {
+    fn from(values: HashMap<String, Value>) -> Self {
+        Self(values.into_iter().map(|(name, value)| (name, Arc::new(value))).collect())
+    }
+}
+
 struct EvalContext<'a> {
     program: &'a DdnProgram,
+    // Bound to this immutable program; shared only by its child contexts.
+    source_span_cache: Rc<RefCell<HashMap<(usize, usize), SourceSpan>>>,
     world: &'a NuriWorld,
     defaults: &'a HashMap<String, Value>,
     param_overrides: Option<&'a BTreeMap<String, Value>>,
-    resources: HashMap<String, Value>,
+    resources: ResourceBindings,
     input: InputState,
-    patch_ops: Vec<PatchOp>,
+    logical_input: Option<ddonirang_core::input::LogicalInputQuery<String>>,
+    input_reads: Rc<RefCell<BTreeSet<String>>>,
+    control_pressed: Option<u64>,
+    patch_ops: PatchLog,
     guard_rejected: bool,
     aborted: bool,
     current_seed_name: Option<String>,
+    /// Real callable invocation, distinct from synthetic periodic hook context.
+    active_callable_name: Option<String>,
+    invocation_ordinal: u64,
+    result_place_frames: Vec<CallableResultPlaceFrame>,
     /// Lexical/delivery owner context. Ordinary functions inherit it; top-level
     /// movement seeds do not become an implicit sender identity.
     current_owner_identity: Option<String>,
@@ -4211,15 +4772,28 @@ struct EvalContext<'a> {
     flow_stack: Vec<Option<Value>>,
     tick_id: u64,
     const_scopes: Vec<HashSet<String>>,
+    binding_type_scopes: Vec<HashMap<String, (TypeRef, bool)>>,
     pending_top_level_decl_names: HashSet<String>,
     factor_route_counts: BTreeMap<String, u64>,
     factor_bits_total: u128,
     factor_bits_min: Option<u64>,
     factor_bits_max: u64,
     public_observations: Vec<PublicObservationEvent>,
+    /// Root-program `<-` bindings are ordinary mutable bindings, but they must
+    /// not silently change their runtime value category on a later rebind.
+    root_program_active: bool,
+    root_binding_types: HashMap<String, String>,
     project_asset_registry: Option<&'a gate0_registry::ProjectAssetRegistry>,
     work_cost: Rc<RefCell<WorkCostMeter>>,
     internal_dispatch: InternalDdnRunnerDispatchState,
+}
+
+#[derive(Clone)]
+struct CallableResultPlaceFrame {
+    canonical_name: String,
+    _invocation_identity: String,
+    result_type: Option<TypeRef>,
+    place: ResultPlace<Value>,
 }
 
 #[derive(Clone)]
@@ -4255,21 +4829,108 @@ fn restore_local_binding(locals: &mut HashMap<String, Value>, name: &str, previo
 
 #[derive(Clone)]
 struct EvalFrameSnapshot {
-    locals: HashMap<String, Value>,
-    resources: HashMap<String, Value>,
-    patch_ops: Vec<PatchOp>,
+    locals: Option<HashMap<String, Value>>,
+    resources: ResourceBindings,
+    patch_ops: PatchLog,
     guard_rejected: bool,
     const_scopes: Vec<HashSet<String>>,
+    binding_type_scopes: Vec<HashMap<String, (TypeRef, bool)>>,
     factor_route_counts: BTreeMap<String, u64>,
     factor_bits_total: u128,
     factor_bits_min: Option<u64>,
     factor_bits_max: u64,
     public_observations: Vec<PublicObservationEvent>,
+    root_binding_types: HashMap<String, String>,
+}
+
+// This is an implementation proof of no local writes, not a language purity
+// inference. Calls, thunks, flows and all future expression kinds fall back.
+// A collection/pack allocates values, and a field lookup reads a value; neither
+// can write locals when every evaluated child has the same bounded proof.
+fn expression_preserves_local_bindings(expr: &Expr) -> bool {
+    fn check(expr: &Expr, depth: usize, visits: &mut usize) -> bool {
+        // This optimization must not walk a skipped deep subtree without a
+        // bound. Beyond this CPU-only budget, retain the original snapshot.
+        if depth == 0 || *visits == 0 { return false; }
+        *visits -= 1;
+        match &expr.kind {
+            ExprKind::Literal(Literal::Int(_) | Literal::Fixed64(_) | Literal::Bool(_)
+                | Literal::String(_) | Literal::Atom(_) | Literal::None)
+            | ExprKind::Var(_) => true,
+            ExprKind::Infix { left, right, .. } => {
+                check(left, depth - 1, visits) && check(right, depth - 1, visits)
+            }
+            ExprKind::FieldAccess { target, .. } => check(target, depth - 1, visits),
+            ExprKind::CollectionConstructor { elements } => elements.iter()
+                .all(|element| check(element, depth - 1, visits)),
+            ExprKind::Pack { fields } => fields.iter()
+                .all(|(_, value)| check(value, depth - 1, visits)),
+            _ => false,
+        }
+    }
+    check(expr, 32, &mut 128)
+}
+
+// Body snapshots restore a successful statement only when an abort contract
+// fired. These bounded, call-free statements cannot evaluate a contract. An
+// ordinary error still follows the existing outer candidate rejection path.
+// Calls, indexed writes, deferred writes and all compound/future statements
+// retain their full rollback snapshot. This does not infer language purity.
+fn statement_cannot_abort(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Definition {value,..} | Stmt::Expr {expr:value,..}
+            | Stmt::Return {value,..} => expression_preserves_local_bindings(value),
+        Stmt::Mutate {target,value,deferred:false,..} =>
+            matches!(&target.kind,ExprKind::Var(_)) && expression_preserves_local_bindings(value),
+        _ => false,
+    }
+}
+
+fn root_binding_type_key(value: &Value) -> String {
+    match value {
+        // Integer-valued and fractional Fixed64 values are one current numeric
+        // category; `value_type_name` deliberately distinguishes their display
+        // labels, which is not a rebinding-type distinction.
+        Value::Fixed64(_) => "수".to_string(),
+        Value::Unit(unit) if unit.is_dimensionless() => "수".to_string(),
+        Value::Unit(unit) => format!("수@{}", unit.dim.format()),
+        _ => value_type_name(value),
+    }
+}
+
+fn inferred_binding_type(value: &Value) -> TypeRef {
+    // Reuse only types already understood by the runtime checker. None has
+    // no inferred payload type; its policy remains a separate decision.
+    if matches!(value, Value::None) {
+        return TypeRef::Infer;
+    }
+    let candidate = TypeRef::Named(root_binding_type_key(value));
+    if check_value_type(value, &candidate).is_ok() {
+        candidate
+    } else {
+        TypeRef::Infer
+    }
+}
+
+fn checked_optional_map_get(map: &BTreeMap<String, MapEntry>, key: &Value) -> Result<Value, EvalError> {
+    match map.get(&map_key_canon(key)) {
+        Some(entry) if matches!(entry.value, Value::None) => Err(
+            "E_RUNTIME_NESTED_OPTIONAL_UNSUPPORTED: 저장된 없음과 없는 열쇠를 구별하는 선택값은 아직 지원하지 않습니다".to_string().into(),
+        ),
+        Some(entry) => Ok(entry.value.clone()),
+        None => Ok(Value::None),
+    }
 }
 
 #[derive(Debug)]
 pub(crate) enum EvalError {
     Message(String),
+    SourceLocated {
+        error: Box<EvalError>,
+        span: (usize, usize),
+        line: u32,
+        column: u32,
+    },
     TypeMismatch {
         pin: String,
         expected: String,
@@ -4285,6 +4946,7 @@ pub(crate) enum EvalError {
         left: UnitDim,
         right: UnitDim,
     },
+    ArithmeticFault(ArithmeticFaultKind),
     DivisionByZero,
     FieldAccess {
         code: &'static str,
@@ -4330,6 +4992,9 @@ impl EvalError {
     fn message(&self) -> String {
         match self {
             EvalError::Message(message) => message.clone(),
+            EvalError::SourceLocated { error, line, column, .. } => {
+                format!("{} ({line}:{column})", error.message())
+            }
             EvalError::TypeMismatch {
                 pin,
                 expected,
@@ -4347,6 +5012,15 @@ impl EvalError {
                 )
             }
             EvalError::DivisionByZero => "0으로 나눌 수 없습니다".to_string(),
+            EvalError::ArithmeticFault(ArithmeticFaultKind::Overflow) => {
+                "Fixed64 계산 범위를 벗어났습니다".to_string()
+            }
+            EvalError::ArithmeticFault(ArithmeticFaultKind::DivByZero) => {
+                "0으로 나눌 수 없습니다".to_string()
+            }
+            EvalError::ArithmeticFault(ArithmeticFaultKind::DimensionMismatch { left, right }) => {
+                format!("단위 차원이 다릅니다: {} vs {}", left.format(), right.format())
+            }
             EvalError::FieldAccess { code, message, .. } => format!("{code}: {message}"),
             EvalError::WorkCost(failure) => {
                 let receipt = serde_json::to_string(&failure.receipt)
@@ -4358,11 +5032,15 @@ impl EvalError {
 
     pub(crate) fn diagnostic_parts(&self) -> (&'static str, String, Option<(usize, usize)>) {
         match self {
-            EvalError::TypeMismatch { .. } => {
-                ("E_RUNTIME_TYPE_MISMATCH", self.message(), None)
+            EvalError::SourceLocated { error, span, .. } => {
+                (error.diagnostic_parts().0, self.message(), Some(*span))
             }
+            EvalError::TypeMismatch { .. } => ("E_RUNTIME_TYPE_MISMATCH", self.message(), None),
             EvalError::AsyncCandidate {
-                code, message, span, ..
+                code,
+                message,
+                span,
+                ..
             } => (*code, message.clone(), Some(*span)),
             EvalError::FieldAccess {
                 code,
@@ -4370,12 +5048,16 @@ impl EvalError {
                 span,
             } => (*code, message.clone(), Some(*span)),
             EvalError::WorkCost(failure) => (failure.code, self.message(), None),
+            EvalError::ArithmeticFault(ArithmeticFaultKind::Overflow) => {
+                ("E_RUNTIME_ARITH_OVERFLOW", self.message(), None)
+            }
             _ => ("E_RUNTIME_EXECUTION", self.message(), None),
         }
     }
 
     pub(crate) fn diagnostic_phase(&self) -> &'static str {
         match self {
+            EvalError::SourceLocated { error, .. } => error.diagnostic_phase(),
             EvalError::AsyncCandidate { phase, .. } => phase,
             _ => "runtime_execution",
         }
@@ -4405,7 +5087,14 @@ impl From<UnitError> for EvalError {
         match err {
             UnitError::DimensionMismatch { left, right } => EvalError::UnitMismatch { left, right },
             UnitError::DivisionByZero => EvalError::DivisionByZero,
+            UnitError::Overflow => EvalError::ArithmeticFault(ArithmeticFaultKind::Overflow),
         }
+    }
+}
+
+impl From<ArithmeticFaultKind> for EvalError {
+    fn from(kind: ArithmeticFaultKind) -> Self {
+        Self::ArithmeticFault(kind)
     }
 }
 
@@ -4456,15 +5145,22 @@ impl<'a> EvalContext<'a> {
     ) -> Self {
         Self {
             program,
+            source_span_cache: Rc::new(RefCell::new(HashMap::new())),
             world,
             defaults,
             param_overrides,
-            resources: HashMap::new(),
+            resources: ResourceBindings::default(),
             input,
-            patch_ops: Vec::new(),
+            logical_input: None,
+            input_reads: Rc::new(RefCell::new(BTreeSet::new())),
+            control_pressed: None,
+            patch_ops: PatchLog::default(),
             guard_rejected: false,
             aborted: false,
             current_seed_name: None,
+            active_callable_name: None,
+            invocation_ordinal: 0,
+            result_place_frames: Vec::new(),
             current_owner_identity: None,
             pending_async_signals: LogicalAsyncQueue::with_capacity(async_queue_capacity),
             async_outbox: StagedDeliveryOutbox::default(),
@@ -4473,12 +5169,15 @@ impl<'a> EvalContext<'a> {
             flow_stack: Vec::new(),
             tick_id,
             const_scopes: Vec::new(),
+            binding_type_scopes: vec![HashMap::new()],
             pending_top_level_decl_names: program.top_level_decl_names.clone(),
             factor_route_counts: BTreeMap::new(),
             factor_bits_total: 0,
             factor_bits_min: None,
             factor_bits_max: 0,
             public_observations: Vec::new(),
+            root_program_active: false,
+            root_binding_types: HashMap::new(),
             project_asset_registry,
             work_cost,
             internal_dispatch,
@@ -4494,10 +5193,35 @@ impl<'a> EvalContext<'a> {
 
     fn enter_const_scope(&mut self) {
         self.const_scopes.push(HashSet::new());
+        self.binding_type_scopes.push(HashMap::new());
     }
 
     fn exit_const_scope(&mut self) {
         self.const_scopes.pop();
+        self.binding_type_scopes.pop();
+    }
+
+    fn declare_binding_type(&mut self, name: &str, type_ref: &TypeRef) {
+        self.binding_type_scopes
+            .last_mut()
+            .expect("root binding scope")
+            .insert(name.to_string(), (type_ref.clone(), false));
+    }
+
+    fn check_binding_type(&self, name: &str, value: &Value) -> Result<(), EvalError> {
+        // A call may see its own locals and persistent root resources, never a
+        // caller's local type just because the spelling is the same.
+        let binding_type = self.binding_type_scopes.last().and_then(|scope| scope.get(name))
+            .or_else(|| self.binding_type_scopes.first().and_then(|scope| scope.get(name)));
+        if let Some((type_ref, optional)) = binding_type {
+            if *optional && matches!(value, Value::None) {
+                return Ok(());
+            }
+            if let Err(detail) = check_value_type(value, type_ref) {
+                return Err(type_mismatch_error(name, &detail.expected, &detail.actual));
+            }
+        }
+        Ok(())
     }
 
     fn declare_const(&mut self, name: &str) {
@@ -4527,15 +5251,43 @@ impl<'a> EvalContext<'a> {
         args: Vec<Value>,
     ) -> Result<Value, EvalError> {
         let prev_seed = self.current_seed_name.clone();
+        let prev_callable = self.active_callable_name.clone();
         let prev_owner = self.current_owner_identity.clone();
+        let frame_depth = self.result_place_frames.len();
+        let resultful =
+            seed.result_type.is_some() || matches!(seed.seed_kind, SeedKind::ValueFunc);
+        if resultful {
+            self.invocation_ordinal = self
+                .invocation_ordinal
+                .checked_add(1)
+                .ok_or_else(|| EvalError::Message("E_INVOCATION_IDENTITY_OVERFLOW".to_string()))?;
+            let mut hasher = blake3::Hasher::new();
+            hasher.update(b"ddonirang.resultplace.invocation.v1");
+            internal_hash_text(&mut hasher, &seed.canonical_name);
+            hasher.update(&seed.id.to_le_bytes());
+            hasher.update(&self.invocation_ordinal.to_le_bytes());
+            self.result_place_frames.push(CallableResultPlaceFrame {
+                canonical_name: seed.canonical_name.clone(),
+                _invocation_identity: hasher.finalize().to_hex().to_string(),
+                result_type: seed.result_type.clone(),
+                place: ResultPlace::new(),
+            });
+        }
         self.current_seed_name = Some(seed.canonical_name.clone());
+        self.active_callable_name = Some(seed.canonical_name.clone());
         if matches!(&seed.seed_kind, SeedKind::Named(kind) if kind == "임자") {
             self.current_owner_identity = Some(seed.canonical_name.clone());
         }
         self.enter_const_scope();
         let result = (|| {
             if self.aborted {
-                return Ok(Value::None);
+                return if resultful {
+                    Err("E_RESULTPLACE_ABORTED: 중단된 결과 호출은 성공 결과를 게시할 수 없습니다"
+                        .to_string()
+                        .into())
+                } else {
+                    Ok(Value::None)
+                };
             }
             let mut locals = HashMap::new();
             if seed.params.len() != args.len() {
@@ -4549,10 +5301,21 @@ impl<'a> EvalContext<'a> {
             }
             for (param, arg) in seed.params.iter().zip(args) {
                 self.check_param_type(param, &arg)?;
+                self.binding_type_scopes.last_mut().unwrap().insert(
+                    param.pin_name.clone(), (param.type_ref.clone(), param.optional),
+                );
                 locals.insert(param.pin_name.clone(), arg);
             }
             let Some(body) = &seed.body else {
-                return Ok(Value::None);
+                return if resultful {
+                    Err(format!(
+                        "E_RESULTPLACE_UNASSIGNED: 결과 호출 '{}'의 본문이 없습니다",
+                        seed.canonical_name
+                    )
+                    .into())
+                } else {
+                    Ok(Value::None)
+                };
             };
             let out = self.eval_body(&mut locals, body)?;
             let out_value = match out {
@@ -4569,16 +5332,86 @@ impl<'a> EvalContext<'a> {
                         .into())
                 }
             };
-            if matches!(seed.seed_kind, SeedKind::Umjikssi) {
+            if resultful {
+                if self.aborted || self.guard_rejected {
+                    return Err("E_RESULTPLACE_ABORTED: 중단된 호출은 성공 결과를 게시할 수 없습니다"
+                        .to_string()
+                        .into());
+                }
+                if let Some(value) = out_value {
+                    self.assign_current_result_place(value)?;
+                }
+                self.result_place_frames
+                    .last()
+                    .and_then(|frame| frame.place.value())
+                    .cloned()
+                    .ok_or_else(|| {
+                        format!(
+                            "E_RESULTPLACE_UNASSIGNED: 결과 호출 '{}'의 결과 자리가 배정되지 않았습니다",
+                            seed.canonical_name
+                        )
+                        .into()
+                    })
+            } else if matches!(seed.seed_kind, SeedKind::Umjikssi) {
                 Ok(Value::None)
             } else {
-                Ok(out_value.unwrap_or(Value::None))
+                let value = out_value.unwrap_or(Value::None);
+                if let Some(result_type) = &seed.result_type {
+                    if let Err(detail) = check_value_type(&value, result_type) {
+                        return Err(type_mismatch_error(
+                            &format!("{} 결과", seed.canonical_name),
+                            &detail.expected,
+                            &detail.actual,
+                        ));
+                    }
+                }
+                Ok(value)
             }
         })();
+        self.result_place_frames.truncate(frame_depth);
         self.exit_const_scope();
         self.current_seed_name = prev_seed;
+        self.active_callable_name = prev_callable;
         self.current_owner_identity = prev_owner;
         result
+    }
+
+    fn owns_pure_local_bindings(&self) -> bool {
+        if self.program.program.source_epoch != ddonirang_lang::SourceEpoch::V25 {
+            return false;
+        }
+        self.active_callable_name.as_ref()
+            .filter(|name| self.current_seed_name.as_ref() == Some(*name))
+            .and_then(|name| self.program.functions.get(name))
+            .is_some_and(|seed| matches!(seed.seed_kind, SeedKind::Semssi | SeedKind::ValueFunc))
+    }
+
+    fn assign_current_result_place(&mut self, value: Value) -> Result<(), EvalError> {
+        let current_name = self
+            .current_seed_name
+            .as_deref()
+            .ok_or_else(|| EvalError::Message("E_RESULTPLACE_ABSENT".to_string()))?;
+        let frame = self
+            .result_place_frames
+            .last_mut()
+            .filter(|frame| frame.canonical_name == current_name)
+            .ok_or_else(|| {
+                EvalError::Message(
+                    "E_RESULTPLACE_CAPTURE_FORBIDDEN: 바깥 호출의 결과 자리를 쓸 수 없습니다"
+                        .to_string(),
+                )
+            })?;
+        if let Some(result_type) = &frame.result_type {
+            if let Err(detail) = check_value_type(&value, result_type) {
+                return Err(type_mismatch_error(
+                    &format!("{} 결과", frame.canonical_name),
+                    &detail.expected,
+                    &detail.actual,
+                ));
+            }
+        }
+        frame.place.assign_sequential(value);
+        Ok(())
     }
 
     fn check_param_type(&self, param: &ParamPin, value: &Value) -> Result<(), EvalError> {
@@ -4605,6 +5438,31 @@ impl<'a> EvalContext<'a> {
         }
     }
 
+    /// The runner evaluates a root program once per committed madi.  A periodic
+    /// hook therefore selects whether its body participates in this madi; it is
+    /// not a declaration to be silently discarded by the generic statement
+    /// evaluator.  Start is the initial committed madi, while End remains
+    /// unavailable here because this entry point has no finish lifecycle.
+    fn periodic_hook_is_due(&self, kind: ddonirang_lang::HookKind) -> Result<bool, EvalError> {
+        match kind {
+            ddonirang_lang::HookKind::Start => Ok(self.tick_id == 0),
+            ddonirang_lang::HookKind::EveryMadi => Ok(true),
+            ddonirang_lang::HookKind::EveryNMadi(interval) if interval > 0 => {
+                Ok(self.tick_id % interval == 0)
+            }
+            ddonirang_lang::HookKind::EveryNMadi(_) => Err(
+                "E_RUNTIME_HOOK_INTERVAL: 마디 간격은 0보다 커야 합니다"
+                    .to_string()
+                    .into(),
+            ),
+            ddonirang_lang::HookKind::End => Err(
+                "E_RUNTIME_UNSUPPORTED_STMT: 현재 ddonirang-tool 실행기에서는 끝 훅을 지원하지 않습니다"
+                    .to_string()
+                    .into(),
+            ),
+        }
+    }
+
     fn eval_body(
         &mut self,
         locals: &mut HashMap<String, Value>,
@@ -4619,12 +5477,15 @@ impl<'a> EvalContext<'a> {
             }
             let _registry_key = stmt_registry_key(stmt);
             self.work_cost.borrow_mut().charge_dispatch()?;
-            let snapshot = self.capture_frame_snapshot(locals);
+            let snapshot = (!statement_cannot_abort(stmt)).then(|| self.capture_frame_snapshot(locals));
             match self.eval_stmt(locals, stmt)? {
                 FlowControl::Continue => {}
                 other => return Ok(other),
             }
             if self.aborted {
+                let Some(snapshot)=snapshot else {
+                    return Err("E_RUNTIME_ABORT_PROOF: 중단 복원 경로를 증명할 수 없습니다".to_string().into());
+                };
                 self.restore_frame_snapshot_preserving_abort_contract_diag(locals, &snapshot);
                 return Ok(FlowControl::Continue);
             }
@@ -4663,7 +5524,7 @@ impl<'a> EvalContext<'a> {
             }
             let _registry_key = stmt_registry_key(stmt);
             self.work_cost.borrow_mut().charge_dispatch()?;
-            let snapshot = self.capture_frame_snapshot(locals);
+            let snapshot = (!statement_cannot_abort(stmt)).then(|| self.capture_frame_snapshot(locals));
             match self.eval_stmt_for_value(locals, stmt)? {
                 ThunkResult::Return(v) => return Ok(ThunkResult::Return(v)),
                 ThunkResult::ContinueLoop(span) => return Ok(ThunkResult::ContinueLoop(span)),
@@ -4671,6 +5532,9 @@ impl<'a> EvalContext<'a> {
                 ThunkResult::Value(v) => last = v,
             }
             if self.aborted {
+                let Some(snapshot)=snapshot else {
+                    return Err("E_RUNTIME_ABORT_PROOF: 중단 복원 경로를 증명할 수 없습니다".to_string().into());
+                };
                 self.restore_frame_snapshot_preserving_abort_contract_diag(locals, &snapshot);
                 return Ok(ThunkResult::Value(Value::None));
             }
@@ -4693,7 +5557,7 @@ impl<'a> EvalContext<'a> {
                 FlowControl::ContinueLoop(span) => Ok(ThunkResult::ContinueLoop(span)),
                 FlowControl::Break(span) => Ok(ThunkResult::Break(span)),
             },
-            Stmt::Mutate { .. } => match self.eval_stmt(locals, stmt)? {
+            Stmt::Mutate { .. } | Stmt::ResultFlow { .. } => match self.eval_stmt(locals, stmt)? {
                 FlowControl::Continue => Ok(ThunkResult::Value(Value::None)),
                 FlowControl::Return(value) => Ok(ThunkResult::Return(value)),
                 FlowControl::ContinueLoop(span) => Ok(ThunkResult::ContinueLoop(span)),
@@ -4764,6 +5628,9 @@ impl<'a> EvalContext<'a> {
             }
             Stmt::Repeat { body, .. } => {
                 loop {
+                    if self.aborted {
+                        break;
+                    }
                     match self.eval_body_for_value_inner(locals, body)? {
                         ThunkResult::Value(_) => {}
                         ThunkResult::Return(value) => return Ok(ThunkResult::Return(value)),
@@ -4777,6 +5644,9 @@ impl<'a> EvalContext<'a> {
                 condition, body, ..
             } => {
                 loop {
+                    if self.aborted {
+                        break;
+                    }
                     let cond = self.eval_expr(locals, condition)?;
                     if !is_truthy(&cond)? {
                         break;
@@ -4811,14 +5681,23 @@ impl<'a> EvalContext<'a> {
                     }
                 };
                 let previous = locals.get(item).cloned();
+                let previous_types = self.binding_type_scopes.last().unwrap().clone();
+                let previous_root_type = self.root_binding_types.remove(item);
+                self.declare_binding_type(item, &TypeRef::Infer);
                 let outcome = (|| -> Result<ThunkResult, EvalError> {
                     for value in items {
                         if self.aborted {
                             break;
                         }
                         self.work_cost.borrow_mut().charge_element_visits(1)?;
+                        self.root_binding_types.remove(item);
+                        self.declare_binding_type(item, &inferred_binding_type(&value));
                         locals.insert(item.clone(), value);
-                        match self.eval_body_for_value_inner(locals, body)? {
+                        let iteration_locals = locals.keys().cloned().collect::<HashSet<_>>();
+                        let step = self.eval_body_for_value_inner(locals, body);
+                        locals.retain(|name, _| iteration_locals.contains(name));
+                        self.binding_type_scopes.last_mut().unwrap().retain(|name, _| iteration_locals.contains(name));
+                        match step? {
                             ThunkResult::Value(_) => {}
                             ThunkResult::Return(value) => {
                                 return Ok(ThunkResult::Return(value));
@@ -4833,10 +5712,21 @@ impl<'a> EvalContext<'a> {
                     Ok(ThunkResult::Value(Value::None))
                 })();
                 restore_local_binding(locals, item, previous);
+                *self.binding_type_scopes.last_mut().unwrap() = previous_types;
+                self.root_binding_types.remove(item);
+                if let Some(previous) = previous_root_type {
+                    self.root_binding_types.insert(item.clone(), previous);
+                }
                 outcome
             }
+            Stmt::Hook { kind, body, .. } => {
+                if self.periodic_hook_is_due(*kind)? {
+                    self.eval_body_for_value_inner(locals, body)
+                } else {
+                    Ok(ThunkResult::Value(Value::None))
+                }
+            }
             Stmt::BeatBlock { .. }
-            | Stmt::Hook { .. }
             | Stmt::HookWhenBecomes { .. }
             | Stmt::HookWhile { .. } => Err(
                 "E_RUNTIME_UNSUPPORTED_STMT: 현재 ddonirang-tool 실행기에서는 박자/훅 문장을 지원하지 않습니다"
@@ -4978,29 +5868,6 @@ impl<'a> EvalContext<'a> {
                     let value = if let Some(expr) = &item.value {
                         match self.eval_expr(locals, expr) {
                             Ok(val) => val,
-                            Err(EvalError::UnitMismatch { left, right }) => {
-                                let trace = Some(self.arith_trace(expr, "arith:UNIT_MISMATCH"));
-                                let source_span = self.source_span_for_expr(expr);
-                                self.emit_unit_mismatch(
-                                    left,
-                                    right,
-                                    Some(format!("var:{}", item.name)),
-                                    source_span,
-                                    trace,
-                                );
-                                continue;
-                            }
-                            Err(EvalError::DivisionByZero) => {
-                                let trace = Some(self.arith_trace(expr, "arith:DIV0"));
-                                let source_span = self.source_span_for_expr(expr);
-                                self.emit_arith_fault(
-                                    ArithmeticFaultKind::DivByZero,
-                                    Some(format!("var:{}", item.name)),
-                                    source_span,
-                                    trace,
-                                );
-                                continue;
-                            }
                             Err(err) => return Err(err),
                         }
                     } else if matches!(item.kind, ddonirang_lang::DeclKind::Butbak) {
@@ -5030,6 +5897,13 @@ impl<'a> EvalContext<'a> {
                     } else {
                         value
                     };
+                    let binding_type = if matches!(item.type_ref, TypeRef::Infer) {
+                        inferred_binding_type(&value)
+                    } else { item.type_ref.clone() };
+                    self.declare_binding_type(&item.name, &binding_type);
+                    if is_top_level_decl {
+                        self.binding_type_scopes[0].insert(item.name.clone(), (binding_type, false));
+                    }
                     locals.insert(item.name.clone(), value);
                     if item.value.is_some() && !resource_exists {
                         let initial = locals
@@ -5062,53 +5936,202 @@ impl<'a> EvalContext<'a> {
                     )
                     .into());
                 }
+                // The V25 public frontdoor admits `:=` for first bindings in
+                // a top-level `채비` block.  That surface reaches this AST
+                // variant (rather than `DeclBlock`), but it has the same
+                // persistent-state obligation: a later hook must see the
+                // initialized resource on this and following madis.
+                let is_top_level_decl = self.pending_top_level_decl_names.remove(name);
+                let resource_exists = if is_top_level_decl {
+                    self.committed_resource_exists(name)
+                } else {
+                    self.resource_exists(name)
+                };
                 let evaluated = self.eval_expr(locals, value)?;
+                if self.aborted {
+                    return Ok(FlowControl::Continue);
+                }
                 if let Err(detail) = check_value_type(&evaluated, type_ref) {
                     return Err(type_mismatch_error(name, &detail.expected, &detail.actual));
                 }
+                let evaluated = if is_top_level_decl && !resource_exists {
+                    self.param_overrides
+                        .and_then(|overrides| overrides.get(name))
+                        .cloned()
+                        .unwrap_or(evaluated)
+                } else if is_top_level_decl && resource_exists {
+                    self.get_resource(name).unwrap_or(evaluated)
+                } else {
+                    evaluated
+                };
+                if let Err(detail) = check_value_type(&evaluated, type_ref) {
+                    return Err(type_mismatch_error(name, &detail.expected, &detail.actual));
+                }
+                let binding_type = if matches!(type_ref, TypeRef::Infer) {
+                    inferred_binding_type(&evaluated)
+                } else { type_ref.clone() };
+                self.declare_binding_type(name, &binding_type);
+                if is_top_level_decl {
+                    self.binding_type_scopes[0].insert(name.clone(), (binding_type, false));
+                }
                 locals.insert(name.clone(), evaluated);
+                if is_top_level_decl && !resource_exists {
+                    let initial = locals.get(name).cloned().unwrap_or(Value::None);
+                    if !matches!(initial, Value::None) {
+                        self.set_resource(name, initial)?;
+                    }
+                }
                 Ok(FlowControl::Continue)
             }
             Stmt::Mutate { target, value, .. } => {
                 if self.guard_rejected {
                     return Ok(FlowControl::Continue);
                 }
-                let ExprKind::Var(target_name) = &target.kind else {
-                    return Err("대입 대상은 변수만 지원합니다".to_string().into());
+                let mut selection_indices = Vec::new();
+                let mut root = target;
+                let target_name = loop {
+                    match &root.kind {
+                        ExprKind::Var(name) => break name,
+                        ExprKind::SelectionPlace { target, index } => {
+                            selection_indices.push(index.as_ref());
+                            root = target;
+                        }
+                        ExprKind::Call { func, args } if func == "차림.값" && args.len() == 2 => {
+                            selection_indices.push(&args[1].expr);
+                            root = &args[0].expr;
+                        }
+                        _ => return Err("대입 대상은 이름에서 시작하는 선택 위치여야 합니다".to_string().into()),
+                    }
                 };
+                selection_indices.reverse();
                 if self.is_const(target_name) {
                     return Err(format!("붙박이는 재대입할 수 없습니다: {}", target_name).into());
                 }
-                let assignment_snapshot = self.capture_frame_snapshot(locals);
-                let val = match self.eval_expr(locals, value) {
+                // A simple-name assignment in a pure callable publishes its local
+                // only after all fallible checks. These RHS kinds cannot write
+                // locals, so rollback needs metadata but not a deep local copy.
+                let keep_locals = !(self.owns_pure_local_bindings()
+                    && selection_indices.is_empty()
+                    && expression_preserves_local_bindings(value));
+                let assignment_snapshot = self.capture_frame_snapshot_with_locals(locals, keep_locals);
+                let evaluated_value = if !selection_indices.is_empty() {
+                    // Keep all selection evaluation inside the assignment result so every
+                    // error flows through the snapshot restore below.
+                    (|| {
+                        let mut collection = self.eval_expr(locals, &Expr::new(
+                            target.id,
+                            target.span,
+                            ExprKind::Var(target_name.clone()),
+                        ))?;
+                        let mut parents = Vec::new();
+                        let last = selection_indices.len() - 1;
+                        for index_expr in &selection_indices[..last] {
+                            let index = self.eval_expr(locals, index_expr)?;
+                            let child = self.eval_call(locals, "차림.값",
+                                vec![collection.clone(), index.clone()], self.source_span_for_expr(target))?;
+                            parents.push((collection, index));
+                            collection = child;
+                        }
+                        let index = self.eval_expr(locals, selection_indices[last])?;
+                        let replacement = self.eval_expr(locals, value)?;
+                        let mut updated = self.eval_call(
+                            locals,
+                            "차림.바꾼값",
+                            vec![collection, index, replacement],
+                            self.source_span_for_expr(target),
+                        )?;
+                        // Rebuild immutable parents; publish only the final root.
+                        for (parent, index) in parents.into_iter().rev() {
+                            updated = self.eval_call(locals, "차림.바꾼값",
+                                vec![parent, index, updated], self.source_span_for_expr(target))?;
+                        }
+                        Ok(updated)
+                    })()
+                } else {
+                    self.eval_expr(locals, value)
+                };
+                if self.aborted {
+                    return Ok(FlowControl::Continue);
+                }
+                let val = match evaluated_value {
                     Ok(val) => val,
-                    Err(EvalError::UnitMismatch { left, right }) => {
-                        self.restore_frame_snapshot(locals, &assignment_snapshot);
-                        let target_label = Some(format!("var:{}", target_name));
-                        let trace = Some(self.arith_trace(value, "arith:UNIT_MISMATCH"));
-                        let source_span = self.source_span_for_expr(value);
-                        self.emit_unit_mismatch(left, right, target_label, source_span, trace);
-                        return Ok(FlowControl::Continue);
-                    }
-                    Err(EvalError::DivisionByZero) => {
-                        self.restore_frame_snapshot(locals, &assignment_snapshot);
-                        let target_label = Some(format!("var:{}", target_name));
-                        let trace = Some(self.arith_trace(value, "arith:DIV0"));
-                        let source_span = self.source_span_for_expr(value);
-                        self.emit_arith_fault(
-                            ArithmeticFaultKind::DivByZero,
-                            target_label,
-                            source_span,
-                            trace,
-                        );
-                        return Ok(FlowControl::Continue);
-                    }
                     Err(err) => {
                         self.restore_frame_snapshot(locals, &assignment_snapshot);
                         return Err(err);
                     }
                 };
-                if locals.contains_key(target_name) {
+                if selection_indices.is_empty()
+                    && self
+                        .result_place_frames
+                        .iter()
+                        .any(|frame| frame.canonical_name == *target_name)
+                {
+                    if self.current_seed_name.as_deref() != Some(target_name.as_str()) {
+                        self.restore_frame_snapshot(locals, &assignment_snapshot);
+                        return Err(
+                            "E_RESULTPLACE_CAPTURE_FORBIDDEN: 바깥 호출의 결과 자리를 쓸 수 없습니다"
+                                .to_string()
+                                .into(),
+                        );
+                    }
+                    if let Err(error) = self.assign_current_result_place(val) {
+                        self.restore_frame_snapshot(locals, &assignment_snapshot);
+                        return Err(error);
+                    }
+                    return Ok(FlowControl::Continue);
+                }
+                if selection_indices.is_empty()
+                    && self.current_seed_name.as_deref() == Some(target_name.as_str())
+                {
+                    self.restore_frame_snapshot(locals, &assignment_snapshot);
+                    return Err(
+                        "E_RESULTPLACE_ABSENT: 결과씨 없는 호출에는 결과 자리가 없습니다"
+                            .to_string()
+                            .into(),
+                    );
+                }
+                // Pure named callables own their ordinary bindings. A local
+                // pin/temp with the same spelling as a world resource must not
+                // acquire a world write merely because that resource exists.
+                let pure_local = self.owns_pure_local_bindings();
+                if pure_local && !self.binding_type_scopes.last().unwrap().contains_key(target_name) {
+                    self.declare_binding_type(target_name, &inferred_binding_type(&val));
+                }
+                if let Err(error) = self.check_binding_type(target_name, &val) {
+                    self.restore_frame_snapshot(locals, &assignment_snapshot);
+                    if self.root_program_active && self.current_seed_name.is_none() {
+                        if let Some(expected) = self.root_binding_types.get(target_name) {
+                            return Err(format!(
+                                "E_ROOT_BINDING_TYPE_MISMATCH: '{}'의 재결속 값 형식이 다릅니다 (기대: {}, 실제: {})",
+                                target_name, expected, root_binding_type_key(&val)
+                            ).into());
+                        }
+                    }
+                    return Err(error);
+                }
+                if self.root_program_active && self.current_seed_name.is_none() {
+                    let actual = root_binding_type_key(&val);
+                    if let Some(expected) = self.root_binding_types.get(target_name).cloned() {
+                        if expected != actual {
+                            self.restore_frame_snapshot(locals, &assignment_snapshot);
+                            return Err(format!(
+                                "E_ROOT_BINDING_TYPE_MISMATCH: '{}'의 재결속 값 형식이 다릅니다 (기대: {}, 실제: {})",
+                                target_name, expected, actual
+                            )
+                            .into());
+                        }
+                    } else {
+                        self.root_binding_types.insert(target_name.clone(), actual);
+                    }
+                }
+                if !self.binding_type_scopes.last().unwrap().contains_key(target_name)
+                    && !self.binding_type_scopes.first().unwrap().contains_key(target_name)
+                {
+                    self.declare_binding_type(target_name, &inferred_binding_type(&val));
+                }
+                if pure_local {
+                    locals.insert(target_name.clone(), val);
+                } else if locals.contains_key(target_name) {
                     locals.insert(target_name.clone(), val.clone());
                     if self.resource_exists(target_name) {
                         if let Err(err) = self.set_resource(target_name, val) {
@@ -5119,36 +6142,93 @@ impl<'a> EvalContext<'a> {
                 } else {
                     match self.set_resource(target_name, val) {
                         Ok(()) => {}
-                        Err(EvalError::UnitMismatch { left, right }) => {
-                            self.restore_frame_snapshot(locals, &assignment_snapshot);
-                            let trace = Some(self.arith_trace(value, "arith:UNIT_MISMATCH"));
-                            let source_span = self.source_span_for_expr(value);
-                            self.emit_unit_mismatch(
-                                left,
-                                right,
-                                Some(format!("resource:{}", target_name)),
-                                source_span,
-                                trace,
-                            );
-                            return Ok(FlowControl::Continue);
-                        }
-                        Err(EvalError::DivisionByZero) => {
-                            self.restore_frame_snapshot(locals, &assignment_snapshot);
-                            let trace = Some(self.arith_trace(value, "arith:DIV0"));
-                            let source_span = self.source_span_for_expr(value);
-                            self.emit_arith_fault(
-                                ArithmeticFaultKind::DivByZero,
-                                Some(format!("resource:{}", target_name)),
-                                source_span,
-                                trace,
-                            );
-                            return Ok(FlowControl::Continue);
-                        }
                         Err(err) => {
                             self.restore_frame_snapshot(locals, &assignment_snapshot);
                             return Err(err);
                         }
                     }
+                }
+                Ok(FlowControl::Continue)
+            }
+            Stmt::ResultFlow {
+                producer,
+                destination,
+                ..
+            } => {
+                if self.guard_rejected {
+                    return Ok(FlowControl::Continue);
+                }
+                let ExprKind::SelectionPlace { target, index } = &destination.kind else {
+                    return Err("E_RESULT_FLOW_DESTINATION_PLACE_REQUIRED".to_string().into());
+                };
+                let ExprKind::Var(root_name) = &target.kind else {
+                    return Err("E_RESULT_FLOW_ROOT_REQUIRED".to_string().into());
+                };
+                if self.is_const(root_name) {
+                    return Err(format!("붙박이는 재대입할 수 없습니다: {}", root_name).into());
+                }
+
+                // A result-flow preserves the producer/result role.  Evaluate the
+                // producer before reading the writable place, build an immutable
+                // replacement candidate, and commit the root only after every
+                // step succeeds.
+                let assignment_snapshot = self.capture_frame_snapshot(locals);
+                let replacement = (|| {
+                    let produced = self.eval_expr(locals, producer)?;
+                    let collection = self.eval_expr(locals, target)?;
+                    let selection_index = self.eval_expr(locals, index)?;
+                    self.eval_call(
+                        locals,
+                        "차림.바꾼값",
+                        vec![collection, selection_index, produced],
+                        self.source_span_for_expr(destination),
+                    )
+                })();
+                let replacement = match replacement {
+                    Ok(value) => value,
+                    Err(err) => {
+                        self.restore_frame_snapshot(locals, &assignment_snapshot);
+                        return Err(err);
+                    }
+                };
+
+                if let Err(error) = self.check_binding_type(root_name, &replacement) {
+                    self.restore_frame_snapshot(locals, &assignment_snapshot);
+                    return Err(error);
+                }
+                if self.root_program_active && self.current_seed_name.is_none() {
+                    let actual = root_binding_type_key(&replacement);
+                    if let Some(expected) = self.root_binding_types.get(root_name).cloned() {
+                        if expected != actual {
+                            self.restore_frame_snapshot(locals, &assignment_snapshot);
+                            return Err(format!(
+                                "E_ROOT_BINDING_TYPE_MISMATCH: '{}'의 결과흐름 값 형식이 다릅니다 (기대: {}, 실제: {})",
+                                root_name, expected, actual
+                            )
+                            .into());
+                        }
+                    } else {
+                        self.root_binding_types.insert(root_name.clone(), actual);
+                    }
+                }
+                if self.owns_pure_local_bindings() && locals.contains_key(root_name) {
+                    locals.insert(root_name.clone(), replacement);
+                } else if locals.contains_key(root_name) {
+                    locals.insert(root_name.clone(), replacement.clone());
+                    if self.resource_exists(root_name) {
+                        if let Err(err) = self.set_resource(root_name, replacement) {
+                            self.restore_frame_snapshot(locals, &assignment_snapshot);
+                            return Err(err);
+                        }
+                    }
+                } else if self.resource_exists(root_name) {
+                    if let Err(err) = self.set_resource(root_name, replacement) {
+                        self.restore_frame_snapshot(locals, &assignment_snapshot);
+                        return Err(err);
+                    }
+                } else {
+                    self.restore_frame_snapshot(locals, &assignment_snapshot);
+                    return Err(format!("E_RESULT_FLOW_ROOT_UNBOUND: {}", root_name).into());
                 }
                 Ok(FlowControl::Continue)
             }
@@ -5183,21 +6263,6 @@ impl<'a> EvalContext<'a> {
             Stmt::Expr { expr, .. } => {
                 match self.eval_expr(locals, expr) {
                     Ok(_) => {}
-                    Err(EvalError::UnitMismatch { left, right }) => {
-                        let trace = Some(self.arith_trace(expr, "arith:UNIT_MISMATCH"));
-                        let source_span = self.source_span_for_expr(expr);
-                        self.emit_unit_mismatch(left, right, None, source_span, trace);
-                    }
-                    Err(EvalError::DivisionByZero) => {
-                        let trace = Some(self.arith_trace(expr, "arith:DIV0"));
-                        let source_span = self.source_span_for_expr(expr);
-                        self.emit_arith_fault(
-                            ArithmeticFaultKind::DivByZero,
-                            None,
-                            source_span,
-                            trace,
-                        );
-                    }
                     Err(err) => return Err(err),
                 };
                 Ok(FlowControl::Continue)
@@ -5205,21 +6270,6 @@ impl<'a> EvalContext<'a> {
             Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
                 match self.eval_expr(locals, expr) {
                     Ok(value) => self.append_output_log(value)?,
-                    Err(EvalError::UnitMismatch { left, right }) => {
-                        let trace = Some(self.arith_trace(expr, "arith:UNIT_MISMATCH"));
-                        let source_span = self.source_span_for_expr(expr);
-                        self.emit_unit_mismatch(left, right, None, source_span, trace);
-                    }
-                    Err(EvalError::DivisionByZero) => {
-                        let trace = Some(self.arith_trace(expr, "arith:DIV0"));
-                        let source_span = self.source_span_for_expr(expr);
-                        self.emit_arith_fault(
-                            ArithmeticFaultKind::DivByZero,
-                            None,
-                            source_span,
-                            trace,
-                        );
-                    }
                     Err(err) => return Err(err),
                 };
                 Ok(FlowControl::Continue)
@@ -5279,6 +6329,9 @@ impl<'a> EvalContext<'a> {
             }
             Stmt::Repeat { body, .. } => {
                 loop {
+                    if self.aborted {
+                        break;
+                    }
                     match self.eval_body(locals, body)? {
                         FlowControl::Continue => {}
                         FlowControl::Return(value) => return Ok(FlowControl::Return(value)),
@@ -5292,6 +6345,9 @@ impl<'a> EvalContext<'a> {
                 condition, body, ..
             } => {
                 loop {
+                    if self.aborted {
+                        break;
+                    }
                     let cond = self.eval_expr(locals, condition)?;
                     if !is_truthy(&cond)? {
                         break;
@@ -5326,14 +6382,23 @@ impl<'a> EvalContext<'a> {
                     }
                 };
                 let previous = locals.get(item).cloned();
+                let previous_types = self.binding_type_scopes.last().unwrap().clone();
+                let previous_root_type = self.root_binding_types.remove(item);
+                self.declare_binding_type(item, &TypeRef::Infer);
                 let outcome = (|| -> Result<FlowControl, EvalError> {
                     for value in items {
                         if self.aborted {
                             break;
                         }
                         self.work_cost.borrow_mut().charge_element_visits(1)?;
+                        self.root_binding_types.remove(item);
+                        self.declare_binding_type(item, &inferred_binding_type(&value));
                         locals.insert(item.clone(), value);
-                        match self.eval_body(locals, body)? {
+                        let iteration_locals = locals.keys().cloned().collect::<HashSet<_>>();
+                        let step = self.eval_body(locals, body);
+                        locals.retain(|name, _| iteration_locals.contains(name));
+                        self.binding_type_scopes.last_mut().unwrap().retain(|name, _| iteration_locals.contains(name));
+                        match step? {
                             FlowControl::Continue => {}
                             FlowControl::Return(value) => {
                                 return Ok(FlowControl::Return(value));
@@ -5348,10 +6413,21 @@ impl<'a> EvalContext<'a> {
                     Ok(FlowControl::Continue)
                 })();
                 restore_local_binding(locals, item, previous);
+                *self.binding_type_scopes.last_mut().unwrap() = previous_types;
+                self.root_binding_types.remove(item);
+                if let Some(previous) = previous_root_type {
+                    self.root_binding_types.insert(item.clone(), previous);
+                }
                 outcome
             }
+            Stmt::Hook { kind, body, .. } => {
+                if self.periodic_hook_is_due(*kind)? {
+                    self.eval_body(locals, body)
+                } else {
+                    Ok(FlowControl::Continue)
+                }
+            }
             Stmt::BeatBlock { .. }
-            | Stmt::Hook { .. }
             | Stmt::HookWhenBecomes { .. }
             | Stmt::HookWhile { .. } => Err(
                 "E_RUNTIME_UNSUPPORTED_STMT: 현재 ddonirang-tool 실행기에서는 박자/훅 문장을 지원하지 않습니다"
@@ -5469,6 +6545,34 @@ impl<'a> EvalContext<'a> {
         locals: &mut HashMap<String, Value>,
         expr: &Expr,
     ) -> Result<Value, EvalError> {
+        let result = self.eval_expr_inner(locals, expr);
+        // These typed constructors validate at runtime. Preserve the error's
+        // existing code and the innermost failing call, but do not lose its
+        // authored source location at the shared CLI/WASM boundary.
+        if let Err(EvalError::Message(message)) = &result {
+            if matches!(&expr.kind, ExprKind::Call { func, .. }
+                if func.starts_with("표준보개.") || func.starts_with("표준보기.")
+                    || func.starts_with("표준장면.") || func.starts_with("표준시간."))
+                && (message.starts_with("E_BOGAE_") || message.starts_with("E_SCENE_"))
+            {
+                if let Some(location) = self.source_span_for_expr(expr) {
+                    return result.map_err(|error| EvalError::SourceLocated {
+                        error: Box::new(error),
+                        span: (expr.span.start, expr.span.end),
+                        line: location.start_line,
+                        column: location.start_col.unwrap_or(1),
+                    });
+                }
+            }
+        }
+        result
+    }
+
+    fn eval_expr_inner(
+        &mut self,
+        locals: &mut HashMap<String, Value>,
+        expr: &Expr,
+    ) -> Result<Value, EvalError> {
         let _registry_key = expr_registry_key(&expr.kind);
         self.work_cost.borrow_mut().charge_dispatch()?;
         match &expr.kind {
@@ -5494,7 +6598,17 @@ impl<'a> EvalContext<'a> {
                 Ok(literal_to_value(lit))
             }
             ExprKind::Var(name) => {
-                if let Some(value) = locals.get(name) {
+                if self
+                    .result_place_frames
+                    .iter()
+                    .any(|frame| frame.canonical_name == *name)
+                {
+                    Err(format!(
+                        "E_RESULTPLACE_READ_FORBIDDEN: '{}' 결과 자리는 쓰기 전용입니다",
+                        name
+                    )
+                    .into())
+                } else if let Some(value) = locals.get(name) {
                     Ok(value.clone())
                 } else if name == "참" {
                     Ok(Value::Bool(true))
@@ -5502,6 +6616,8 @@ impl<'a> EvalContext<'a> {
                     Ok(Value::Bool(false))
                 } else if name == "없음" {
                     Ok(Value::None)
+                } else if self.logical_input.is_some() && (name == "입력키" || name.starts_with("샘.키보드.")) {
+                    Err("E_LOGICAL_INPUT_PHYSICAL_UNSUPPORTED: 논리 입력 원문은 물리 입력 자원을 읽지 않습니다".to_string().into())
                 } else if let Some(value) = self.get_resource(name) {
                     Ok(value)
                 } else {
@@ -5552,6 +6668,58 @@ impl<'a> EvalContext<'a> {
                 }
             }
             ExprKind::Call { args, func } => {
+                if crate::source_analysis::unsupported_bogae_time_policy(func) {
+                    return Err(format!("E_BOGAE_TIME_POLICY_UNSUPPORTED: {}",
+                        crate::source_analysis::BOGAE_TIME_POLICY_UNSUPPORTED).into());
+                }
+                if func == "표준보개.돋" {
+                    use ddonirang_lang::runtime::BogaeRelationValue;
+                    if args.len()!=2 {return Err("E_BOGAE_RECIPE_TYPE: 돋은 대상·보기법 인자 둘을 받습니다".to_string().into());}
+                    let target_arg=args.iter().find(|arg|arg.resolved_pin.as_deref()==Some("대상")).unwrap_or(&args[0]);
+                    let recipe_arg=args.iter().find(|arg|arg.resolved_pin.as_deref()==Some("보기법")).unwrap_or(&args[1]);
+                    let ExprKind::Var(name)=&recipe_arg.expr.kind else {
+                        return Err("E_BOGAE_RECIPE_UNSEALED: 보기법은 봉인 가능한 이름 있는 셈씨여야 합니다".to_string().into());
+                    };
+                    // Local values/closures cannot impersonate a source definition.
+                    if locals.contains_key(name) || self.get_resource(name).is_some() {
+                        return Err("E_BOGAE_RECIPE_UNSEALED: 지역 값이나 세계 자원은 보기법 정체가 아닙니다".to_string().into());
+                    }
+                    let seed=self.program.functions.get(name).cloned().ok_or_else(||EvalError::from(
+                        "E_BOGAE_RECIPE_UNSEALED: 보기법 정의를 해소할 수 없습니다".to_string()))?;
+                    // Never validate one overload and execute a different one
+                    // through a nested call. Ambiguous definitions stay unsupported.
+                    let overloaded=self.program.ordinary_overloads.iter().filter(|(_,rows)|rows.len()!=1)
+                        .map(|(name,_)|name.clone()).collect();
+                    let recipe=crate::bogae_recipe::seal(&seed,&self.program.source_identity,&self.program.functions,&overloaded)
+                        .map_err(EvalError::from)?;
+                    self.work_cost.borrow_mut().charge_dispatch()?;
+                    self.work_cost.borrow_mut().charge_element_visits(recipe.validation_visits)?;
+                    let target=self.eval_expr(locals,&target_arg.expr)?;
+                    let (_,visits)=crate::bogae_recipe::project_target_with_visits(&target).map_err(EvalError::from)?;
+                    self.work_cost.borrow_mut().charge_element_visits(visits.checked_mul(2).ok_or_else(||
+                        EvalError::from("E_BOGAE_TARGET_UNSUPPORTED: 대상 검사 비용이 범위를 넘습니다".to_string()))?)?;
+                    self.check_param_type(&seed.params[0],&target)?;
+                    let result=self.eval_seed(&seed,vec![target.clone()])?;
+                    let Value::View(view)=result else {return Err("E_BOGAE_RECIPE_TYPE: 보기법 결과는 보기값이어야 합니다".to_string().into());};
+                    let source_location=self.source_span_for_expr(expr).map(|span|
+                        [span.start_line,span.start_col.unwrap_or(0),span.end_line,span.end_col.unwrap_or(0)]);
+                    return Ok(Value::BogaeRelation(BogaeRelationValue::Magnifier {
+                        target:Box::new(target),recipe,view,source_location,
+                    }));
+                }
+                if matches!(func.as_str(), "그리고" | "또는") {
+                    if args.len() != 2 {
+                        return Err(format!("{func}는 인자 2개를 받습니다").into());
+                    }
+                    let left = self.eval_expr(locals, &args[0].expr)?;
+                    let truth = is_truthy(&left)?;
+                    if (func == "그리고" && !truth) || (func == "또는" && truth) {
+                        self.work_cost.borrow_mut().charge_dispatch()?;
+                        return Ok(Value::Bool(truth));
+                    }
+                    let right = self.eval_expr(locals, &args[1].expr)?;
+                    return self.eval_call(locals, func, vec![left, right], self.source_span_for_expr(expr));
+                }
                 let mut values = Vec::with_capacity(args.len());
                 for arg in args {
                     values.push(self.eval_expr(locals, &arg.expr)?);
@@ -5562,17 +6730,52 @@ impl<'a> EvalContext<'a> {
                 self.refresh_caller_resource_bindings(locals, &resource_backed_names);
                 Ok(value)
             }
+            ExprKind::CollectionConstructor { elements } => {
+                let mut values = Vec::with_capacity(elements.len());
+                let mut element_type: Option<String> = None;
+                for element in elements {
+                    self.work_cost.borrow_mut().charge_element_visits(1)?;
+                    let value = self.eval_expr(locals, element)?;
+                    // RD-130: authored relation roles share 보개관계값 in a
+                    // flat relation list. Keep their specific binding types.
+                    let current_type = if matches!(value, Value::BogaeRelation(_)) {
+                        "보개관계값".to_string()
+                    } else { root_binding_type_key(&value) };
+                    if let Some(expected) = &element_type {
+                        if expected != &current_type {
+                            return Err(EvalError::TypeMismatch {
+                                pin: "차림 원소".to_string(),
+                                expected: expected.clone(),
+                                actual: current_type,
+                            });
+                        }
+                    } else {
+                        element_type = Some(current_type);
+                    }
+                    values.push(value);
+                }
+                Ok(Value::List(values))
+            }
+            ExprKind::SelectionPlace { .. } => Err("E_SELECTION_PLACE_VALUE_CONTEXT: 선택 위치는 `<-` 대입 대상에서만 사용할 수 있습니다".to_string().into()),
             ExprKind::SeedLiteral { param, body } => {
                 self.work_cost.borrow_mut().note_created_identity()?;
                 Ok(Value::Lambda(LambdaValue {
-                id: next_lambda_id(),
-                param: param.clone(),
-                body: (*body.clone()),
-                captured: locals.clone(),
+                    id: next_lambda_id(),
+                    param: param.clone(),
+                    body: (*body.clone()),
+                    captured: locals.clone(),
                 }))
             }
             ExprKind::Infix { left, op, right } => {
                 let l = self.eval_expr(locals, left)?;
+                if matches!(op.as_str(), "그리고" | "또는" | "&&" | "||") {
+                    let truth = is_truthy(&l)?;
+                    if (matches!(op.as_str(), "그리고" | "&&") && !truth)
+                        || (matches!(op.as_str(), "또는" | "||") && truth)
+                    {
+                        return Ok(Value::Bool(truth));
+                    }
+                }
                 let r = self.eval_expr(locals, right)?;
                 self.eval_infix(op, l, r)
             }
@@ -5731,10 +6934,7 @@ impl<'a> EvalContext<'a> {
         for envelope in envelopes {
             let operation_identity = format!(
                 "madi:{}:{}>{}:{}",
-                self.tick_id,
-                envelope.sender_name,
-                envelope.receiver_name,
-                envelope.event_kind
+                self.tick_id, envelope.sender_name, envelope.receiver_name, envelope.event_kind
             );
             if let QueueAdmission::Waiting(receipt) = self.pending_async_signals.enqueue_or_wait(
                 "ddonirang.product.async.v1",
@@ -5746,10 +6946,7 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-    fn drain_async_queue(
-        &mut self,
-        locals: &mut HashMap<String, Value>,
-    ) -> Result<(), EvalError> {
+    fn drain_async_queue(&mut self, locals: &mut HashMap<String, Value>) -> Result<(), EvalError> {
         if !self.pending_async_signals.begin_drain() {
             return Ok(());
         }
@@ -5902,16 +7099,16 @@ impl<'a> EvalContext<'a> {
                 .internal_dispatch
                 .runtime
                 .prepare(
-                &routes,
+                    &routes,
                     &self.internal_dispatch.provider_registry,
                     reached,
                     &envelope,
                     self.internal_dispatch.execution_identity.clone(),
                     format!("tick:{}:delivery:{}", self.tick_id, occurrence_number),
-            )
-            .map_err(|failure| {
+                )
+                .map_err(|failure| {
                     internal_reaction_failure_to_eval(failure, signal.source_span)
-            })?;
+                })?;
             let route_index = route_stmt_indices
                 .get(&prepared.route_identity)
                 .copied()
@@ -5965,19 +7162,19 @@ impl<'a> EvalContext<'a> {
                 .last()
                 .is_some_and(|event| event == "ddn_route_frame_committed");
             let mut effect_sink_observations = Vec::new();
-            let success =
-                self.internal_dispatch
-                    .runtime
-                    .commit_prepared(prepared, |effect, committed_world, committed_revision| {
-                        effect_events.push(format!("effect_released:{}", effect.identity));
-                        effect_sink_observations.push(InternalEffectSinkObservation {
-                            identity: effect.identity.clone(),
-                            committed_world: committed_world.clone(),
-                            committed_revision,
-                            route_frame_committed,
-                        });
-                        Ok(())
+            let success = self.internal_dispatch.runtime.commit_prepared(
+                prepared,
+                |effect, committed_world, committed_revision| {
+                    effect_events.push(format!("effect_released:{}", effect.identity));
+                    effect_sink_observations.push(InternalEffectSinkObservation {
+                        identity: effect.identity.clone(),
+                        committed_world: committed_world.clone(),
+                        committed_revision,
+                        route_frame_committed,
                     });
+                    Ok(())
+                },
+            );
             self.internal_dispatch.commit_events.extend(effect_events);
             self.internal_dispatch
                 .effect_sink_observations
@@ -6019,7 +7216,8 @@ impl<'a> EvalContext<'a> {
             )
         });
         let result = condition
-            .map(|expr| { self.eval_expr(locals, expr)
+            .map(|expr| {
+                self.eval_expr(locals, expr)
                     .and_then(|value| is_truthy(&value))
             })
             .transpose()
@@ -6208,9 +7406,21 @@ impl<'a> EvalContext<'a> {
         entries: &[String],
     ) -> Result<(), EvalError> {
         let mut draw_items = Vec::new();
-        for entry in entries {
-            if let Some(draw_item) = self.bogae_entry_to_draw_item(locals, entry) {
-                draw_items.push(draw_item);
+        for (entry_index, entry) in entries.iter().enumerate() {
+            if let Some(Value::Map(mut draw_item)) = self.bogae_entry_to_draw_item(locals, entry) {
+                // A draw list is a frame-local ordered collection.  Its items
+                // need a stable identity for the structured WASM space2d
+                // boundary; otherwise several anonymous primitives collapse
+                // into one ambiguous entity in the Workbench renderer.
+                let id = Value::String(format!("bogae.{entry_index}"));
+                draw_item.insert(
+                    map_key_canon(&id),
+                    MapEntry {
+                        key: Value::String("id".to_string()),
+                        value: id,
+                    },
+                );
+                draw_items.push(Value::Map(draw_item));
             }
         }
         if draw_items.is_empty() {
@@ -6381,7 +7591,7 @@ impl<'a> EvalContext<'a> {
                         &shape,
                         &["굵기", "width"],
                         usize::MAX,
-                        Value::Fixed64(Fixed64::from_f64_lossy(0.02)),
+                        Value::Fixed64(BOGAE_DEFAULT_STROKE_WIDTH),
                     ),
                 );
             }
@@ -6417,7 +7627,7 @@ impl<'a> EvalContext<'a> {
                         &shape,
                         &["r", "반지름"],
                         2,
-                        Value::Fixed64(Fixed64::from_f64_lossy(0.08)),
+                        Value::Fixed64(BOGAE_DEFAULT_CIRCLE_RADIUS),
                     ),
                 );
                 put(
@@ -6450,7 +7660,7 @@ impl<'a> EvalContext<'a> {
                         &shape,
                         &["굵기", "width"],
                         usize::MAX,
-                        Value::Fixed64(Fixed64::from_f64_lossy(0.02)),
+                        Value::Fixed64(BOGAE_DEFAULT_STROKE_WIDTH),
                     ),
                 );
             }
@@ -6486,7 +7696,7 @@ impl<'a> EvalContext<'a> {
                         &shape,
                         &["크기", "size", "r"],
                         2,
-                        Value::Fixed64(Fixed64::from_f64_lossy(0.045)),
+                        Value::Fixed64(BOGAE_DEFAULT_POINT_SIZE),
                     ),
                 );
                 put(
@@ -6533,7 +7743,7 @@ impl<'a> EvalContext<'a> {
                         &shape,
                         &["w", "너비"],
                         2,
-                        Value::Fixed64(Fixed64::from_f64_lossy(0.2)),
+                        Value::Fixed64(BOGAE_DEFAULT_RECT_WIDTH),
                     ),
                 );
                 put(
@@ -6544,7 +7754,7 @@ impl<'a> EvalContext<'a> {
                         &shape,
                         &["h", "높이"],
                         3,
-                        Value::Fixed64(Fixed64::from_f64_lossy(0.12)),
+                        Value::Fixed64(BOGAE_DEFAULT_RECT_HEIGHT),
                     ),
                 );
                 put(
@@ -6577,7 +7787,7 @@ impl<'a> EvalContext<'a> {
                         &shape,
                         &["굵기", "width"],
                         usize::MAX,
-                        Value::Fixed64(Fixed64::from_f64_lossy(0.02)),
+                        Value::Fixed64(BOGAE_DEFAULT_STROKE_WIDTH),
                     ),
                 );
             }
@@ -6624,7 +7834,7 @@ impl<'a> EvalContext<'a> {
                         &shape,
                         &["크기", "size"],
                         usize::MAX,
-                        Value::Fixed64(Fixed64::from_f64_lossy(0.08)),
+                        Value::Fixed64(BOGAE_DEFAULT_TEXT_SIZE),
                     ),
                 );
                 put(
@@ -6664,7 +7874,7 @@ impl<'a> EvalContext<'a> {
                         &shape,
                         &["굵기", "width"],
                         usize::MAX,
-                        Value::Fixed64(Fixed64::from_f64_lossy(0.02)),
+                        Value::Fixed64(BOGAE_DEFAULT_STROKE_WIDTH),
                     ),
                 );
             }
@@ -6704,7 +7914,7 @@ impl<'a> EvalContext<'a> {
                         &shape,
                         &["굵기", "width"],
                         usize::MAX,
-                        Value::Fixed64(Fixed64::from_f64_lossy(0.02)),
+                        Value::Fixed64(BOGAE_DEFAULT_STROKE_WIDTH),
                     ),
                 );
             }
@@ -6965,9 +8175,23 @@ impl<'a> EvalContext<'a> {
         source_span: Option<SourceSpan>,
     ) -> Result<Value, EvalError> {
         let func = Self::canonicalize_stdlib_alias(func);
+        if self.logical_input.is_some() && matches!(func,
+            "눌렸나" | "막눌렸나" | "입력키" | "입력키?" | "입력키!") {
+            return Err("E_LOGICAL_INPUT_PHYSICAL_UNSUPPORTED: 논리 입력 원문은 물리 키를 읽지 않습니다".to_string().into());
+        }
         self.work_cost.borrow_mut().charge_dispatch()?;
         let result = (|| {
             let rule = builtin_work_cost_rule(func)?;
+            // 아직 정체를 결속하지 않은 작성 관계는 순서 있는 차림으로만 운반한다.
+            // 그 외 builtin의 열쇠·집합·검색은 내용/표시를 identity로 사용할 수 없다.
+            if rule.is_some() && !matches!(func, "차림" | "목록" | "표준보개.짜임" | "표준보개.겹"
+                | "표준보개.으뜸" | "표준보개.곁" | "표준장면.원" | "표준장면.다각형" | "표준장면.글" | "표준장면.평면" | "표준보기.장면") {
+                for arg in &args {
+                    if contains_unresolved_bogae_relation_for_builtin(arg, &mut self.work_cost.borrow_mut(), func == "추가")? {
+                        return Err("E_BOGAE_RELATION_UNRESOLVED: 보개관계 정체 해소 전에 이 내장 함수를 사용할 수 없습니다".to_string().into());
+                    }
+                }
+            }
             if rule.is_none() && !self.program.functions.contains_key(func) {
                 return Err(self
                     .work_cost
@@ -6975,707 +8199,813 @@ impl<'a> EvalContext<'a> {
                     .registry_missing(format!("runtime_builtin:{func}"))
                     .into());
             }
+            let ordinary_overload = if rule.is_none() {
+                self.resolve_ordinary_callable_overload(func, &args)?
+            } else {
+                None
+            };
+            if let Some(call_span) = source_span.as_ref() {
+                let origin = &self.program.program.origin;
+                for (call_id, admitted) in &origin.registered_call_candidates {
+                    let matches_call = origin
+                        .node_spans
+                        .get(call_id)
+                        .and_then(|span| self.source_span_from_span(span))
+                        .is_some_and(|span| &span == call_span);
+                    if matches_call {
+                        let selected = ordinary_overload
+                            .as_ref()
+                            .or_else(|| self.program.functions.get(func));
+                        if !selected.is_some_and(|seed| admitted.contains(&seed.id)) {
+                            return Err("E_ORDINARY_CALLABLE_NO_MATCH: 등록 표면의 정의와 인자 타입이 일치하지 않습니다"
+                                .to_string()
+                                .into());
+                        }
+                    }
+                }
+            }
             if let Some(rule) = rule {
                 if rule.bigint_rational_operand_and_result_bytes {
                     self.charge_big_number_parts(&args.iter().collect::<Vec<_>>())?;
                 }
             }
             let value = match func {
-            "아님" | "아니다" => {
-                if args.len() != 1 {
-                    return Err("아님은 인자 1개를 받습니다".to_string().into());
+                "표준보기.결과표" => {
+                    if !args.is_empty() {
+                        return Err("표준보기.결과표는 인자를 받지 않습니다".to_string().into());
+                    }
+                    Ok(Value::View(ddonirang_lang::runtime::ViewValue::ResultTable))
                 }
-                let value = is_truthy(&args[0])?;
-                Ok(Value::Bool(!value))
-            }
-            "그리고" => {
-                if args.len() != 2 {
-                    return Err("그리고는 인자 2개를 받습니다".to_string().into());
-                }
-                let left = is_truthy(&args[0])?;
-                let right = is_truthy(&args[1])?;
-                Ok(Value::Bool(left && right))
-            }
-            "또는" => {
-                if args.len() != 2 {
-                    return Err("또는은 인자 2개를 받습니다".to_string().into());
-                }
-                let left = is_truthy(&args[0])?;
-                let right = is_truthy(&args[1])?;
-                Ok(Value::Bool(left || right))
-            }
-            "수" | "셈수" => {
-                if args.len() != 1 {
-                    return Err("셈수는 인자 1개를 받습니다".to_string().into());
-                }
-                let value = value_to_fixed64_coerce(&args[0])?;
-                Ok(Value::Fixed64(value))
-            }
-            "바른수" => {
-                if args.len() != 1 {
-                    return Err("바른수는 인자 1개를 받습니다".to_string().into());
-                }
-                let value = value_to_i64_strict(&args[0])?;
-                Ok(Value::Fixed64(Fixed64::from_i64(value)))
-            }
-            "큰바른수" => {
-                if args.len() != 1 {
-                    return Err("큰바른수는 인자 1개를 받습니다".to_string().into());
-                }
-                Ok(make_big_int_value(&args[0])?)
-            }
-            "나눔수" => {
-                if args.len() != 2 {
-                    return Err("나눔수는 인자 2개(분자, 분모)를 받습니다"
-                        .to_string()
-                        .into());
-                }
-                Ok(make_rational_value(&args[0], &args[1])?)
-            }
-            "곱수" => {
-                if args.len() != 1 {
-                    return Err("곱수는 인자 1개를 받습니다".to_string().into());
-                }
-                let (value, status) = make_factor_value(&args[0])?;
-                self.note_factor_route_from_value(&value);
-                if status == FACTOR_DECOMP_STATUS_DEFERRED {
-                    self.emit_factor_decomposition_deferred_diag(&value, source_span);
-                }
-                Ok(value)
-            }
-            "차림" | "목록" => {
-                self.work_cost
-                    .borrow_mut()
-                    .charge_element_visits(args.len())?;
-                Ok(list_new(args.clone()))
-            }
-            "모음" => {
-                let mut items = BTreeMap::new();
-                for item in &args {
-                    self.work_cost.borrow_mut().charge_element_visits(1)?;
-                    let key = value_canon(&item);
-                    items.entry(key).or_insert_with(|| item.clone());
-                }
-                Ok(Value::Set(items))
-            }
-            "짝맞춤" => {
-                if args.len() % 2 != 0 {
-                    return Err("짝맞춤은 열쇠/값 쌍 인자를 받습니다".to_string().into());
-                }
-                let mut entries = BTreeMap::new();
-                for chunk in args.chunks(2) {
-                    self.work_cost.borrow_mut().charge_element_visits(2)?;
-                    let key_value = chunk[0].clone();
-                    let entry = MapEntry {
-                        key: key_value.clone(),
-                        value: chunk[1].clone(),
+                "표준보개.으뜸" => {
+                    if args.len() != 1 {
+                        return Err("표준보개.으뜸은 보기 인자 1개를 받습니다".to_string().into());
+                    }
+                    let Value::View(view) = &args[0] else {
+                        return Err("표준보개.으뜸의 보기는 보기값이어야 합니다".to_string().into());
                     };
-                    entries.insert(map_key_canon(&key_value), entry);
+                    self.work_cost.borrow_mut().charge_element_visits(crate::scene_value::clone_visits(&args[0]))?;
+                    let source_location = source_span.as_ref().map(|span|
+                        [span.start_line, span.start_col.unwrap_or(0), span.end_line, span.end_col.unwrap_or(0)]);
+                    Ok(Value::BogaeRelation(ddonirang_lang::runtime::BogaeRelationValue::Primary { view: view.clone(), source_location }))
                 }
-                Ok(Value::Map(entries))
-            }
-            "짝맞춤.값" => {
-                if args.len() != 2 {
-                    return Err("짝맞춤.값은 인자 2개를 받습니다".to_string().into());
+                "표준보개.짜임" => {
+                    if args.len() != 1 {
+                        return Err("표준보개.짜임은 관계들 인자 1개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("E_BOGAE_UNSUPPORTED: 관계들은 평평한 보개관계값 차림이어야 합니다".to_string().into());
+                    };
+                    let mut relations = Vec::new();
+                    for item in items {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
+                        let Value::BogaeRelation(relation) = item else {
+                            return Err("E_BOGAE_UNSUPPORTED: 관계들은 평평한 보개관계값 차림이어야 합니다".to_string().into());
+                        };
+                        self.work_cost.borrow_mut().charge_element_visits(crate::scene_value::view_clone_visits(relation.view()))?;
+                        if let ddonirang_lang::runtime::BogaeRelationValue::Magnifier {target,..}=relation {
+                            let (_,visits)=crate::bogae_recipe::project_target_with_visits(target).map_err(EvalError::from)?;
+                            self.work_cost.borrow_mut().charge_element_visits(visits)?;
+                        }
+                        relations.push(relation.clone());
+                    }
+                    let composition = ddonirang_lang::runtime::BogaeCompositionValue::from_relations(relations)
+                        .map_err(|error| EvalError::from(error.to_string()))?;
+                    Ok(Value::BogaeComposition(composition))
                 }
-                let Value::Map(map) = &args[0] else {
-                    return Err("짝맞춤.값은 짝맞춤 인자가 필요합니다".to_string().into());
-                };
-                Ok(map_get(map, &args[1]))
-            }
-            "짝맞춤.바꾼값" => {
-                if args.len() != 3 {
-                    return Err("짝맞춤.바꾼값은 인자 3개를 받습니다".to_string().into());
+                "표준보개.겹" => {
+                    use ddonirang_lang::runtime::BogaeRelationValue;
+                    if args.len() != 3 { return Err("표준보개.겹은 보기·기준·순서 인자 3개를 받습니다".to_string().into()); }
+                    let Value::View(view) = &args[0] else { return Err("겹의 보기는 보기값이어야 합니다".to_string().into()); };
+                    self.work_cost.borrow_mut().charge_element_visits(crate::scene_value::clone_visits(&args[0]))?;
+                    let Value::BogaeRelation(BogaeRelationValue::Primary {source_location: basis_location,..}) = &args[1] else {
+                        return Err("E_BOGAE_OVERLAY_BASIS_INVALID: 겹 기준은 으뜸 관계여야 합니다".to_string().into());
+                    };
+                    let order = expect_int_strict(&args[2])?;
+                    let source_location = source_span.as_ref().map(|span|
+                        [span.start_line, span.start_col.unwrap_or(0), span.end_line, span.end_col.unwrap_or(0)]);
+                    Ok(Value::BogaeRelation(BogaeRelationValue::Overlay {view:view.clone(), basis_location:*basis_location, order, source_location}))
                 }
-                let Value::Map(map) = &args[0] else {
-                    return Err("짝맞춤.바꾼값은 짝맞춤 인자가 필요합니다"
-                        .to_string()
-                        .into());
-                };
-                let mut entries = map.clone();
-                entries.insert(
-                    map_key_canon(&args[1]),
-                    MapEntry {
-                        key: args[1].clone(),
-                        value: args[2].clone(),
-                    },
-                );
-                Ok(Value::Map(entries))
-            }
-            "흐름.만들기" => {
-                if args.len() != 1 && args.len() != 2 {
-                    return Err(
-                        "흐름.만들기는 인자 1개(용량) 또는 2개(용량, 초기값차림)를 받습니다"
+                "표준보개.곁" => {
+                    use ddonirang_lang::runtime::{BogaeRelationValue, SidePlacement};
+                    if args.len() != 2 { return Err("표준보개.곁은 보기·자리 인자 2개를 받습니다".to_string().into()); }
+                    let Value::View(view) = &args[0] else { return Err("곁의 보기는 보기값이어야 합니다".to_string().into()); };
+                    self.work_cost.borrow_mut().charge_element_visits(crate::scene_value::clone_visits(&args[0]))?;
+                    let Value::String(place) = &args[1] else { return Err("E_BOGAE_UNSUPPORTED: 곁 자리는 왼쪽·오른쪽·위·아래·자동입니다".to_string().into()); };
+                    let placement = SidePlacement::from_authored(place).ok_or_else(|| EvalError::from(
+                        "E_BOGAE_UNSUPPORTED: 곁 자리는 왼쪽·오른쪽·위·아래·자동입니다".to_string()))?;
+                    let source_location = source_span.as_ref().map(|span|
+                        [span.start_line, span.start_col.unwrap_or(0), span.end_line, span.end_col.unwrap_or(0)]);
+                    Ok(Value::BogaeRelation(BogaeRelationValue::Side {view:view.clone(), placement, source_location}))
+                }
+                "표준보개.돋" => {
+                    Err("E_BOGAE_RECIPE_UNSEALED: 돋 보기법은 작성 정의 정체로 해소해야 합니다".to_string().into())
+                }
+                "표준장면.원" | "표준장면.다각형" | "표준장면.글" | "표준장면.평면" | "표준보기.장면" => {
+                    for arg in &args {
+                        self.work_cost.borrow_mut().charge_element_visits(crate::scene_value::clone_visits(arg))?;
+                    }
+                    if let Some(Value::List(elements)) = args.first() {
+                        self.work_cost.borrow_mut().charge_element_visits(elements.len())?;
+                        if func == "표준장면.다각형" {
+                            let visits=elements.len().checked_mul(elements.len()).ok_or_else(||EvalError::from("E_SCENE_GEOMETRY: 꼭짓점 검사 비용이 범위를 넘습니다".to_string()))?;
+                            self.work_cost.borrow_mut().charge_element_visits(visits)?;
+                        } else {
+                            for element in elements {self.work_cost.borrow_mut().charge_element_visits(crate::scene_value::clone_visits(element))?;}
+                        }
+                    }
+                    crate::scene_value::construct_with_meter(func, &args,Some(&mut self.work_cost.borrow_mut())).map_err(EvalError::from)
+                }
+                "아님" | "아니다" => {
+                    if args.len() != 1 {
+                        return Err("아님은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let value = is_truthy(&args[0])?;
+                    Ok(Value::Bool(!value))
+                }
+                "그리고" => {
+                    if args.len() != 2 {
+                        return Err("그리고는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let left = is_truthy(&args[0])?;
+                    let right = is_truthy(&args[1])?;
+                    Ok(Value::Bool(left && right))
+                }
+                "또는" => {
+                    if args.len() != 2 {
+                        return Err("또는은 인자 2개를 받습니다".to_string().into());
+                    }
+                    let left = is_truthy(&args[0])?;
+                    let right = is_truthy(&args[1])?;
+                    Ok(Value::Bool(left || right))
+                }
+                "수" | "셈수" => {
+                    if args.len() != 1 {
+                        return Err("셈수는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let value = value_to_fixed64_coerce(&args[0])?;
+                    Ok(Value::Fixed64(value))
+                }
+                "바른수" => {
+                    if args.len() != 1 {
+                        return Err("바른수는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let value = value_to_i64_strict(&args[0])?;
+                    Ok(Value::Fixed64(Fixed64::from_i64(value)))
+                }
+                "큰바른수" => {
+                    if args.len() != 1 {
+                        return Err("큰바른수는 인자 1개를 받습니다".to_string().into());
+                    }
+                    Ok(make_big_int_value(&args[0])?)
+                }
+                "나눔수" => {
+                    if args.len() != 2 {
+                        return Err("나눔수는 인자 2개(분자, 분모)를 받습니다"
                             .to_string()
-                            .into(),
-                    );
+                            .into());
+                    }
+                    Ok(make_rational_value(&args[0], &args[1])?)
                 }
-                let capacity = value_to_i64(&args[0])?;
-                if capacity <= 0 {
-                    return Err("흐름 용량은 1 이상이어야 합니다".to_string().into());
+                "곱수" => {
+                    if args.len() != 1 {
+                        return Err("곱수는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let (value, status) = make_factor_value(&args[0])?;
+                    self.note_factor_route_from_value(&value);
+                    if status == FACTOR_DECOMP_STATUS_DEFERRED {
+                        self.emit_factor_decomposition_deferred_diag(&value, source_span);
+                    }
+                    Ok(value)
                 }
-                let mut stream = stream_new(capacity as usize)?;
-                if args.len() == 2 {
-                    let Value::List(initial) = &args[1] else {
-                        return Err("흐름.만들기의 두 번째 인자는 차림이어야 합니다"
+                "차림" | "목록" => {
+                    self.work_cost
+                        .borrow_mut()
+                        .charge_element_visits(args.len())?;
+                    Ok(list_new(args.clone()))
+                }
+                "모음" => {
+                    let mut items = BTreeMap::new();
+                    for item in &args {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
+                        let key = value_canon(&item);
+                        items.entry(key).or_insert_with(|| item.clone());
+                    }
+                    Ok(Value::Set(items))
+                }
+                "짝맞춤" => {
+                    if args.len() % 2 != 0 {
+                        return Err("짝맞춤은 열쇠/값 쌍 인자를 받습니다".to_string().into());
+                    }
+                    let mut entries = BTreeMap::new();
+                    for chunk in args.chunks(2) {
+                        self.work_cost.borrow_mut().charge_element_visits(2)?;
+                        let key_value = chunk[0].clone();
+                        let entry = MapEntry {
+                            key: key_value.clone(),
+                            value: chunk[1].clone(),
+                        };
+                        entries.insert(map_key_canon(&key_value), entry);
+                    }
+                    Ok(Value::Map(entries))
+                }
+                "짝맞춤.값" => {
+                    if args.len() != 2 {
+                        return Err("짝맞춤.값은 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::Map(map) = &args[0] else {
+                        return Err("짝맞춤.값은 짝맞춤 인자가 필요합니다".to_string().into());
+                    };
+                    checked_optional_map_get(map, &args[1])
+                }
+                "짝맞춤.바꾼값" => {
+                    if args.len() != 3 {
+                        return Err("짝맞춤.바꾼값은 인자 3개를 받습니다".to_string().into());
+                    }
+                    let Value::Map(map) = &args[0] else {
+                        return Err("짝맞춤.바꾼값은 짝맞춤 인자가 필요합니다"
                             .to_string()
                             .into());
                     };
-                    for item in initial {
-                        stream = stream_push(stream, item.clone());
+                    let mut entries = map.clone();
+                    entries.insert(
+                        map_key_canon(&args[1]),
+                        MapEntry {
+                            key: args[1].clone(),
+                            value: args[2].clone(),
+                        },
+                    );
+                    Ok(Value::Map(entries))
+                }
+                "흐름.만들기" => {
+                    if args.len() != 1 && args.len() != 2 {
+                        return Err(
+                            "흐름.만들기는 인자 1개(용량) 또는 2개(용량, 초기값차림)를 받습니다"
+                                .to_string()
+                                .into(),
+                        );
+                    }
+                    let capacity = value_to_i64(&args[0])?;
+                    if capacity <= 0 {
+                        return Err("흐름 용량은 1 이상이어야 합니다".to_string().into());
+                    }
+                    let mut stream = stream_new(capacity as usize)?;
+                    if args.len() == 2 {
+                        let Value::List(initial) = &args[1] else {
+                            return Err("흐름.만들기의 두 번째 인자는 차림이어야 합니다"
+                                .to_string()
+                                .into());
+                        };
+                        for item in initial {
+                            stream = stream_push(stream, item.clone());
+                        }
+                    }
+                    Ok(stream_to_value(&stream))
+                }
+                "흐름.밀어넣기" => {
+                    if args.len() != 2 {
+                        return Err("흐름.밀어넣기는 인자 2개(흐름, 값)를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    let stream = stream_from_value(&args[0])?;
+                    let stream = stream_push(stream, args[1].clone());
+                    Ok(stream_to_value(&stream))
+                }
+                "흐름.차림" => {
+                    if args.len() != 1 {
+                        return Err("흐름.차림은 인자 1개(흐름)를 받습니다".to_string().into());
+                    }
+                    let stream = stream_from_value(&args[0])?;
+                    Ok(Value::List(stream_oldest_to_newest(&stream)))
+                }
+                "흐름.최근값" => {
+                    if args.len() != 1 {
+                        return Err("흐름.최근값은 인자 1개(흐름)를 받습니다".to_string().into());
+                    }
+                    let stream = stream_from_value(&args[0])?;
+                    if stream.len == 0 || stream.capacity == 0 {
+                        Ok(Value::None)
+                    } else {
+                        Ok(stream.buffer[stream.head].clone())
                     }
                 }
-                Ok(stream_to_value(&stream))
-            }
-            "흐름.밀어넣기" => {
-                if args.len() != 2 {
-                    return Err("흐름.밀어넣기는 인자 2개(흐름, 값)를 받습니다"
-                        .to_string()
-                        .into());
+                "흐름.길이" => {
+                    if args.len() != 1 {
+                        return Err("흐름.길이는 인자 1개(흐름)를 받습니다".to_string().into());
+                    }
+                    let stream = stream_from_value(&args[0])?;
+                    Ok(Value::Fixed64(Fixed64::from_i64(stream.len as i64)))
                 }
-                let stream = stream_from_value(&args[0])?;
-                let stream = stream_push(stream, args[1].clone());
-                Ok(stream_to_value(&stream))
-            }
-            "흐름.차림" => {
-                if args.len() != 1 {
-                    return Err("흐름.차림은 인자 1개(흐름)를 받습니다".to_string().into());
+                "흐름.용량" => {
+                    if args.len() != 1 {
+                        return Err("흐름.용량은 인자 1개(흐름)를 받습니다".to_string().into());
+                    }
+                    let stream = stream_from_value(&args[0])?;
+                    Ok(Value::Fixed64(Fixed64::from_i64(stream.capacity as i64)))
                 }
-                let stream = stream_from_value(&args[0])?;
-                Ok(Value::List(stream_oldest_to_newest(&stream)))
-            }
-            "흐름.최근값" => {
-                if args.len() != 1 {
-                    return Err("흐름.최근값은 인자 1개(흐름)를 받습니다".to_string().into());
+                "흐름.비우기" => {
+                    if args.len() != 1 {
+                        return Err("흐름.비우기는 인자 1개(흐름)를 받습니다".to_string().into());
+                    }
+                    let stream = stream_from_value(&args[0])?;
+                    Ok(stream_to_value(&stream_clear(stream)))
                 }
-                let stream = stream_from_value(&args[0])?;
-                if stream.len == 0 || stream.capacity == 0 {
-                    Ok(Value::None)
-                } else {
-                    Ok(stream.buffer[stream.head].clone())
+                "흐름.잘라보기" => {
+                    if args.len() != 2 {
+                        return Err("흐름.잘라보기는 인자 2개(흐름, 개수)를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    let stream = stream_from_value(&args[0])?;
+                    let count = value_to_i64(&args[1])?;
+                    if count < 0 {
+                        return Err("흐름.잘라보기 개수는 0 이상이어야 합니다"
+                            .to_string()
+                            .into());
+                    }
+                    let ordered = stream_oldest_to_newest(&stream);
+                    let take = (count as usize).min(ordered.len());
+                    let start = ordered.len().saturating_sub(take);
+                    Ok(Value::List(ordered[start..].to_vec()))
                 }
-            }
-            "흐름.길이" => {
-                if args.len() != 1 {
-                    return Err("흐름.길이는 인자 1개(흐름)를 받습니다".to_string().into());
+                "키목록" => {
+                    if args.len() != 1 {
+                        return Err("키목록은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let Value::Pack(pack) = &args[0] else {
+                        return Err("키목록은 묶음 인자를 받습니다".to_string().into());
+                    };
+                    let keys = pack.keys().cloned().map(Value::String).collect::<Vec<_>>();
+                    Ok(Value::List(keys))
                 }
-                let stream = stream_from_value(&args[0])?;
-                Ok(Value::Fixed64(Fixed64::from_i64(stream.len as i64)))
-            }
-            "흐름.용량" => {
-                if args.len() != 1 {
-                    return Err("흐름.용량은 인자 1개(흐름)를 받습니다".to_string().into());
+                "값목록" => {
+                    if args.len() != 1 {
+                        return Err("값목록은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let Value::Pack(pack) = &args[0] else {
+                        return Err("값목록은 묶음 인자를 받습니다".to_string().into());
+                    };
+                    let values = pack.values().cloned().collect::<Vec<_>>();
+                    Ok(Value::List(values))
                 }
-                let stream = stream_from_value(&args[0])?;
-                Ok(Value::Fixed64(Fixed64::from_i64(stream.capacity as i64)))
-            }
-            "흐름.비우기" => {
-                if args.len() != 1 {
-                    return Err("흐름.비우기는 인자 1개(흐름)를 받습니다".to_string().into());
+                "쌍목록" => {
+                    if args.len() != 1 {
+                        return Err("쌍목록은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let Value::Pack(pack) = &args[0] else {
+                        return Err("쌍목록은 묶음 인자를 받습니다".to_string().into());
+                    };
+                    let pairs = pack
+                        .iter()
+                        .map(|(key, value)| {
+                            Value::List(vec![Value::String(key.clone()), value.clone()])
+                        })
+                        .collect::<Vec<_>>();
+                    Ok(Value::List(pairs))
                 }
-                let stream = stream_from_value(&args[0])?;
-                Ok(stream_to_value(&stream_clear(stream)))
-            }
-            "흐름.잘라보기" => {
-                if args.len() != 2 {
-                    return Err("흐름.잘라보기는 인자 2개(흐름, 개수)를 받습니다"
-                        .to_string()
-                        .into());
+                "격자.만들기" => {
+                    if args.len() != 3 {
+                        return Err("격자.만들기는 인자 3개를 받습니다".to_string().into());
+                    }
+                    let width = value_to_i64(&args[0])?;
+                    let height = value_to_i64(&args[1])?;
+                    make_std_grid(width, height, args[2].clone())
                 }
-                let stream = stream_from_value(&args[0])?;
-                let count = value_to_i64(&args[1])?;
-                if count < 0 {
-                    return Err("흐름.잘라보기 개수는 0 이상이어야 합니다"
-                        .to_string()
-                        .into());
+                "격자.너비" => {
+                    if args.len() != 1 {
+                        return Err("격자.너비는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let fields = std_grid_fields(&args[0])?;
+                    let (width, _) = std_grid_dims(fields)?;
+                    Ok(fixed_value(width))
                 }
-                let ordered = stream_oldest_to_newest(&stream);
-                let take = (count as usize).min(ordered.len());
-                let start = ordered.len().saturating_sub(take);
-                Ok(Value::List(ordered[start..].to_vec()))
-            }
-            "키목록" => {
-                if args.len() != 1 {
-                    return Err("키목록은 인자 1개를 받습니다".to_string().into());
+                "격자.높이" => {
+                    if args.len() != 1 {
+                        return Err("격자.높이는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let fields = std_grid_fields(&args[0])?;
+                    let (_, height) = std_grid_dims(fields)?;
+                    Ok(fixed_value(height))
                 }
-                let Value::Pack(pack) = &args[0] else {
-                    return Err("키목록은 묶음 인자를 받습니다".to_string().into());
-                };
-                let keys = pack.keys().cloned().map(Value::String).collect::<Vec<_>>();
-                Ok(Value::List(keys))
-            }
-            "값목록" => {
-                if args.len() != 1 {
-                    return Err("값목록은 인자 1개를 받습니다".to_string().into());
-                }
-                let Value::Pack(pack) = &args[0] else {
-                    return Err("값목록은 묶음 인자를 받습니다".to_string().into());
-                };
-                let values = pack.values().cloned().collect::<Vec<_>>();
-                Ok(Value::List(values))
-            }
-            "쌍목록" => {
-                if args.len() != 1 {
-                    return Err("쌍목록은 인자 1개를 받습니다".to_string().into());
-                }
-                let Value::Pack(pack) = &args[0] else {
-                    return Err("쌍목록은 묶음 인자를 받습니다".to_string().into());
-                };
-                let pairs = pack
-                    .iter()
-                    .map(|(key, value)| {
-                        Value::List(vec![Value::String(key.clone()), value.clone()])
-                    })
-                    .collect::<Vec<_>>();
-                Ok(Value::List(pairs))
-            }
-            "격자.만들기" => {
-                if args.len() != 3 {
-                    return Err("격자.만들기는 인자 3개를 받습니다".to_string().into());
-                }
-                let width = value_to_i64(&args[0])?;
-                let height = value_to_i64(&args[1])?;
-                make_std_grid(width, height, args[2].clone())
-            }
-            "격자.너비" => {
-                if args.len() != 1 {
-                    return Err("격자.너비는 인자 1개를 받습니다".to_string().into());
-                }
-                let fields = std_grid_fields(&args[0])?;
-                let (width, _) = std_grid_dims(fields)?;
-                Ok(fixed_value(width))
-            }
-            "격자.높이" => {
-                if args.len() != 1 {
-                    return Err("격자.높이는 인자 1개를 받습니다".to_string().into());
-                }
-                let fields = std_grid_fields(&args[0])?;
-                let (_, height) = std_grid_dims(fields)?;
-                Ok(fixed_value(height))
-            }
-            "격자.값" => {
-                if args.len() != 3 {
-                    return Err("격자.값은 인자 3개를 받습니다".to_string().into());
-                }
-                let fields = std_grid_fields(&args[0])?;
+                "격자.값" => {
+                    if args.len() != 3 {
+                        return Err("격자.값은 인자 3개를 받습니다".to_string().into());
+                    }
+                    let fields = std_grid_fields(&args[0])?;
                     let idx =
                         std_grid_index(fields, value_to_i64(&args[1])?, value_to_i64(&args[2])?)?;
-                let cells = std_grid_cells(fields)?;
-                Ok(cells.get(idx).cloned().unwrap_or(Value::None))
-            }
-            "격자.바꾼값" => {
-                if args.len() != 4 {
-                    return Err("격자.바꾼값은 인자 4개를 받습니다".to_string().into());
+                    let cells = std_grid_cells(fields)?;
+                    Ok(cells.get(idx).cloned().unwrap_or(Value::None))
                 }
-                let fields = std_grid_fields(&args[0])?;
+                "격자.바꾼값" => {
+                    if args.len() != 4 {
+                        return Err("격자.바꾼값은 인자 4개를 받습니다".to_string().into());
+                    }
+                    let fields = std_grid_fields(&args[0])?;
                     let idx =
                         std_grid_index(fields, value_to_i64(&args[1])?, value_to_i64(&args[2])?)?;
-                let mut next = fields.clone();
-                let mut cells = std_grid_cells(fields)?.clone();
-                if idx >= cells.len() {
-                    return Err("격자 칸 목록이 크기와 맞지 않습니다".to_string().into());
+                    let mut next = fields.clone();
+                    let mut cells = std_grid_cells(fields)?.clone();
+                    if idx >= cells.len() {
+                        return Err("격자 칸 목록이 크기와 맞지 않습니다".to_string().into());
+                    }
+                    cells[idx] = args[3].clone();
+                    next.insert("칸들".to_string(), Value::List(cells));
+                    Ok(Value::Pack(next))
                 }
-                cells[idx] = args[3].clone();
-                next.insert("칸들".to_string(), Value::List(cells));
-                Ok(Value::Pack(next))
-            }
-            "격자.안인가" => {
-                if args.len() != 3 {
-                    return Err("격자.안인가는 인자 3개를 받습니다".to_string().into());
+                "격자.안인가" => {
+                    if args.len() != 3 {
+                        return Err("격자.안인가는 인자 3개를 받습니다".to_string().into());
+                    }
+                    Ok(Value::Bool(std_grid_inside(
+                        &args[0],
+                        value_to_i64(&args[1])?,
+                        value_to_i64(&args[2])?,
+                    )?))
                 }
-                Ok(Value::Bool(std_grid_inside(
-                    &args[0],
-                    value_to_i64(&args[1])?,
-                    value_to_i64(&args[2])?,
-                )?))
-            }
-            "격자.막혔나" => {
-                if args.len() != 4 {
-                    return Err("격자.막혔나는 인자 4개를 받습니다".to_string().into());
-                }
+                "격자.막혔나" => {
+                    if args.len() != 4 {
+                        return Err("격자.막혔나는 인자 4개를 받습니다".to_string().into());
+                    }
                     if !std_grid_inside(&args[0], value_to_i64(&args[1])?, value_to_i64(&args[2])?)?
                     {
-                    return Ok(Value::Bool(true));
-                }
-                let fields = std_grid_fields(&args[0])?;
+                        return Ok(Value::Bool(true));
+                    }
+                    let fields = std_grid_fields(&args[0])?;
                     let idx =
                         std_grid_index(fields, value_to_i64(&args[1])?, value_to_i64(&args[2])?)?;
-                let cell = std_grid_cells(fields)?
-                    .get(idx)
-                    .cloned()
-                    .unwrap_or(Value::None);
-                Ok(Value::Bool(value_matches_any(&cell, &args[3])))
-            }
-            "격자.길찾기" => {
-                if args.len() != 6 {
-                    return Err("격자.길찾기는 인자 6개를 받습니다".to_string().into());
+                    let cell = std_grid_cells(fields)?
+                        .get(idx)
+                        .cloned()
+                        .unwrap_or(Value::None);
+                    Ok(Value::Bool(value_matches_any(&cell, &args[3])))
                 }
-                std_grid_pathfind(
-                    &args[0],
-                    value_to_i64(&args[1])?,
-                    value_to_i64(&args[2])?,
-                    value_to_i64(&args[3])?,
-                    value_to_i64(&args[4])?,
-                    &args[5],
-                )
-            }
-            "블록조각.만들기" => {
-                if args.len() != 1 {
-                    return Err("블록조각.만들기는 인자 1개를 받습니다".to_string().into());
+                "격자.길찾기" => {
+                    if args.len() != 6 {
+                        return Err("격자.길찾기는 인자 6개를 받습니다".to_string().into());
+                    }
+                    std_grid_pathfind(
+                        &args[0],
+                        value_to_i64(&args[1])?,
+                        value_to_i64(&args[2])?,
+                        value_to_i64(&args[3])?,
+                        value_to_i64(&args[4])?,
+                        &args[5],
+                    )
                 }
-                let cells = std_block_piece_cells_from_value(&args[0])?;
-                Ok(make_std_block_piece(cells))
-            }
-            "블록조각.칸목록" => {
-                if args.len() != 1 {
-                    return Err("블록조각.칸목록은 인자 1개를 받습니다".to_string().into());
+                "블록조각.만들기" => {
+                    if args.len() != 1 {
+                        return Err("블록조각.만들기는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let cells = std_block_piece_cells_from_value(&args[0])?;
+                    Ok(make_std_block_piece(cells))
                 }
-                let cells = std_block_piece_cells(&args[0])?;
-                Ok(std_block_piece_cells_value(&cells))
-            }
-            "블록조각.이동" => {
-                if args.len() != 3 {
-                    return Err("블록조각.이동은 인자 3개를 받습니다".to_string().into());
+                "블록조각.칸목록" => {
+                    if args.len() != 1 {
+                        return Err("블록조각.칸목록은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let cells = std_block_piece_cells(&args[0])?;
+                    Ok(std_block_piece_cells_value(&cells))
                 }
-                let cells = std_block_piece_cells(&args[0])?;
-                let dx = value_to_i64(&args[1])?;
-                let dy = value_to_i64(&args[2])?;
-                Ok(make_std_block_piece(
-                    cells.into_iter().map(|(x, y)| (x + dx, y + dy)).collect(),
-                ))
-            }
-            "블록조각.회전" => {
-                if args.len() != 2 {
-                    return Err("블록조각.회전은 인자 2개를 받습니다".to_string().into());
+                "블록조각.이동" => {
+                    if args.len() != 3 {
+                        return Err("블록조각.이동은 인자 3개를 받습니다".to_string().into());
+                    }
+                    let cells = std_block_piece_cells(&args[0])?;
+                    let dx = value_to_i64(&args[1])?;
+                    let dy = value_to_i64(&args[2])?;
+                    Ok(make_std_block_piece(
+                        cells.into_iter().map(|(x, y)| (x + dx, y + dy)).collect(),
+                    ))
                 }
-                let cells = std_block_piece_cells(&args[0])?;
-                let Value::String(direction) = &args[1] else {
-                    return Err("블록조각.회전은 글 방향을 받습니다".to_string().into());
-                };
-                let rotated = cells
-                    .into_iter()
-                    .map(|(x, y)| match direction.as_str() {
-                        "오른쪽" => Ok((-y, x)),
-                        "왼쪽" => Ok((y, -x)),
-                        "뒤집기" => Ok((-x, -y)),
+                "블록조각.회전" => {
+                    if args.len() != 2 {
+                        return Err("블록조각.회전은 인자 2개를 받습니다".to_string().into());
+                    }
+                    let cells = std_block_piece_cells(&args[0])?;
+                    let Value::String(direction) = &args[1] else {
+                        return Err("블록조각.회전은 글 방향을 받습니다".to_string().into());
+                    };
+                    let rotated = cells
+                        .into_iter()
+                        .map(|(x, y)| match direction.as_str() {
+                            "오른쪽" => Ok((-y, x)),
+                            "왼쪽" => Ok((y, -x)),
+                            "뒤집기" => Ok((-x, -y)),
                             _ => Err(format!(
                                 "블록조각 회전 방향을 지원하지 않습니다: {direction}"
                             )
                             .into()),
-                    })
-                    .collect::<Result<Vec<_>, EvalError>>()?;
-                Ok(make_std_block_piece(rotated))
-            }
-            "블록조각.충돌?" => {
-                if args.len() != 3 {
-                    return Err("블록조각.충돌?은 인자 3개를 받습니다".to_string().into());
+                        })
+                        .collect::<Result<Vec<_>, EvalError>>()?;
+                    Ok(make_std_block_piece(rotated))
                 }
-                Ok(Value::Bool(std_block_piece_collides(
-                    &args[0], &args[1], &args[2],
-                )?))
-            }
-            "블록조각.고정" => {
-                if args.len() != 3 {
-                    return Err("블록조각.고정은 인자 3개를 받습니다".to_string().into());
+                "블록조각.충돌?" => {
+                    if args.len() != 3 {
+                        return Err("블록조각.충돌?은 인자 3개를 받습니다".to_string().into());
+                    }
+                    Ok(Value::Bool(std_block_piece_collides(
+                        &args[0], &args[1], &args[2],
+                    )?))
                 }
-                std_block_piece_lock(&args[0], &args[1], args[2].clone())
-            }
-            "물리1d.위치갱신" => {
-                if args.len() != 3 {
-                    return Err("물리1d.위치갱신은 인자 3개를 받습니다".to_string().into());
+                "블록조각.고정" => {
+                    if args.len() != 3 {
+                        return Err("블록조각.고정은 인자 3개를 받습니다".to_string().into());
+                    }
+                    std_block_piece_lock(&args[0], &args[1], args[2].clone())
                 }
-                let position = expect_unit_value(&args[0])?;
-                let velocity = expect_unit_value(&args[1])?;
-                let dt = expect_unit_value(&args[2])?;
-                ensure_dimensionless_unit(&dt)?;
-                ensure_same_unit_dim(&position, &velocity)?;
-                Ok(unit_value_to_runtime_value(UnitValue {
-                    value: position
+                "물리1d.위치갱신" => {
+                    if args.len() != 3 {
+                        return Err("물리1d.위치갱신은 인자 3개를 받습니다".to_string().into());
+                    }
+                    let position = expect_unit_value(&args[0])?;
+                    let velocity = expect_unit_value(&args[1])?;
+                    let dt = expect_unit_value(&args[2])?;
+                    ensure_dimensionless_unit(&dt)?;
+                    ensure_same_unit_dim(&position, &velocity)?;
+                    let displacement = velocity.value.checked_mul(dt.value)?;
+                    let next_position = position.value.checked_add(displacement)?;
+                    Ok(unit_value_to_runtime_value(UnitValue {
+                        value: next_position,
+                        dim: position.dim,
+                    }))
+                }
+                "물리1d.속도갱신" => {
+                    if args.len() != 3 {
+                        return Err("물리1d.속도갱신은 인자 3개를 받습니다".to_string().into());
+                    }
+                    let velocity = expect_unit_value(&args[0])?;
+                    let acceleration = expect_unit_value(&args[1])?;
+                    let dt = expect_unit_value(&args[2])?;
+                    ensure_dimensionless_unit(&dt)?;
+                    ensure_same_unit_dim(&velocity, &acceleration)?;
+                    let delta_velocity = acceleration.value.checked_mul(dt.value)?;
+                    let next_velocity = velocity.value.checked_add(delta_velocity)?;
+                    Ok(unit_value_to_runtime_value(UnitValue {
+                        value: next_velocity,
+                        dim: velocity.dim,
+                    }))
+                }
+                "물리1d.탄성충돌1d" => {
+                    if args.len() != 4 {
+                        return Err("물리1d.탄성충돌1d는 인자 4개를 받습니다".to_string().into());
+                    }
+                    let m1 = expect_unit_value(&args[0])?;
+                    let v1 = expect_unit_value(&args[1])?;
+                    let m2 = expect_unit_value(&args[2])?;
+                    let v2 = expect_unit_value(&args[3])?;
+                    ensure_dimensionless_unit(&m1)?;
+                    ensure_dimensionless_unit(&m2)?;
+                    ensure_same_unit_dim(&v1, &v2)?;
+                    let denom = m1.value.checked_add(m2.value)?;
+                    if denom.raw_i64() == 0 {
+                        return Err("물리1d.탄성충돌1d 질량 합은 0이 될 수 없습니다"
+                            .to_string()
+                            .into());
+                    }
+                    let two = Fixed64::from_i64(2);
+                    let next_v1_num = m1
                         .value
-                        .saturating_add(velocity.value.saturating_mul(dt.value)),
-                    dim: position.dim,
-                }))
-            }
-            "물리1d.속도갱신" => {
-                if args.len() != 3 {
-                    return Err("물리1d.속도갱신은 인자 3개를 받습니다".to_string().into());
+                        .checked_sub(m2.value)?
+                        .checked_mul(v1.value)?
+                        .checked_add(two.checked_mul(m2.value)?.checked_mul(v2.value)?)?;
+                    let next_v2_num = two
+                        .checked_mul(m1.value)?
+                        .checked_mul(v1.value)?
+                        .checked_add(m2.value.checked_sub(m1.value)?.checked_mul(v2.value)?)?;
+                    let next_v1 = next_v1_num.try_div(denom)?;
+                    let next_v2 = next_v2_num.try_div(denom)?;
+                    Ok(Value::List(vec![
+                        unit_value_to_runtime_value(UnitValue {
+                            value: next_v1,
+                            dim: v1.dim,
+                        }),
+                        unit_value_to_runtime_value(UnitValue {
+                            value: next_v2,
+                            dim: v1.dim,
+                        }),
+                    ]))
                 }
-                let velocity = expect_unit_value(&args[0])?;
-                let acceleration = expect_unit_value(&args[1])?;
-                let dt = expect_unit_value(&args[2])?;
-                ensure_dimensionless_unit(&dt)?;
-                ensure_same_unit_dim(&velocity, &acceleration)?;
-                Ok(unit_value_to_runtime_value(UnitValue {
-                    value: velocity
-                        .value
-                        .saturating_add(acceleration.value.saturating_mul(dt.value)),
-                    dim: velocity.dim,
-                }))
-            }
-            "물리1d.탄성충돌1d" => {
-                if args.len() != 4 {
-                    return Err("물리1d.탄성충돌1d는 인자 4개를 받습니다".to_string().into());
+                "채우기" => {
+                    if args.len() != 2 {
+                        return Err("채우기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::Template(template) = &args[0] else {
+                        return Err("채우기는 글무늬 인자가 필요합니다".to_string().into());
+                    };
+                    let Value::Pack(pack) = &args[1] else {
+                        return Err("채우기는 묶음 주입 인자가 필요합니다".to_string().into());
+                    };
+                    let rendered = render_template(template, pack)?;
+                    Ok(Value::String(rendered))
                 }
-                let m1 = expect_unit_value(&args[0])?;
-                let v1 = expect_unit_value(&args[1])?;
-                let m2 = expect_unit_value(&args[2])?;
-                let v2 = expect_unit_value(&args[3])?;
-                ensure_dimensionless_unit(&m1)?;
-                ensure_dimensionless_unit(&m2)?;
-                ensure_same_unit_dim(&v1, &v2)?;
-                let denom = m1.value.saturating_add(m2.value);
-                if denom.raw_i64() == 0 {
-                    return Err("물리1d.탄성충돌1d 질량 합은 0이 될 수 없습니다"
-                        .to_string()
-                        .into());
-                }
-                let two = Fixed64::from_i64(2);
-                let next_v1_num = m1
-                    .value
-                    .saturating_sub(m2.value)
-                    .saturating_mul(v1.value)
-                    .saturating_add(two.saturating_mul(m2.value).saturating_mul(v2.value));
-                let next_v2_num = two
-                    .saturating_mul(m1.value)
-                    .saturating_mul(v1.value)
-                    .saturating_add(m2.value.saturating_sub(m1.value).saturating_mul(v2.value));
-                let next_v1 = next_v1_num
-                    .try_div(denom)
-                    .map_err(|_| EvalError::from("0으로 나눌 수 없습니다".to_string()))?;
-                let next_v2 = next_v2_num
-                    .try_div(denom)
-                    .map_err(|_| EvalError::from("0으로 나눌 수 없습니다".to_string()))?;
-                Ok(Value::List(vec![
-                    unit_value_to_runtime_value(UnitValue {
-                        value: next_v1,
-                        dim: v1.dim,
-                    }),
-                    unit_value_to_runtime_value(UnitValue {
-                        value: next_v2,
-                        dim: v1.dim,
-                    }),
-                ]))
-            }
-            "채우기" => {
-                if args.len() != 2 {
-                    return Err("채우기는 인자 2개를 받습니다".to_string().into());
-                }
-                let Value::Template(template) = &args[0] else {
-                    return Err("채우기는 글무늬 인자가 필요합니다".to_string().into());
-                };
-                let Value::Pack(pack) = &args[1] else {
-                    return Err("채우기는 묶음 주입 인자가 필요합니다".to_string().into());
-                };
-                let rendered = render_template(template, pack)?;
-                Ok(Value::String(rendered))
-            }
-            "풀기" => {
-                if args.len() != 2 {
-                    return Err("풀기는 인자 2개를 받습니다".to_string().into());
-                }
-                let Value::Formula(formula) = &args[0] else {
-                    return Err("풀기는 수식값 인자가 필요합니다".to_string().into());
-                };
-                let Value::Pack(pack) = &args[1] else {
-                    return Err("풀기는 묶음 주입 인자가 필요합니다".to_string().into());
-                };
-                if matches!(
-                    formula.dialect,
-                    FormulaDialect::Latex | FormulaDialect::Other(_)
-                ) {
-                    return Err("FATAL:FORMULA_DIALECT_UNSUPPORTED".to_string().into());
-                }
-                let parsed = parse_formula_value(formula)?;
-                let required = &parsed.vars;
-                let provided: BTreeSet<String> = pack.keys().cloned().collect();
-                let missing: Vec<String> = required.difference(&provided).cloned().collect();
-                if !missing.is_empty() {
+                "풀기" => {
+                    if args.len() != 2 {
+                        return Err("풀기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::Formula(formula) = &args[0] else {
+                        return Err("풀기는 수식값 인자가 필요합니다".to_string().into());
+                    };
+                    let Value::Pack(pack) = &args[1] else {
+                        return Err("풀기는 묶음 주입 인자가 필요합니다".to_string().into());
+                    };
+                    if matches!(
+                        formula.dialect,
+                        FormulaDialect::Latex | FormulaDialect::Other(_)
+                    ) {
+                        return Err("FATAL:FORMULA_DIALECT_UNSUPPORTED".to_string().into());
+                    }
+                    let parsed = parse_formula_value(formula)?;
+                    let required = &parsed.vars;
+                    let provided: BTreeSet<String> = pack.keys().cloned().collect();
+                    let missing: Vec<String> = required.difference(&provided).cloned().collect();
+                    if !missing.is_empty() {
                         return Err(format!(
                             "풀기: 주입 키가 누락되었습니다: {}",
                             missing.join(", ")
                         )
                         .into());
-                }
-                let extra: Vec<String> = provided.difference(&required).cloned().collect();
-                if !extra.is_empty() {
+                    }
+                    let extra: Vec<String> = provided.difference(&required).cloned().collect();
+                    if !extra.is_empty() {
                         return Err(
                             format!("풀기: 주입 키가 여분입니다: {}", extra.join(", ")).into()
                         );
-                }
-                for (key, value) in pack {
-                    if matches!(value, Value::None) {
-                        return Err(format!("풀기: 키 '{}' 값이 없습니다", key).into());
                     }
-                }
-                    self.work_cost.borrow_mut().charge_solver_evaluations(1)?;
-                let value = eval_formula_expr(&parsed.expr, pack)?;
-                Ok(unit_value_to_value(value))
-            }
-            "살피기" => {
-                if args.len() != 2 {
-                    return Err("살피기는 인자 2개를 받습니다".to_string().into());
-                }
-                let Value::Assertion(assertion) = &args[0] else {
-                    return Err("살피기는 세움값 인자가 필요합니다".to_string().into());
-                };
-                let bindings = assertion_bindings_from_value(&args[1])?;
-                self.eval_assertion(assertion, bindings)
-            }
-            "처음으로" => {
-                if args.len() != 1 {
-                    return Err("처음으로는 인자 1개를 받습니다".to_string().into());
-                }
-                let Value::StateMachine(machine) = &args[0] else {
-                    return Err("처음으로는 상태머신값 인자가 필요합니다".to_string().into());
-                };
-                Ok(Value::String(machine.initial.clone()))
-            }
-            "지금상태" => {
-                if args.len() != 2 {
-                    return Err("지금상태는 인자 2개를 받습니다".to_string().into());
-                }
-                let Value::StateMachine(machine) = &args[0] else {
-                    return Err("지금상태는 상태머신값 인자가 필요합니다".to_string().into());
-                };
-                let Value::String(state) = &args[1] else {
-                    return Err("지금상태는 글 상태 이름 인자가 필요합니다"
-                        .to_string()
-                        .into());
-                };
-                ensure_declared_state(machine, state)?;
-                Ok(Value::String(state.clone()))
-            }
-            "다음으로" => {
-                if args.len() != 2 {
-                    return Err("다음으로는 인자 2개를 받습니다".to_string().into());
-                }
-                let Value::StateMachine(machine) = &args[0] else {
-                    return Err("다음으로는 상태머신값 인자가 필요합니다".to_string().into());
-                };
-                let Value::String(state) = &args[1] else {
-                    return Err("다음으로는 글 상태 이름 인자가 필요합니다"
-                        .to_string()
-                        .into());
-                };
-                ensure_declared_state(machine, state)?;
-                let mut candidates: Vec<&StateTransition> = machine
-                    .transitions
-                    .iter()
-                    .filter(|t| t.from == *state)
-                    .collect();
-                if candidates.is_empty() {
-                    return Err(format!("E_STATE_TRANSITION_MISSING: {}", state).into());
-                }
-                candidates.sort_by_key(|transition| {
-                    (
-                        transition.from.as_str(),
-                        transition.to.as_str(),
-                        transition.guard_name.as_deref().unwrap_or(""),
-                        transition.action_name.as_deref().unwrap_or(""),
-                    )
-                });
-                let mut passing = Vec::new();
-                let mut guard_rejected = false;
-                for transition in candidates {
-                    let bindings = build_state_machine_transition_bindings(
-                        &transition.from,
-                        &transition.to,
-                    );
-                    if let Some(guard_name) = &transition.guard_name {
-                        if !self.eval_state_machine_guard(locals, guard_name, &bindings)? {
-                            guard_rejected = true;
-                            continue;
+                    for (key, value) in pack {
+                        if matches!(value, Value::None) {
+                            return Err(format!("풀기: 키 '{}' 값이 없습니다", key).into());
                         }
                     }
-                    passing.push(transition);
+                    self.work_cost.borrow_mut().charge_solver_evaluations(1)?;
+                    let value = eval_formula_expr(&parsed.expr, pack)?;
+                    Ok(unit_value_to_value(value))
                 }
-                let [next] = passing.as_slice() else {
-                    if passing.len() > 1 {
-                        return Err(
-                            format!("E_STATE_TRANSITION_GUARD_REJECTED: {}", state).into()
-                        );
+                "살피기" => {
+                    if args.len() != 2 {
+                        return Err("살피기는 인자 2개를 받습니다".to_string().into());
                     }
-                    if guard_rejected {
-                        return Err(
-                            format!("E_STATE_TRANSITION_GUARD_REJECTED: {}", state).into()
-                        );
+                    let Value::Assertion(assertion) = &args[0] else {
+                        return Err("살피기는 세움값 인자가 필요합니다".to_string().into());
+                    };
+                    let bindings = assertion_bindings_from_value(&args[1])?;
+                    self.eval_assertion(assertion, bindings)
+                }
+                "처음으로" => {
+                    if args.len() != 1 {
+                        return Err("처음으로는 인자 1개를 받습니다".to_string().into());
                     }
-                    return Err(format!("E_STATE_TRANSITION_MISSING: {}", state).into());
-                };
-                self.apply_state_machine_transition(locals, machine, next)?;
-                self.emit_state_machine_transition(
-                    state,
-                    &next.to,
-                    next.guard_name.as_deref(),
-                    next.action_name.as_deref(),
-                );
-                Ok(Value::String(next.to.clone()))
-            }
-            "정리하기" => {
-                let formula = expect_single_formula(&args, "정리하기")?;
-                let transformed = transform_formula_value(
-                    formula,
-                    FormulaTransformOptions::default(),
-                    "simplify",
-                    "정리하기",
-                )?;
-                Ok(Value::Formula(transformed))
-            }
-            "전개하기" => {
-                let formula = expect_single_formula(&args, "전개하기")?;
-                let transformed = transform_formula_value(
-                    formula,
-                    FormulaTransformOptions::default(),
-                    "expand",
-                    "전개하기",
-                )?;
-                Ok(Value::Formula(transformed))
-            }
-            "인수분해하기" => {
-                let formula = expect_single_formula(&args, "인수분해하기")?;
-                let transformed = transform_formula_value(
-                    formula,
-                    FormulaTransformOptions::default(),
-                    "factor",
-                    "인수분해하기",
-                )?;
-                Ok(Value::Formula(transformed))
-            }
-            "미분하기" => {
-                let (formula, options) = expect_formula_transform(&args, "미분하기")?;
+                    let Value::StateMachine(machine) = &args[0] else {
+                        return Err("처음으로는 상태머신값 인자가 필요합니다".to_string().into());
+                    };
+                    Ok(Value::String(machine.initial.clone()))
+                }
+                "지금상태" => {
+                    if args.len() != 2 {
+                        return Err("지금상태는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::StateMachine(machine) = &args[0] else {
+                        return Err("지금상태는 상태머신값 인자가 필요합니다".to_string().into());
+                    };
+                    let Value::String(state) = &args[1] else {
+                        return Err("지금상태는 글 상태 이름 인자가 필요합니다"
+                            .to_string()
+                            .into());
+                    };
+                    ensure_declared_state(machine, state)?;
+                    Ok(Value::String(state.clone()))
+                }
+                "다음으로" => {
+                    if args.len() != 2 {
+                        return Err("다음으로는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::StateMachine(machine) = &args[0] else {
+                        return Err("다음으로는 상태머신값 인자가 필요합니다".to_string().into());
+                    };
+                    let Value::String(state) = &args[1] else {
+                        return Err("다음으로는 글 상태 이름 인자가 필요합니다"
+                            .to_string()
+                            .into());
+                    };
+                    ensure_declared_state(machine, state)?;
+                    let mut candidates: Vec<&StateTransition> = machine
+                        .transitions
+                        .iter()
+                        .filter(|t| t.from == *state)
+                        .collect();
+                    if candidates.is_empty() {
+                        return Err(format!("E_STATE_TRANSITION_MISSING: {}", state).into());
+                    }
+                    candidates.sort_by_key(|transition| {
+                        (
+                            transition.from.as_str(),
+                            transition.to.as_str(),
+                            transition.guard_name.as_deref().unwrap_or(""),
+                            transition.action_name.as_deref().unwrap_or(""),
+                        )
+                    });
+                    let mut passing = Vec::new();
+                    let mut guard_rejected = false;
+                    for transition in candidates {
+                        let bindings = build_state_machine_transition_bindings(
+                            &transition.from,
+                            &transition.to,
+                        );
+                        if let Some(guard_name) = &transition.guard_name {
+                            if !self.eval_state_machine_guard(locals, guard_name, &bindings)? {
+                                guard_rejected = true;
+                                continue;
+                            }
+                        }
+                        passing.push(transition);
+                    }
+                    let [next] = passing.as_slice() else {
+                        if passing.len() > 1 {
+                            return Err(
+                                format!("E_STATE_TRANSITION_GUARD_REJECTED: {}", state).into()
+                            );
+                        }
+                        if guard_rejected {
+                            return Err(
+                                format!("E_STATE_TRANSITION_GUARD_REJECTED: {}", state).into()
+                            );
+                        }
+                        return Err(format!("E_STATE_TRANSITION_MISSING: {}", state).into());
+                    };
+                    self.apply_state_machine_transition(locals, machine, next)?;
+                    self.emit_state_machine_transition(
+                        state,
+                        &next.to,
+                        next.guard_name.as_deref(),
+                        next.action_name.as_deref(),
+                    );
+                    Ok(Value::String(next.to.clone()))
+                }
+                "정리하기" => {
+                    let formula = expect_single_formula(&args, "정리하기")?;
+                    let transformed = transform_formula_value(
+                        formula,
+                        FormulaTransformOptions::default(),
+                        "simplify",
+                        "정리하기",
+                    )?;
+                    Ok(Value::Formula(transformed))
+                }
+                "전개하기" => {
+                    let formula = expect_single_formula(&args, "전개하기")?;
+                    let transformed = transform_formula_value(
+                        formula,
+                        FormulaTransformOptions::default(),
+                        "expand",
+                        "전개하기",
+                    )?;
+                    Ok(Value::Formula(transformed))
+                }
+                "인수분해하기" => {
+                    let formula = expect_single_formula(&args, "인수분해하기")?;
+                    let transformed = transform_formula_value(
+                        formula,
+                        FormulaTransformOptions::default(),
+                        "factor",
+                        "인수분해하기",
+                    )?;
+                    Ok(Value::Formula(transformed))
+                }
+                "미분하기" => {
+                    let (formula, options) = expect_formula_transform(&args, "미분하기")?;
                     let transformed =
                         transform_formula_value(formula, options, "diff", "미분하기")?;
-                Ok(Value::Formula(transformed))
-            }
-            "적분하기" => {
-                let (formula, options) = expect_formula_transform(&args, "적분하기")?;
-                let transformed = transform_formula_value(formula, options, "int", "적분하기")?;
-                Ok(Value::Formula(transformed))
-            }
-            "동치인가" => {
-                let (left, right) = expect_two_formulas(&args, "동치인가")?;
-                Ok(Value::Bool(symbolic_formulas_equivalent(&left, &right)?))
-            }
-            "잇기" => {
-                let (left, right) = expect_two_formulas(&args, "잇기")?;
-                Ok(make_relation_pack(left, right))
-            }
-            "이음관계.관계목록" => eval_endpoint_relation_list(&args),
-            "이음관계.정규화" => eval_endpoint_relation_normalize(&args),
-            "이음관계.방정식목록" => eval_endpoint_formula_relation_list(&args),
-            "이음관계.방정식화" => eval_endpoint_formula_relation_set(&args),
-            "이음관계.값관계목록" => eval_endpoint_boundary_value_relation_list(&args),
-            "이음관계.값주입" => eval_endpoint_boundary_value_injection(&args),
+                    Ok(Value::Formula(transformed))
+                }
+                "적분하기" => {
+                    let (formula, options) = expect_formula_transform(&args, "적분하기")?;
+                    let transformed = transform_formula_value(formula, options, "int", "적분하기")?;
+                    Ok(Value::Formula(transformed))
+                }
+                "동치인가" => {
+                    let (left, right) = expect_two_formulas(&args, "동치인가")?;
+                    Ok(Value::Bool(symbolic_formulas_equivalent(&left, &right)?))
+                }
+                "잇기" => {
+                    let (left, right) = expect_two_formulas(&args, "잇기")?;
+                    Ok(make_relation_pack(left, right))
+                }
+                "이음관계.관계목록" => eval_endpoint_relation_list(&args),
+                "이음관계.정규화" => eval_endpoint_relation_normalize(&args),
+                "이음관계.방정식목록" => eval_endpoint_formula_relation_list(&args),
+                "이음관계.방정식화" => eval_endpoint_formula_relation_set(&args),
+                "이음관계.값관계목록" => eval_endpoint_boundary_value_relation_list(&args),
+                "이음관계.값주입" => eval_endpoint_boundary_value_injection(&args),
                 "이음관계.풀기" => {
                     eval_endpoint_explicit_solve_with_meter(&args, Some(&self.work_cost))
                 }
-            "이음관계.풀이값목록" => eval_endpoint_solve_result_value_list(&args),
-            "이음관계.풀이원복" => eval_endpoint_solve_result_remap(&args),
+                "이음관계.풀이값목록" => eval_endpoint_solve_result_value_list(&args),
+                "이음관계.풀이원복" => eval_endpoint_solve_result_remap(&args),
                 "이음관계.범위위반목록" => {
                     eval_endpoint_boundary_range_violation_list(&args)
                 }
-            "이음관계.범위검사" => eval_endpoint_boundary_range_check(&args),
-            "이음관계.풀고범위위반목록" => {
+                "이음관계.범위검사" => eval_endpoint_boundary_range_check(&args),
+                "이음관계.풀고범위위반목록" => {
                     eval_endpoint_explicit_solve_range_violation_list_with_meter(
                         &args,
                         Some(&self.work_cost),
@@ -7688,16 +9018,13 @@ impl<'a> EvalContext<'a> {
                     )
                 }
                 "이음관계.풀고범위행목록" => {
-                    eval_endpoint_solve_range_report_rows_with_meter(
-                        &args,
-                        Some(&self.work_cost),
-                    )
+                    eval_endpoint_solve_range_report_rows_with_meter(&args, Some(&self.work_cost))
                 }
                 "이음관계.풀고범위보고서" => {
                     eval_endpoint_solve_range_report_with_meter(&args, Some(&self.work_cost))
-            }
-            "이음관계.보고서문자표" => eval_endpoint_solve_range_text_report(&args),
-            "이음관계.풀고범위문자표" => {
+                }
+                "이음관계.보고서문자표" => eval_endpoint_solve_range_text_report(&args),
+                "이음관계.풀고범위문자표" => {
                     eval_endpoint_explicit_solve_range_text_report_with_meter(
                         &args,
                         Some(&self.work_cost),
@@ -7708,1108 +9035,1146 @@ impl<'a> EvalContext<'a> {
                 }
                 "이음관계.풀고범위스위트" => {
                     eval_endpoint_solve_range_case_suite_with_meter(&args, Some(&self.work_cost))
-            }
-            "이음관계.풀고범위스위트문자표" => {
-                eval_endpoint_solve_range_case_suite_text(&args)
-            }
-            "이음관계.풀고범위스위트상세문자표" => {
-                eval_endpoint_solve_range_case_suite_detail_text(&args)
-            }
-            "이음관계.풀고범위실행상세문자표" => {
+                }
+                "이음관계.풀고범위스위트문자표" => {
+                    eval_endpoint_solve_range_case_suite_text(&args)
+                }
+                "이음관계.풀고범위스위트상세문자표" => {
+                    eval_endpoint_solve_range_case_suite_detail_text(&args)
+                }
+                "이음관계.풀고범위실행상세문자표" => {
                     eval_endpoint_solve_range_case_suite_run_detail_text_with_meter(
                         &args,
                         Some(&self.work_cost),
                     )
-            }
-            "이음관계.풀고범위스위트요약" => {
-                eval_endpoint_solve_range_case_suite_summary(&args)
-            }
-            "이음관계.풀고범위실행요약" => {
+                }
+                "이음관계.풀고범위스위트요약" => {
+                    eval_endpoint_solve_range_case_suite_summary(&args)
+                }
+                "이음관계.풀고범위실행요약" => {
                     eval_endpoint_solve_range_case_suite_run_summary_with_meter(
                         &args,
                         Some(&self.work_cost),
                     )
-            }
-            "이음관계.풀고범위스위트판정" => {
-                eval_endpoint_solve_range_case_suite_check(&args)
-            }
-            "이음관계.풀고범위실행판정" => {
+                }
+                "이음관계.풀고범위스위트판정" => {
+                    eval_endpoint_solve_range_case_suite_check(&args)
+                }
+                "이음관계.풀고범위실행판정" => {
                     eval_endpoint_solve_range_case_suite_run_check_with_meter(
                         &args,
                         Some(&self.work_cost),
                     )
-            }
-            "방정식풀기" => {
-                let relations = expect_equation_relations(&args)?;
+                }
+                "방정식풀기" => {
+                    let relations = expect_equation_relations(&args)?;
                     eval_relation_solve_result_with_meter(&relations, Some(&self.work_cost))
                 }
                 "다항식.풀기" => {
                     eval_polynomial_solve_result_with_meter(&args, Some(&self.work_cost))
-            }
-            "증명하기" => {
+                }
+                "증명하기" => {
                     let proof =
                         eval_symbolic_proof_tactic_with_meter(&args, Some(&self.work_cost))?;
-                Ok(Value::Pack(proof))
-            }
-            "번째" => {
-                if args.len() != 2 {
-                    return Err("번째는 인자 2개를 받습니다".to_string().into());
+                    Ok(Value::Pack(proof))
                 }
-                let value = list_nth(&args[0], &args[1]).map_err(runtime_error)?;
-                self.work_cost.borrow_mut().charge_element_visits(1)?;
-                Ok(value)
-            }
-            "차림.값" => {
-                if args.len() != 2 {
-                    return Err("차림.값은 인자 2개를 받습니다".to_string().into());
+                "번째" => {
+                    if args.len() != 2 {
+                        return Err("번째는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let value = list_nth(&args[0], &args[1]).map_err(runtime_error)?;
+                    self.work_cost.borrow_mut().charge_element_visits(1)?;
+                    Ok(value)
                 }
-                let value = list_nth(&args[0], &args[1]).map_err(runtime_error)?;
-                self.work_cost.borrow_mut().charge_element_visits(1)?;
-                Ok(value)
-            }
-            "차림.바꾼값" => {
-                if args.len() != 3 {
-                    return Err("차림.바꾼값은 인자 3개를 받습니다".to_string().into());
+                "차림.값" => {
+                    if args.len() != 2 {
+                        return Err("차림.값은 인자 2개를 받습니다".to_string().into());
+                    }
+                    let value = list_nth(&args[0], &args[1]).map_err(runtime_error)?;
+                    self.work_cost.borrow_mut().charge_element_visits(1)?;
+                    Ok(value)
                 }
-                let index = value_to_index(&args[1])?;
-                let Value::List(items) = &args[0] else {
-                    return Err("차림.바꾼값은 차림 인자를 받습니다".to_string().into());
-                };
-                if index >= items.len() {
-                    return Err(runtime_error(RuntimeError::IndexOutOfRange));
+                "차림.바꾼값" => {
+                    if args.len() != 3 {
+                        return Err("차림.바꾼값은 인자 3개를 받습니다".to_string().into());
+                    }
+                    let index = value_to_index(&args[1])?;
+                    let Value::List(items) = &args[0] else {
+                        return Err("차림.바꾼값은 차림 인자를 받습니다".to_string().into());
+                    };
+                    if index >= items.len() {
+                        return Err(runtime_error(RuntimeError::IndexOutOfRange));
+                    }
+                    self.work_cost
+                        .borrow_mut()
+                        .charge_element_visits(items.len())?;
+                    let mut out = items.clone();
+                    out[index] = args[2].clone();
+                    Ok(Value::List(out))
                 }
-                self.work_cost
-                    .borrow_mut()
-                    .charge_element_visits(items.len())?;
-                let mut out = items.clone();
-                out[index] = args[2].clone();
-                Ok(Value::List(out))
-            }
-            "길이" => {
-                if args.len() != 1 {
-                    return Err("길이는 인자 1개를 받습니다".to_string().into());
+                "길이" => {
+                    if args.len() != 1 {
+                        return Err("길이는 인자 1개를 받습니다".to_string().into());
+                    }
+                    match args[0] {
+                        Value::List(_) => list_len(&args[0]).map_err(runtime_error),
+                        Value::String(_) => string_len(&args[0]).map_err(runtime_error),
+                        _ => Err("길이는 차림/글에만 적용됩니다".to_string().into()),
+                    }
                 }
-                match args[0] {
-                    Value::List(_) => list_len(&args[0]).map_err(runtime_error),
-                    Value::String(_) => string_len(&args[0]).map_err(runtime_error),
-                    _ => Err("길이는 차림/글에만 적용됩니다".to_string().into()),
-                }
-            }
-            "범위" => {
-                let (start, end, step) = match args.len() {
-                    2 => {
-                        let start = unit_value_from_value(&args[0])?;
-                        let end = unit_value_from_value(&args[1])?;
-                        if start.dim != end.dim {
-                            return Err(unit_error(UnitError::DimensionMismatch {
-                                left: start.dim,
-                                right: end.dim,
-                            }));
+                "범위" => {
+                    let (start, end, step) = match args.len() {
+                        2 => {
+                            let start = unit_value_from_value(&args[0])?;
+                            let end = unit_value_from_value(&args[1])?;
+                            if start.dim != end.dim {
+                                return Err(unit_error(UnitError::DimensionMismatch {
+                                    left: start.dim,
+                                    right: end.dim,
+                                }));
+                            }
+                            let step = UnitValue {
+                                value: Fixed64::from_i64(1),
+                                dim: start.dim,
+                            };
+                            (start, end, step)
                         }
-                        let step = UnitValue {
-                            value: Fixed64::from_i64(1),
-                            dim: start.dim,
-                        };
-                        (start, end, step)
-                    }
-                    3 => {
-                        let start = unit_value_from_value(&args[0])?;
-                        let end = unit_value_from_value(&args[1])?;
-                        let step = unit_value_from_value(&args[2])?;
-                        if start.dim != end.dim {
-                            return Err(unit_error(UnitError::DimensionMismatch {
-                                left: start.dim,
-                                right: end.dim,
-                            }));
+                        3 => {
+                            let start = unit_value_from_value(&args[0])?;
+                            let end = unit_value_from_value(&args[1])?;
+                            let step = unit_value_from_value(&args[2])?;
+                            if start.dim != end.dim {
+                                return Err(unit_error(UnitError::DimensionMismatch {
+                                    left: start.dim,
+                                    right: end.dim,
+                                }));
+                            }
+                            if start.dim != step.dim {
+                                return Err(unit_error(UnitError::DimensionMismatch {
+                                    left: start.dim,
+                                    right: step.dim,
+                                }));
+                            }
+                            (start, end, step)
                         }
-                        if start.dim != step.dim {
-                            return Err(unit_error(UnitError::DimensionMismatch {
-                                left: start.dim,
-                                right: step.dim,
-                            }));
+                        _ => {
+                            return Err("범위는 인자 2개 또는 3개를 받습니다".to_string().into());
                         }
-                        (start, end, step)
+                    };
+                    if step.value.raw_i64() == 0 {
+                        return Err("범위 간격은 0이 될 수 없습니다".to_string().into());
                     }
-                    _ => {
-                        return Err("범위는 인자 2개 또는 3개를 받습니다".to_string().into());
-                    }
-                };
-                if step.value.raw_i64() == 0 {
-                    return Err("범위 간격은 0이 될 수 없습니다".to_string().into());
-                }
-                let mut items = Vec::new();
-                let mut current = start.value;
-                let step_value = step.value;
-                if step_value.raw_i64() > 0 {
-                    while current.raw_i64() <= end.value.raw_i64() {
-                        items.push(unit_value_to_value(UnitValue {
-                            value: current,
-                            dim: start.dim,
-                        }));
-                        current = current.saturating_add(step_value);
-                    }
-                } else {
-                    while current.raw_i64() >= end.value.raw_i64() {
-                        items.push(unit_value_to_value(UnitValue {
-                            value: current,
-                            dim: start.dim,
-                        }));
-                        current = current.saturating_add(step_value);
-                    }
-                }
-                Ok(Value::List(items))
-            }
-            "표준.범위" => {
-                if args.len() != 3 {
-                    return Err("표준.범위는 인자 3개를 받습니다".to_string().into());
-                }
-                let start = unit_value_from_value(&args[0])?;
-                let end = unit_value_from_value(&args[1])?;
-                if start.dim != end.dim {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: start.dim,
-                        right: end.dim,
-                    }));
-                }
-                let include = unit_value_from_value(&args[2])?;
-                if include.dim != UnitDim::NONE {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: include.dim,
-                        right: UnitDim::NONE,
-                    }));
-                }
-                let flag = include.value.raw_i64();
-                let one = Fixed64::from_i64(1).raw_i64();
-                if flag != 0 && flag != one {
-                    return Err("끝포함은 0 또는 1이어야 합니다".to_string().into());
-                }
-                let include_end = flag == one;
-                let step = UnitValue {
-                    value: Fixed64::from_i64(1),
-                    dim: start.dim,
-                };
-                let mut items = Vec::new();
-                let mut current = start.value;
-                if start.value.raw_i64() <= end.value.raw_i64() {
-                    if include_end {
+                    let mut items = Vec::new();
+                    let mut current = start.value;
+                    let step_value = step.value;
+                    if step_value.raw_i64() > 0 {
                         while current.raw_i64() <= end.value.raw_i64() {
                             items.push(unit_value_to_value(UnitValue {
                                 value: current,
                                 dim: start.dim,
                             }));
-                            current = current.saturating_add(step.value);
+                            if current == end.value {
+                                break;
+                            }
+                            current = current.checked_add(step_value)?;
                         }
                     } else {
-                        while current.raw_i64() < end.value.raw_i64() {
+                        while current.raw_i64() >= end.value.raw_i64() {
                             items.push(unit_value_to_value(UnitValue {
                                 value: current,
                                 dim: start.dim,
                             }));
-                            current = current.saturating_add(step.value);
+                            if current == end.value {
+                                break;
+                            }
+                            current = current.checked_add(step_value)?;
                         }
                     }
+                    Ok(Value::List(items))
                 }
-                Ok(Value::List(items))
-            }
-            "대문자로바꾸기" => {
-                if args.len() != 1 {
-                    return Err("대문자로바꾸기는 인자 1개를 받습니다".to_string().into());
+                "표준.범위" => {
+                    if args.len() != 3 {
+                        return Err("표준.범위는 인자 3개를 받습니다".to_string().into());
+                    }
+                    let start = unit_value_from_value(&args[0])?;
+                    let end = unit_value_from_value(&args[1])?;
+                    if start.dim != end.dim {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: start.dim,
+                            right: end.dim,
+                        }));
+                    }
+                    let include = unit_value_from_value(&args[2])?;
+                    if include.dim != UnitDim::NONE {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: include.dim,
+                            right: UnitDim::NONE,
+                        }));
+                    }
+                    let flag = include.value.raw_i64();
+                    let one = Fixed64::from_i64(1).raw_i64();
+                    if flag != 0 && flag != one {
+                        return Err("끝포함은 0 또는 1이어야 합니다".to_string().into());
+                    }
+                    let include_end = flag == one;
+                    let step = UnitValue {
+                        value: Fixed64::from_i64(1),
+                        dim: start.dim,
+                    };
+                    let mut items = Vec::new();
+                    let mut current = start.value;
+                    if start.value.raw_i64() <= end.value.raw_i64() {
+                        if include_end {
+                            while current.raw_i64() <= end.value.raw_i64() {
+                                items.push(unit_value_to_value(UnitValue {
+                                    value: current,
+                                    dim: start.dim,
+                                }));
+                                if current == end.value {
+                                    break;
+                                }
+                                current = current.checked_add(step.value)?;
+                            }
+                        } else {
+                            while current.raw_i64() < end.value.raw_i64() {
+                                items.push(unit_value_to_value(UnitValue {
+                                    value: current,
+                                    dim: start.dim,
+                                }));
+                                if current == end.value {
+                                    break;
+                                }
+                                current = current.checked_add(step.value)?;
+                            }
+                        }
+                    }
+                    Ok(Value::List(items))
                 }
-                let Value::String(text) = &args[0] else {
-                    return Err("대문자로바꾸기는 글 인자를 받습니다".to_string().into());
-                };
-                Ok(Value::String(text.to_uppercase()))
-            }
-            "소문자로바꾸기" => {
-                if args.len() != 1 {
-                    return Err("소문자로바꾸기는 인자 1개를 받습니다".to_string().into());
+                "대문자로바꾸기" => {
+                    if args.len() != 1 {
+                        return Err("대문자로바꾸기는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let Value::String(text) = &args[0] else {
+                        return Err("대문자로바꾸기는 글 인자를 받습니다".to_string().into());
+                    };
+                    Ok(Value::String(text.to_uppercase()))
                 }
-                let Value::String(text) = &args[0] else {
-                    return Err("소문자로바꾸기는 글 인자를 받습니다".to_string().into());
-                };
-                Ok(Value::String(text.to_lowercase()))
-            }
-            "다듬기" => {
-                if args.len() != 1 {
-                    return Err("다듬기는 인자 1개를 받습니다".to_string().into());
+                "소문자로바꾸기" => {
+                    if args.len() != 1 {
+                        return Err("소문자로바꾸기는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let Value::String(text) = &args[0] else {
+                        return Err("소문자로바꾸기는 글 인자를 받습니다".to_string().into());
+                    };
+                    Ok(Value::String(text.to_lowercase()))
                 }
-                let Value::String(text) = &args[0] else {
-                    return Err("다듬기는 글 인자를 받습니다".to_string().into());
-                };
-                Ok(Value::String(text.trim().to_string()))
-            }
-            "되풀이하기" => {
-                if args.len() != 2 {
-                    return Err("되풀이하기는 인자 2개를 받습니다".to_string().into());
+                "다듬기" => {
+                    if args.len() != 1 {
+                        return Err("다듬기는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let Value::String(text) = &args[0] else {
+                        return Err("다듬기는 글 인자를 받습니다".to_string().into());
+                    };
+                    Ok(Value::String(text.trim().to_string()))
                 }
-                let Value::String(text) = &args[0] else {
-                    return Err("되풀이하기 첫 인자는 글이어야 합니다".to_string().into());
-                };
-                let count = value_to_i64(&args[1])?;
-                if count < 0 {
-                    return Err("되풀이하기 횟수는 0 이상이어야 합니다".to_string().into());
+                "되풀이하기" => {
+                    if args.len() != 2 {
+                        return Err("되풀이하기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::String(text) = &args[0] else {
+                        return Err("되풀이하기 첫 인자는 글이어야 합니다".to_string().into());
+                    };
+                    let count = value_to_i64(&args[1])?;
+                    if count < 0 {
+                        return Err("되풀이하기 횟수는 0 이상이어야 합니다".to_string().into());
+                    }
+                    Ok(Value::String(text.repeat(count as usize)))
                 }
-                Ok(Value::String(text.repeat(count as usize)))
-            }
-            "글자뽑기" => {
-                if args.len() != 2 {
-                    return Err("글자뽑기는 인자 2개를 받습니다".to_string().into());
+                "글자뽑기" => {
+                    if args.len() != 2 {
+                        return Err("글자뽑기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::String(text) = &args[0] else {
+                        return Err("글자뽑기는 글 인자를 받습니다".to_string().into());
+                    };
+                    let idx = value_to_index(&args[1])?;
+                    let ch = text.chars().nth(idx).map(|c| c.to_string());
+                    Ok(ch.map(Value::String).unwrap_or(Value::None))
                 }
-                let Value::String(text) = &args[0] else {
-                    return Err("글자뽑기는 글 인자를 받습니다".to_string().into());
-                };
-                let idx = value_to_index(&args[1])?;
-                let ch = text.chars().nth(idx).map(|c| c.to_string());
-                Ok(ch.map(Value::String).unwrap_or(Value::None))
-            }
-            "찾기" => {
-                if args.len() != 2 {
-                    return Err("찾기는 인자 2개를 받습니다".to_string().into());
+                "찾기" => {
+                    if args.len() != 2 {
+                        return Err("찾기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    // RD-476: canonical safe lookup for maps; retain the existing
+                    // text-pattern overload independently.
+                    if let Value::Map(map) = &args[0] {
+                        return checked_optional_map_get(map, &args[1]);
+                    }
+                    if let Value::List(items) = &args[0] {
+                        let index = value_to_i64(&args[1])?;
+                        let item = usize::try_from(index).ok().and_then(|index| items.get(index));
+                        return match item {
+                            Some(Value::None) => Err("E_RUNTIME_NESTED_OPTIONAL_UNSUPPORTED: 없음이 저장된 차림의 조회는 아직 지원하지 않습니다".to_string().into()),
+                            Some(value) => Ok(value.clone()),
+                            None => Ok(Value::None),
+                        };
+                    }
+                    let Value::String(text) = &args[0] else {
+                        return Err("찾기는 글 인자를 받습니다".to_string().into());
+                    };
+                    if self.program.program.source_epoch == ddonirang_lang::SourceEpoch::V25
+                        || !matches!(&args[1], Value::String(_))
+                    {
+                        return Err("E_RUNTIME_TEXT_LOOKUP_UNSUPPORTED: 글 찾기는 아직 지원하지 않습니다. 고정된 유니코드 글자 경계 구현이 필요합니다".to_string().into());
+                    }
+                    let Value::String(pattern) = &args[1] else {
+                        return Err("찾기는 글 인자를 받습니다".to_string().into());
+                    };
+                    let idx = text
+                        .find(pattern)
+                        .map(|byte_idx| text[..byte_idx].chars().count() as i64);
+                    Ok(Value::Fixed64(Fixed64::from_i64(idx.unwrap_or(-1))))
                 }
-                let Value::String(text) = &args[0] else {
-                    return Err("찾기는 글 인자를 받습니다".to_string().into());
-                };
-                let Value::String(pattern) = &args[1] else {
-                    return Err("찾기는 글 인자를 받습니다".to_string().into());
-                };
-                let idx = text
-                    .find(pattern)
-                    .map(|byte_idx| text[..byte_idx].chars().count() as i64);
-                Ok(Value::Fixed64(Fixed64::from_i64(idx.unwrap_or(-1))))
-            }
-            "찾기?" => {
-                if args.len() != 2 {
-                    return Err("찾기?는 인자 2개를 받습니다".to_string().into());
+                "찾기?" => {
+                    if args.len() != 2 {
+                        return Err("찾기?는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::Map(map) = &args[0] else {
+                        return Err("찾기?는 짝맞춤 인자를 받습니다".to_string().into());
+                    };
+                    checked_optional_map_get(map, &args[1])
                 }
-                let Value::Map(map) = &args[0] else {
-                    return Err("찾기?는 짝맞춤 인자를 받습니다".to_string().into());
-                };
-                Ok(map_get(map, &args[1]))
-            }
-            "정규맞추기" => {
-                if args.len() != 2 {
-                    return Err("정규맞추기는 인자 2개를 받습니다".to_string().into());
+                "있는가" | "없는가" => {
+                    if args.len() != 1 {
+                        return Err(format!("{func}는 인자 1개를 받습니다").into());
+                    }
+                    let absent = matches!(args[0], Value::None);
+                    Ok(Value::Bool(if func == "없는가" { absent } else { !absent }))
                 }
-                let Value::String(text) = &args[0] else {
-                    return Err("정규맞추기 첫 인자는 글이어야 합니다".to_string().into());
-                };
-                let Value::Regex(regex) = &args[1] else {
-                    return Err("정규맞추기 둘째 인자는 정규식이어야 합니다"
-                        .to_string()
-                        .into());
-                };
-                Ok(Value::Bool(regex_is_full_match(text, regex)?))
-            }
-            "정규찾기" => {
-                if args.len() != 2 {
-                    return Err("정규찾기는 인자 2개를 받습니다".to_string().into());
+                "정규맞추기" => {
+                    if args.len() != 2 {
+                        return Err("정규맞추기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::String(text) = &args[0] else {
+                        return Err("정규맞추기 첫 인자는 글이어야 합니다".to_string().into());
+                    };
+                    let Value::Regex(regex) = &args[1] else {
+                        return Err("정규맞추기 둘째 인자는 정규식이어야 합니다"
+                            .to_string()
+                            .into());
+                    };
+                    Ok(Value::Bool(regex_is_full_match(text, regex)?))
                 }
-                let Value::String(text) = &args[0] else {
-                    return Err("정규찾기 첫 인자는 글이어야 합니다".to_string().into());
-                };
-                let Value::Regex(regex) = &args[1] else {
-                    return Err("정규찾기 둘째 인자는 정규식이어야 합니다"
-                        .to_string()
-                        .into());
-                };
-                let matched = regex_find_first(text, regex)?;
-                Ok(matched.map(Value::String).unwrap_or(Value::None))
-            }
-            "정규캡처하기" => {
-                if args.len() != 2 {
-                    return Err("정규캡처하기는 인자 2개를 받습니다".to_string().into());
+                "정규찾기" => {
+                    if args.len() != 2 {
+                        return Err("정규찾기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::String(text) = &args[0] else {
+                        return Err("정규찾기 첫 인자는 글이어야 합니다".to_string().into());
+                    };
+                    let Value::Regex(regex) = &args[1] else {
+                        return Err("정규찾기 둘째 인자는 정규식이어야 합니다"
+                            .to_string()
+                            .into());
+                    };
+                    let matched = regex_find_first(text, regex)?;
+                    Ok(matched.map(Value::String).unwrap_or(Value::None))
                 }
-                let Value::String(text) = &args[0] else {
-                    return Err("정규캡처하기 첫 인자는 글이어야 합니다".to_string().into());
-                };
-                let Value::Regex(regex) = &args[1] else {
-                    return Err("정규캡처하기 둘째 인자는 정규식이어야 합니다"
-                        .to_string()
-                        .into());
-                };
-                Ok(Value::List(
-                    regex_capture_first(text, regex)?
-                        .into_iter()
-                        .map(Value::String)
-                        .collect(),
-                ))
-            }
-            "정규이름캡처하기" => {
-                if args.len() != 2 {
-                    return Err("정규이름캡처하기는 인자 2개를 받습니다".to_string().into());
+                "정규캡처하기" => {
+                    if args.len() != 2 {
+                        return Err("정규캡처하기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::String(text) = &args[0] else {
+                        return Err("정규캡처하기 첫 인자는 글이어야 합니다".to_string().into());
+                    };
+                    let Value::Regex(regex) = &args[1] else {
+                        return Err("정규캡처하기 둘째 인자는 정규식이어야 합니다"
+                            .to_string()
+                            .into());
+                    };
+                    Ok(Value::List(
+                        regex_capture_first(text, regex)?
+                            .into_iter()
+                            .map(Value::String)
+                            .collect(),
+                    ))
                 }
-                let Value::String(text) = &args[0] else {
-                    return Err("정규이름캡처하기 첫 인자는 글이어야 합니다"
-                        .to_string()
-                        .into());
-                };
-                let Value::Regex(regex) = &args[1] else {
-                    return Err("정규이름캡처하기 둘째 인자는 정규식이어야 합니다"
-                        .to_string()
-                        .into());
-                };
-                Ok(Value::Map(regex_named_capture_first(text, regex)?))
-            }
-            "정규바꾸기" => {
-                if args.len() != 3 {
-                    return Err("정규바꾸기는 인자 3개를 받습니다".to_string().into());
+                "정규이름캡처하기" => {
+                    if args.len() != 2 {
+                        return Err("정규이름캡처하기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::String(text) = &args[0] else {
+                        return Err("정규이름캡처하기 첫 인자는 글이어야 합니다"
+                            .to_string()
+                            .into());
+                    };
+                    let Value::Regex(regex) = &args[1] else {
+                        return Err("정규이름캡처하기 둘째 인자는 정규식이어야 합니다"
+                            .to_string()
+                            .into());
+                    };
+                    Ok(Value::Map(regex_named_capture_first(text, regex)?))
                 }
-                let Value::String(text) = &args[0] else {
-                    return Err("정규바꾸기 첫 인자는 글이어야 합니다".to_string().into());
-                };
-                let Value::Regex(regex) = &args[1] else {
-                    return Err("정규바꾸기 둘째 인자는 정규식이어야 합니다"
-                        .to_string()
-                        .into());
-                };
-                let Value::String(replacement) = &args[2] else {
-                    return Err("정규바꾸기 셋째 인자는 글이어야 합니다".to_string().into());
-                };
-                Ok(Value::String(regex_replace_all(text, regex, replacement)?))
-            }
-            "정규나누기" => {
-                if args.len() != 2 {
-                    return Err("정규나누기는 인자 2개를 받습니다".to_string().into());
+                "정규바꾸기" => {
+                    if args.len() != 3 {
+                        return Err("정규바꾸기는 인자 3개를 받습니다".to_string().into());
+                    }
+                    let Value::String(text) = &args[0] else {
+                        return Err("정규바꾸기 첫 인자는 글이어야 합니다".to_string().into());
+                    };
+                    let Value::Regex(regex) = &args[1] else {
+                        return Err("정규바꾸기 둘째 인자는 정규식이어야 합니다"
+                            .to_string()
+                            .into());
+                    };
+                    let Value::String(replacement) = &args[2] else {
+                        return Err("정규바꾸기 셋째 인자는 글이어야 합니다".to_string().into());
+                    };
+                    Ok(Value::String(regex_replace_all(text, regex, replacement)?))
                 }
-                let Value::String(text) = &args[0] else {
-                    return Err("정규나누기 첫 인자는 글이어야 합니다".to_string().into());
-                };
-                let Value::Regex(regex) = &args[1] else {
-                    return Err("정규나누기 둘째 인자는 정규식이어야 합니다"
-                        .to_string()
-                        .into());
-                };
-                Ok(Value::List(
-                    regex_split(text, regex)?
-                        .into_iter()
-                        .map(Value::String)
-                        .collect(),
-                ))
-            }
-            "첫번째" => {
-                if args.len() != 1 {
-                    return Err("첫번째는 인자 1개를 받습니다".to_string().into());
+                "정규나누기" => {
+                    if args.len() != 2 {
+                        return Err("정규나누기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::String(text) = &args[0] else {
+                        return Err("정규나누기 첫 인자는 글이어야 합니다".to_string().into());
+                    };
+                    let Value::Regex(regex) = &args[1] else {
+                        return Err("정규나누기 둘째 인자는 정규식이어야 합니다"
+                            .to_string()
+                            .into());
+                    };
+                    Ok(Value::List(
+                        regex_split(text, regex)?
+                            .into_iter()
+                            .map(Value::String)
+                            .collect(),
+                    ))
                 }
-                let Value::List(items) = &args[0] else {
-                    return Err("첫번째는 차림 인자를 받습니다".to_string().into());
-                };
-                if !items.is_empty() {
-                    self.work_cost.borrow_mut().charge_element_visits(1)?;
+                "첫번째" => {
+                    if args.len() != 1 {
+                        return Err("첫번째는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("첫번째는 차림 인자를 받습니다".to_string().into());
+                    };
+                    if !items.is_empty() {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
+                    }
+                    Ok(items.first().cloned().unwrap_or(Value::None))
                 }
-                Ok(items.first().cloned().unwrap_or(Value::None))
-            }
-            "마지막" => {
-                if args.len() != 1 {
-                    return Err("마지막은 인자 1개를 받습니다".to_string().into());
+                "마지막" => {
+                    if args.len() != 1 {
+                        return Err("마지막은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("마지막은 차림 인자를 받습니다".to_string().into());
+                    };
+                    if !items.is_empty() {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
+                    }
+                    Ok(items.last().cloned().unwrap_or(Value::None))
                 }
-                let Value::List(items) = &args[0] else {
-                    return Err("마지막은 차림 인자를 받습니다".to_string().into());
-                };
-                if !items.is_empty() {
-                    self.work_cost.borrow_mut().charge_element_visits(1)?;
+                "추가" => {
+                    if args.len() != 2 {
+                        return Err("추가는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("추가는 차림 인자를 받습니다".to_string().into());
+                    };
+                    self.work_cost
+                        .borrow_mut()
+                        .charge_element_visits(items.len())?;
+                    // 순서 있는 차림 복사는 장면의 비교/열쇠 사용이 아니다.
+                    // 실제 복제되는 불투명 장면 내부의 정점도 계량한다.
+                    for value in items.iter().chain(std::iter::once(&args[1])) {
+                        self.work_cost.borrow_mut().charge_element_visits(crate::scene_value::clone_visits(value))?;
+                    }
+                    list_add(&args[0], args[1].clone()).map_err(runtime_error)
                 }
-                Ok(items.last().cloned().unwrap_or(Value::None))
-            }
-            "추가" => {
-                if args.len() != 2 {
-                    return Err("추가는 인자 2개를 받습니다".to_string().into());
+                "제거" => {
+                    if args.len() != 2 {
+                        return Err("제거는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let _ = value_to_index(&args[1])?;
+                    let Value::List(items) = &args[0] else {
+                        return Err("제거는 차림 인자를 받습니다".to_string().into());
+                    };
+                    self.work_cost
+                        .borrow_mut()
+                        .charge_element_visits(items.len())?;
+                    list_remove(&args[0], &args[1]).map_err(runtime_error)
                 }
-                let Value::List(items) = &args[0] else {
-                    return Err("추가는 차림 인자를 받습니다".to_string().into());
-                };
-                self.work_cost
-                    .borrow_mut()
-                    .charge_element_visits(items.len())?;
-                list_add(&args[0], args[1].clone()).map_err(runtime_error)
-            }
-            "제거" => {
-                if args.len() != 2 {
-                    return Err("제거는 인자 2개를 받습니다".to_string().into());
-                }
-                let _ = value_to_index(&args[1])?;
-                let Value::List(items) = &args[0] else {
-                    return Err("제거는 차림 인자를 받습니다".to_string().into());
-                };
-                self.work_cost
-                    .borrow_mut()
-                    .charge_element_visits(items.len())?;
-                list_remove(&args[0], &args[1]).map_err(runtime_error)
-            }
-            "정렬" => {
-                if args.len() != 2 {
-                    return Err("정렬은 인자 2개를 받습니다".to_string().into());
-                }
-                let Value::List(items) = &args[0] else {
-                    return Err("정렬은 차림 인자를 받습니다".to_string().into());
-                };
-                let func = args[1].clone();
-                let mut keyed = Vec::with_capacity(items.len());
-                for (idx, item) in items.iter().cloned().enumerate() {
-                    self.work_cost.borrow_mut().charge_element_visits(1)?;
+                "정렬" => {
+                    if args.len() != 2 {
+                        return Err("정렬은 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("정렬은 차림 인자를 받습니다".to_string().into());
+                    };
+                    let func = args[1].clone();
+                    let mut keyed = Vec::with_capacity(items.len());
+                    for (idx, item) in items.iter().cloned().enumerate() {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
                         let key = self.eval_callable(
                             locals,
                             &func,
                             vec![item.clone()],
                             source_span.clone(),
                         )?;
-                    keyed.push((idx, key, item));
+                        keyed.push((idx, key, item));
+                    }
+                    keyed.sort_by(|a, b| value_cmp(&a.1, &b.1).then_with(|| a.0.cmp(&b.0)));
+                    let items = keyed.into_iter().map(|(_, _, item)| item).collect();
+                    Ok(Value::List(items))
                 }
-                keyed.sort_by(|a, b| value_cmp(&a.1, &b.1).then_with(|| a.0.cmp(&b.0)));
-                let items = keyed.into_iter().map(|(_, _, item)| item).collect();
-                Ok(Value::List(items))
-            }
-            "거르기" => {
-                if args.len() != 2 {
-                    return Err("거르기는 인자 2개를 받습니다".to_string().into());
-                }
-                let Value::List(items) = &args[0] else {
-                    return Err("거르기는 차림 인자를 받습니다".to_string().into());
-                };
-                let func = args[1].clone();
-                let mut out = Vec::new();
-                for item in items.iter().cloned() {
-                    self.work_cost.borrow_mut().charge_element_visits(1)?;
+                "거르기" => {
+                    if args.len() != 2 {
+                        return Err("거르기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("거르기는 차림 인자를 받습니다".to_string().into());
+                    };
+                    let func = args[1].clone();
+                    let mut out = Vec::new();
+                    for item in items.iter().cloned() {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
                         let verdict = self.eval_callable(
                             locals,
                             &func,
                             vec![item.clone()],
                             source_span.clone(),
                         )?;
-                    if is_truthy(&verdict)? {
-                        out.push(item);
+                        if is_truthy(&verdict)? {
+                            out.push(item);
+                        }
                     }
+                    Ok(Value::List(out))
                 }
-                Ok(Value::List(out))
-            }
-            "변환" => {
-                if args.len() != 2 {
-                    return Err("변환은 인자 2개를 받습니다".to_string().into());
-                }
-                let Value::List(items) = &args[0] else {
-                    return Err("변환은 차림 인자를 받습니다".to_string().into());
-                };
-                let func = args[1].clone();
-                let mut out = Vec::with_capacity(items.len());
-                for item in items.iter().cloned() {
-                    self.work_cost.borrow_mut().charge_element_visits(1)?;
-                    let mapped =
-                        self.eval_callable(locals, &func, vec![item], source_span.clone())?;
-                    out.push(mapped);
-                }
-                Ok(Value::List(out))
-            }
-            "바꾸기" => {
-                if args.len() == 3 {
-                    let Value::String(text) = &args[0] else {
-                        return Err("바꾸기 첫 인자는 글이어야 합니다".to_string().into());
-                    };
-                    let Value::String(from) = &args[1] else {
-                        return Err("바꾸기 둘째 인자는 글이어야 합니다".to_string().into());
-                    };
-                    let Value::String(to) = &args[2] else {
-                        return Err("바꾸기 셋째 인자는 글이어야 합니다".to_string().into());
-                    };
-                    return Ok(Value::String(text.replace(from, to)));
-                }
-                if args.len() != 2 {
-                    return Err("바꾸기는 인자 2개 또는 3개를 받습니다".to_string().into());
-                }
-                let Value::List(items) = &args[0] else {
-                    return Err("바꾸기는 차림 인자를 받습니다".to_string().into());
-                };
-                let func = args[1].clone();
-                let mut out = Vec::with_capacity(items.len());
-                for item in items.iter().cloned() {
-                    self.work_cost.borrow_mut().charge_element_visits(1)?;
-                    let mapped =
-                        self.eval_callable(locals, &func, vec![item], source_span.clone())?;
-                    out.push(mapped);
-                }
-                Ok(Value::List(out))
-            }
-            "토막내기" => {
-                if args.len() != 3 {
-                    return Err("토막내기는 인자 3개를 받습니다".to_string().into());
-                }
-                let Value::List(items) = &args[0] else {
-                    return Err("토막내기는 차림 인자를 받습니다".to_string().into());
-                };
-                let start = value_to_index(&args[1])?;
-                let end = value_to_index(&args[2])?;
-                if start >= items.len() || end <= start {
-                    return Ok(Value::List(Vec::new()));
-                }
-                let end = end.min(items.len());
-                self.work_cost
-                    .borrow_mut()
-                    .charge_element_visits(end - start)?;
-                Ok(Value::List(items[start..end].to_vec()))
-            }
-            "들어있나" => {
-                if args.len() != 2 {
-                    return Err("들어있나는 인자 2개를 받습니다".to_string().into());
-                }
-                let Value::List(items) = &args[0] else {
-                    return Err("들어있나는 차림 인자를 받습니다".to_string().into());
-                };
-                let target = &args[1];
-                let mut exists = false;
-                for item in items {
-                    self.work_cost.borrow_mut().charge_element_visits(1)?;
-                    if values_equal(item, target) {
-                        exists = true;
-                        break;
+                "변환" => {
+                    if args.len() != 2 {
+                        return Err("변환은 인자 2개를 받습니다".to_string().into());
                     }
-                }
-                Ok(Value::Bool(exists))
-            }
-            "찾아보기" => {
-                if args.len() != 2 {
-                    return Err("찾아보기는 인자 2개를 받습니다".to_string().into());
-                }
-                let Value::List(items) = &args[0] else {
-                    return Err("찾아보기는 차림 인자를 받습니다".to_string().into());
-                };
-                let target = &args[1];
-                let mut idx = -1;
-                for (index, item) in items.iter().enumerate() {
-                    self.work_cost.borrow_mut().charge_element_visits(1)?;
-                    if values_equal(item, target) {
-                        idx = index as i64;
-                        break;
+                    let Value::List(items) = &args[0] else {
+                        return Err("변환은 차림 인자를 받습니다".to_string().into());
+                    };
+                    let func = args[1].clone();
+                    let mut out = Vec::with_capacity(items.len());
+                    for item in items.iter().cloned() {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
+                        let mapped =
+                            self.eval_callable(locals, &func, vec![item], source_span.clone())?;
+                        out.push(mapped);
                     }
+                    Ok(Value::List(out))
                 }
-                Ok(Value::Fixed64(Fixed64::from_i64(idx)))
-            }
-            "뒤집기" => {
-                if args.len() != 1 {
-                    return Err("뒤집기는 인자 1개를 받습니다".to_string().into());
+                "바꾸기" => {
+                    if args.len() == 3 {
+                        let Value::String(text) = &args[0] else {
+                            return Err("바꾸기 첫 인자는 글이어야 합니다".to_string().into());
+                        };
+                        let Value::String(from) = &args[1] else {
+                            return Err("바꾸기 둘째 인자는 글이어야 합니다".to_string().into());
+                        };
+                        let Value::String(to) = &args[2] else {
+                            return Err("바꾸기 셋째 인자는 글이어야 합니다".to_string().into());
+                        };
+                        return Ok(Value::String(text.replace(from, to)));
+                    }
+                    if args.len() != 2 {
+                        return Err("바꾸기는 인자 2개 또는 3개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("바꾸기는 차림 인자를 받습니다".to_string().into());
+                    };
+                    let func = args[1].clone();
+                    let mut out = Vec::with_capacity(items.len());
+                    for item in items.iter().cloned() {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
+                        let mapped =
+                            self.eval_callable(locals, &func, vec![item], source_span.clone())?;
+                        out.push(mapped);
+                    }
+                    Ok(Value::List(out))
                 }
-                let Value::List(items) = &args[0] else {
-                    return Err("뒤집기는 차림 인자를 받습니다".to_string().into());
-                };
-                self.work_cost
-                    .borrow_mut()
-                    .charge_element_visits(items.len())?;
-                let mut out = items.clone();
-                out.reverse();
-                Ok(Value::List(out))
-            }
-            "펼치기" => {
-                if args.len() != 1 {
-                    return Err("펼치기는 인자 1개를 받습니다".to_string().into());
+                "토막내기" => {
+                    if args.len() != 3 {
+                        return Err("토막내기는 인자 3개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("토막내기는 차림 인자를 받습니다".to_string().into());
+                    };
+                    let start = value_to_index(&args[1])?;
+                    let end = value_to_index(&args[2])?;
+                    if start >= items.len() || end <= start {
+                        return Ok(Value::List(Vec::new()));
+                    }
+                    let end = end.min(items.len());
+                    self.work_cost
+                        .borrow_mut()
+                        .charge_element_visits(end - start)?;
+                    Ok(Value::List(items[start..end].to_vec()))
                 }
-                let Value::List(items) = &args[0] else {
-                    return Err("펼치기는 차림 인자를 받습니다".to_string().into());
-                };
-                let mut out = Vec::new();
-                for item in items {
-                    self.work_cost.borrow_mut().charge_element_visits(1)?;
-                    let Value::List(inner) = item else {
-                        return Err("펼치기는 차림<차림> 인자를 받습니다".to_string().into());
+                "들어있나" => {
+                    if args.len() != 2 {
+                        return Err("들어있나는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("들어있나는 차림 인자를 받습니다".to_string().into());
+                    };
+                    let target = &args[1];
+                    let mut exists = false;
+                    for item in items {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
+                        if self.eval_collection_search_equality(item, target)? {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    Ok(Value::Bool(exists))
+                }
+                "찾아보기" => {
+                    if args.len() != 2 {
+                        return Err("찾아보기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("찾아보기는 차림 인자를 받습니다".to_string().into());
+                    };
+                    let target = &args[1];
+                    let mut idx = -1;
+                    for (index, item) in items.iter().enumerate() {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
+                        if self.eval_collection_search_equality(item, target)? {
+                            idx = index as i64;
+                            break;
+                        }
+                    }
+                    Ok(Value::Fixed64(Fixed64::from_i64(idx)))
+                }
+                "뒤집기" => {
+                    if args.len() != 1 {
+                        return Err("뒤집기는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("뒤집기는 차림 인자를 받습니다".to_string().into());
                     };
                     self.work_cost
                         .borrow_mut()
-                        .charge_element_visits(inner.len())?;
-                    out.extend(inner.clone());
+                        .charge_element_visits(items.len())?;
+                    let mut out = items.clone();
+                    out.reverse();
+                    Ok(Value::List(out))
                 }
-                Ok(Value::List(out))
-            }
-            "각각돌며" => {
-                if args.len() != 2 {
-                    return Err("각각돌며는 인자 2개를 받습니다".to_string().into());
+                "펼치기" => {
+                    if args.len() != 1 {
+                        return Err("펼치기는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("펼치기는 차림 인자를 받습니다".to_string().into());
+                    };
+                    let mut out = Vec::new();
+                    for item in items {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
+                        let Value::List(inner) = item else {
+                            return Err("펼치기는 차림<차림> 인자를 받습니다".to_string().into());
+                        };
+                        self.work_cost
+                            .borrow_mut()
+                            .charge_element_visits(inner.len())?;
+                        out.extend(inner.clone());
+                    }
+                    Ok(Value::List(out))
                 }
-                let Value::List(items) = &args[0] else {
-                    return Err("각각돌며는 차림 인자를 받습니다".to_string().into());
-                };
-                let func = args[1].clone();
-                for item in items.iter().cloned() {
-                    self.work_cost.borrow_mut().charge_element_visits(1)?;
+                "각각돌며" => {
+                    if args.len() != 2 {
+                        return Err("각각돌며는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("각각돌며는 차림 인자를 받습니다".to_string().into());
+                    };
+                    let func = args[1].clone();
+                    for item in items.iter().cloned() {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
                         let _ =
                             self.eval_callable(locals, &func, vec![item], source_span.clone())?;
+                    }
+                    Ok(Value::None)
                 }
-                Ok(Value::None)
-            }
-            "자르기" => {
-                if args.len() != 2 {
-                    return Err("자르기는 인자 2개를 받습니다".to_string().into());
+                "자르기" => {
+                    if args.len() != 2 {
+                        return Err("자르기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    string_split(&args[0], &args[1]).map_err(runtime_error)
                 }
-                string_split(&args[0], &args[1]).map_err(runtime_error)
-            }
-            "합치기" => {
-                if args.len() == 2 {
-                    return match (&args[0], &args[1]) {
-                        (Value::String(_), Value::String(_)) => {
-                            let Value::String(left) = &args[0] else {
-                                unreachable!();
-                            };
-                            let Value::String(right) = &args[1] else {
-                                unreachable!();
-                            };
-                            self.work_cost
-                                .borrow_mut()
-                                .charge_canonical_utf8_bytes(left)?;
-                            self.work_cost
-                                .borrow_mut()
-                                .charge_canonical_utf8_bytes(right)?;
-                            string_concat(&args[0], &args[1]).map_err(runtime_error)
-                        }
-                        (Value::List(_), Value::String(_)) => {
-                            if let Value::List(items) = &args[0] {
-                                let Value::String(delimiter) = &args[1] else {
+                "합치기" => {
+                    if args.len() == 2 {
+                        return match (&args[0], &args[1]) {
+                            (Value::String(_), Value::String(_)) => {
+                                let Value::String(left) = &args[0] else {
                                     unreachable!();
                                 };
-                                for (index, item) in items.iter().enumerate() {
-                                    self.work_cost.borrow_mut().charge_element_visits(1)?;
-                                    let Value::String(text) = item else {
-                                        return Err(runtime_error(RuntimeError::TypeMismatch {
-                                            expected: "차림<글>",
-                                        }));
+                                let Value::String(right) = &args[1] else {
+                                    unreachable!();
+                                };
+                                self.work_cost
+                                    .borrow_mut()
+                                    .charge_canonical_utf8_bytes(left)?;
+                                self.work_cost
+                                    .borrow_mut()
+                                    .charge_canonical_utf8_bytes(right)?;
+                                string_concat(&args[0], &args[1]).map_err(runtime_error)
+                            }
+                            (Value::List(_), Value::String(_)) => {
+                                if let Value::List(items) = &args[0] {
+                                    let Value::String(delimiter) = &args[1] else {
+                                        unreachable!();
                                     };
-                                    if index > 0 {
+                                    for (index, item) in items.iter().enumerate() {
+                                        self.work_cost.borrow_mut().charge_element_visits(1)?;
+                                        let Value::String(text) = item else {
+                                            return Err(runtime_error(
+                                                RuntimeError::TypeMismatch {
+                                                    expected: "차림<글>",
+                                                },
+                                            ));
+                                        };
+                                        if index > 0 {
+                                            self.work_cost
+                                                .borrow_mut()
+                                                .charge_canonical_utf8_bytes(delimiter)?;
+                                        }
                                         self.work_cost
                                             .borrow_mut()
-                                            .charge_canonical_utf8_bytes(delimiter)?;
+                                            .charge_canonical_utf8_bytes(text)?;
                                     }
-                                    self.work_cost
-                                        .borrow_mut()
-                                        .charge_canonical_utf8_bytes(text)?;
                                 }
+                                string_join(&args[0], &args[1]).map_err(runtime_error)
                             }
-                            string_join(&args[0], &args[1]).map_err(runtime_error)
-                        }
-                        (Value::Pack(left), Value::Pack(right)) => {
-                            self.work_cost
-                                .borrow_mut()
-                                .charge_element_visits(left.len())?;
-                            let mut merged = left.clone();
-                            for (key, value) in right {
-                                self.work_cost.borrow_mut().charge_element_visits(1)?;
-                                merged.insert(key.clone(), value.clone());
+                            (Value::Pack(left), Value::Pack(right)) => {
+                                self.work_cost
+                                    .borrow_mut()
+                                    .charge_element_visits(left.len())?;
+                                let mut merged = left.clone();
+                                for (key, value) in right {
+                                    self.work_cost.borrow_mut().charge_element_visits(1)?;
+                                    merged.insert(key.clone(), value.clone());
+                                }
+                                Ok(Value::Pack(merged))
                             }
-                            Ok(Value::Pack(merged))
-                        }
-                        _ => Err("합치기는 글/차림/묶음 조합만 지원합니다".to_string().into()),
+                            _ => Err("합치기는 글/차림/묶음 조합만 지원합니다".to_string().into()),
+                        };
+                    }
+                    if args.len() != 3 {
+                        return Err("합치기는 인자 2개 또는 3개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("합치기는 차림 인자를 받습니다".to_string().into());
                     };
-                }
-                if args.len() != 3 {
-                    return Err("합치기는 인자 2개 또는 3개를 받습니다".to_string().into());
-                }
-                let Value::List(items) = &args[0] else {
-                    return Err("합치기는 차림 인자를 받습니다".to_string().into());
-                };
-                let func = args[2].clone();
-                let mut acc = args[1].clone();
-                for item in items.iter().cloned() {
-                    self.work_cost.borrow_mut().charge_element_visits(1)?;
+                    let func = args[2].clone();
+                    let mut acc = args[1].clone();
+                    for item in items.iter().cloned() {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
                         acc = self.eval_callable(
                             locals,
                             &func,
                             vec![acc, item],
                             source_span.clone(),
                         )?;
+                    }
+                    Ok(acc)
                 }
-                Ok(acc)
-            }
-            "붙이기" => {
-                if args.len() != 2 {
-                    return Err("붙이기는 인자 2개를 받습니다".to_string().into());
-                }
-                match (&args[0], &args[1]) {
-                    (Value::List(items), Value::String(delimiter)) => {
-                        for (index, item) in items.iter().enumerate() {
-                            self.work_cost.borrow_mut().charge_element_visits(1)?;
-                            let Value::String(text) = item else {
-                                return Err(runtime_error(RuntimeError::TypeMismatch {
-                                    expected: "차림<글>",
-                                }));
-                            };
-                            if index > 0 {
+                "붙이기" => {
+                    if args.len() != 2 {
+                        return Err("붙이기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    match (&args[0], &args[1]) {
+                        (Value::List(items), Value::String(delimiter)) => {
+                            for (index, item) in items.iter().enumerate() {
+                                self.work_cost.borrow_mut().charge_element_visits(1)?;
+                                let Value::String(text) = item else {
+                                    return Err(runtime_error(RuntimeError::TypeMismatch {
+                                        expected: "차림<글>",
+                                    }));
+                                };
+                                if index > 0 {
+                                    self.work_cost
+                                        .borrow_mut()
+                                        .charge_canonical_utf8_bytes(delimiter)?;
+                                }
                                 self.work_cost
                                     .borrow_mut()
-                                    .charge_canonical_utf8_bytes(delimiter)?;
+                                    .charge_canonical_utf8_bytes(text)?;
                             }
+                            string_join(&args[0], &args[1]).map_err(runtime_error)
+                        }
+                        (Value::List(left), Value::List(right)) => {
                             self.work_cost
                                 .borrow_mut()
-                                .charge_canonical_utf8_bytes(text)?;
+                                .charge_element_visits(left.len())?;
+                            self.work_cost
+                                .borrow_mut()
+                                .charge_element_visits(right.len())?;
+                            let mut out = left.clone();
+                            out.extend(right.clone());
+                            Ok(Value::List(out))
                         }
-                        string_join(&args[0], &args[1]).map_err(runtime_error)
-                    }
-                    (Value::List(left), Value::List(right)) => {
-                        self.work_cost
-                            .borrow_mut()
-                            .charge_element_visits(left.len())?;
-                        self.work_cost
-                            .borrow_mut()
-                            .charge_element_visits(right.len())?;
-                        let mut out = left.clone();
-                        out.extend(right.clone());
-                        Ok(Value::List(out))
-                    }
-                    _ => Err("붙이기는 차림/글 조합 또는 차림/차림 조합만 지원합니다"
-                        .to_string()
-                        .into()),
-                }
-            }
-            "포함하나" => {
-                if args.len() != 2 {
-                    return Err("포함하나는 인자 2개를 받습니다".to_string().into());
-                }
-                string_contains(&args[0], &args[1]).map_err(runtime_error)
-            }
-            "시작하나" => {
-                if args.len() != 2 {
-                    return Err("시작하나는 인자 2개를 받습니다".to_string().into());
-                }
-                string_starts(&args[0], &args[1]).map_err(runtime_error)
-            }
-            "끝나나" => {
-                if args.len() != 2 {
-                    return Err("끝나나는 인자 2개를 받습니다".to_string().into());
-                }
-                string_ends(&args[0], &args[1]).map_err(runtime_error)
-            }
-            "숫자로" => {
-                if args.len() != 1 {
-                    return Err("숫자로는 인자 1개를 받습니다".to_string().into());
-                }
-                string_to_number(&args[0]).map_err(runtime_error)
-            }
-            "글바꾸기" => {
-                if args.len() != 3 {
-                    return Err("글바꾸기는 인자 3개를 받습니다".to_string().into());
-                }
-                let base = match &args[0] {
-                    Value::String(s) => s.clone(),
-                    _ => return Err("글바꾸기 첫 인자는 글이어야 합니다".to_string().into()),
-                };
-                let idx = value_to_index(&args[1])?;
-                let replacement = match &args[2] {
-                    Value::String(s) => s.clone(),
-                    _ => return Err("글바꾸기 새글은 글이어야 합니다".to_string().into()),
-                };
-                let mut out = String::new();
-                let mut replaced = false;
-                for (i, ch) in base.chars().enumerate() {
-                    if i == idx {
-                        out.push_str(&replacement);
-                        replaced = true;
-                    } else {
-                        out.push(ch);
+                        _ => Err("붙이기는 차림/글 조합 또는 차림/차림 조합만 지원합니다"
+                            .to_string()
+                            .into()),
                     }
                 }
-                if !replaced {
-                    return Ok(Value::String(base));
+                "포함하나" => {
+                    if args.len() != 2 {
+                        return Err("포함하나는 인자 2개를 받습니다".to_string().into());
+                    }
+                    string_contains(&args[0], &args[1]).map_err(runtime_error)
                 }
-                Ok(Value::String(out))
-            }
-            "바닥" => {
-                if args.len() != 1 {
-                    return Err("바닥은 인자 1개를 받습니다".to_string().into());
+                "시작하나" => {
+                    if args.len() != 2 {
+                        return Err("시작하나는 인자 2개를 받습니다".to_string().into());
+                    }
+                    string_starts(&args[0], &args[1]).map_err(runtime_error)
                 }
-                let qty = unit_value_from_value(&args[0])?;
-                let value = fixed64_floor(qty.value);
-                Ok(unit_value_to_value(UnitValue {
-                    value,
-                    dim: qty.dim,
-                }))
-            }
-            "천장" => {
-                if args.len() != 1 {
-                    return Err("천장은 인자 1개를 받습니다".to_string().into());
+                "끝나나" => {
+                    if args.len() != 2 {
+                        return Err("끝나나는 인자 2개를 받습니다".to_string().into());
+                    }
+                    string_ends(&args[0], &args[1]).map_err(runtime_error)
                 }
-                let qty = unit_value_from_value(&args[0])?;
-                let value = fixed64_ceil(qty.value);
-                Ok(unit_value_to_value(UnitValue {
-                    value,
-                    dim: qty.dim,
-                }))
-            }
-            "반올림" => {
-                if args.len() != 1 {
-                    return Err("반올림은 인자 1개를 받습니다".to_string().into());
+                "숫자로" => {
+                    if args.len() != 1 {
+                        return Err("숫자로는 인자 1개를 받습니다".to_string().into());
+                    }
+                    string_to_number(&args[0]).map_err(runtime_error)
                 }
-                let qty = unit_value_from_value(&args[0])?;
-                let value = fixed64_round_even(qty.value);
-                Ok(unit_value_to_value(UnitValue {
-                    value,
-                    dim: qty.dim,
-                }))
-            }
-            "합계" => {
-                if args.len() != 1 {
-                    return Err("합계는 인자 1개를 받습니다".to_string().into());
+                "글바꾸기" => {
+                    if args.len() != 3 {
+                        return Err("글바꾸기는 인자 3개를 받습니다".to_string().into());
+                    }
+                    let base = match &args[0] {
+                        Value::String(s) => s.clone(),
+                        _ => return Err("글바꾸기 첫 인자는 글이어야 합니다".to_string().into()),
+                    };
+                    let idx = value_to_index(&args[1])?;
+                    let replacement = match &args[2] {
+                        Value::String(s) => s.clone(),
+                        _ => return Err("글바꾸기 새글은 글이어야 합니다".to_string().into()),
+                    };
+                    let mut out = String::new();
+                    let mut replaced = false;
+                    for (i, ch) in base.chars().enumerate() {
+                        if i == idx {
+                            out.push_str(&replacement);
+                            replaced = true;
+                        } else {
+                            out.push(ch);
+                        }
+                    }
+                    if !replaced {
+                        return Ok(Value::String(base));
+                    }
+                    Ok(Value::String(out))
                 }
-                let Value::List(items) = &args[0] else {
-                    return Err("합계는 차림 인자를 받습니다".to_string().into());
-                };
-                if items.is_empty() {
-                    return Ok(Value::Fixed64(Fixed64::from_i64(0)));
+                "바닥" => {
+                    if args.len() != 1 {
+                        return Err("바닥은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let qty = unit_value_from_value(&args[0])?;
+                    let value = fixed64_floor(qty.value);
+                    Ok(unit_value_to_value(UnitValue {
+                        value,
+                        dim: qty.dim,
+                    }))
                 }
-                self.work_cost.borrow_mut().charge_element_visits(1)?;
-                let mut total = unit_value_from_value(&items[0])?;
-                for item in items.iter().skip(1) {
+                "천장" => {
+                    if args.len() != 1 {
+                        return Err("천장은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let qty = unit_value_from_value(&args[0])?;
+                    let value = fixed64_ceil(qty.value)?;
+                    Ok(unit_value_to_value(UnitValue {
+                        value,
+                        dim: qty.dim,
+                    }))
+                }
+                "반올림" => {
+                    if args.len() != 1 {
+                        return Err("반올림은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let qty = unit_value_from_value(&args[0])?;
+                    let value = fixed64_round_even(qty.value)?;
+                    Ok(unit_value_to_value(UnitValue {
+                        value,
+                        dim: qty.dim,
+                    }))
+                }
+                "합계" => {
+                    if args.len() != 1 {
+                        return Err("합계는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("합계는 차림 인자를 받습니다".to_string().into());
+                    };
+                    if items.is_empty() {
+                        return Ok(Value::Fixed64(Fixed64::from_i64(0)));
+                    }
                     self.work_cost.borrow_mut().charge_element_visits(1)?;
-                    let next = unit_value_from_value(item)?;
-                    total = total.add(next).map_err(unit_error)?;
+                    let mut total = unit_value_from_value(&items[0])?;
+                    for item in items.iter().skip(1) {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
+                        let next = unit_value_from_value(item)?;
+                        total = checked_unit_add(total, next)?;
+                    }
+                    Ok(unit_value_to_value(total))
                 }
-                Ok(unit_value_to_value(total))
-            }
-            "평균" => {
-                if args.len() != 1 {
-                    return Err("평균은 인자 1개를 받습니다".to_string().into());
-                }
-                let Value::List(items) = &args[0] else {
-                    return Err("평균은 차림 인자를 받습니다".to_string().into());
-                };
-                if items.is_empty() {
-                    return Ok(Value::None);
-                }
-                self.work_cost.borrow_mut().charge_element_visits(1)?;
-                let mut total = unit_value_from_value(&items[0])?;
-                for item in items.iter().skip(1) {
+                "평균" => {
+                    if args.len() != 1 {
+                        return Err("평균은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("평균은 차림 인자를 받습니다".to_string().into());
+                    };
+                    if items.is_empty() {
+                        return Ok(Value::None);
+                    }
                     self.work_cost.borrow_mut().charge_element_visits(1)?;
-                    let next = unit_value_from_value(item)?;
-                    total = total.add(next).map_err(unit_error)?;
-                }
-                let count = Fixed64::from_i64(items.len() as i64);
-                let avg = total.div_scalar(count).map_err(unit_error)?;
-                Ok(unit_value_to_value(avg))
-            }
-            "지니" | "지니계수" => {
-                let values = expect_numeric_list_arg(&args, "지니", self.work_cost.as_ref())?;
-                if values.is_empty() {
-                    return Ok(Value::None);
-                }
-                let mut total = Fixed64::ZERO;
-                for value in &values {
-                    if value.value.raw_i64() < 0 {
-                        return Err("지니 입력은 음수가 될 수 없습니다".to_string().into());
+                    let mut total = unit_value_from_value(&items[0])?;
+                    for item in items.iter().skip(1) {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
+                        let next = unit_value_from_value(item)?;
+                        total = checked_unit_add(total, next)?;
                     }
-                    total = total.saturating_add(value.value);
+                    let count = Fixed64::from_i64(items.len() as i64);
+                    let avg = total.div_scalar(count).map_err(unit_error)?;
+                    Ok(unit_value_to_value(avg))
                 }
-                if total.raw_i64() == 0 {
-                    return Ok(Value::Fixed64(Fixed64::ZERO));
-                }
-                let mut pair_sum = Fixed64::ZERO;
-                for i in 0..values.len() {
-                    for j in (i + 1)..values.len() {
-                        let diff = values[i].value.saturating_sub(values[j].value);
-                        pair_sum = pair_sum.saturating_add(fixed64_abs(diff));
+                "지니" | "지니계수" => {
+                    let values = expect_numeric_list_arg(&args, "지니", self.work_cost.as_ref())?;
+                    if values.is_empty() {
+                        return Ok(Value::None);
                     }
+                    let mut total = Fixed64::ZERO;
+                    for value in &values {
+                        if value.value.raw_i64() < 0 {
+                            return Err("지니 입력은 음수가 될 수 없습니다".to_string().into());
+                        }
+                        total = total.checked_add(value.value)?;
+                    }
+                    if total.raw_i64() == 0 {
+                        return Ok(Value::Fixed64(Fixed64::ZERO));
+                    }
+                    let mut pair_sum = Fixed64::ZERO;
+                    for i in 0..values.len() {
+                        for j in (i + 1)..values.len() {
+                            let diff = values[i].value.checked_sub(values[j].value)?;
+                            pair_sum = pair_sum.checked_add(fixed64_abs(diff)?)?;
+                        }
+                    }
+                    let count = Fixed64::from_i64(values.len() as i64);
+                    let denom = count.checked_mul(total)?;
+                    let gini = pair_sum.try_div(denom)?;
+                    Ok(Value::Fixed64(gini))
                 }
-                let count = Fixed64::from_i64(values.len() as i64);
-                let denom = count.saturating_mul(total);
-                let gini = pair_sum
-                    .try_div(denom)
-                    .map_err(|_| "지니 계산 중 0으로 나눌 수 없습니다".to_string())?;
-                Ok(Value::Fixed64(gini))
-            }
-            "분위수" | "백분위수" => {
-                let (mut values, p, mode) =
-                    expect_quantile_args(&args, self.work_cost.as_ref())?;
-                if values.is_empty() {
-                    return Ok(Value::None);
-                }
-                if values.len() == 1 {
-                    return Ok(unit_value_to_value(values[0]));
-                }
-                values.sort_by(|a, b| a.value.raw_i64().cmp(&b.value.raw_i64()));
-                match mode {
-                    PercentileMode::Linear => {
-                        let max_index = Fixed64::from_i64((values.len() - 1) as i64);
-                        let pos = p.saturating_mul(max_index);
-                        let low = fixed64_floor(pos);
-                        let high = fixed64_ceil(pos);
-                        let low_idx = fixed64_to_nonnegative_index(low)?;
-                        let high_idx = fixed64_to_nonnegative_index(high)?;
-                        if low_idx >= values.len() || high_idx >= values.len() {
+                "분위수" | "백분위수" => {
+                    let (mut values, p, mode) =
+                        expect_quantile_args(&args, self.work_cost.as_ref())?;
+                    if values.is_empty() {
+                        return Ok(Value::None);
+                    }
+                    if values.len() == 1 {
+                        return Ok(unit_value_to_value(values[0]));
+                    }
+                    values.sort_by(|a, b| a.value.raw_i64().cmp(&b.value.raw_i64()));
+                    match mode {
+                        PercentileMode::Linear => {
+                            let max_index = Fixed64::from_i64((values.len() - 1) as i64);
+                            let pos = p.checked_mul(max_index)?;
+                            let low = fixed64_floor(pos);
+                            let high = fixed64_ceil(pos)?;
+                            let low_idx = fixed64_to_nonnegative_index(low)?;
+                            let high_idx = fixed64_to_nonnegative_index(high)?;
+                            if low_idx >= values.len() || high_idx >= values.len() {
                                 return Err("분위수 인덱스가 범위를 벗어났습니다"
                                     .to_string()
                                     .into());
+                            }
+                            if low_idx == high_idx {
+                                return Ok(unit_value_to_value(values[low_idx]));
+                            }
+                            let frac = pos.checked_sub(low)?;
+                            let base = values[low_idx];
+                            let next = values[high_idx];
+                            let delta = next.value.checked_sub(base.value)?;
+                            let step = delta.checked_mul(frac)?;
+                            let interpolated = UnitValue {
+                                value: base.value.checked_add(step)?,
+                                dim: base.dim,
+                            };
+                            Ok(unit_value_to_value(interpolated))
                         }
-                        if low_idx == high_idx {
-                            return Ok(unit_value_to_value(values[low_idx]));
+                        PercentileMode::NearestRank => {
+                            let idx = nearest_rank_index(p, values.len())?;
+                            Ok(unit_value_to_value(values[idx]))
                         }
-                        let frac = pos.saturating_sub(low);
-                        let base = values[low_idx];
-                        let next = values[high_idx];
-                        let delta = next.value.saturating_sub(base.value);
-                        let step = delta.saturating_mul(frac);
-                        let interpolated = UnitValue {
-                            value: base.value.saturating_add(step),
-                            dim: base.dim,
-                        };
-                        Ok(unit_value_to_value(interpolated))
-                    }
-                    PercentileMode::NearestRank => {
-                        let idx = nearest_rank_index(p, values.len())?;
-                        Ok(unit_value_to_value(values[idx]))
                     }
                 }
-            }
-            "적분.오일러" => {
-                if args.len() != 3 {
-                    return Err("적분.오일러는 인자 3개를 받습니다".to_string().into());
+                "적분.오일러" => {
+                    if args.len() != 3 {
+                        return Err("적분.오일러는 인자 3개를 받습니다".to_string().into());
+                    }
+                    let value = unit_value_from_value(&args[0])?;
+                    let rate = unit_value_from_value(&args[1])?;
+                    let dt = unit_value_from_value(&args[2])?;
+                    let delta = checked_unit_mul(rate, dt)?;
+                    let out = checked_unit_add(value, delta)?;
+                    Ok(unit_value_to_value(out))
                 }
-                let value = unit_value_from_value(&args[0])?;
-                let rate = unit_value_from_value(&args[1])?;
-                let dt = unit_value_from_value(&args[2])?;
-                let delta = rate.mul(dt);
-                let out = value.add(delta).map_err(unit_error)?;
-                Ok(unit_value_to_value(out))
-            }
-            "적분.반암시적오일러" => {
-                if args.len() != 4 {
-                    return Err("적분.반암시적오일러는 인자 4개를 받습니다"
-                        .to_string()
-                        .into());
+                "적분.반암시적오일러" => {
+                    if args.len() != 4 {
+                        return Err("적분.반암시적오일러는 인자 4개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    let position = unit_value_from_value(&args[0])?;
+                    let velocity = unit_value_from_value(&args[1])?;
+                    let acceleration = unit_value_from_value(&args[2])?;
+                    let dt = unit_value_from_value(&args[3])?;
+                    let next_velocity = checked_unit_add(velocity, checked_unit_mul(acceleration, dt)?)?;
+                    let next_position = checked_unit_add(position, checked_unit_mul(next_velocity, dt)?)?;
+                    Ok(Value::List(vec![
+                        unit_value_to_value(next_position),
+                        unit_value_to_value(next_velocity),
+                    ]))
                 }
-                let position = unit_value_from_value(&args[0])?;
-                let velocity = unit_value_from_value(&args[1])?;
-                let acceleration = unit_value_from_value(&args[2])?;
-                let dt = unit_value_from_value(&args[3])?;
-                let next_velocity = velocity.add(acceleration.mul(dt)).map_err(unit_error)?;
-                let next_position = position.add(next_velocity.mul(dt)).map_err(unit_error)?;
-                Ok(Value::List(vec![
-                    unit_value_to_value(next_position),
-                    unit_value_to_value(next_velocity),
-                ]))
-            }
-            "보간.선형" => {
-                if args.len() != 3 {
-                    return Err("보간.선형은 인자 3개를 받습니다".to_string().into());
-                }
-                let start = unit_value_from_value(&args[0])?;
-                let end = unit_value_from_value(&args[1])?;
-                let t = unit_value_from_value(&args[2])?;
-                if !t.is_dimensionless() {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: t.dim,
-                        right: UnitDim::NONE,
-                    }));
-                }
-                let delta = end.sub(start).map_err(unit_error)?;
-                let out = start.add(delta.mul(t)).map_err(unit_error)?;
-                Ok(unit_value_to_value(out))
-            }
-            "보간.계단" => {
-                if args.len() != 4 {
-                    return Err("보간.계단은 인자 4개를 받습니다".to_string().into());
-                }
-                let start = unit_value_from_value(&args[0])?;
-                let end = unit_value_from_value(&args[1])?;
-                if start.dim != end.dim {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: start.dim,
-                        right: end.dim,
-                    }));
-                }
-                let t = unit_value_from_value(&args[2])?;
-                if !t.is_dimensionless() {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: t.dim,
-                        right: UnitDim::NONE,
-                    }));
-                }
-                let threshold = unit_value_from_value(&args[3])?;
-                if !threshold.is_dimensionless() {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: threshold.dim,
-                        right: UnitDim::NONE,
-                    }));
-                }
-                if t.value < threshold.value {
-                    Ok(unit_value_to_value(start))
-                } else {
-                    Ok(unit_value_to_value(end))
-                }
-            }
-            "필터.이동평균" => {
-                if args.len() != 2 {
-                    return Err("필터.이동평균은 인자 2개를 받습니다".to_string().into());
-                }
-                let Value::List(window) = &args[0] else {
-                    return Err("필터.이동평균 첫 인자는 차림이어야 합니다"
-                        .to_string()
-                        .into());
-                };
-                let next = unit_value_from_value(&args[1])?;
-                let mut next_window = Vec::with_capacity(window.len() + 1);
-                let mut total = next.value;
-                for item in window {
-                    let value = unit_value_from_value(item)?;
-                    if value.dim != next.dim {
+                "보간.선형" => {
+                    if args.len() != 3 {
+                        return Err("보간.선형은 인자 3개를 받습니다".to_string().into());
+                    }
+                    let start = unit_value_from_value(&args[0])?;
+                    let end = unit_value_from_value(&args[1])?;
+                    let t = unit_value_from_value(&args[2])?;
+                    if !t.is_dimensionless() {
                         return Err(unit_error(UnitError::DimensionMismatch {
-                            left: next.dim,
-                            right: value.dim,
+                            left: t.dim,
+                            right: UnitDim::NONE,
                         }));
                     }
-                    total = total.saturating_add(value.value);
-                    next_window.push(unit_value_to_value(value));
+                    let delta = checked_unit_sub(end, start)?;
+                    let out = checked_unit_add(start, checked_unit_mul(delta, t)?)?;
+                    Ok(unit_value_to_value(out))
                 }
-                next_window.push(unit_value_to_value(next));
-                let count = Fixed64::from_i64(next_window.len() as i64);
-                let avg = total
-                    .try_div(count)
-                    .map_err(|_| "필터.이동평균 계산 중 0으로 나눌 수 없습니다".to_string())?;
-                Ok(Value::List(vec![
-                    Value::List(next_window),
-                    unit_value_to_value(UnitValue {
-                        value: avg,
-                        dim: next.dim,
-                    }),
-                ]))
-            }
-            "필터.지수평활" => {
-                if args.len() != 3 {
-                    return Err("필터.지수평활은 인자 3개를 받습니다".to_string().into());
+                "보간.계단" => {
+                    if args.len() != 4 {
+                        return Err("보간.계단은 인자 4개를 받습니다".to_string().into());
+                    }
+                    let start = unit_value_from_value(&args[0])?;
+                    let end = unit_value_from_value(&args[1])?;
+                    if start.dim != end.dim {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: start.dim,
+                            right: end.dim,
+                        }));
+                    }
+                    let t = unit_value_from_value(&args[2])?;
+                    if !t.is_dimensionless() {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: t.dim,
+                            right: UnitDim::NONE,
+                        }));
+                    }
+                    let threshold = unit_value_from_value(&args[3])?;
+                    if !threshold.is_dimensionless() {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: threshold.dim,
+                            right: UnitDim::NONE,
+                        }));
+                    }
+                    if t.value < threshold.value {
+                        Ok(unit_value_to_value(start))
+                    } else {
+                        Ok(unit_value_to_value(end))
+                    }
                 }
-                let prev = unit_value_from_value(&args[0])?;
-                let next = unit_value_from_value(&args[1])?;
-                if prev.dim != next.dim {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: prev.dim,
-                        right: next.dim,
-                    }));
+                "필터.이동평균" => {
+                    if args.len() != 2 {
+                        return Err("필터.이동평균은 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::List(window) = &args[0] else {
+                        return Err("필터.이동평균 첫 인자는 차림이어야 합니다"
+                            .to_string()
+                            .into());
+                    };
+                    let next = unit_value_from_value(&args[1])?;
+                    let mut next_window = Vec::with_capacity(window.len() + 1);
+                    let mut total = next.value;
+                    for item in window {
+                        let value = unit_value_from_value(item)?;
+                        if value.dim != next.dim {
+                            return Err(unit_error(UnitError::DimensionMismatch {
+                                left: next.dim,
+                                right: value.dim,
+                            }));
+                        }
+                        total = total.checked_add(value.value)?;
+                        next_window.push(unit_value_to_value(value));
+                    }
+                    next_window.push(unit_value_to_value(next));
+                    let count = Fixed64::from_i64(next_window.len() as i64);
+                    let avg = total
+                        .try_div(count)
+                        .map_err(|_| "필터.이동평균 계산 중 0으로 나눌 수 없습니다".to_string())?;
+                    Ok(Value::List(vec![
+                        Value::List(next_window),
+                        unit_value_to_value(UnitValue {
+                            value: avg,
+                            dim: next.dim,
+                        }),
+                    ]))
                 }
-                let alpha = unit_value_from_value(&args[2])?;
-                if !alpha.is_dimensionless() {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: alpha.dim,
-                        right: UnitDim::NONE,
-                    }));
+                "필터.지수평활" => {
+                    if args.len() != 3 {
+                        return Err("필터.지수평활은 인자 3개를 받습니다".to_string().into());
+                    }
+                    let prev = unit_value_from_value(&args[0])?;
+                    let next = unit_value_from_value(&args[1])?;
+                    if prev.dim != next.dim {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: prev.dim,
+                            right: next.dim,
+                        }));
+                    }
+                    let alpha = unit_value_from_value(&args[2])?;
+                    if !alpha.is_dimensionless() {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: alpha.dim,
+                            right: UnitDim::NONE,
+                        }));
+                    }
+                    if alpha.value.raw_i64() < 0 || alpha.value.raw_i64() > Fixed64::ONE.raw_i64() {
+                        return Err("필터.지수평활 alpha는 0..1 범위여야 합니다"
+                            .to_string()
+                            .into());
+                    }
+                    let out = prev.value.checked_weighted_blend(next.value, alpha.value)?;
+                    Ok(unit_value_to_value(UnitValue {
+                        value: out,
+                        dim: prev.dim,
+                    }))
                 }
-                if alpha.value.raw_i64() < 0 || alpha.value.raw_i64() > Fixed64::ONE.raw_i64() {
-                    return Err("필터.지수평활 alpha는 0..1 범위여야 합니다"
-                        .to_string()
-                        .into());
-                }
-                let one = Fixed64::from_i64(1);
-                let keep = one.saturating_sub(alpha.value);
-                let out = prev
-                    .value
-                    .saturating_mul(keep)
-                    .saturating_add(next.value.saturating_mul(alpha.value));
-                Ok(unit_value_to_value(UnitValue {
-                    value: out,
-                    dim: prev.dim,
-                }))
-            }
-            "미분.중앙차분" => {
-                let (formula, var_name, point, step) =
-                    expect_numeric_derivative_args(&args, "미분.중앙차분")?;
-                let prepared = prepare_numeric_formula(&formula, &var_name, "미분.중앙차분")?;
-                let two = Fixed64::from_i64(2);
+                "미분.중앙차분" => {
+                    let (formula, var_name, point, step) =
+                        expect_numeric_derivative_args(&args, "미분.중앙차분")?;
+                    let prepared = prepare_numeric_formula(&formula, &var_name, "미분.중앙차분")?;
+                    let two = Fixed64::from_i64(2);
 
-                let x_plus = UnitValue {
-                    value: point.value.saturating_add(step.value),
-                    dim: point.dim,
-                };
-                let x_minus = UnitValue {
-                    value: point.value.saturating_sub(step.value),
-                    dim: point.dim,
-                };
+                    let x_plus = UnitValue {
+                        value: point.value.checked_add(step.value)?,
+                        dim: point.dim,
+                    };
+                    let x_minus = UnitValue {
+                        value: point.value.checked_sub(step.value)?,
+                        dim: point.dim,
+                    };
                     let y_plus = eval_numeric_formula_at_metered(
                         &prepared,
                         x_plus,
@@ -8822,28 +10187,27 @@ impl<'a> EvalContext<'a> {
                         "미분.중앙차분",
                         &self.work_cost,
                     )?;
-                if y_plus.dim != y_minus.dim {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: y_plus.dim,
-                        right: y_minus.dim,
-                    }));
-                }
-                let denom = step.value.saturating_mul(two);
-                let d_h = y_plus
-                    .value
-                    .saturating_sub(y_minus.value)
-                    .try_div(denom)
-                    .map_err(|_| "미분.중앙차분 계산 중 0으로 나눌 수 없습니다".to_string())?;
+                    if y_plus.dim != y_minus.dim {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: y_plus.dim,
+                            right: y_minus.dim,
+                        }));
+                    }
+                    let denom = step.value.checked_mul(two)?;
+                    let d_h = y_plus
+                        .value
+                        .checked_sub(y_minus.value)?
+                        .try_div(denom)?;
 
-                let step2 = step.value.saturating_mul(two);
-                let x_plus2 = UnitValue {
-                    value: point.value.saturating_add(step2),
-                    dim: point.dim,
-                };
-                let x_minus2 = UnitValue {
-                    value: point.value.saturating_sub(step2),
-                    dim: point.dim,
-                };
+                    let step2 = step.value.checked_mul(two)?;
+                    let x_plus2 = UnitValue {
+                        value: point.value.checked_add(step2)?,
+                        dim: point.dim,
+                    };
+                    let x_minus2 = UnitValue {
+                        value: point.value.checked_sub(step2)?,
+                        dim: point.dim,
+                    };
                     let y_plus2 = eval_numeric_formula_at_metered(
                         &prepared,
                         x_plus2,
@@ -8856,100 +10220,89 @@ impl<'a> EvalContext<'a> {
                         "미분.중앙차분",
                         &self.work_cost,
                     )?;
-                if y_plus2.dim != y_minus2.dim {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: y_plus2.dim,
-                        right: y_minus2.dim,
-                    }));
+                    if y_plus2.dim != y_minus2.dim {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: y_plus2.dim,
+                            right: y_minus2.dim,
+                        }));
+                    }
+                    let denom2 = step2.checked_mul(two)?;
+                    let d_2h = y_plus2
+                        .value
+                        .checked_sub(y_minus2.value)?
+                        .try_div(denom2)?;
+                    let three = Fixed64::from_i64(3);
+                    let richardson_delta = d_h.checked_sub(d_2h)?;
+                    let richardson_correction = richardson_delta.try_div(three)?;
+                    let richardson_value = d_h.checked_add(richardson_correction)?;
+                    let richardson_error = fixed64_abs(richardson_delta)?.try_div(three)?;
+                    let diff_dim = y_plus.dim.sub(step.dim);
+                    Ok(Value::List(vec![
+                        unit_value_to_value(UnitValue {
+                            value: richardson_value,
+                            dim: diff_dim,
+                        }),
+                        unit_value_to_value(UnitValue {
+                            value: richardson_error,
+                            dim: diff_dim,
+                        }),
+                        Value::String("중앙차분".to_string()),
+                    ]))
                 }
-                let denom2 = step2.saturating_mul(two);
-                let d_2h = y_plus2
-                    .value
-                    .saturating_sub(y_minus2.value)
-                    .try_div(denom2)
-                    .map_err(|_| "미분.중앙차분 계산 중 0으로 나눌 수 없습니다".to_string())?;
-                let three = Fixed64::from_i64(3);
-                let richardson_delta = d_h.saturating_sub(d_2h);
-                let richardson_correction = richardson_delta
-                    .try_div(three)
-                    .map_err(|_| "미분.중앙차분 계산 중 0으로 나눌 수 없습니다".to_string())?;
-                let richardson_value = d_h.saturating_add(richardson_correction);
-                let richardson_error = fixed64_abs(richardson_delta)
-                    .try_div(three)
-                    .map_err(|_| "미분.중앙차분 계산 중 0으로 나눌 수 없습니다".to_string())?;
-                let diff_dim = y_plus.dim.sub(step.dim);
-                Ok(Value::List(vec![
-                    unit_value_to_value(UnitValue {
-                        value: richardson_value,
-                        dim: diff_dim,
-                    }),
-                    unit_value_to_value(UnitValue {
-                        value: richardson_error,
-                        dim: diff_dim,
-                    }),
-                    Value::String("중앙차분".to_string()),
-                ]))
-            }
-            "적분.사다리꼴" => {
-                let (formula, var_name, start, end, step) =
-                    expect_numeric_integral_args(&args, "적분.사다리꼴")?;
-                let prepared = prepare_numeric_formula(&formula, &var_name, "적분.사다리꼴")?;
-                let (lower, upper, sign) = if end.value < start.value {
-                    (end, start, -1_i64)
-                } else {
-                    (start, end, 1_i64)
-                };
-                let interval = upper.value.saturating_sub(lower.value);
-                let n_est = interval
-                    .try_div(step.value)
-                    .map_err(|_| "적분.사다리꼴 계산 중 0으로 나눌 수 없습니다".to_string())?;
-                let mut n = fixed64_to_nonnegative_index(fixed64_ceil(n_est))?;
-                if n == 0 {
-                    n = 1;
-                }
+                "적분.사다리꼴" => {
+                    let (formula, var_name, start, end, step) =
+                        expect_numeric_integral_args(&args, "적분.사다리꼴")?;
+                    let prepared = prepare_numeric_formula(&formula, &var_name, "적분.사다리꼴")?;
+                    let (lower, upper, sign) = if end.value < start.value {
+                        (end, start, -1_i64)
+                    } else {
+                        (start, end, 1_i64)
+                    };
+                    let interval = upper.value.checked_sub(lower.value)?;
+                    let n_est = interval.try_div(step.value)?;
+                    let mut n = fixed64_to_nonnegative_index(fixed64_ceil(n_est)?)?;
+                    if n == 0 {
+                        n = 1;
+                    }
                     let coarse =
                         numeric_trapezoid_integral(&prepared, lower, upper, n, &self.work_cost)?;
-                let refined = numeric_trapezoid_integral(
-                    &prepared,
-                    lower,
-                    upper,
-                    n.saturating_mul(2).max(2),
+                    let refined = numeric_trapezoid_integral(
+                        &prepared,
+                        lower,
+                        upper,
+                        n.saturating_mul(2).max(2),
                         &self.work_cost,
-                )?;
-                if coarse.dim != refined.dim {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: coarse.dim,
-                        right: refined.dim,
-                    }));
+                    )?;
+                    if coarse.dim != refined.dim {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: coarse.dim,
+                            right: refined.dim,
+                        }));
+                    }
+                    let three = Fixed64::from_i64(3);
+                    let richardson_delta = refined.value.checked_sub(coarse.value)?;
+                    let richardson_correction = richardson_delta.try_div(three)?;
+                    let richardson_value = refined.value.checked_add(richardson_correction)?;
+                    let richardson_error = fixed64_abs(richardson_delta)?.try_div(three)?;
+                    let mut approx = refined;
+                    approx.value = richardson_value;
+                    if sign < 0 {
+                        approx.value = Fixed64::ZERO.checked_sub(approx.value)?;
+                    }
+                    let err = UnitValue {
+                        value: richardson_error,
+                        dim: coarse.dim,
+                    };
+                    Ok(Value::List(vec![
+                        unit_value_to_value(approx),
+                        unit_value_to_value(err),
+                        Value::String("사다리꼴".to_string()),
+                    ]))
                 }
-                let three = Fixed64::from_i64(3);
-                let richardson_delta = refined.value.saturating_sub(coarse.value);
-                let richardson_correction = richardson_delta
-                    .try_div(three)
-                    .map_err(|_| "적분.사다리꼴 계산 중 0으로 나눌 수 없습니다".to_string())?;
-                let richardson_value = refined.value.saturating_add(richardson_correction);
-                let richardson_error = fixed64_abs(richardson_delta)
-                    .try_div(three)
-                    .map_err(|_| "적분.사다리꼴 계산 중 0으로 나눌 수 없습니다".to_string())?;
-                let mut approx = refined;
-                approx.value = richardson_value;
-                if sign < 0 {
-                    approx.value = Fixed64::ZERO.saturating_sub(approx.value);
-                }
-                let err = UnitValue {
-                    value: richardson_error,
-                    dim: coarse.dim,
-                };
-                Ok(Value::List(vec![
-                    unit_value_to_value(approx),
-                    unit_value_to_value(err),
-                    Value::String("사다리꼴".to_string()),
-                ]))
-            }
-            "수치해.이분법" => {
-                let (formula, var_name, lower, upper, iterations) =
-                    expect_numeric_bisection_args(&args, "수치해.이분법")?;
-                let prepared = prepare_numeric_formula(&formula, &var_name, "수치해.이분법")?;
+                "수치해.이분법" => {
+                    let (formula, var_name, lower, upper, iterations) =
+                        expect_numeric_bisection_args(&args, "수치해.이분법")?;
+                    let prepared = prepare_numeric_formula(&formula, &var_name, "수치해.이분법")?;
                     let (root, residual, used_iterations) = numeric_bisection_root(
                         &prepared,
                         lower,
@@ -8957,859 +10310,905 @@ impl<'a> EvalContext<'a> {
                         iterations,
                         &self.work_cost,
                     )?;
-                Ok(Value::List(vec![
-                    unit_value_to_value(root),
-                    unit_value_to_value(residual),
-                    unit_value_to_value(UnitValue {
-                        value: Fixed64::from_i64(used_iterations as i64),
-                        dim: UnitDim::NONE,
-                    }),
-                    Value::String("이분법".to_string()),
-                ]))
-            }
+                    Ok(Value::List(vec![
+                        unit_value_to_value(root),
+                        unit_value_to_value(residual),
+                        unit_value_to_value(UnitValue {
+                            value: Fixed64::from_i64(used_iterations as i64),
+                            dim: UnitDim::NONE,
+                        }),
+                        Value::String("이분법".to_string()),
+                    ]))
+                }
                 "선형부등식.풀기" => eval_linear_inequality_solve(&args, &self.work_cost),
-            "abs" => {
-                if args.len() != 1 {
-                    return Err("abs는 인자 1개를 받습니다".to_string().into());
-                }
-                let qty = unit_value_from_value(&args[0])?;
-                let value = fixed64_abs(qty.value);
-                Ok(unit_value_to_value(UnitValue {
-                    value,
-                    dim: qty.dim,
-                }))
-            }
-            "min" => {
-                if args.len() != 2 {
-                    return Err("min은 인자 2개를 받습니다".to_string().into());
-                }
-                let left = unit_value_from_value(&args[0])?;
-                let right = unit_value_from_value(&args[1])?;
-                if left.dim != right.dim {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: left.dim,
-                        right: right.dim,
-                    }));
-                }
-                let out = if left.value <= right.value {
-                    left
-                } else {
-                    right
-                };
-                Ok(unit_value_to_value(out))
-            }
-            "max" => {
-                if args.len() != 2 {
-                    return Err("max는 인자 2개를 받습니다".to_string().into());
-                }
-                let left = unit_value_from_value(&args[0])?;
-                let right = unit_value_from_value(&args[1])?;
-                if left.dim != right.dim {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: left.dim,
-                        right: right.dim,
-                    }));
-                }
-                let out = if left.value >= right.value {
-                    left
-                } else {
-                    right
-                };
-                Ok(unit_value_to_value(out))
-            }
-            "clamp" => {
-                if args.len() != 3 {
-                    return Err("clamp는 인자 3개를 받습니다".to_string().into());
-                }
-                let value = unit_value_from_value(&args[0])?;
-                let min = unit_value_from_value(&args[1])?;
-                let max = unit_value_from_value(&args[2])?;
-                if value.dim != min.dim {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: value.dim,
-                        right: min.dim,
-                    }));
-                }
-                if value.dim != max.dim {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: value.dim,
-                        right: max.dim,
-                    }));
-                }
-                let clamped = if value.value < min.value {
-                    min
-                } else if value.value > max.value {
-                    max
-                } else {
-                    value
-                };
-                Ok(unit_value_to_value(clamped))
-            }
-            "sqrt" => {
-                if args.len() != 1 {
-                    return Err("sqrt는 인자 1개를 받습니다".to_string().into());
-                }
-                let qty = unit_value_from_value(&args[0])?;
-                if qty.value.raw_i64() < 0 {
-                    return Err("음수의 제곱근은 지원하지 않습니다".to_string().into());
-                }
-                let Some(dim) = qty.dim.sqrt() else {
-                    return Err("제곱근은 짝수 차원만 지원합니다".to_string().into());
-                };
-                let Some(value) = fixed64_sqrt(qty.value) else {
-                    return Err("제곱근 계산 실패".to_string().into());
-                };
-                Ok(unit_value_to_value(UnitValue { value, dim }))
-            }
-            "sin" | "cos" | "tan" => {
-                if args.len() != 1 {
-                    return Err(format!("{}는 인자 1개를 받습니다", func).into());
-                }
-                let qty = unit_value_from_value(&args[0])?;
-                if !(qty.is_dimensionless() || qty.dim == UnitDim::ANGLE) {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: qty.dim,
-                        right: UnitDim::ANGLE,
-                    }));
-                }
-                let angle = fixed64_to_f64(qty.value);
-                let out = match func {
-                    "sin" => libm::sin(angle),
-                    "cos" => libm::cos(angle),
-                    _ => libm::tan(angle),
-                };
-                Ok(Value::Fixed64(Fixed64::from_f64_lossy(out)))
-            }
-            "asin" | "acos" | "atan" => {
-                if args.len() != 1 {
-                    return Err(format!("{}는 인자 1개를 받습니다", func).into());
-                }
-                let qty = unit_value_from_value(&args[0])?;
-                if !qty.is_dimensionless() {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: qty.dim,
-                        right: UnitDim::NONE,
-                    }));
-                }
-                let val = fixed64_to_f64(qty.value);
-                let out = match func {
-                    "asin" => libm::asin(val),
-                    "acos" => libm::acos(val),
-                    _ => libm::atan(val),
-                };
-                Ok(Value::Fixed64(Fixed64::from_f64_lossy(out)))
-            }
-            "atan2" => {
-                if args.len() != 2 {
-                    return Err("atan2는 인자 2개를 받습니다".to_string().into());
-                }
-                let y = unit_value_from_value(&args[0])?;
-                let x = unit_value_from_value(&args[1])?;
-                let out = libm::atan2(fixed64_to_f64(y.value), fixed64_to_f64(x.value));
-                Ok(Value::Fixed64(Fixed64::from_f64_lossy(out)))
-            }
-            "powi" => {
-                if args.len() != 2 {
-                    return Err("powi는 인자 2개를 받습니다".to_string().into());
-                }
-                if numeric_pack_kind(&args[0]) == Some(NUMERIC_KIND_FACTOR) {
-                    let Some(base) = exact_numeric_from_value(&args[0])? else {
-                        return Err("곱수 값이 필요합니다".to_string().into());
-                    };
-                    if !base.is_integer() {
-                        return Err("곱수 거듭제곱은 정수 값만 지원합니다".to_string().into());
+                "abs" => {
+                    if args.len() != 1 {
+                        return Err("abs는 인자 1개를 받습니다".to_string().into());
                     }
-                    let exp = value_to_i64(&args[1])?;
-                    if exp < 0 {
-                        return Err("곱수 거듭제곱은 음수 지수를 지원하지 않습니다"
+                    let qty = unit_value_from_value(&args[0])?;
+                    let value = fixed64_abs(qty.value)?;
+                    Ok(unit_value_to_value(UnitValue {
+                        value,
+                        dim: qty.dim,
+                    }))
+                }
+                "min" => {
+                    if args.len() != 2 {
+                        return Err("min은 인자 2개를 받습니다".to_string().into());
+                    }
+                    let left = unit_value_from_value(&args[0])?;
+                    let right = unit_value_from_value(&args[1])?;
+                    if left.dim != right.dim {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: left.dim,
+                            right: right.dim,
+                        }));
+                    }
+                    let out = if left.value <= right.value {
+                        left
+                    } else {
+                        right
+                    };
+                    Ok(unit_value_to_value(out))
+                }
+                "max" => {
+                    if args.len() != 2 {
+                        return Err("max는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let left = unit_value_from_value(&args[0])?;
+                    let right = unit_value_from_value(&args[1])?;
+                    if left.dim != right.dim {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: left.dim,
+                            right: right.dim,
+                        }));
+                    }
+                    let out = if left.value >= right.value {
+                        left
+                    } else {
+                        right
+                    };
+                    Ok(unit_value_to_value(out))
+                }
+                "clamp" => {
+                    if args.len() != 3 {
+                        return Err("clamp는 인자 3개를 받습니다".to_string().into());
+                    }
+                    let value = unit_value_from_value(&args[0])?;
+                    let min = unit_value_from_value(&args[1])?;
+                    let max = unit_value_from_value(&args[2])?;
+                    if value.dim != min.dim {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: value.dim,
+                            right: min.dim,
+                        }));
+                    }
+                    if value.dim != max.dim {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: value.dim,
+                            right: max.dim,
+                        }));
+                    }
+                    let clamped = if value.value < min.value {
+                        min
+                    } else if value.value > max.value {
+                        max
+                    } else {
+                        value
+                    };
+                    Ok(unit_value_to_value(clamped))
+                }
+                "sqrt" => {
+                    if args.len() != 1 {
+                        return Err("sqrt는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let qty = unit_value_from_value(&args[0])?;
+                    if qty.value.raw_i64() < 0 {
+                        return Err("음수의 제곱근은 지원하지 않습니다".to_string().into());
+                    }
+                    let Some(dim) = qty.dim.sqrt() else {
+                        return Err("제곱근은 짝수 차원만 지원합니다".to_string().into());
+                    };
+                    let Some(value) = fixed64_sqrt(qty.value) else {
+                        return Err("제곱근 계산 실패".to_string().into());
+                    };
+                    Ok(unit_value_to_value(UnitValue { value, dim }))
+                }
+                "sin" | "cos" | "tan" => {
+                    if args.len() != 1 {
+                        return Err(format!("{}는 인자 1개를 받습니다", func).into());
+                    }
+                    let qty = unit_value_from_value(&args[0])?;
+                    if !(qty.is_dimensionless() || qty.dim == UnitDim::ANGLE) {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: qty.dim,
+                            right: UnitDim::ANGLE,
+                        }));
+                    }
+                    let angle = fixed64_to_f64(qty.value);
+                    let out = match func {
+                        "sin" => libm::sin(angle),
+                        "cos" => libm::cos(angle),
+                        _ => libm::tan(angle),
+                    };
+                    Ok(Value::Fixed64(fixed64_from_host_f64_checked(out)?))
+                }
+                "asin" | "acos" | "atan" => {
+                    if args.len() != 1 {
+                        return Err(format!("{}는 인자 1개를 받습니다", func).into());
+                    }
+                    let qty = unit_value_from_value(&args[0])?;
+                    if !qty.is_dimensionless() {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: qty.dim,
+                            right: UnitDim::NONE,
+                        }));
+                    }
+                    let val = fixed64_to_f64(qty.value);
+                    let out = match func {
+                        "asin" => libm::asin(val),
+                        "acos" => libm::acos(val),
+                        _ => libm::atan(val),
+                    };
+                    Ok(Value::Fixed64(fixed64_from_host_f64_checked(out)?))
+                }
+                "atan2" => {
+                    if args.len() != 2 {
+                        return Err("atan2는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let y = unit_value_from_value(&args[0])?;
+                    let x = unit_value_from_value(&args[1])?;
+                    let out = libm::atan2(fixed64_to_f64(y.value), fixed64_to_f64(x.value));
+                    Ok(Value::Fixed64(fixed64_from_host_f64_checked(out)?))
+                }
+                "powi" => {
+                    if args.len() != 2 {
+                        return Err("powi는 인자 2개를 받습니다".to_string().into());
+                    }
+                    if numeric_pack_kind(&args[0]) == Some(NUMERIC_KIND_FACTOR) {
+                        let Some(base) = exact_numeric_from_value(&args[0])? else {
+                            return Err("곱수 값이 필요합니다".to_string().into());
+                        };
+                        if !base.is_integer() {
+                            return Err("곱수 거듭제곱은 정수 값만 지원합니다".to_string().into());
+                        }
+                        let exp = value_to_i64(&args[1])?;
+                        if exp < 0 {
+                            return Err("곱수 거듭제곱은 음수 지수를 지원하지 않습니다"
+                                .to_string()
+                                .into());
+                        }
+                        let raw = base.value.to_integer().pow(exp as u32);
+                        let (value, status) =
+                            make_factor_value(&make_big_int_pack_from_bigint(&raw))?;
+                        self.note_factor_route_from_value(&value);
+                        if status == FACTOR_DECOMP_STATUS_DEFERRED {
+                            self.emit_factor_decomposition_deferred_diag(&value, source_span);
+                        }
+                        return Ok(value);
+                    }
+                    let base = unit_value_from_value(&args[0])?;
+                    let exp = unit_value_from_value(&args[1])?;
+                    if !exp.is_dimensionless() {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: exp.dim,
+                            right: UnitDim::NONE,
+                        }));
+                    }
+                    if exp.value.frac_part() != 0 {
+                        return Err("powi는 정수 지수만 지원합니다".to_string().into());
+                    }
+                    let value = unit_powi(base, exp.value.int_part())?;
+                    Ok(unit_value_to_value(value))
+                }
+                "글로" => {
+                    if args.len() != 1 {
+                        return Err("글로는 인자 1개를 받습니다".to_string().into());
+                    }
+                    Ok(Value::String(value_to_string(&args[0])))
+                }
+                "자원" => {
+                    if args.len() != 1 {
+                        return Err("자원은 인자 1개를 받습니다".to_string().into());
+                    }
+                    match &args[0] {
+                        Value::String(path) => {
+                            Ok(Value::ResourceHandle(ResourceHandle::from_path(path)))
+                        }
+                        Value::ResourceHandle(handle) => Ok(Value::ResourceHandle(*handle)),
+                        _ => Err("자원은 글 인자를 받습니다".to_string().into()),
+                    }
+                }
+                "자료.열기" => {
+                    if args.len() != 1 {
+                        return Err("E_DATASET_OPEN_ARITY: 자료.열기는 자원핸들 1개를 받습니다"
                             .to_string()
                             .into());
                     }
-                    let raw = base.value.to_integer().pow(exp as u32);
-                        let (value, status) =
-                            make_factor_value(&make_big_int_pack_from_bigint(&raw))?;
-                    self.note_factor_route_from_value(&value);
-                    if status == FACTOR_DECOMP_STATUS_DEFERRED {
-                        self.emit_factor_decomposition_deferred_diag(&value, source_span);
+                    let handle = match args.first() {
+                        Some(Value::ResourceHandle(handle)) => *handle,
+                        _ => {
+                            return Err(
+                                "E_DATASET_OPEN_TYPE: 자료.열기는 검증된 자원핸들만 받습니다"
+                                    .to_string()
+                                    .into(),
+                            )
+                        }
+                    };
+                    let opened = match self.project_asset_registry {
+                        Some(registry) => registry.open_sealed_dataset(handle),
+                        None => gate0_registry::open_sealed_dataset(handle),
                     }
-                    return Ok(value);
+                    .map_err(EvalError::from)?;
+                    Ok(sealed_dataset_runtime_value(&opened))
                 }
-                let base = unit_value_from_value(&args[0])?;
-                let exp = unit_value_from_value(&args[1])?;
-                if !exp.is_dimensionless() {
-                    return Err(unit_error(UnitError::DimensionMismatch {
-                        left: exp.dim,
-                        right: UnitDim::NONE,
-                    }));
-                }
-                if exp.value.frac_part() != 0 {
-                    return Err("powi는 정수 지수만 지원합니다".to_string().into());
-                }
-                let value = unit_powi(base, exp.value.int_part())?;
-                Ok(unit_value_to_value(value))
-            }
-            "글로" => {
-                if args.len() != 1 {
-                    return Err("글로는 인자 1개를 받습니다".to_string().into());
-                }
-                Ok(Value::String(value_to_string(&args[0])))
-            }
-            "자원" => {
-                if args.len() != 1 {
-                    return Err("자원은 인자 1개를 받습니다".to_string().into());
-                }
-                match &args[0] {
-                    Value::String(path) => {
-                        Ok(Value::ResourceHandle(ResourceHandle::from_path(path)))
+                "눌렸나" => {
+                    if args.len() != 1 {
+                        return Err("눌렸나는 인자 1개를 받습니다".to_string().into());
                     }
-                    Value::ResourceHandle(handle) => Ok(Value::ResourceHandle(*handle)),
-                    _ => Err("자원은 글 인자를 받습니다".to_string().into()),
+                    let key = value_to_string(&args[0]);
+                    Ok(input_pressed(&self.input, &key))
                 }
-            }
-            "자료.열기" => {
-                if args.len() != 1 {
-                    return Err("E_DATASET_OPEN_ARITY: 자료.열기는 자원핸들 1개를 받습니다"
-                        .to_string()
-                        .into());
-                }
-                let handle = match args.first() {
-                    Some(Value::ResourceHandle(handle)) => *handle,
-                    _ => {
-                        return Err(
-                            "E_DATASET_OPEN_TYPE: 자료.열기는 검증된 자원핸들만 받습니다"
-                                .to_string()
-                                .into(),
-                        )
+                "막눌렸나" => {
+                    if args.len() != 1 {
+                        return Err("막눌렸나는 인자 1개를 받습니다".to_string().into());
                     }
-                };
-                let opened = match self.project_asset_registry {
-                    Some(registry) => registry.open_sealed_dataset(handle),
-                    None => gate0_registry::open_sealed_dataset(handle),
+                    let key = value_to_string(&args[0]);
+                    Ok(match self.control_pressed {
+                        Some(pressed) => input_pressed(&InputState::new(pressed, 0), &key),
+                        None => input_just_pressed(&self.input, &key),
+                    })
                 }
-                .map_err(EvalError::from)?;
-                Ok(sealed_dataset_runtime_value(&opened))
-            }
-            "눌렸나" => {
-                if args.len() != 1 {
-                    return Err("눌렸나는 인자 1개를 받습니다".to_string().into());
+                "입력사상.만들기" => {
+                    if self.logical_input.is_some() && !args.is_empty() {
+                        return Err("E_LOGICAL_INPUT_PHYSICAL_UNSUPPORTED: 키 사상은 호스트에서 결속합니다".to_string().into());
+                    }
+                    if args.is_empty() {
+                        return Ok(make_std_input_map(BTreeMap::new()));
+                    }
+                    if args.len() != 1 {
+                        return Err("입력사상.만들기는 인자 0개 또는 1개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    let Value::Pack(fields) = &args[0] else {
+                        return Err("입력사상.만들기는 묶음 인자를 받습니다".to_string().into());
+                    };
+                    Ok(make_std_input_map(fields.clone()))
                 }
-                let key = value_to_string(&args[0]);
-                Ok(input_pressed(&self.input, &key))
-            }
-            "막눌렸나" => {
-                if args.len() != 1 {
-                    return Err("막눌렸나는 인자 1개를 받습니다".to_string().into());
+                "입력사상.방향" => {
+                    if self.logical_input.is_some() {
+                        return Err("E_LOGICAL_INPUT_PHYSICAL_UNSUPPORTED: 방향 키 사상 대신 결속된 행동을 조회하세요".to_string().into());
+                    }
+                    if args.len() != 1 {
+                        return Err("입력사상.방향은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let map = std_input_map_fields(&args[0])?;
+                    let left = input_map_action_pressed(&self.input, &map, "왼쪽") as i64;
+                    let right = input_map_action_pressed(&self.input, &map, "오른쪽") as i64;
+                    let up = input_map_action_pressed(&self.input, &map, "위") as i64;
+                    let down = input_map_action_pressed(&self.input, &map, "아래") as i64;
+                    Ok(Value::List(vec![
+                        fixed_value(right - left),
+                        fixed_value(down - up),
+                    ]))
                 }
-                let key = value_to_string(&args[0]);
-                Ok(input_just_pressed(&self.input, &key))
-            }
-            "입력사상.만들기" => {
-                if args.is_empty() {
-                    return Ok(make_std_input_map(BTreeMap::new()));
+                "입력사상.동작" => {
+                    if args.len() != 2 {
+                        return Err("입력사상.동작은 인자 2개를 받습니다".to_string().into());
+                    }
+                    let map = std_input_map_fields(&args[0])?;
+                    let action = value_to_string(&args[1]);
+                    if let Some(input) = &self.logical_input {
+                        if map.keys().any(|key| key != "__kind") {
+                            return Err("E_LOGICAL_INPUT_PHYSICAL_UNSUPPORTED: 논리 조회에 키 사상을 넘길 수 없습니다".to_string().into());
+                        }
+                        self.input_reads.borrow_mut().insert(format!("logical.held:{action}"));
+                        return input.is_held(&action).map(Value::Bool)
+                            .map_err(|_| "E_LOGICAL_INPUT_CHANNEL: 입력 계약에 없는 조작 채널입니다".to_string().into());
+                    }
+                    Ok(Value::Bool(input_map_action_pressed(
+                        &self.input,
+                        &map,
+                        &action,
+                    )))
                 }
-                if args.len() != 1 {
-                    return Err("입력사상.만들기는 인자 0개 또는 1개를 받습니다"
-                        .to_string()
-                        .into());
+                "입력사상.사건들" => {
+                    if !args.is_empty() {
+                        return Err("입력사상.사건들은 인자 없이 해당 마디의 사건을 읽습니다".to_string().into());
+                    }
+                    let input = self.logical_input.as_ref().ok_or_else(||
+                        EvalError::from("E_LOGICAL_INPUT_PROFILE_REQUIRED: 사건 조회에는 논리 입력 프로필이 필요합니다".to_string()))?;
+                    self.input_reads.borrow_mut().insert("logical.events".into());
+                    self.work_cost.borrow_mut().charge_element_visits(input.events().len())?;
+                    let mut values = Vec::with_capacity(input.events().len());
+                    for event in input.events() {
+                        let kind = match event.kind {
+                            ddonirang_core::input::LogicalInputEventKind::Press => "누름",
+                            ddonirang_core::input::LogicalInputEventKind::Repeat => "반복",
+                            ddonirang_core::input::LogicalInputEventKind::Release => "뗌",
+                            _ => return Err("E_LOGICAL_INPUT_TEXT_UNSUPPORTED: 알파2는 글자 입력을 지원하지 않습니다".to_string().into()),
+                        };
+                        let ordinal = i64::try_from(event.receive_ordinal).map_err(|_|
+                            EvalError::from("E_LOGICAL_INPUT_ORDER: 사건 순서가 범위를 넘었습니다".to_string()))?;
+                        values.push(Value::Pack(BTreeMap::from([
+                            ("채널".into(), Value::String(event.channel.clone())),
+                            ("종류".into(), Value::String(kind.into())),
+                            ("순서".into(), fixed_value(ordinal)),
+                        ])));
+                    }
+                    Ok(Value::List(values))
                 }
-                let Value::Pack(fields) = &args[0] else {
-                    return Err("입력사상.만들기는 묶음 인자를 받습니다".to_string().into());
-                };
-                Ok(make_std_input_map(fields.clone()))
-            }
-            "입력사상.방향" => {
-                if args.len() != 1 {
-                    return Err("입력사상.방향은 인자 1개를 받습니다".to_string().into());
+                "무작위" => {
+                    if !args.is_empty() {
+                        return Err("무작위는 인자 0개를 받습니다".to_string().into());
+                    }
+                    Ok(Value::Fixed64(self.next_rng_fixed64()))
                 }
-                let map = std_input_map_fields(&args[0])?;
-                let left = input_map_action_pressed(&self.input, &map, "왼쪽") as i64;
-                let right = input_map_action_pressed(&self.input, &map, "오른쪽") as i64;
-                let up = input_map_action_pressed(&self.input, &map, "위") as i64;
-                let down = input_map_action_pressed(&self.input, &map, "아래") as i64;
-                Ok(Value::List(vec![
-                    fixed_value(right - left),
-                    fixed_value(down - up),
-                ]))
-            }
-            "입력사상.동작" => {
-                if args.len() != 2 {
-                    return Err("입력사상.동작은 인자 2개를 받습니다".to_string().into());
+                "무작위정수" => {
+                    if args.len() != 2 {
+                        return Err("무작위정수는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let min = value_to_i64(&args[0])?;
+                    let max = value_to_i64(&args[1])?;
+                    if min > max {
+                        return Err("무작위정수의 최소/최대가 올바르지 않습니다"
+                            .to_string()
+                            .into());
+                    }
+                    let range = (max - min + 1) as u64;
+                    let value = (self.next_rng_u64() % range) as i64 + min;
+                    Ok(Value::Fixed64(Fixed64::from_i64(value)))
                 }
-                let map = std_input_map_fields(&args[0])?;
-                let action = value_to_string(&args[1]);
-                Ok(Value::Bool(input_map_action_pressed(
-                    &self.input,
-                    &map,
-                    &action,
-                )))
-            }
-            "무작위" => {
-                if !args.is_empty() {
-                    return Err("무작위는 인자 0개를 받습니다".to_string().into());
+                "무작위선택" => {
+                    if args.len() != 1 {
+                        return Err("무작위선택은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let Value::List(items) = &args[0] else {
+                        return Err("무작위선택은 차림 인자를 받습니다".to_string().into());
+                    };
+                    if items.is_empty() {
+                        return Ok(Value::None);
+                    }
+                    let idx = (self.next_rng_u64() % items.len() as u64) as usize;
+                    Ok(items[idx].clone())
                 }
-                Ok(Value::Fixed64(self.next_rng_fixed64()))
-            }
-            "무작위정수" => {
-                if args.len() != 2 {
-                    return Err("무작위정수는 인자 2개를 받습니다".to_string().into());
+                "무작위가방.만들기" => {
+                    if args.len() != 2 {
+                        return Err("무작위가방.만들기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    let seed = value_to_i64(&args[0])? as u64;
+                    let Value::List(candidates) = &args[1] else {
+                        return Err("무작위가방.만들기는 후보 차림을 받습니다"
+                            .to_string()
+                            .into());
+                    };
+                    if candidates.is_empty() {
+                        return Err("무작위가방 후보들은 비어 있을 수 없습니다"
+                            .to_string()
+                            .into());
+                    }
+                    Ok(make_std_random_bag(
+                        seed,
+                        seed,
+                        candidates.clone(),
+                        candidates.clone(),
+                        0,
+                    ))
                 }
-                let min = value_to_i64(&args[0])?;
-                let max = value_to_i64(&args[1])?;
-                if min > max {
-                    return Err("무작위정수의 최소/최대가 올바르지 않습니다"
-                        .to_string()
-                        .into());
+                "무작위가방.꺼내기" => {
+                    if args.len() != 1 {
+                        return Err("무작위가방.꺼내기는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let (value, bag) = std_random_bag_draw_once(&args[0])?;
+                    let mut fields = BTreeMap::new();
+                    fields.insert(
+                        STD_RANDOM_BAG_KIND_FIELD.to_string(),
+                        Value::String(STD_RANDOM_BAG_DRAW_KIND.to_string()),
+                    );
+                    fields.insert(STD_RANDOM_BAG_VALUE_FIELD.to_string(), value);
+                    fields.insert(STD_RANDOM_BAG_BAG_FIELD.to_string(), bag);
+                    Ok(Value::Pack(fields))
                 }
-                let range = (max - min + 1) as u64;
-                let value = (self.next_rng_u64() % range) as i64 + min;
-                Ok(Value::Fixed64(Fixed64::from_i64(value)))
-            }
-            "무작위선택" => {
-                if args.len() != 1 {
-                    return Err("무작위선택은 인자 1개를 받습니다".to_string().into());
+                "무작위가방.미리보기" => {
+                    if args.len() != 2 {
+                        return Err("무작위가방.미리보기는 인자 2개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    let count = value_to_i64(&args[1])?;
+                    if count < 0 {
+                        return Err("무작위가방.미리보기 개수는 0 이상이어야 합니다"
+                            .to_string()
+                            .into());
+                    }
+                    let mut bag = args[0].clone();
+                    let mut values = Vec::new();
+                    for _ in 0..count {
+                        let (value, next_bag) = std_random_bag_draw_once(&bag)?;
+                        values.push(value);
+                        bag = next_bag;
+                    }
+                    Ok(Value::List(values))
                 }
-                let Value::List(items) = &args[0] else {
-                    return Err("무작위선택은 차림 인자를 받습니다".to_string().into());
-                };
-                if items.is_empty() {
-                    return Ok(Value::None);
+                "무작위가방.남은것" => {
+                    if args.len() != 1 {
+                        return Err("무작위가방.남은것은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let fields = std_random_bag_fields(&args[0])?;
+                    Ok(Value::List(std_random_bag_list_field(
+                        fields,
+                        STD_RANDOM_BAG_REMAINING_FIELD,
+                    )?))
                 }
-                let idx = (self.next_rng_u64() % items.len() as u64) as usize;
-                Ok(items[idx].clone())
-            }
-            "무작위가방.만들기" => {
-                if args.len() != 2 {
-                    return Err("무작위가방.만들기는 인자 2개를 받습니다".to_string().into());
-                }
-                let seed = value_to_i64(&args[0])? as u64;
-                let Value::List(candidates) = &args[1] else {
-                    return Err("무작위가방.만들기는 후보 차림을 받습니다"
-                        .to_string()
-                        .into());
-                };
-                if candidates.is_empty() {
-                    return Err("무작위가방 후보들은 비어 있을 수 없습니다"
-                        .to_string()
-                        .into());
-                }
-                Ok(make_std_random_bag(
-                    seed,
-                    seed,
-                    candidates.clone(),
-                    candidates.clone(),
-                    0,
-                ))
-            }
-            "무작위가방.꺼내기" => {
-                if args.len() != 1 {
-                    return Err("무작위가방.꺼내기는 인자 1개를 받습니다".to_string().into());
-                }
-                let (value, bag) = std_random_bag_draw_once(&args[0])?;
-                let mut fields = BTreeMap::new();
-                fields.insert(
-                    STD_RANDOM_BAG_KIND_FIELD.to_string(),
-                    Value::String(STD_RANDOM_BAG_DRAW_KIND.to_string()),
-                );
-                fields.insert(STD_RANDOM_BAG_VALUE_FIELD.to_string(), value);
-                fields.insert(STD_RANDOM_BAG_BAG_FIELD.to_string(), bag);
-                Ok(Value::Pack(fields))
-            }
-            "무작위가방.미리보기" => {
-                if args.len() != 2 {
-                    return Err("무작위가방.미리보기는 인자 2개를 받습니다"
-                        .to_string()
-                        .into());
-                }
-                let count = value_to_i64(&args[1])?;
-                if count < 0 {
-                    return Err("무작위가방.미리보기 개수는 0 이상이어야 합니다"
-                        .to_string()
-                        .into());
-                }
-                let mut bag = args[0].clone();
-                let mut values = Vec::new();
-                for _ in 0..count {
-                    let (value, next_bag) = std_random_bag_draw_once(&bag)?;
-                    values.push(value);
-                    bag = next_bag;
-                }
-                Ok(Value::List(values))
-            }
-            "무작위가방.남은것" => {
-                if args.len() != 1 {
-                    return Err("무작위가방.남은것은 인자 1개를 받습니다".to_string().into());
-                }
-                let fields = std_random_bag_fields(&args[0])?;
-                Ok(Value::List(std_random_bag_list_field(
-                    fields,
-                    STD_RANDOM_BAG_REMAINING_FIELD,
-                )?))
-            }
-            "무작위가방.비었나" => {
-                if args.len() != 1 {
-                    return Err("무작위가방.비었나는 인자 1개를 받습니다".to_string().into());
-                }
-                let fields = std_random_bag_fields(&args[0])?;
-                Ok(Value::Bool(
+                "무작위가방.비었나" => {
+                    if args.len() != 1 {
+                        return Err("무작위가방.비었나는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let fields = std_random_bag_fields(&args[0])?;
+                    Ok(Value::Bool(
                         std_random_bag_list_field(fields, STD_RANDOM_BAG_REMAINING_FIELD)?
                             .is_empty(),
-                ))
-            }
-            "격자게임상태.초기화" => {
-                if !args.is_empty() {
-                    return Err("격자게임상태.초기화는 인자 0개를 받습니다"
-                        .to_string()
-                        .into());
+                    ))
                 }
-                Ok(make_std_grid_game_state("준비", Value::None, 0))
-            }
-            "격자게임상태.만들기" => {
-                if args.len() != 1 {
-                    return Err("격자게임상태.만들기는 인자 1개를 받습니다"
-                        .to_string()
-                        .into());
-                }
-                let state = value_to_grid_game_state_name(&args[0])?;
-                Ok(make_std_grid_game_state(&state, Value::None, 0))
-            }
-            "격자게임상태.상태" => {
-                if args.len() != 1 {
-                    return Err("격자게임상태.상태는 인자 1개를 받습니다".to_string().into());
-                }
-                Ok(Value::String(std_grid_game_state_state(
-                    std_grid_game_state_fields(&args[0])?,
-                )?))
-            }
-            "격자게임상태.틱" => {
-                if args.len() != 1 {
-                    return Err("격자게임상태.틱은 인자 1개를 받습니다".to_string().into());
-                }
-                Ok(fixed_value(std_grid_game_state_tick(
-                    std_grid_game_state_fields(&args[0])?,
-                )?))
-            }
-            "격자게임상태.상태인가" => {
-                if args.len() != 2 {
-                    return Err("격자게임상태.상태인가는 인자 2개를 받습니다"
-                        .to_string()
-                        .into());
-                }
-                let current = std_grid_game_state_state(std_grid_game_state_fields(&args[0])?)?;
-                let expected = value_to_grid_game_state_name(&args[1])?;
-                Ok(Value::Bool(current == expected))
-            }
-            "격자게임상태.바꾸기" => {
-                if args.len() != 2 {
-                    return Err("격자게임상태.바꾸기는 인자 2개를 받습니다"
-                        .to_string()
-                        .into());
-                }
-                let fields = std_grid_game_state_fields(&args[0])?;
-                let state = value_to_grid_game_state_name(&args[1])?;
-                Ok(make_std_grid_game_state(
-                    &state,
-                    Value::String(std_grid_game_state_state(fields)?),
-                    std_grid_game_state_tick(fields)?.saturating_add(1),
-                ))
-            }
-            "격자게임상태.멈춤" => {
-                if args.len() != 1 {
-                    return Err("격자게임상태.멈춤은 인자 1개를 받습니다".to_string().into());
-                }
-                let fields = std_grid_game_state_fields(&args[0])?;
-                let state = std_grid_game_state_state(fields)?;
-                let previous = if state == "멈춤" {
-                    std_grid_game_state_previous(fields)
-                } else {
-                    Value::String(state)
-                };
-                Ok(make_std_grid_game_state(
-                    "멈춤",
-                    previous,
-                    std_grid_game_state_tick(fields)?.saturating_add(1),
-                ))
-            }
-            "격자게임상태.재개" => {
-                if args.len() != 1 {
-                    return Err("격자게임상태.재개는 인자 1개를 받습니다".to_string().into());
-                }
-                let fields = std_grid_game_state_fields(&args[0])?;
-                let state = std_grid_game_state_state(fields)?;
-                if state != "멈춤" {
-                    return Ok(args[0].clone());
-                }
-                let previous = match std_grid_game_state_previous(fields) {
-                    Value::String(candidate)
-                        if is_allowed_grid_game_state(&candidate) && candidate != "멈춤" =>
-                    {
-                        candidate
+                "격자게임상태.초기화" => {
+                    if !args.is_empty() {
+                        return Err("격자게임상태.초기화는 인자 0개를 받습니다"
+                            .to_string()
+                            .into());
                     }
-                    _ => "진행".to_string(),
-                };
-                Ok(make_std_grid_game_state(
-                    &previous,
-                    Value::None,
-                    std_grid_game_state_tick(fields)?.saturating_add(1),
-                ))
-            }
-            "테트로미노.이름목록" => {
-                if !args.is_empty() {
-                    return Err("테트로미노.이름목록은 인자 0개를 받습니다"
-                        .to_string()
-                        .into());
+                    Ok(make_std_grid_game_state("준비", Value::None, 0))
                 }
-                Ok(Value::List(
-                    tetromino_names()
-                        .into_iter()
-                        .map(|name| Value::String(name.to_string()))
-                        .collect(),
-                ))
-            }
-            "테트로미노.만들기" => {
-                if args.len() != 1 {
-                    return Err("테트로미노.만들기는 인자 1개를 받습니다".to_string().into());
+                "격자게임상태.만들기" => {
+                    if args.len() != 1 {
+                        return Err("격자게임상태.만들기는 인자 1개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    let state = value_to_grid_game_state_name(&args[0])?;
+                    Ok(make_std_grid_game_state(&state, Value::None, 0))
                 }
-                let name = value_to_tetromino_name(&args[0])?;
-                Ok(make_std_block_piece(tetromino_cells(&name)?))
-            }
-            "테트로미노.목록" => {
-                if !args.is_empty() {
-                    return Err("테트로미노.목록은 인자 0개를 받습니다".to_string().into());
+                "격자게임상태.상태" => {
+                    if args.len() != 1 {
+                        return Err("격자게임상태.상태는 인자 1개를 받습니다".to_string().into());
+                    }
+                    Ok(Value::String(std_grid_game_state_state(
+                        std_grid_game_state_fields(&args[0])?,
+                    )?))
                 }
-                Ok(Value::List(
-                    tetromino_names()
-                        .into_iter()
-                        .map(|name| {
+                "격자게임상태.틱" => {
+                    if args.len() != 1 {
+                        return Err("격자게임상태.틱은 인자 1개를 받습니다".to_string().into());
+                    }
+                    Ok(fixed_value(std_grid_game_state_tick(
+                        std_grid_game_state_fields(&args[0])?,
+                    )?))
+                }
+                "격자게임상태.상태인가" => {
+                    if args.len() != 2 {
+                        return Err("격자게임상태.상태인가는 인자 2개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    let current = std_grid_game_state_state(std_grid_game_state_fields(&args[0])?)?;
+                    let expected = value_to_grid_game_state_name(&args[1])?;
+                    Ok(Value::Bool(current == expected))
+                }
+                "격자게임상태.바꾸기" => {
+                    if args.len() != 2 {
+                        return Err("격자게임상태.바꾸기는 인자 2개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    let fields = std_grid_game_state_fields(&args[0])?;
+                    let state = value_to_grid_game_state_name(&args[1])?;
+                    Ok(make_std_grid_game_state(
+                        &state,
+                        Value::String(std_grid_game_state_state(fields)?),
+                        std_grid_game_state_tick(fields)?.saturating_add(1),
+                    ))
+                }
+                "격자게임상태.멈춤" => {
+                    if args.len() != 1 {
+                        return Err("격자게임상태.멈춤은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let fields = std_grid_game_state_fields(&args[0])?;
+                    let state = std_grid_game_state_state(fields)?;
+                    let previous = if state == "멈춤" {
+                        std_grid_game_state_previous(fields)
+                    } else {
+                        Value::String(state)
+                    };
+                    Ok(make_std_grid_game_state(
+                        "멈춤",
+                        previous,
+                        std_grid_game_state_tick(fields)?.saturating_add(1),
+                    ))
+                }
+                "격자게임상태.재개" => {
+                    if args.len() != 1 {
+                        return Err("격자게임상태.재개는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let fields = std_grid_game_state_fields(&args[0])?;
+                    let state = std_grid_game_state_state(fields)?;
+                    if state != "멈춤" {
+                        return Ok(args[0].clone());
+                    }
+                    let previous = match std_grid_game_state_previous(fields) {
+                        Value::String(candidate)
+                            if is_allowed_grid_game_state(&candidate) && candidate != "멈춤" =>
+                        {
+                            candidate
+                        }
+                        _ => "진행".to_string(),
+                    };
+                    Ok(make_std_grid_game_state(
+                        &previous,
+                        Value::None,
+                        std_grid_game_state_tick(fields)?.saturating_add(1),
+                    ))
+                }
+                "테트로미노.이름목록" => {
+                    if !args.is_empty() {
+                        return Err("테트로미노.이름목록은 인자 0개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    Ok(Value::List(
+                        tetromino_names()
+                            .into_iter()
+                            .map(|name| Value::String(name.to_string()))
+                            .collect(),
+                    ))
+                }
+                "테트로미노.만들기" => {
+                    if args.len() != 1 {
+                        return Err("테트로미노.만들기는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let name = value_to_tetromino_name(&args[0])?;
+                    Ok(make_std_block_piece(tetromino_cells(&name)?))
+                }
+                "테트로미노.목록" => {
+                    if !args.is_empty() {
+                        return Err("테트로미노.목록은 인자 0개를 받습니다".to_string().into());
+                    }
+                    Ok(Value::List(
+                        tetromino_names()
+                            .into_iter()
+                            .map(|name| {
                                 make_std_block_piece(
                                     tetromino_cells(name).expect("known tetromino"),
                                 )
-                        })
-                        .collect(),
-                ))
-            }
-            "격자줄.찬줄목록" => {
-                if args.len() != 2 {
-                    return Err("격자줄.찬줄목록은 인자 2개를 받습니다".to_string().into());
+                            })
+                            .collect(),
+                    ))
                 }
-                Ok(Value::List(
-                    std_grid_line_full_rows(&args[0], &args[1])?
-                        .into_iter()
-                        .map(fixed_value)
-                        .collect(),
-                ))
-            }
-            "격자줄.지우기" => {
-                if args.len() != 2 {
-                    return Err("격자줄.지우기는 인자 2개를 받습니다".to_string().into());
+                "격자줄.찬줄목록" => {
+                    if args.len() != 2 {
+                        return Err("격자줄.찬줄목록은 인자 2개를 받습니다".to_string().into());
+                    }
+                    Ok(Value::List(
+                        std_grid_line_full_rows(&args[0], &args[1])?
+                            .into_iter()
+                            .map(fixed_value)
+                            .collect(),
+                    ))
                 }
-                std_grid_line_clear(&args[0], args[1].clone())
-            }
-            "낙하조각.만들기" | "격자게임.스폰" => {
-                if args.len() != 3 {
-                    return Err("낙하조각.만들기는 인자 3개를 받습니다".to_string().into());
+                "격자줄.지우기" => {
+                    if args.len() != 2 {
+                        return Err("격자줄.지우기는 인자 2개를 받습니다".to_string().into());
+                    }
+                    std_grid_line_clear(&args[0], args[1].clone())
                 }
-                let _ = std_block_piece_cells(&args[0])?;
-                let x = value_to_i64(&args[1])?;
-                let y = value_to_i64(&args[2])?;
-                Ok(make_std_falling_piece(args[0].clone(), x, y))
-            }
-            "낙하조각.조각" => {
-                if args.len() != 1 {
-                    return Err("낙하조각.조각은 인자 1개를 받습니다".to_string().into());
+                "낙하조각.만들기" | "격자게임.스폰" => {
+                    if args.len() != 3 {
+                        return Err("낙하조각.만들기는 인자 3개를 받습니다".to_string().into());
+                    }
+                    let _ = std_block_piece_cells(&args[0])?;
+                    let x = value_to_i64(&args[1])?;
+                    let y = value_to_i64(&args[2])?;
+                    Ok(make_std_falling_piece(args[0].clone(), x, y))
                 }
-                let (piece, _, _) = std_falling_piece_parts(&args[0])?;
-                Ok(piece)
-            }
-            "낙하조각.위치" => {
-                if args.len() != 1 {
-                    return Err("낙하조각.위치는 인자 1개를 받습니다".to_string().into());
+                "낙하조각.조각" => {
+                    if args.len() != 1 {
+                        return Err("낙하조각.조각은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let (piece, _, _) = std_falling_piece_parts(&args[0])?;
+                    Ok(piece)
                 }
-                let (_, x, y) = std_falling_piece_parts(&args[0])?;
-                Ok(Value::List(vec![fixed_value(x), fixed_value(y)]))
-            }
-            "낙하조각.배치" => {
-                if args.len() != 1 {
-                    return Err("낙하조각.배치는 인자 1개를 받습니다".to_string().into());
+                "낙하조각.위치" => {
+                    if args.len() != 1 {
+                        return Err("낙하조각.위치는 인자 1개를 받습니다".to_string().into());
+                    }
+                    let (_, x, y) = std_falling_piece_parts(&args[0])?;
+                    Ok(Value::List(vec![fixed_value(x), fixed_value(y)]))
                 }
-                Ok(std_block_piece_cells_value(&std_falling_piece_cells(
-                    &args[0],
-                )?))
-            }
-            "낙하조각.이동" => {
-                if args.len() != 3 {
-                    return Err("낙하조각.이동은 인자 3개를 받습니다".to_string().into());
+                "낙하조각.배치" => {
+                    if args.len() != 1 {
+                        return Err("낙하조각.배치는 인자 1개를 받습니다".to_string().into());
+                    }
+                    Ok(std_block_piece_cells_value(&std_falling_piece_cells(
+                        &args[0],
+                    )?))
                 }
-                let (piece, x, y) = std_falling_piece_parts(&args[0])?;
-                Ok(make_std_falling_piece(
-                    piece,
-                    x + value_to_i64(&args[1])?,
-                    y + value_to_i64(&args[2])?,
-                ))
-            }
-            "낙하조각.회전" => {
-                if args.len() != 2 {
-                    return Err("낙하조각.회전은 인자 2개를 받습니다".to_string().into());
+                "낙하조각.이동" => {
+                    if args.len() != 3 {
+                        return Err("낙하조각.이동은 인자 3개를 받습니다".to_string().into());
+                    }
+                    let (piece, x, y) = std_falling_piece_parts(&args[0])?;
+                    Ok(make_std_falling_piece(
+                        piece,
+                        x + value_to_i64(&args[1])?,
+                        y + value_to_i64(&args[2])?,
+                    ))
                 }
-                let Value::String(direction) = &args[1] else {
-                    return Err("낙하조각 회전 방향은 글이어야 합니다".to_string().into());
-                };
-                std_falling_piece_rotate(&args[0], direction)
-            }
-            "격자게임.놓을수있나" => {
-                if args.len() != 3 {
-                    return Err("격자게임.놓을수있나는 인자 3개를 받습니다"
-                        .to_string()
-                        .into());
+                "낙하조각.회전" => {
+                    if args.len() != 2 {
+                        return Err("낙하조각.회전은 인자 2개를 받습니다".to_string().into());
+                    }
+                    let Value::String(direction) = &args[1] else {
+                        return Err("낙하조각 회전 방향은 글이어야 합니다".to_string().into());
+                    };
+                    std_falling_piece_rotate(&args[0], direction)
                 }
-                Ok(Value::Bool(std_grid_game_placeable(
-                    &args[0], &args[1], &args[2],
-                )?))
-            }
-            "격자게임.입력적용" => {
-                if args.len() != 2 {
-                    return Err("격자게임.입력적용은 인자 2개를 받습니다".to_string().into());
+                "격자게임.놓을수있나" => {
+                    if args.len() != 3 {
+                        return Err("격자게임.놓을수있나는 인자 3개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    Ok(Value::Bool(std_grid_game_placeable(
+                        &args[0], &args[1], &args[2],
+                    )?))
                 }
-                std_grid_game_apply_input(&args[0], &args[1], &self.input)
-            }
-            "격자게임.중력틱" => {
-                if args.len() != 1 {
-                    return Err("격자게임.중력틱은 인자 1개를 받습니다".to_string().into());
+                "격자게임.입력적용" => {
+                    if args.len() != 2 {
+                        return Err("격자게임.입력적용은 인자 2개를 받습니다".to_string().into());
+                    }
+                    std_grid_game_apply_input(&args[0], &args[1], &self.input)
                 }
-                let (piece, x, y) = std_falling_piece_parts(&args[0])?;
-                Ok(make_std_falling_piece(piece, x, y + 1))
-            }
-            "격자게임.고정" => {
-                if args.len() != 3 {
-                    return Err("격자게임.고정은 인자 3개를 받습니다".to_string().into());
+                "격자게임.중력틱" => {
+                    if args.len() != 1 {
+                        return Err("격자게임.중력틱은 인자 1개를 받습니다".to_string().into());
+                    }
+                    let (piece, x, y) = std_falling_piece_parts(&args[0])?;
+                    Ok(make_std_falling_piece(piece, x, y + 1))
                 }
-                std_block_piece_lock(
-                    &std_falling_piece_block(&args[0])?,
-                    &args[1],
-                    args[2].clone(),
-                )
-            }
-            "격자게임.다음조각" => {
-                if args.len() != 1 {
-                    return Err("격자게임.다음조각은 인자 1개를 받습니다".to_string().into());
+                "격자게임.고정" => {
+                    if args.len() != 3 {
+                        return Err("격자게임.고정은 인자 3개를 받습니다".to_string().into());
+                    }
+                    std_block_piece_lock(
+                        &std_falling_piece_block(&args[0])?,
+                        &args[1],
+                        args[2].clone(),
+                    )
                 }
-                std_grid_game_next_piece(&args[0])
-            }
-            "격자게임.한틱" => {
-                if args.len() != 2 {
-                    return Err("격자게임.한틱은 인자 2개를 받습니다".to_string().into());
+                "격자게임.다음조각" => {
+                    if args.len() != 1 {
+                        return Err("격자게임.다음조각은 인자 1개를 받습니다".to_string().into());
+                    }
+                    std_grid_game_next_piece(&args[0])
                 }
-                std_grid_game_tick(&args[0], &args[1], &self.input)
-            }
-            "격자게임.회전시도" => {
-                if args.len() != 4 {
-                    return Err("격자게임.회전시도는 인자 4개를 받습니다".to_string().into());
+                "격자게임.한틱" => {
+                    if args.len() != 2 {
+                        return Err("격자게임.한틱은 인자 2개를 받습니다".to_string().into());
+                    }
+                    std_grid_game_tick(&args[0], &args[1], &self.input)
                 }
-                let Value::String(direction) = &args[3] else {
-                    return Err("격자게임.회전시도 방향은 글이어야 합니다"
-                        .to_string()
-                        .into());
-                };
-                std_grid_game_rotation_try(&args[0], &args[1], &args[2], direction)
-            }
-            "격자게임홀드.초기화" => {
-                if !args.is_empty() {
-                    return Err("격자게임홀드.초기화는 인자 0개를 받습니다"
-                        .to_string()
-                        .into());
+                "격자게임.회전시도" => {
+                    if args.len() != 4 {
+                        return Err("격자게임.회전시도는 인자 4개를 받습니다".to_string().into());
+                    }
+                    let Value::String(direction) = &args[3] else {
+                        return Err("격자게임.회전시도 방향은 글이어야 합니다"
+                            .to_string()
+                            .into());
+                    };
+                    std_grid_game_rotation_try(&args[0], &args[1], &args[2], direction)
                 }
-                Ok(make_std_grid_game_hold(Value::None, false))
-            }
-            "격자게임홀드.칸" => {
-                if args.len() != 1 {
-                    return Err("격자게임홀드.칸은 인자 1개를 받습니다".to_string().into());
+                "격자게임홀드.초기화" => {
+                    if !args.is_empty() {
+                        return Err("격자게임홀드.초기화는 인자 0개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    Ok(make_std_grid_game_hold(Value::None, false))
                 }
-                std_grid_game_hold_piece(std_grid_game_hold_fields(&args[0])?)
-            }
-            "격자게임홀드.썼나" => {
-                if args.len() != 1 {
-                    return Err("격자게임홀드.썼나는 인자 1개를 받습니다".to_string().into());
+                "격자게임홀드.칸" => {
+                    if args.len() != 1 {
+                        return Err("격자게임홀드.칸은 인자 1개를 받습니다".to_string().into());
+                    }
+                    std_grid_game_hold_piece(std_grid_game_hold_fields(&args[0])?)
                 }
-                Ok(Value::Bool(std_grid_game_hold_used(
-                    std_grid_game_hold_fields(&args[0])?,
-                )?))
-            }
-            "격자게임홀드.교체" => {
-                if args.len() != 5 {
-                    return Err("격자게임홀드.교체는 인자 5개를 받습니다".to_string().into());
+                "격자게임홀드.썼나" => {
+                    if args.len() != 1 {
+                        return Err("격자게임홀드.썼나는 인자 1개를 받습니다".to_string().into());
+                    }
+                    Ok(Value::Bool(std_grid_game_hold_used(
+                        std_grid_game_hold_fields(&args[0])?,
+                    )?))
                 }
-                std_grid_game_hold_swap(
-                    &args[0],
-                    &args[1],
-                    &args[2],
-                    value_to_i64(&args[3])?,
-                    value_to_i64(&args[4])?,
-                )
-            }
-            "격자게임홀드.초기화턴" => {
-                if args.len() != 1 {
-                    return Err("격자게임홀드.초기화턴은 인자 1개를 받습니다"
-                        .to_string()
-                        .into());
+                "격자게임홀드.교체" => {
+                    if args.len() != 5 {
+                        return Err("격자게임홀드.교체는 인자 5개를 받습니다".to_string().into());
+                    }
+                    std_grid_game_hold_swap(
+                        &args[0],
+                        &args[1],
+                        &args[2],
+                        value_to_i64(&args[3])?,
+                        value_to_i64(&args[4])?,
+                    )
                 }
-                let piece = std_grid_game_hold_piece(std_grid_game_hold_fields(&args[0])?)?;
-                Ok(make_std_grid_game_hold(piece, false))
-            }
-            "격자게임점수.초기화" => {
-                if !args.is_empty() {
-                    return Err("격자게임점수.초기화는 인자 0개를 받습니다"
-                        .to_string()
-                        .into());
+                "격자게임홀드.초기화턴" => {
+                    if args.len() != 1 {
+                        return Err("격자게임홀드.초기화턴은 인자 1개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    let piece = std_grid_game_hold_piece(std_grid_game_hold_fields(&args[0])?)?;
+                    Ok(make_std_grid_game_hold(piece, false))
                 }
-                Ok(make_std_grid_game_score(0, 0))
-            }
-            "격자게임점수.더하기" => {
-                if args.len() != 2 {
-                    return Err("격자게임점수.더하기는 인자 2개를 받습니다"
-                        .to_string()
-                        .into());
+                "격자게임점수.초기화" => {
+                    if !args.is_empty() {
+                        return Err("격자게임점수.초기화는 인자 0개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    Ok(make_std_grid_game_score(0, 0))
                 }
-                std_grid_game_score_add(&args[0], value_to_i64(&args[1])?)
-            }
-            "격자게임점수.점수" | "격자게임점수.줄수" | "격자게임점수.레벨" =>
-            {
-                if args.len() != 1 {
-                    return Err("격자게임점수 접근자는 인자 1개를 받습니다"
-                        .to_string()
-                        .into());
+                "격자게임점수.더하기" => {
+                    if args.len() != 2 {
+                        return Err("격자게임점수.더하기는 인자 2개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    std_grid_game_score_add(&args[0], value_to_i64(&args[1])?)
                 }
-                let field = match func {
-                    "격자게임점수.점수" => "점수",
-                    "격자게임점수.줄수" => "줄수",
-                    _ => "레벨",
-                };
-                Ok(fixed_value(std_score_int_field(
-                    std_grid_game_score_fields(&args[0])?,
-                    field,
-                )?))
-            }
-            "격자게임세션.만들기" => {
-                if args.len() != 5 {
-                    return Err("격자게임세션.만들기는 인자 5개를 받습니다"
-                        .to_string()
-                        .into());
+                "격자게임점수.점수" | "격자게임점수.줄수" | "격자게임점수.레벨" =>
+                {
+                    if args.len() != 1 {
+                        return Err("격자게임점수 접근자는 인자 1개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    let field = match func {
+                        "격자게임점수.점수" => "점수",
+                        "격자게임점수.줄수" => "줄수",
+                        _ => "레벨",
+                    };
+                    Ok(fixed_value(std_score_int_field(
+                        std_grid_game_score_fields(&args[0])?,
+                        field,
+                    )?))
                 }
-                Ok(make_std_grid_game_session(
-                    args[0].clone(),
-                    args[1].clone(),
-                    args[2].clone(),
-                    args[3].clone(),
-                    args[4].clone(),
-                ))
-            }
-            "격자게임세션.격자"
-            | "격자게임세션.가방"
-            | "격자게임세션.상태"
-            | "격자게임세션.점수"
-            | "격자게임세션.낙하조각" => {
-                if args.len() != 1 {
-                    return Err("격자게임세션 접근자는 인자 1개를 받습니다"
-                        .to_string()
-                        .into());
+                "격자게임세션.만들기" => {
+                    if args.len() != 5 {
+                        return Err("격자게임세션.만들기는 인자 5개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    Ok(make_std_grid_game_session(
+                        args[0].clone(),
+                        args[1].clone(),
+                        args[2].clone(),
+                        args[3].clone(),
+                        args[4].clone(),
+                    ))
                 }
-                let field = match func {
-                    "격자게임세션.격자" => "격자",
-                    "격자게임세션.가방" => "가방",
-                    "격자게임세션.상태" => "상태",
-                    "격자게임세션.점수" => "점수",
-                    _ => "낙하조각",
-                };
-                std_session_field(std_grid_game_session_fields(&args[0])?, field)
-            }
-            "격자게임세션.바꾸기" => {
-                if args.len() != 6 {
-                    return Err("격자게임세션.바꾸기는 인자 6개를 받습니다"
-                        .to_string()
-                        .into());
+                "격자게임세션.격자"
+                | "격자게임세션.가방"
+                | "격자게임세션.상태"
+                | "격자게임세션.점수"
+                | "격자게임세션.낙하조각" => {
+                    if args.len() != 1 {
+                        return Err("격자게임세션 접근자는 인자 1개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    let field = match func {
+                        "격자게임세션.격자" => "격자",
+                        "격자게임세션.가방" => "가방",
+                        "격자게임세션.상태" => "상태",
+                        "격자게임세션.점수" => "점수",
+                        _ => "낙하조각",
+                    };
+                    std_session_field(std_grid_game_session_fields(&args[0])?, field)
                 }
-                let _ = std_grid_game_session_fields(&args[0])?;
-                Ok(make_std_grid_game_session(
-                    args[1].clone(),
-                    args[2].clone(),
-                    args[3].clone(),
-                    args[4].clone(),
-                    args[5].clone(),
-                ))
-            }
-            "격자게임보기.칸목록" => {
-                if args.len() != 3 {
-                    return Err("격자게임보기.칸목록은 인자 3개를 받습니다"
-                        .to_string()
-                        .into());
+                "격자게임세션.바꾸기" => {
+                    if args.len() != 6 {
+                        return Err("격자게임세션.바꾸기는 인자 6개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    let _ = std_grid_game_session_fields(&args[0])?;
+                    Ok(make_std_grid_game_session(
+                        args[1].clone(),
+                        args[2].clone(),
+                        args[3].clone(),
+                        args[4].clone(),
+                        args[5].clone(),
+                    ))
                 }
-                std_grid_game_view_cells(&args[0], &args[1], args[2].clone())
-            }
-            "격자게임보기.문자판" => {
-                if args.len() != 3 {
-                    return Err("격자게임보기.문자판은 인자 3개를 받습니다"
-                        .to_string()
-                        .into());
+                "격자게임보기.칸목록" => {
+                    if args.len() != 3 {
+                        return Err("격자게임보기.칸목록은 인자 3개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    std_grid_game_view_cells(&args[0], &args[1], args[2].clone())
                 }
-                std_grid_game_view_text(&args[0], &args[1], args[2].clone())
-            }
-            "격자게임보기.상태요약" => {
-                if args.len() != 1 {
-                    return Err("격자게임보기.상태요약은 인자 1개를 받습니다"
-                        .to_string()
-                        .into());
+                "격자게임보기.문자판" => {
+                    if args.len() != 3 {
+                        return Err("격자게임보기.문자판은 인자 3개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    std_grid_game_view_text(&args[0], &args[1], args[2].clone())
                 }
-                std_grid_game_view_summary(&args[0])
-            }
-            "격자게임보기.유령조각" => {
-                if args.len() != 2 {
-                    return Err("격자게임보기.유령조각은 인자 2개를 받습니다"
-                        .to_string()
-                        .into());
+                "격자게임보기.상태요약" => {
+                    if args.len() != 1 {
+                        return Err("격자게임보기.상태요약은 인자 1개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    std_grid_game_view_summary(&args[0])
                 }
-                std_grid_game_ghost_piece(&args[0], &args[1])
-            }
-            "격자게임보기.유령보개목록" => {
-                if args.len() != 6 {
-                    return Err("격자게임보기.유령보개목록은 인자 6개를 받습니다"
-                        .to_string()
-                        .into());
+                "격자게임보기.유령조각" => {
+                    if args.len() != 2 {
+                        return Err("격자게임보기.유령조각은 인자 2개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    std_grid_game_ghost_piece(&args[0], &args[1])
                 }
-                std_grid_game_ghost_bogae_drawlist(
-                    &args[0],
-                    &args[1],
-                    args[2].clone(),
-                    args[3].clone(),
-                    &args[4],
-                    &args[5],
-                )
-            }
-            "격자게임보기.보개목록" => {
-                if args.len() != 4 {
-                    return Err("격자게임보기.보개목록은 인자 4개를 받습니다"
-                        .to_string()
-                        .into());
+                "격자게임보기.유령보개목록" => {
+                    if args.len() != 6 {
+                        return Err("격자게임보기.유령보개목록은 인자 6개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    std_grid_game_ghost_bogae_drawlist(
+                        &args[0],
+                        &args[1],
+                        args[2].clone(),
+                        args[3].clone(),
+                        &args[4],
+                        &args[5],
+                    )
                 }
-                std_grid_game_bogae_drawlist(&args[0], &args[1], args[2].clone(), &args[3])
-            }
-            "격자게임보기.보개크기" => {
-                if args.len() != 2 {
-                    return Err("격자게임보기.보개크기는 인자 2개를 받습니다"
-                        .to_string()
-                        .into());
+                "격자게임보기.보개목록" => {
+                    if args.len() != 4 {
+                        return Err("격자게임보기.보개목록은 인자 4개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    std_grid_game_bogae_drawlist(&args[0], &args[1], args[2].clone(), &args[3])
                 }
-                std_grid_game_bogae_size(&args[0], &args[1])
-            }
+                "격자게임보기.보개크기" => {
+                    if args.len() != 2 {
+                        return Err("격자게임보기.보개크기는 인자 2개를 받습니다"
+                            .to_string()
+                            .into());
+                    }
+                    std_grid_game_bogae_size(&args[0], &args[1])
+                }
 
-            _ => {
-                let seed = self
-                    .program
-                    .functions
-                    .get(func)
-                    .ok_or_else(|| format!("함수 '{}'를 찾을 수 없습니다", func))?
-                    .clone();
-                self.work_cost.borrow_mut().enter_call()?;
-                let result = self.eval_seed_after_dispatch(&seed, args.clone());
-                self.work_cost.borrow_mut().exit_call();
-                result
+                _ => {
+                    let seed = match ordinary_overload {
+                        Some(seed) => seed,
+                        None => self
+                            .program
+                            .functions
+                            .get(func)
+                            .ok_or_else(|| format!("함수 '{}'를 찾을 수 없습니다", func))?
+                            .clone(),
+                    };
+                    self.work_cost.borrow_mut().enter_call()?;
+                    let result = self.eval_seed_after_dispatch(&seed, args.clone());
+                    self.work_cost.borrow_mut().exit_call();
+                    result
                 }
             }?;
             if let Some(rule) = rule {
@@ -9818,11 +11217,64 @@ impl<'a> EvalContext<'a> {
                 }
                 if rule.bigint_rational_operand_and_result_bytes {
                     self.charge_big_number_parts(&[&value])?;
+                }
             }
-        }
             Ok(value)
         })();
         result
+    }
+
+    fn resolve_ordinary_callable_overload(
+        &self,
+        func: &str,
+        args: &[Value],
+    ) -> Result<Option<SeedDef>, EvalError> {
+        let Some(candidates) = self.program.ordinary_overloads.get(func) else {
+            return Ok(None);
+        };
+        if candidates.len() <= 1 {
+            return Ok(None);
+        }
+
+        let mut matching = candidates
+            .iter()
+            .filter(|seed| {
+                seed.params.len() == args.len()
+                    && seed
+                        .params
+                        .iter()
+                        .zip(args)
+                        .all(|(param, value)| check_value_type(value, &param.type_ref).is_ok())
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        matching.sort_by_key(ddonirang_lang::ordinary_callable_input_signature);
+        match matching.len() {
+            1 => Ok(matching.pop()),
+            0 => {
+                let mut expected = candidates
+                    .iter()
+                    .map(ddonirang_lang::ordinary_callable_input_signature)
+                    .collect::<Vec<_>>();
+                expected.sort();
+                Err(format!(
+                    "E_ORDINARY_CALLABLE_NO_MATCH: effective_set={} candidates={}",
+                    func,
+                    expected.join("|")
+                )
+                .into())
+            }
+            _ => Err(format!(
+                "E_ORDINARY_CALLABLE_AMBIGUOUS: effective_set={} candidates={}",
+                func,
+                matching
+                    .iter()
+                    .map(ddonirang_lang::ordinary_callable_input_signature)
+                    .collect::<Vec<_>>()
+                    .join("|")
+            )
+            .into()),
+        }
     }
 
     fn resource_backed_caller_names(&self, locals: &HashMap<String, Value>) -> Vec<String> {
@@ -9858,6 +11310,144 @@ impl<'a> EvalContext<'a> {
         }
     }
 
+    fn eval_collection_search_equality(&self, left: &Value, right: &Value) -> Result<bool, EvalError> {
+        // The caller already charges each candidate visit. Preserve existing
+        // scalar search semantics/cost; composite values use RD-071 equality
+        // and meter their additional traversal through the same Rust owner.
+        let scalar = |value: &Value| matches!(value,
+            Value::None | Value::Bool(_) | Value::Fixed64(_) | Value::Unit(_) | Value::String(_));
+        if scalar(left) && scalar(right) {
+            return Ok(values_equal(left, right));
+        }
+        self.eval_exact_value_equality(left, right)
+    }
+
+    fn validate_exact_comparison_value(&self, value: &Value, operand: &str) -> Result<(), EvalError> {
+        // RD-071: even an unequal earlier item cannot hide an incomparable
+        // nested value. Paths are diagnostic-only, never semantic identities.
+        enum Segment<'a> {
+            Index(usize),
+            Set(usize),
+            MapKey(usize),
+            MapValue(usize),
+            Field(&'a str),
+        }
+        let mut pending = vec![(value, None)];
+        // Keep structural paths without formatting every successful comparison.
+        // Work charging and traversal order are unchanged; text is needed only
+        // when an unsupported value actually produces a diagnostic.
+        let mut paths: Vec<(Option<usize>, Segment<'_>)> = Vec::new();
+        while let Some((value, parent)) = pending.pop() {
+            self.work_cost.borrow_mut().charge_element_visits(1)?;
+            let mut push = |child, segment| {
+                let next = paths.len();
+                paths.push((parent, segment));
+                pending.push((child, Some(next)));
+            };
+            match value {
+                Value::List(items) => {
+                    for (index, item) in items.iter().enumerate().rev() {
+                        push(item, Segment::Index(index));
+                    }
+                }
+                Value::Set(items) => {
+                    for (index, item) in items.values().enumerate().rev() {
+                        push(item, Segment::Set(index));
+                    }
+                }
+                Value::Map(entries) => {
+                    for (index, entry) in entries.values().enumerate().rev() {
+                        push(&entry.value, Segment::MapValue(index));
+                        push(&entry.key, Segment::MapKey(index));
+                    }
+                }
+                Value::Pack(fields) => {
+                    for (name, field) in fields.iter().rev() {
+                        self.work_cost.borrow_mut().charge_canonical_utf8_bytes(name)?;
+                        push(field, Segment::Field(name));
+                    }
+                }
+                Value::BogaeRelation(_) | Value::BogaeComposition(_) => {
+                    return Err("보개관계 정체 해소 전에는 관계를 비교할 수 없습니다".to_string().into());
+                }
+                Value::Scene(_) | Value::SceneElement(_) | Value::View(ddonirang_lang::runtime::ViewValue::Scene(_)) => {
+                    return Err("E_SCENE_OPERATION_UNSUPPORTED: 장면 값의 비교·열쇠 사용은 아직 지원하지 않습니다".to_string().into());
+                }
+                Value::Lambda(_) | Value::ResourceHandle(_) | Value::StateMachine(_) | Value::Formula(_) => {
+                    let mut segments = Vec::new();
+                    let mut cursor = parent;
+                    while let Some(index) = cursor {
+                        segments.push(match &paths[index].1 {
+                            Segment::Index(index) => format!("[{index}]"),
+                            Segment::Set(index) => format!("[모음:{index}]"),
+                            Segment::MapKey(index) => format!("[짝:{index}].열쇠"),
+                            Segment::MapValue(index) => format!("[짝:{index}].값"),
+                            Segment::Field(name) => format!("[{}]", serde_json::to_string(name).unwrap()),
+                        });
+                        cursor = paths[index].0;
+                    }
+                    segments.reverse();
+                    return Err(format!("E_VALUE_EQUALITY_UNSUPPORTED: {operand}${}의 값은 기본 동등성 비교를 지원하지 않습니다", segments.concat()).into());
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn eval_exact_value_equality(&self, left: &Value, right: &Value) -> Result<bool, EvalError> {
+        self.validate_exact_comparison_value(left, "왼쪽")?;
+        self.validate_exact_comparison_value(right, "오른쪽")?;
+        let mut pending = vec![(left, right)];
+        while let Some((left, right)) = pending.pop() {
+            self.work_cost.borrow_mut().charge_element_visits(1)?;
+            if let Some(equal) = self.eval_exact_numeric_compare_infix_metered("==", left, right)? {
+                if !equal { return Ok(false); }
+                continue;
+            }
+            if let (Some(left), Some(right)) = (numeric_value(left), numeric_value(right)) {
+                if left.dim != right.dim {
+                    return Err(unit_error(UnitError::DimensionMismatch { left: left.dim, right: right.dim }));
+                }
+                if left.value.raw_i64() != right.value.raw_i64() { return Ok(false); }
+                continue;
+            }
+            match (left, right) {
+                (Value::List(left), Value::List(right)) => {
+                    if left.len() != right.len() { return Ok(false); }
+                    pending.extend(left.iter().zip(right).rev());
+                }
+                (Value::Pack(left), Value::Pack(right)) | (Value::Set(left), Value::Set(right)) => {
+                    if left.len() != right.len() { return Ok(false); }
+                    for ((left_key, left_value), (right_key, right_value)) in left.iter().zip(right).rev() {
+                        self.work_cost.borrow_mut().charge_canonical_utf8_bytes(left_key)?;
+                        self.work_cost.borrow_mut().charge_canonical_utf8_bytes(right_key)?;
+                        if left_key != right_key { return Ok(false); }
+                        pending.push((left_value, right_value));
+                    }
+                }
+                (Value::Map(left), Value::Map(right)) => {
+                    if left.len() != right.len() { return Ok(false); }
+                    for ((left_key, left_entry), (right_key, right_entry)) in left.iter().zip(right).rev() {
+                        self.work_cost.borrow_mut().charge_canonical_utf8_bytes(left_key)?;
+                        self.work_cost.borrow_mut().charge_canonical_utf8_bytes(right_key)?;
+                        if left_key != right_key { return Ok(false); }
+                        pending.push((&left_entry.value, &right_entry.value));
+                        pending.push((&left_entry.key, &right_entry.key));
+                    }
+                }
+                (Value::String(left), Value::String(right)) => {
+                    self.work_cost.borrow_mut().charge_canonical_utf8_bytes(left)?;
+                    self.work_cost.borrow_mut().charge_canonical_utf8_bytes(right)?;
+                    if left != right { return Ok(false); }
+                }
+                _ if values_equal(left, right) => {}
+                _ => return Ok(false),
+            }
+        }
+        Ok(true)
+    }
+
     fn eval_infix(&self, op: &str, left: Value, right: Value) -> Result<Value, EvalError> {
         match op {
             "relation_eq" | "=:=" => {
@@ -9874,12 +11464,27 @@ impl<'a> EvalContext<'a> {
                 Ok(make_relation_pack(left_formula, right_formula))
             }
             "+" => {
+                if matches!((&left, &right), (Value::String(_), Value::String(_))) {
+                    return string_concat(&left, &right).map_err(runtime_error);
+                }
                 if let Some(exact) = self.eval_exact_numeric_infix_metered(op, &left, &right)? {
                     return Ok(exact);
                 }
-                let l = unit_value_from_value(&left)?;
-                let r = unit_value_from_value(&right)?;
-                let sum = l.add(r).map_err(unit_error)?;
+                let l = unit_value_from_value(&left).map_err(|_| {
+                    type_mismatch_error(
+                        "더하기 왼쪽 피연산자",
+                        "수",
+                        &root_binding_type_key(&left),
+                    )
+                })?;
+                let r = unit_value_from_value(&right).map_err(|_| {
+                    type_mismatch_error(
+                        "더하기 오른쪽 피연산자",
+                        "수",
+                        &root_binding_type_key(&right),
+                    )
+                })?;
+                let sum = checked_unit_add(l, r)?;
                 Ok(unit_value_to_value(sum))
             }
             "-" => {
@@ -9888,7 +11493,7 @@ impl<'a> EvalContext<'a> {
                 }
                 let l = unit_value_from_value(&left)?;
                 let r = unit_value_from_value(&right)?;
-                let diff = l.sub(r).map_err(unit_error)?;
+                let diff = checked_unit_sub(l, r)?;
                 Ok(unit_value_to_value(diff))
             }
             "*" => {
@@ -9897,7 +11502,7 @@ impl<'a> EvalContext<'a> {
                 }
                 let l = unit_value_from_value(&left)?;
                 let r = unit_value_from_value(&right)?;
-                Ok(unit_value_to_value(l.mul(r)))
+                Ok(unit_value_to_value(checked_unit_mul(l, r)?))
             }
             "/" => {
                 if let Some(exact) = self.eval_exact_numeric_infix_metered(op, &left, &right)? {
@@ -9930,22 +11535,7 @@ impl<'a> EvalContext<'a> {
                 }))
             }
             "==" | "!=" => {
-                if let Some(eq) =
-                    self.eval_exact_numeric_compare_infix_metered(op, &left, &right)?
-                {
-                    return Ok(Value::Bool(eq));
-                }
-                if let (Some(l), Some(r)) = (numeric_value(&left), numeric_value(&right)) {
-                    if l.dim != r.dim {
-                        return Err(unit_error(UnitError::DimensionMismatch {
-                            left: l.dim,
-                            right: r.dim,
-                        }));
-                    }
-                    let eq = l.value.raw_i64() == r.value.raw_i64();
-                    return Ok(Value::Bool(if op == "==" { eq } else { !eq }));
-                }
-                let eq = values_equal(&left, &right);
+                let eq = self.eval_exact_value_equality(&left, &right)?;
                 Ok(Value::Bool(if op == "==" { eq } else { !eq }))
             }
             "<" | "<=" | ">" | ">=" => {
@@ -10011,6 +11601,7 @@ impl<'a> EvalContext<'a> {
         let location = match kind {
             ArithmeticFaultKind::DimensionMismatch { .. } => "ddn:unit_mismatch",
             ArithmeticFaultKind::DivByZero => "ddn:div0",
+            ArithmeticFaultKind::Overflow => "ddn:overflow",
         };
         let ctx = FaultContext {
             tick_id: self.tick_id,
@@ -10321,17 +11912,27 @@ impl<'a> EvalContext<'a> {
     }
 
     fn capture_frame_snapshot(&self, locals: &HashMap<String, Value>) -> EvalFrameSnapshot {
+        self.capture_frame_snapshot_with_locals(locals, true)
+    }
+
+    fn capture_frame_snapshot_with_locals(
+        &self,
+        locals: &HashMap<String, Value>,
+        keep_locals: bool,
+    ) -> EvalFrameSnapshot {
         EvalFrameSnapshot {
-            locals: locals.clone(),
+            locals: keep_locals.then(|| locals.clone()),
             resources: self.resources.clone(),
             patch_ops: self.patch_ops.clone(),
             guard_rejected: self.guard_rejected,
             const_scopes: self.const_scopes.clone(),
+            binding_type_scopes: self.binding_type_scopes.clone(),
             factor_route_counts: self.factor_route_counts.clone(),
             factor_bits_total: self.factor_bits_total,
             factor_bits_min: self.factor_bits_min,
             factor_bits_max: self.factor_bits_max,
             public_observations: self.public_observations.clone(),
+            root_binding_types: self.root_binding_types.clone(),
         }
     }
 
@@ -10340,16 +11941,20 @@ impl<'a> EvalContext<'a> {
         locals: &mut HashMap<String, Value>,
         snapshot: &EvalFrameSnapshot,
     ) {
-        *locals = snapshot.locals.clone();
+        if let Some(saved_locals) = &snapshot.locals {
+            *locals = saved_locals.clone();
+        }
         self.resources = snapshot.resources.clone();
         self.patch_ops = snapshot.patch_ops.clone();
         self.guard_rejected = snapshot.guard_rejected;
         self.const_scopes = snapshot.const_scopes.clone();
+        self.binding_type_scopes = snapshot.binding_type_scopes.clone();
         self.factor_route_counts = snapshot.factor_route_counts.clone();
         self.factor_bits_total = snapshot.factor_bits_total;
         self.factor_bits_min = snapshot.factor_bits_min;
         self.factor_bits_max = snapshot.factor_bits_max;
         self.public_observations = snapshot.public_observations.clone();
+        self.root_binding_types = snapshot.root_binding_types.clone();
     }
 
     fn restore_frame_snapshot_preserving_abort_contract_diag(
@@ -10395,15 +12000,21 @@ impl<'a> EvalContext<'a> {
         if span.start > origin.source.len() || span.end > origin.source.len() {
             return None;
         }
+        let key = (span.start, span.end);
+        if let Some(cached) = self.source_span_cache.borrow().get(&key) {
+            return Some(cached.clone());
+        }
         let (start_line, start_col) = position_to_line_col(&origin.source, span.start);
         let (end_line, end_col) = position_to_line_col(&origin.source, span.end);
-        Some(SourceSpan {
+        let result = SourceSpan {
             file: origin.file_path.clone(),
             start_line,
             start_col: Some(start_col),
             end_line,
             end_col: Some(end_col),
-        })
+        };
+        self.source_span_cache.borrow_mut().insert(key, result.clone());
+        Some(result)
     }
 
     #[allow(dead_code)]
@@ -10422,6 +12033,15 @@ impl<'a> EvalContext<'a> {
     }
 
     fn get_resource(&mut self, name: &str) -> Option<Value> {
+        if self.logical_input.is_some() && (name == "입력키" || name.starts_with("샘.키보드.")) {
+            self.input_reads.borrow_mut().insert("logical.forbidden_physical".into());
+            return None;
+        }
+        // 원문, 내장 `자원`, 보개 값 접근이 이 실제 읽기 지점을 공유한다.
+        // 선언/문자열 검색으로 추정하지 않으므로 단락 평가로 건너뛴 식은 기록되지 않는다.
+        if name == "입력키" && self.resources.contains_key(name) {
+            self.input_reads.borrow_mut().insert("last_key_name".into());
+        }
         if let Some(value) = self.resources.get(name) {
             return Some(value.clone());
         }
@@ -10469,11 +12089,11 @@ impl<'a> EvalContext<'a> {
         match value {
             Value::Fixed64(v) => {
                 if let Some(spec) = parse_resource_unit_tag(name) {
+                    let unit_value = UnitValue::try_from_spec(v, spec).map_err(unit_error)?;
                     self.patch_ops.push(PatchOp::SetResourceFixed64 {
                         tag: name.to_string(),
                         value: v,
                     });
-                    let unit_value = UnitValue::from_spec(v, spec);
                     self.resources
                         .insert(name.to_string(), Value::Unit(unit_value));
                 } else {
@@ -10563,6 +12183,18 @@ impl<'a> EvalContext<'a> {
             Value::Lambda(lambda) => {
                 self.resources
                     .insert(name.to_string(), Value::Lambda(lambda));
+            }
+            Value::View(view) => {
+                // Authored 보기값은 실행기 결속만 유지한다. world Patch/hash에 넣지 않는다.
+                self.resources.insert(name.to_string(), Value::View(view));
+            }
+            Value::SceneElement(element) => { self.resources.insert(name.to_string(), Value::SceneElement(element)); }
+            Value::Scene(scene) => { self.resources.insert(name.to_string(), Value::Scene(scene)); }
+            Value::BogaeRelation(relation) => {
+                self.resources.insert(name.to_string(), Value::BogaeRelation(relation));
+            }
+            Value::BogaeComposition(composition) => {
+                self.resources.insert(name.to_string(), Value::BogaeComposition(composition));
             }
         }
         Ok(())
@@ -11113,15 +12745,22 @@ impl<'a> EvalContext<'a> {
         let args = state_machine_transition_action_args(&seed, bindings)?;
         let mut child = EvalContext {
             program: self.program,
+            source_span_cache: Rc::clone(&self.source_span_cache),
             world: self.world,
             defaults: self.defaults,
             param_overrides: self.param_overrides,
             resources: self.resources.clone(),
             input: self.input,
+            logical_input: self.logical_input.clone(),
+            control_pressed: self.control_pressed,
+            input_reads: Rc::clone(&self.input_reads),
             patch_ops: self.patch_ops.clone(),
             guard_rejected: self.guard_rejected,
             aborted: false,
             current_seed_name: self.current_seed_name.clone(),
+            active_callable_name: self.active_callable_name.clone(),
+            invocation_ordinal: self.invocation_ordinal,
+            result_place_frames: self.result_place_frames.clone(),
             current_owner_identity: self.current_owner_identity.clone(),
             pending_async_signals: self.pending_async_signals.clone(),
             async_outbox: self.async_outbox.clone(),
@@ -11130,12 +12769,15 @@ impl<'a> EvalContext<'a> {
             flow_stack: self.flow_stack.clone(),
             tick_id: self.tick_id,
             const_scopes: self.const_scopes.clone(),
+            binding_type_scopes: self.binding_type_scopes.clone(),
             pending_top_level_decl_names: self.pending_top_level_decl_names.clone(),
             factor_route_counts: self.factor_route_counts.clone(),
             factor_bits_total: self.factor_bits_total,
             factor_bits_min: self.factor_bits_min,
             factor_bits_max: self.factor_bits_max,
             public_observations: self.public_observations.clone(),
+            root_program_active: self.root_program_active,
+            root_binding_types: self.root_binding_types.clone(),
             project_asset_registry: self.project_asset_registry,
             work_cost: Rc::clone(&self.work_cost),
             internal_dispatch: self.internal_dispatch.clone(),
@@ -11152,11 +12794,13 @@ impl<'a> EvalContext<'a> {
         self.guard_rejected = child.guard_rejected;
         self.rng_state = child.rng_state;
         self.const_scopes = child.const_scopes;
+        self.binding_type_scopes = child.binding_type_scopes;
         self.factor_route_counts = child.factor_route_counts;
         self.factor_bits_total = child.factor_bits_total;
         self.factor_bits_min = child.factor_bits_min;
         self.factor_bits_max = child.factor_bits_max;
         self.public_observations = child.public_observations;
+        self.root_binding_types = child.root_binding_types;
         self.pending_async_signals = child.pending_async_signals;
         self.async_outbox = child.async_outbox;
         self.async_wait_receipts = child.async_wait_receipts;
@@ -11173,15 +12817,22 @@ impl<'a> EvalContext<'a> {
         let bindings = build_state_machine_transition_bindings(&transition.from, &transition.to);
         let mut child = EvalContext {
             program: self.program,
+            source_span_cache: Rc::clone(&self.source_span_cache),
             world: self.world,
             defaults: self.defaults,
             param_overrides: self.param_overrides,
             resources: self.resources.clone(),
             input: self.input,
+            logical_input: self.logical_input.clone(),
+            control_pressed: self.control_pressed,
             patch_ops: self.patch_ops.clone(),
+            input_reads: Rc::clone(&self.input_reads),
             guard_rejected: self.guard_rejected,
             aborted: false,
             current_seed_name: self.current_seed_name.clone(),
+            active_callable_name: self.active_callable_name.clone(),
+            invocation_ordinal: self.invocation_ordinal,
+            result_place_frames: self.result_place_frames.clone(),
             current_owner_identity: self.current_owner_identity.clone(),
             pending_async_signals: self.pending_async_signals.clone(),
             async_outbox: self.async_outbox.clone(),
@@ -11190,12 +12841,15 @@ impl<'a> EvalContext<'a> {
             flow_stack: self.flow_stack.clone(),
             tick_id: self.tick_id,
             const_scopes: self.const_scopes.clone(),
+            binding_type_scopes: self.binding_type_scopes.clone(),
             pending_top_level_decl_names: self.pending_top_level_decl_names.clone(),
             factor_route_counts: self.factor_route_counts.clone(),
             factor_bits_total: self.factor_bits_total,
             factor_bits_min: self.factor_bits_min,
             factor_bits_max: self.factor_bits_max,
             public_observations: self.public_observations.clone(),
+            root_program_active: self.root_program_active,
+            root_binding_types: self.root_binding_types.clone(),
             project_asset_registry: self.project_asset_registry,
             work_cost: Rc::clone(&self.work_cost),
             internal_dispatch: self.internal_dispatch.clone(),
@@ -11214,6 +12868,7 @@ impl<'a> EvalContext<'a> {
         self.guard_rejected = child.guard_rejected;
         self.rng_state = child.rng_state;
         self.const_scopes = child.const_scopes;
+        self.binding_type_scopes = child.binding_type_scopes;
         self.factor_route_counts = child.factor_route_counts;
         self.factor_bits_total = child.factor_bits_total;
         self.factor_bits_min = child.factor_bits_min;
@@ -11294,13 +12949,18 @@ impl<'a> EvalContext<'a> {
                 Ok(text) => text,
                 Err(error) => return AssertionEvaluation::Fault(error.message()),
             };
-            return match ddonirang_symbolic::relation_holds(&left_text, &right_text, &solve_bindings)
-            {
+            return match ddonirang_symbolic::relation_holds(
+                &left_text,
+                &right_text,
+                &solve_bindings,
+            ) {
                 Ok(true) => AssertionEvaluation::Passed,
-                Ok(false) => AssertionEvaluation::Rejected(
-                    "세움 relation assertion failed".to_string(),
-                ),
-                Err(error) => AssertionEvaluation::Fault(symbolic_formula_error("equiv", error).message()),
+                Ok(false) => {
+                    AssertionEvaluation::Rejected("세움 relation assertion failed".to_string())
+                }
+                Err(error) => {
+                    AssertionEvaluation::Fault(symbolic_formula_error("equiv", error).message())
+                }
             };
         }
         let body = match parse_assertion_body(assertion) {
@@ -11309,15 +12969,22 @@ impl<'a> EvalContext<'a> {
         };
         let mut child = EvalContext {
             program: self.program,
+            source_span_cache: Rc::clone(&self.source_span_cache),
             world: self.world,
             defaults: self.defaults,
             param_overrides: self.param_overrides,
             resources: self.resources.clone(),
             input: self.input,
-            patch_ops: Vec::new(),
+            logical_input: self.logical_input.clone(),
+            control_pressed: self.control_pressed,
+            patch_ops: PatchLog::default(),
+            input_reads: Rc::clone(&self.input_reads),
             guard_rejected: false,
             aborted: false,
             current_seed_name: self.current_seed_name.clone(),
+            active_callable_name: self.active_callable_name.clone(),
+            invocation_ordinal: self.invocation_ordinal,
+            result_place_frames: self.result_place_frames.clone(),
             current_owner_identity: self.current_owner_identity.clone(),
             pending_async_signals: self.pending_async_signals.clone(),
             async_outbox: self.async_outbox.clone(),
@@ -11326,12 +12993,15 @@ impl<'a> EvalContext<'a> {
             flow_stack: self.flow_stack.clone(),
             tick_id: self.tick_id,
             const_scopes: self.const_scopes.clone(),
+            binding_type_scopes: self.binding_type_scopes.clone(),
             pending_top_level_decl_names: self.pending_top_level_decl_names.clone(),
             factor_route_counts: self.factor_route_counts.clone(),
             factor_bits_total: self.factor_bits_total,
             factor_bits_min: self.factor_bits_min,
             factor_bits_max: self.factor_bits_max,
             public_observations: Vec::new(),
+            root_program_active: self.root_program_active,
+            root_binding_types: self.root_binding_types.clone(),
             project_asset_registry: self.project_asset_registry,
             work_cost: Rc::clone(&self.work_cost),
             internal_dispatch: self.internal_dispatch.clone(),
@@ -11626,6 +13296,42 @@ fn regex_split(text: &str, regex: &RegexLiteral) -> Result<Vec<String>, EvalErro
     Ok(re.split(text).map(ToString::to_string).collect())
 }
 
+fn contains_unresolved_bogae_relation<'a>(
+    value: &'a Value,
+    meter: &mut WorkCostMeter,
+) -> Result<bool, EvalError> {
+    contains_unresolved_bogae_relation_for_builtin(value, meter, false)
+}
+
+fn contains_unresolved_bogae_relation_for_builtin<'a>(
+    value: &'a Value,
+    meter: &mut WorkCostMeter,
+    ordered_scene_carrier: bool,
+) -> Result<bool, EvalError> {
+    // 원소 방문은 실패·조기 종료에서도 누적한다. 반복자 스택은 폭만큼의
+    // 임시 목록이나 Rust 재귀 호출 없이 작성 순서대로 중첩 값을 방문한다.
+    let mut stack: Vec<Box<dyn Iterator<Item = &'a Value> + 'a>> =
+        vec![Box::new(std::iter::once(value))];
+    while let Some(frame) = stack.last_mut() {
+        let Some(value) = frame.next() else {
+            stack.pop();
+            continue;
+        };
+        meter.charge_element_visits(1)?;
+        match value {
+            Value::BogaeRelation(_) | Value::BogaeComposition(_) => return Ok(true),
+            Value::Scene(_) | Value::SceneElement(_) | Value::View(ddonirang_lang::runtime::ViewValue::Scene(_)) =>
+                if !ordered_scene_carrier { return Err("E_SCENE_OPERATION_UNSUPPORTED: 장면 값의 비교·열쇠 사용은 아직 지원하지 않습니다".to_string().into()); },
+            Value::List(items) => stack.push(Box::new(items.iter())),
+            Value::Set(items) | Value::Pack(items) => stack.push(Box::new(items.values())),
+            Value::Map(items) => stack.push(Box::new(items.values()
+                .flat_map(|entry| [&entry.key, &entry.value]))),
+            _ => {}
+        }
+    }
+    Ok(false)
+}
+
 fn values_equal(left: &Value, right: &Value) -> bool {
     match (left, right) {
         (Value::Fixed64(a), Value::Fixed64(b)) => a.raw_i64() == b.raw_i64(),
@@ -11649,6 +13355,7 @@ fn values_equal(left: &Value, right: &Value) -> bool {
         (Value::Template(a), Value::Template(b)) => a.raw == b.raw && a.tag == b.tag,
         (Value::Regex(a), Value::Regex(b)) => a == b,
         (Value::Lambda(a), Value::Lambda(b)) => a.id == b.id,
+        (Value::View(a), Value::View(b)) => a == b,
         _ => false,
     }
 }
@@ -11666,6 +13373,11 @@ fn value_rank(value: &Value) -> u8 {
         Value::Assertion(_) => 8,
         Value::StateMachine(_) => 9,
         Value::Lambda(_) => 10,
+        Value::View(_) => 15,
+        Value::SceneElement(_) => 18,
+        Value::Scene(_) => 19,
+        Value::BogaeRelation(_) => 16,
+        Value::BogaeComposition(_) => 17,
         Value::Pack(_) => {
             if numeric_pack_kind(value).is_some() {
                 2
@@ -11733,7 +13445,7 @@ fn apply_unit_suffix(value: Value, unit: &str) -> Result<Value, EvalError> {
         return Err(format!("단위 '{}'를 알 수 없습니다", unit).into());
     };
     match value {
-        Value::Fixed64(v) => Ok(Value::Unit(UnitValue::from_spec(v, spec))),
+        Value::Fixed64(v) => Ok(Value::Unit(UnitValue::try_from_spec(v, spec).map_err(unit_error)?)),
         Value::Unit(existing) => {
             if existing.dim != spec.dim {
                 return Err(unit_error(UnitError::DimensionMismatch {
@@ -11862,19 +13574,30 @@ fn fixed64_to_f64(value: Fixed64) -> f64 {
     value.raw_i64() as f64 / Fixed64::SCALE_F64
 }
 
-fn fixed64_ceil(value: Fixed64) -> Fixed64 {
-    let int_part = value.int_part();
+fn fixed64_from_host_f64_checked(value: f64) -> Result<Fixed64, ArithmeticFaultKind> {
+    let raw = value * Fixed64::SCALE_F64;
+    let rounded = raw.round_ties_even();
+    if !rounded.is_finite() || rounded < i64::MIN as f64 || rounded >= i64::MAX as f64 {
+        return Err(ArithmeticFaultKind::Overflow);
+    }
+    Ok(Fixed64::from_raw_i64(rounded as i64))
+}
+
+fn fixed64_ceil(value: Fixed64) -> Result<Fixed64, ArithmeticFaultKind> {
     if value.frac_part() == 0 {
-        Fixed64::from_i64(int_part)
+        Ok(Fixed64::from_raw_i64(
+            value.raw_i64() & !((1_i64 << Fixed64::FRAC_BITS) - 1),
+        ))
     } else {
-        Fixed64::from_i64(int_part.saturating_add(1))
+        Fixed64::from_raw_i64(value.raw_i64() & !((1_i64 << Fixed64::FRAC_BITS) - 1))
+            .checked_add(Fixed64::ONE)
     }
 }
 
-fn fixed64_round_even(value: Fixed64) -> Fixed64 {
+fn fixed64_round_even(value: Fixed64) -> Result<Fixed64, ArithmeticFaultKind> {
     let raw = value.raw_i64() as i128;
     if raw == 0 {
-        return Fixed64::from_i64(0);
+        return Ok(Fixed64::ZERO);
     }
     let sign = if raw < 0 { -1 } else { 1 };
     let abs = raw.abs();
@@ -11886,13 +13609,18 @@ fn fixed64_round_even(value: Fixed64) -> Fixed64 {
     if frac > half || (frac == half && (int_part & 1) != 0) {
         rounded += 1;
     }
-    Fixed64::from_i64((rounded * sign) as i64)
+    let raw = (rounded * sign) << Fixed64::FRAC_BITS;
+    i64::try_from(raw)
+        .map(Fixed64::from_raw_i64)
+        .map_err(|_| ArithmeticFaultKind::Overflow)
 }
 
-fn fixed64_abs(value: Fixed64) -> Fixed64 {
+fn fixed64_abs(value: Fixed64) -> Result<Fixed64, ArithmeticFaultKind> {
     let raw = value.raw_i64();
-    let abs = if raw == i64::MIN { i64::MAX } else { raw.abs() };
-    Fixed64::from_raw_i64(abs)
+    if raw == i64::MIN {
+        return Err(ArithmeticFaultKind::Overflow);
+    }
+    Ok(Fixed64::from_raw_i64(raw.abs()))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -12435,8 +14163,8 @@ fn eval_linear_inequality_solve(
                 }));
             }
         }
-        let slope01 = y1.value.saturating_sub(y0.value);
-        let slope12 = y2.value.saturating_sub(y1.value);
+        let slope01 = y1.value.checked_sub(y0.value)?;
+        let slope12 = y2.value.checked_sub(y1.value)?;
         if slope01 != slope12 {
             return Err(
                 "E_LINEAR_INEQUALITY_NONLINEAR: V1은 1변수 선형 부등식만 지원합니다"
@@ -12444,7 +14172,7 @@ fn eval_linear_inequality_solve(
                     .into(),
             );
         }
-        let rhs = boundary.value.saturating_sub(y0.value);
+        let rhs = boundary.value.checked_sub(y0.value)?;
         apply_linear_inequality_constraint(&mut interval, slope01, rhs, compare.trim())?;
     }
 
@@ -12546,11 +14274,9 @@ fn numeric_trapezoid_integral(
             .to_string()
             .into());
     }
-    let interval = end.value.saturating_sub(start.value);
+    let interval = end.value.checked_sub(start.value)?;
     let seg = Fixed64::from_i64(segments as i64);
-    let h = interval
-        .try_div(seg)
-        .map_err(|_| "적분.사다리꼴 계산 중 0으로 나눌 수 없습니다".to_string())?;
+    let h = interval.try_div(seg)?;
 
     let mut y_dim: Option<UnitDim> = None;
     let mut sum_raw = Fixed64::ZERO;
@@ -12558,7 +14284,7 @@ fn numeric_trapezoid_integral(
     for idx in 0..=segments {
         let idx_raw = Fixed64::from_i64(idx as i64);
         let x = UnitValue {
-            value: start.value.saturating_add(h.saturating_mul(idx_raw)),
+            value: start.value.checked_add(h.checked_mul(idx_raw)?)?,
             dim: start.dim,
         };
         let y = eval_numeric_formula_at_metered(prepared, x, "적분.사다리꼴", work_cost)?;
@@ -12577,12 +14303,9 @@ fn numeric_trapezoid_integral(
         } else {
             two
         };
-        sum_raw = sum_raw.saturating_add(y.value.saturating_mul(weight));
+        sum_raw = sum_raw.checked_add(y.value.checked_mul(weight)?)?;
     }
-    let approx = sum_raw
-        .saturating_mul(h)
-        .try_div(Fixed64::from_i64(2))
-        .map_err(|_| "적분.사다리꼴 계산 중 0으로 나눌 수 없습니다".to_string())?;
+    let approx = sum_raw.checked_mul(h)?.try_div(Fixed64::from_i64(2))?;
     Ok(UnitValue {
         value: approx,
         dim: y_dim.unwrap_or(UnitDim::NONE).add(start.dim),
@@ -12649,11 +14372,7 @@ fn numeric_bisection_root(
     let mut best_residual = f_lower;
     let mut used_iterations = 0_usize;
     for idx in 1..=iterations {
-        let mid_value = lower
-            .value
-            .saturating_add(upper.value)
-            .try_div(two)
-            .map_err(|_| "수치해.이분법 계산 중 0으로 나눌 수 없습니다".to_string())?;
+        let mid_value = lower.value.checked_add(upper.value)?.try_div(two)?;
         let mid = UnitValue {
             value: mid_value,
             dim: lower.dim,
@@ -12667,7 +14386,7 @@ fn numeric_bisection_root(
         }
         best_root = mid;
         best_residual = UnitValue {
-            value: fixed64_abs(f_mid.value),
+            value: fixed64_abs(f_mid.value)?,
             dim: f_mid.dim,
         };
         used_iterations = idx;
@@ -12727,10 +14446,16 @@ fn unit_powi(base: UnitValue, exp: i64) -> Result<UnitValue, EvalError> {
             dim: UnitDim::NONE,
         });
     }
+    if exp == i64::MIN {
+        return Err(ArithmeticFaultKind::Overflow.into());
+    }
     let mut result = base;
-    let abs_exp = exp.abs() as i64;
+    let abs_exp = exp.unsigned_abs();
     for _ in 1..abs_exp {
-        result = result.mul(base);
+        result = UnitValue {
+            value: result.value.checked_mul(base.value)?,
+            dim: result.dim.add(base.dim),
+        };
     }
     if exp < 0 {
         let one = UnitValue {
@@ -14679,9 +16404,7 @@ fn eval_endpoint_solve_range_report_rows(values: &[Value]) -> Result<Value, Eval
 }
 
 #[cfg(test)]
-fn eval_endpoint_explicit_solve_range_text_report(
-    values: &[Value],
-) -> Result<Value, EvalError> {
+fn eval_endpoint_explicit_solve_range_text_report(values: &[Value]) -> Result<Value, EvalError> {
     eval_endpoint_explicit_solve_range_text_report_with_meter(values, None)
 }
 
@@ -14983,13 +16706,13 @@ fn endpoint_boundary_value_number(
     match fields.get("값") {
         Some(Value::Fixed64(value)) => Ok(EndpointBoundaryNumber {
             value: Value::Fixed64(*value),
-            formula_text: value.to_string(),
+            formula_text: value.canonical_decimal_text(),
             unit_dim: None,
             unit_symbol: None,
         }),
         Some(Value::Unit(unit)) => Ok(EndpointBoundaryNumber {
             value: Value::Unit(*unit),
-            formula_text: unit.value.to_string(),
+            formula_text: unit.value.canonical_decimal_text(),
             unit_dim: (!unit.is_dimensionless()).then_some(unit.dim),
             unit_symbol: (!unit.is_dimensionless()).then(|| {
                 unit.display_symbol()
@@ -15812,9 +17535,7 @@ fn eval_relation_solve_result_with_meter(
 }
 
 #[cfg(test)]
-fn eval_relation_solve_result(
-    relations: &[BTreeMap<String, Value>],
-) -> Result<Value, EvalError> {
+fn eval_relation_solve_result(relations: &[BTreeMap<String, Value>]) -> Result<Value, EvalError> {
     eval_relation_solve_result_with_meter(relations, None)
 }
 
@@ -16098,6 +17819,11 @@ fn value_to_string(value: &Value) -> String {
             }
         }
         Value::ResourceHandle(handle) => format!("자원#{}", handle.to_hex()),
+        Value::View(view) => match view { ddonirang_lang::runtime::ViewValue::ResultTable => "<보기값:결과표>", _ => "<보기값:장면>" }.to_string(),
+        Value::SceneElement(_) => "<장면요소값>".to_string(),
+        Value::Scene(_) => "<장면값>".to_string(),
+        Value::BogaeRelation(relation) => format!("<{}>", relation.kind_name()),
+        Value::BogaeComposition(_) => "<보개짜임값>".to_string(),
         Value::None => String::new(),
         Value::List(items) => {
             let rendered = items
@@ -16674,6 +18400,10 @@ fn resource_value_from_value(value: &Value) -> Result<ResourceValue, EvalError> 
         Value::Template(_) => Err("글무늬는 자원에 대입할 수 없습니다".to_string().into()),
         Value::Regex(_) => Err("정규식은 자원에 대입할 수 없습니다".to_string().into()),
         Value::Lambda(_) => Err("씨앗은 자원에 대입할 수 없습니다".to_string().into()),
+        Value::View(_) => Err("보기값은 세계 자원에 대입할 수 없습니다".to_string().into()),
+        Value::SceneElement(_) | Value::Scene(_) => Err("장면 값은 세계 자원에 대입할 수 없습니다".to_string().into()),
+        Value::BogaeRelation(_) => Err("보개관계값은 세계 자원에 대입할 수 없습니다".to_string().into()),
+        Value::BogaeComposition(_) => Err("보개짜임값은 세계 자원에 대입할 수 없습니다".to_string().into()),
     }
 }
 
@@ -16700,6 +18430,11 @@ fn public_observation_type(value: &Value) -> (&'static str, String) {
         Value::Template(_) => ("template", String::new()),
         Value::Regex(_) => ("regex", String::new()),
         Value::Lambda(_) => ("lambda", String::new()),
+        Value::View(_) => ("view", String::new()),
+        Value::SceneElement(_) => ("scene_element", String::new()),
+        Value::Scene(_) => ("scene", String::new()),
+        Value::BogaeRelation(_) => ("bogae_relation", String::new()),
+        Value::BogaeComposition(_) => ("bogae_composition", String::new()),
     }
 }
 
@@ -16817,6 +18552,28 @@ fn value_from_resource_value(value: &ResourceValue) -> Value {
             if let Some(formula) = resource_map_to_formula(entries) {
                 return Value::Formula(formula);
             }
+            // These existing standard-library records already carry their kind
+            // in the committed resource map. Restore their Pack representation
+            // recursively; otherwise a session accepted in one tick becomes an
+            // incompatible ordinary Map at the next tick.
+            let is_grid_record = entries.values().any(|entry| match (&entry.key, &entry.value) {
+                (ResourceValue::String(key), ResourceValue::String(kind)) =>
+                    (key == "__kind" && [STD_GRID_KIND, STD_INPUT_MAP_KIND].contains(&kind.as_str()))
+                    || (key == "__종류" && [STD_BLOCK_PIECE_KIND, STD_RANDOM_BAG_KIND,
+                STD_RANDOM_BAG_DRAW_KIND, STD_GRID_GAME_STATE_KIND, STD_GRID_LINE_CLEAR_KIND,
+                STD_FALLING_PIECE_KIND, STD_GRID_GAME_SCORE_KIND, STD_GRID_GAME_SESSION_KIND,
+                STD_GRID_GAME_TICK_KIND, STD_GRID_GAME_NEXT_PIECE_KIND, STD_GRID_GAME_VIEW_SUMMARY_KIND,
+                STD_GRID_GAME_HOLD_KIND, STD_GRID_GAME_HOLD_SWAP_KIND, STD_GRID_GAME_ROTATION_TRY_KIND].contains(&kind.as_str())),
+                _ => false,
+            });
+            if is_grid_record
+                && entries.values().all(|entry| matches!(entry.key, ResourceValue::String(_))) {
+                let fields = entries.values().filter_map(|entry| match &entry.key {
+                    ResourceValue::String(key) => Some((key.clone(), value_from_resource_value(&entry.value))),
+                    _ => None,
+                }).collect();
+                return Value::Pack(fields);
+            }
             let mut converted = BTreeMap::new();
             for (key, entry) in entries {
                 converted.insert(
@@ -16829,6 +18586,28 @@ fn value_from_resource_value(value: &ResourceValue) -> Value {
             }
             Value::Map(converted)
         }
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn grid_standard_records_survive_committed_resource_roundtrip() {
+    let nested = Value::Pack(BTreeMap::from([
+        ("__종류".into(), Value::String(STD_FALLING_PIECE_KIND.into())),
+        ("위치".into(), Value::List(vec![fixed_value(3), fixed_value(2)])),
+    ]));
+    let session = Value::Pack(BTreeMap::from([
+        ("__종류".into(), Value::String(STD_GRID_GAME_SESSION_KIND.into())),
+        ("낙하조각".into(), nested),
+    ]));
+    let restored = value_from_resource_value(&resource_value_from_value(&session).unwrap());
+    assert_eq!(value_canon(&restored), value_canon(&session));
+    assert!(matches!(restored, Value::Pack(_)));
+    let ordinary = Value::Pack(BTreeMap::from([("__종류".into(), Value::String("unknown".into()))]));
+    assert!(matches!(value_from_resource_value(&resource_value_from_value(&ordinary).unwrap()), Value::Map(_)));
+    for (key, kind) in [("__종류", STD_GRID_KIND), ("__kind", STD_GRID_GAME_SESSION_KIND)] {
+        let wrong = Value::Pack(BTreeMap::from([(key.into(), Value::String(kind.into()))]));
+        assert!(matches!(value_from_resource_value(&resource_value_from_value(&wrong).unwrap()), Value::Map(_)));
     }
 }
 
@@ -16852,15 +18631,20 @@ fn value_canon(value: &Value) -> String {
         Value::None => "없음".to_string(),
         Value::Bool(true) => "참".to_string(),
         Value::Bool(false) => "거짓".to_string(),
-        Value::Fixed64(n) => n.to_string(),
+        Value::Fixed64(n) => n.canonical_decimal_text(),
         Value::Unit(unit) => {
             let suffix = unit
                 .display_symbol()
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| unit.dim.format());
-            format!("{}@{}", unit.value, suffix)
+            format!("{}@{}", unit.value.canonical_decimal_text(), suffix)
         }
         Value::String(s) => format!("\"{}\"", escape_canon_string(s)),
+        Value::View(view) => match view { ddonirang_lang::runtime::ViewValue::ResultTable => "<보기값:결과표>", _ => "<보기값:장면>" }.to_string(),
+        Value::SceneElement(_) => "<장면요소값>".to_string(),
+        Value::Scene(_) => "<장면값>".to_string(),
+        Value::BogaeRelation(relation) => format!("<{}>", relation.kind_name()),
+        Value::BogaeComposition(_) => "<보개짜임값>".to_string(),
         Value::ResourceHandle(handle) => format!("자원#{}", handle.to_hex()),
         Value::List(items) => {
             let mut out = String::from("차림[");
@@ -17502,7 +19286,7 @@ fn format_formula_body(body: &str, dialect: &FormulaDialect) -> Result<String, E
 
 fn format_formula_expr(expr: &FormulaExpr, parent_prec: u8) -> String {
     match expr {
-        FormulaExpr::Number(value) => value.value.to_string(),
+        FormulaExpr::Number(value) => value.value.canonical_decimal_text(),
         FormulaExpr::Var(name) => name.clone(),
         FormulaExpr::Func { name, args } => {
             let rendered = args
@@ -18066,9 +19850,7 @@ fn eval_symbolic_proof_tactic_with_meter(
 }
 
 #[cfg(test)]
-fn eval_symbolic_proof_tactic(
-    values: &[Value],
-) -> Result<BTreeMap<String, Value>, EvalError> {
+fn eval_symbolic_proof_tactic(values: &[Value]) -> Result<BTreeMap<String, Value>, EvalError> {
     eval_symbolic_proof_tactic_with_meter(values, None)
 }
 
@@ -18230,11 +20012,11 @@ fn diff_formula_expr(
                 "exp" => mul(func("exp", vec![first.clone()]), du),
                 "ln" => div(du, first.clone()),
                 "log10" => {
-                    let denom = mul(first.clone(), num_ln10());
+                    let denom = mul(first.clone(), num_ln10()?);
                     div(du, denom)
                 }
                 "log2" => {
-                    let denom = mul(first.clone(), num_ln2());
+                    let denom = mul(first.clone(), num_ln2()?);
                     div(du, denom)
                 }
                 "sqrt" => {
@@ -18456,18 +20238,18 @@ fn num_i(value: i64) -> FormulaExpr {
     })
 }
 
-fn num_ln10() -> FormulaExpr {
-    FormulaExpr::Number(UnitValue {
-        value: Fixed64::from_f64_lossy(libm::log(10.0)),
+fn num_ln10() -> Result<FormulaExpr, EvalError> {
+    Ok(FormulaExpr::Number(UnitValue {
+        value: fixed64_from_host_f64_checked(libm::log(10.0))?,
         dim: UnitDim::NONE,
-    })
+    }))
 }
 
-fn num_ln2() -> FormulaExpr {
-    FormulaExpr::Number(UnitValue {
-        value: Fixed64::from_f64_lossy(libm::log(2.0)),
+fn num_ln2() -> Result<FormulaExpr, EvalError> {
+    Ok(FormulaExpr::Number(UnitValue {
+        value: fixed64_from_host_f64_checked(libm::log(2.0))?,
         dim: UnitDim::NONE,
-    })
+    }))
 }
 
 fn func(name: &str, args: Vec<FormulaExpr>) -> FormulaExpr {
@@ -18816,13 +20598,13 @@ fn eval_formula_expr(
             }
             if name == "pi" {
                 return Ok(UnitValue {
-                    value: Fixed64::from_f64_lossy(std::f64::consts::PI),
+                    value: fixed64_from_host_f64_checked(std::f64::consts::PI)?,
                     dim: UnitDim::NONE,
                 });
             }
             if name == "e" {
                 return Ok(UnitValue {
-                    value: Fixed64::from_f64_lossy(std::f64::consts::E),
+                    value: fixed64_from_host_f64_checked(std::f64::consts::E)?,
                     dim: UnitDim::NONE,
                 });
             }
@@ -18842,7 +20624,7 @@ fn eval_formula_expr(
             let value = eval_formula_expr(expr, env)?;
             match op {
                 FormulaOp::Sub => Ok(UnitValue {
-                    value: -value.value,
+                    value: Fixed64::ZERO.checked_sub(value.value)?,
                     dim: value.dim,
                 }),
                 _ => Ok(value),
@@ -18852,9 +20634,9 @@ fn eval_formula_expr(
             let l = eval_formula_expr(left, env)?;
             let r = eval_formula_expr(right, env)?;
             match op {
-                FormulaOp::Add => l.add(r).map_err(unit_error),
-                FormulaOp::Sub => l.sub(r).map_err(unit_error),
-                FormulaOp::Mul => Ok(l.mul(r)),
+                FormulaOp::Add => checked_unit_add(l, r),
+                FormulaOp::Sub => checked_unit_sub(l, r),
+                FormulaOp::Mul => checked_unit_mul(l, r),
                 FormulaOp::Div => l.div(r).map_err(unit_error),
                 FormulaOp::Mod => {
                     if l.dim != r.dim {
@@ -18903,7 +20685,7 @@ fn eval_formula_func(name: &str, args: Vec<UnitValue>) -> Result<UnitValue, Eval
                 _ => libm::tan(angle),
             };
             return Ok(UnitValue {
-                value: Fixed64::from_f64_lossy(out),
+                value: fixed64_from_host_f64_checked(out)?,
                 dim: UnitDim::NONE,
             });
         }
@@ -18923,7 +20705,7 @@ fn eval_formula_func(name: &str, args: Vec<UnitValue>) -> Result<UnitValue, Eval
                 _ => libm::atan(value),
             };
             return Ok(UnitValue {
-                value: Fixed64::from_f64_lossy(out),
+                value: fixed64_from_host_f64_checked(out)?,
                 dim: UnitDim::NONE,
             });
         }
@@ -18941,7 +20723,7 @@ fn eval_formula_func(name: &str, args: Vec<UnitValue>) -> Result<UnitValue, Eval
             }
             let out = libm::atan2(fixed64_to_f64(y.value), fixed64_to_f64(x.value));
             return Ok(UnitValue {
-                value: Fixed64::from_f64_lossy(out),
+                value: fixed64_from_host_f64_checked(out)?,
                 dim: UnitDim::NONE,
             });
         }
@@ -18961,7 +20743,7 @@ fn eval_formula_func(name: &str, args: Vec<UnitValue>) -> Result<UnitValue, Eval
                 _ => libm::tanh(value),
             };
             return Ok(UnitValue {
-                value: Fixed64::from_f64_lossy(out),
+                value: fixed64_from_host_f64_checked(out)?,
                 dim: UnitDim::NONE,
             });
         }
@@ -18981,7 +20763,7 @@ fn eval_formula_func(name: &str, args: Vec<UnitValue>) -> Result<UnitValue, Eval
                 _ => libm::atanh(value),
             };
             return Ok(UnitValue {
-                value: Fixed64::from_f64_lossy(out),
+                value: fixed64_from_host_f64_checked(out)?,
                 dim: UnitDim::NONE,
             });
         }
@@ -18989,7 +20771,7 @@ fn eval_formula_func(name: &str, args: Vec<UnitValue>) -> Result<UnitValue, Eval
             let args = expect_args(1)?;
             let arg = args[0];
             return Ok(UnitValue {
-                value: fixed64_abs(arg.value),
+                value: fixed64_abs(arg.value)?,
                 dim: arg.dim,
             });
         }
@@ -19021,7 +20803,7 @@ fn eval_formula_func(name: &str, args: Vec<UnitValue>) -> Result<UnitValue, Eval
             let args = expect_args(1)?;
             let arg = args[0];
             return Ok(UnitValue {
-                value: fixed64_ceil(arg.value),
+                value: fixed64_ceil(arg.value)?,
                 dim: arg.dim,
             });
         }
@@ -19029,7 +20811,7 @@ fn eval_formula_func(name: &str, args: Vec<UnitValue>) -> Result<UnitValue, Eval
             let args = expect_args(1)?;
             let arg = args[0];
             return Ok(UnitValue {
-                value: fixed64_round_even(arg.value),
+                value: fixed64_round_even(arg.value)?,
                 dim: arg.dim,
             });
         }
@@ -19079,7 +20861,7 @@ fn eval_formula_func(name: &str, args: Vec<UnitValue>) -> Result<UnitValue, Eval
             }
             let value = fixed64_to_f64(arg.value);
             return Ok(UnitValue {
-                value: Fixed64::from_f64_lossy(libm::cbrt(value)),
+                value: fixed64_from_host_f64_checked(libm::cbrt(value))?,
                 dim: UnitDim::NONE,
             });
         }
@@ -19121,7 +20903,7 @@ fn eval_formula_func(name: &str, args: Vec<UnitValue>) -> Result<UnitValue, Eval
             }
             let out = libm::pow(fixed64_to_f64(base.value), fixed64_to_f64(exp.value));
             return Ok(UnitValue {
-                value: Fixed64::from_f64_lossy(out),
+                value: fixed64_from_host_f64_checked(out)?,
                 dim: UnitDim::NONE,
             });
         }
@@ -19142,7 +20924,7 @@ fn eval_formula_func(name: &str, args: Vec<UnitValue>) -> Result<UnitValue, Eval
                 _ => libm::log2(value),
             };
             return Ok(UnitValue {
-                value: Fixed64::from_f64_lossy(out),
+                value: fixed64_from_host_f64_checked(out)?,
                 dim: UnitDim::NONE,
             });
         }
@@ -19242,7 +21024,10 @@ fn eval_formula_pow(base: UnitValue, exponent: UnitValue) -> Result<UnitValue, E
     }
     let mut result = base;
     for _ in 1..exp {
-        result = result.mul(base);
+        result = UnitValue {
+            value: result.value.checked_mul(base.value)?,
+            dim: result.dim.add(base.dim),
+        };
     }
     Ok(result)
 }
@@ -19250,24 +21035,7 @@ fn eval_formula_pow(base: UnitValue, exponent: UnitValue) -> Result<UnitValue, E
 fn is_truthy(value: &Value) -> Result<bool, EvalError> {
     match value {
         Value::Bool(b) => Ok(*b),
-        Value::Fixed64(n) => Ok(n.raw_i64() != 0),
-        Value::Unit(unit) if unit.is_dimensionless() => Ok(unit.value.raw_i64() != 0),
-        Value::Unit(_) => Err("단위 값은 조건식에 사용할 수 없습니다".to_string().into()),
-        Value::None => Ok(false),
-        Value::String(_) => Err("글은 조건식에 사용할 수 없습니다".to_string().into()),
-        Value::ResourceHandle(_) => Err("자원은 조건식에 사용할 수 없습니다".to_string().into()),
-        Value::List(_) => Err("차림은 조건식에 사용할 수 없습니다".to_string().into()),
-        Value::Set(_) => Err("모음은 조건식에 사용할 수 없습니다".to_string().into()),
-        Value::Map(_) => Err("짝맞춤은 조건식에 사용할 수 없습니다".to_string().into()),
-        Value::Pack(_) => Err("묶음은 조건식에 사용할 수 없습니다".to_string().into()),
-        Value::Assertion(_) => Err("세움값은 조건식에 사용할 수 없습니다".to_string().into()),
-        Value::StateMachine(_) => Err("상태머신값은 조건식에 사용할 수 없습니다"
-            .to_string()
-            .into()),
-        Value::Formula(_) => Err("수식은 조건식에 사용할 수 없습니다".to_string().into()),
-        Value::Template(_) => Err("글무늬는 조건식에 사용할 수 없습니다".to_string().into()),
-        Value::Regex(_) => Err("정규식은 조건식에 사용할 수 없습니다".to_string().into()),
-        Value::Lambda(_) => Err("씨앗은 조건식에 사용할 수 없습니다".to_string().into()),
+        _ => Err("E_RUNTIME_CONDITION_TYPE: 조건은 참거짓이어야 합니다".to_string().into()),
     }
 }
 
@@ -19546,6 +21314,445 @@ mod tests {
 
     const INPUT_KEY_Z: u64 = 1 << 7;
 
+    #[test]
+    fn pure_scalar_snapshot_rhs_whitelist_and_rollback() {
+        let skipped = format!("값 <- 참 또는 ({}).", vec!["1"; 80].join(" + "));
+        let skipped_program = DdnProgram::from_v25_source(&skipped, "skipped.ddn").unwrap();
+        let Stmt::Mutate { value, .. } = &skipped_program.root_stmts[0] else { panic!("assignment"); };
+        assert!(!expression_preserves_local_bindings(value), "deep skipped RHS must use full snapshot");
+        for (statement, preserves) in [
+            ("값 <- 2.", true),
+            ("값 <- 값 + 1.", true),
+            ("값 <- 1 / 0.", true),
+            ("값 <- 참.", true),
+            ("값 <- 차림[1, 2].", true),
+            ("값 <- 차림[1, 1 / 0].", true),
+            ("값 <- 차림[차림[값, 2], 차림[3]].", true),
+            ("값 <- (첫째:1, 둘째:값).", true),
+            ("값 <- 차림[(차림[1]) 길이].", false),
+            ("값 <- (차림[1]) 길이.", false),
+        ] {
+            let source = format!("계산:수:셈씨 := {{ 계산 <- 1. }}. {statement}");
+            let program = DdnProgram::from_v25_source(&source, "snapshot.ddn").unwrap();
+            let stmt = program.root_stmts.last().unwrap();
+            let Stmt::Mutate { value, .. } = stmt else { panic!("assignment: {statement}: {stmt:?}"); };
+            assert_eq!(expression_preserves_local_bindings(value), preserves);
+            let world = NuriWorld::new();
+            let defaults = HashMap::new();
+            let mut context = EvalContext::new(&program, &world, &defaults, None,
+                InputState::new(0, 0), 0, 0, None);
+            context.current_seed_name = Some("계산".into());
+            context.active_callable_name = Some("계산".into());
+            assert!(context.owns_pure_local_bindings());
+            context.declare_binding_type("값", &inferred_binding_type(&Value::Fixed64(Fixed64::from_i64(1))));
+            let mut locals = HashMap::from([
+                ("값".into(), Value::Fixed64(Fixed64::from_i64(1))),
+                ("판".into(), Value::List(vec![Value::List(vec![Value::Fixed64(Fixed64::ZERO); 10]); 20])),
+            ]);
+            let full = context.capture_frame_snapshot(&locals);
+            let sparse = context.capture_frame_snapshot_with_locals(&locals, false);
+            assert!(full.locals.is_some());
+            assert!(sparse.locals.is_none());
+            let before = format!("{:?}", locals);
+            let evaluated = context.eval_expr(&mut locals, value);
+            if preserves {
+                assert_eq!(format!("{:?}", locals), before, "RHS must not write locals");
+                context.restore_frame_snapshot(&mut locals, &sparse);
+                assert_eq!(format!("{:?}", locals), before);
+            }
+            context.restore_frame_snapshot(&mut locals, &full);
+            assert_eq!(format!("{:?}", locals), before);
+            if statement == "값 <- 1 / 0." { assert!(evaluated.is_err()); }
+            let result = context.eval_stmt(&mut locals, stmt);
+            if !matches!(statement, "값 <- 2." | "값 <- 값 + 1."
+                | "값 <- (차림[1]) 길이.") {
+                assert!(result.is_err(), "failure must not publish: {statement}");
+                assert_eq!(format!("{:?}", locals), before);
+            } else {
+                assert!(result.is_ok(), "expected successful assignment: {statement}");
+            }
+        }
+    }
+
+    #[test]
+    fn local_snapshot_proof_is_bounded_and_checks_every_container_child() {
+        for (source, expected) in [
+            ("값 <- 차림[1, 차림[2, 3]].".to_string(), true),
+            ("값 <- 차림[1, (차림[2]) 길이].".to_string(), false),
+            ("값 <- (첫째:1, 둘째:((차림[2]) 길이)).".to_string(), false),
+            (format!("값 <- 차림[{}].", vec!["1"; 129].join(",")), false),
+        ] {
+            let program = DdnProgram::from_v25_source(&source, "snapshot-container.ddn").unwrap();
+            let Stmt::Mutate { value, .. } = &program.root_stmts[0] else { panic!("assignment"); };
+            assert_eq!(expression_preserves_local_bindings(value), expected, "{source}");
+            // A field lookup itself cannot mutate, but must not hide an
+            // effectful/deep base expression from the bounded proof.
+            let lookup = Expr::new(value.id, value.span, ExprKind::FieldAccess {
+                target: Box::new(value.clone()), field: "첫째".into(), field_span: value.span,
+            });
+            assert_eq!(expression_preserves_local_bindings(&lookup), expected, "field: {source}");
+        }
+    }
+
+    #[test]
+    fn body_snapshot_proof_keeps_calls_indexed_writes_and_compound_statements() {
+        for (source, expected) in [
+            ("값 := 차림[1,2].", true),
+            ("값 <- (첫째:1,둘째:2).", true),
+            ("값 <- 1 / 0.", true), // ordinary Err; never a successful abort
+            ("값 <- (차림[1,2]) 길이.", false),
+            ("값[0] <- 1.", false),
+            ("{ 참 }이면 { 값 <- 1. }.", false),
+            ("{ 참 }인 동안 { 멈추기. }.", false),
+            ("값 보여주기.", false),
+        ] {
+            let program=DdnProgram::from_v25_source(source,"body-snapshot.ddn").unwrap();
+            assert_eq!(statement_cannot_abort(&program.root_stmts[0]),expected,"{source}");
+        }
+        let source=format!("값 := 차림[{}].",vec!["1";129].join(","));
+        let program=DdnProgram::from_v25_source(&source,"body-snapshot-bound.ddn").unwrap();
+        assert!(!statement_cannot_abort(&program.root_stmts[0]));
+    }
+
+    #[test]
+    fn source_span_cache_preserves_unicode_crlf_and_invalid_offsets() {
+        let source = "// 위치 🧪\r\n1 보여주기.\r\n";
+        let program = DdnProgram::from_v25_source(source, "위치.ddn").unwrap();
+        let world = NuriWorld::new();
+        let defaults = HashMap::new();
+        let context = EvalContext::new(&program, &world, &defaults, None,
+            InputState::new(0, 0), 0, 0, None);
+        // Include non-character-boundary byte offsets: preserve the old
+        // projection exactly rather than silently changing its convention.
+        for start in 0..=source.len() {
+            let end = source.len();
+            let (start_line, start_col) = position_to_line_col(source, start);
+            let (end_line, end_col) = position_to_line_col(source, end);
+            let expected = Some(SourceSpan {
+                file: program.program.origin.file_path.clone(),
+                start_line, start_col: Some(start_col),
+                end_line, end_col: Some(end_col),
+            });
+            let span = ddonirang_lang::Span { start, end };
+            assert_eq!(context.source_span_from_span(&span), expected);
+            assert_eq!(context.source_span_from_span(&span), expected);
+        }
+        assert_eq!(context.source_span_cache.borrow().len(), source.len() + 1);
+        for span in [
+            ddonirang_lang::Span { start: source.len() + 1, end: 0 },
+            ddonirang_lang::Span { start: 0, end: source.len() + 1 },
+        ] {
+            assert_eq!(context.source_span_from_span(&span), None);
+        }
+        assert_eq!(context.source_span_cache.borrow().len(), source.len() + 1);
+        let empty = DdnProgram::from_v25_source("", "empty.ddn").unwrap();
+        let empty_context = EvalContext::new(&empty, &world, &defaults, None,
+            InputState::new(0, 0), 0, 0, None);
+        assert_eq!(empty_context.source_span_from_span(&ddonirang_lang::Span { start: 0, end: 0 }), None);
+        assert!(empty_context.source_span_cache.borrow().is_empty());
+    }
+
+    #[test]
+    fn wo09_formula_number_reentry_preserves_exact_signed_raw() {
+        for raw in [i64::MIN, -1, 0, 1, 1i64 << 25, i64::MAX] {
+            let value = Fixed64::from_raw_i64(raw);
+            let text = format_formula_expr(&FormulaExpr::Number(
+                ddonirang_core::UnitValue { value, dim: ddonirang_core::UnitDim::NONE }), 0);
+            assert_eq!(Fixed64::parse_decimal_exact(&text).unwrap().raw_i64(), raw);
+            let fields = BTreeMap::from([("값".to_string(), Value::Fixed64(value))]);
+            assert_eq!(endpoint_boundary_value_number(&fields).unwrap().formula_text, text);
+        }
+    }
+
+    #[test]
+    fn wo09_exact_value_canon_keeps_adjacent_keys_and_signed_units() {
+        let a = Value::Fixed64(Fixed64::from_raw_i64(-1));
+        let b = Value::Fixed64(Fixed64::ZERO);
+        assert_ne!(value_canon(&a), value_canon(&b));
+        assert_eq!(value_canon(&a), "-0.00000000023283064365386962890625");
+        assert_eq!(value_canon(&Value::Fixed64(Fixed64::from_raw_i64(-(1i64 << 31)))), "-0.5");
+        let unit = Value::Unit(ddonirang_core::UnitValue::new(
+            Fixed64::from_raw_i64(-1), ddonirang_core::Unit::Second));
+        assert_eq!(value_canon(&Value::List(vec![a, unit])),
+            "차림[-0.00000000023283064365386962890625, -0.00000000023283064365386962890625@s]");
+    }
+
+    #[test]
+    fn wo09_resource_bindings_snapshot_replace_remove_restore_matches_deep_map() {
+        let mut original = HashMap::from([
+            ("output_log".to_string(), Value::List(vec![Value::String("prefix".into())])),
+            ("값".to_string(), Value::Fixed64(Fixed64::from_i64(1))),
+        ]);
+        let mut shared = ResourceBindings::from(original.clone());
+        let old_deep = original.clone();
+        let old_shared = shared.clone();
+        assert!(Arc::ptr_eq(shared.0.get("output_log").unwrap(), old_shared.0.get("output_log").unwrap()));
+        let mut old_list = match original.remove("output_log").unwrap() {
+            Value::List(items) => items, _ => panic!("list"),
+        };
+        let mut new_list = match shared.remove("output_log").unwrap() {
+            Value::List(items) => items, _ => panic!("list"),
+        };
+        old_list.push(Value::String("next".into()));
+        new_list.push(Value::String("next".into()));
+        original.insert("output_log".into(), Value::List(old_list));
+        shared.insert("output_log".into(), Value::List(new_list));
+        original.insert("값".into(), Value::Fixed64(Fixed64::from_i64(2)));
+        shared.insert("값".into(), Value::Fixed64(Fixed64::from_i64(2)));
+        let canonical = |values: &HashMap<String, Value>| values.iter().map(|(key, value)|
+            (key.clone(), resource_value_from_value(value).unwrap())).collect::<BTreeMap<_, _>>();
+        assert_eq!(canonical(&original), canonical(&shared.clone().into_owned()));
+        assert_eq!(canonical(&old_deep), canonical(&old_shared.clone().into_owned()));
+        original = old_deep;
+        shared = old_shared;
+        assert_eq!(canonical(&original), canonical(&shared.into_owned()));
+    }
+
+    // Same-control-flow replay only: both contexts use shared bindings/PatchLog.
+    // Separate deep-storage tests and the official baseline cover old bytes.
+    fn wo09_output_snapshot_replay_body(
+        ctx: &mut EvalContext<'_>,
+        locals: &mut HashMap<String, Value>,
+        body: &Body,
+    ) -> Result<FlowControl, EvalError> {
+        if ctx.aborted { return Ok(FlowControl::Continue); }
+        for stmt in &body.stmts {
+            if ctx.aborted { return Ok(FlowControl::Continue); }
+            let _registry_key = stmt_registry_key(stmt);
+            ctx.work_cost.borrow_mut().charge_dispatch()?;
+            let snapshot = ctx.capture_frame_snapshot(locals);
+            match ctx.eval_stmt(locals, stmt)? {
+                FlowControl::Continue => {}
+                other => return Ok(other),
+            }
+            if ctx.aborted {
+                ctx.restore_frame_snapshot_preserving_abort_contract_diag(locals, &snapshot);
+                return Ok(FlowControl::Continue);
+            }
+        }
+        Ok(FlowControl::Continue)
+    }
+
+    fn wo09_output_snapshot_compare(
+        program: &DdnProgram,
+        body: &Body,
+        initial: HashMap<String, Value>,
+        counters: crate::work_cost::WorkCostCounters,
+    ) -> (HashMap<String, Value>, Vec<PatchOp>, bool, Option<String>) {
+        let world = NuriWorld::new();
+        let defaults = HashMap::new();
+        let mut fast = EvalContext::new(program, &world, &defaults, None, InputState::new(0, 0), 0, 0, None);
+        let mut legacy = EvalContext::new(program, &world, &defaults, None, InputState::new(0, 0), 0, 0, None);
+        for ctx in [&mut fast, &mut legacy] {
+            ctx.resources = initial.clone().into();
+            *ctx.work_cost.borrow_mut() = WorkCostMeter::from_receipt_parts(
+                counters.clone(), StandardResourceLimitsV1::CANDIDATE, false,
+            );
+        }
+        let mut fast_locals = HashMap::new();
+        let mut legacy_locals = HashMap::new();
+        let fast_error = fast.eval_body(&mut fast_locals, body).err().map(|e| e.message());
+        let legacy_error = wo09_output_snapshot_replay_body(&mut legacy, &mut legacy_locals, body)
+            .err().map(|e| e.message());
+        assert_eq!(fast_error, legacy_error);
+        assert_eq!(fast.patch_ops, legacy.patch_ops);
+        assert_eq!(fast.aborted, legacy.aborted);
+        assert_eq!(fast.guard_rejected, legacy.guard_rejected);
+        assert_eq!(fast.input_reads.borrow().clone(), legacy.input_reads.borrow().clone());
+        assert_eq!(fast.work_cost.borrow().receipt(), legacy.work_cost.borrow().receipt());
+        let convert = |values: &HashMap<String, Value>| values.iter().map(|(key, value)|
+            (key.clone(), resource_value_from_value(value).expect("test scalar/list resource"))
+        ).collect::<BTreeMap<_, _>>();
+        assert_eq!(convert(&fast.resources.clone().into_owned()), convert(&legacy.resources.clone().into_owned()));
+        assert_eq!(convert(&fast_locals), convert(&legacy_locals));
+        let mut fast_world = DetNuri::new();
+        let mut legacy_world = DetNuri::new();
+        fast_world.apply_patch(&Patch { ops: fast.patch_ops.clone().into_owned(), ..Patch::default() }, 0,
+            &mut ddonirang_core::signals::VecSignalSink::default());
+        legacy_world.apply_patch(&Patch { ops: legacy.patch_ops.clone().into_owned(), ..Patch::default() }, 0,
+            &mut ddonirang_core::signals::VecSignalSink::default());
+        assert_eq!(fast_world.state_hash(), legacy_world.state_hash());
+        (fast.resources.into_owned(), fast.patch_ops.into_owned(), fast.guard_rejected, fast_error)
+    }
+
+    fn wo09_output_snapshot_body(program: &DdnProgram) -> Body {
+        Body { id: 0, span: ddonirang_lang::Span { start: 0, end: 0 },
+            stmts: program.root_stmts.clone() }
+    }
+
+    #[test]
+    fn wo09_output_snapshot_plain_literals_and_vars_match_replay() {
+        let mut program = DdnProgram::from_v25_source(
+            r#"값 := 3. 값 보여주기. "표" 보여주기. 1 보여주기. 0.5 보여주기. 참 보여주기. 없음 보여주기."#,
+            "wo09-output-snapshot.ddn",
+        ).unwrap();
+        let Stmt::Show { id, span, mood, expr } = program.root_stmts[2].clone() else {
+            panic!("string output");
+        };
+        program.root_stmts[2] = Stmt::Inspect { id, span, mood, expr };
+        let (_, patch, _, error) = wo09_output_snapshot_compare(&program,
+            &wo09_output_snapshot_body(&program), HashMap::new(), Default::default());
+        assert!(error.is_none());
+        assert_eq!(patch.iter().filter(|p| matches!(p,
+            PatchOp::SetResourceValue { tag, .. } if tag == "output_log")).count(), 6);
+    }
+
+    #[test]
+    fn wo09_output_snapshot_complex_call_abort_keeps_rollback() {
+        let mut program = DdnProgram::from_v25_source(
+            r#"고장:움직씨 := {
+                99 보여주기.
+                { 거짓 }인것 바탕으로(물림) 아니면 { 없음. }
+            }
+            7 보여주기. 1 보여주기. 8 보여주기."#,
+            "wo09-output-call-abort.ddn",
+        ).unwrap();
+        let callable = program.functions.values().find(|seed| seed.body.as_ref()
+            .is_some_and(|body| body.stmts.iter().any(|stmt| matches!(stmt, Stmt::Contract { .. }))))
+            .expect("parsed aborting callable must be registered").canonical_name.clone();
+        let Stmt::Show { expr, .. } = &mut program.root_stmts[1] else { panic!("call output"); };
+        // Existing normalized Call AST; no test-only source lowering/frontdoor.
+        expr.kind = ExprKind::Call { func: callable, args: Vec::new() };
+        let (resources, patch, _, error) = wo09_output_snapshot_compare(&program,
+            &wo09_output_snapshot_body(&program), HashMap::new(), Default::default());
+        assert!(error.is_none(), "complex call error: {error:?}");
+        let Value::List(log) = resources.get("output_log").unwrap() else { panic!("prior output"); };
+        assert_eq!(log.len(), 1, "aborted callable must not publish its output or following output");
+        assert!(matches!(patch.first(), Some(PatchOp::SetResourceValue { tag, .. }) if tag == "output_log"));
+        assert!(matches!(patch.last(), Some(PatchOp::EmitSignal { signal: Signal::Diag { event }, .. })
+            if event.rule_id == "L0-CONTRACT-01" && event.mode.as_deref() == Some("물림")));
+    }
+
+    #[test]
+    fn wo09_output_snapshot_guard_failure_keeps_prefix_clear() {
+        let mut program = DdnProgram::from_v25_source("7 보여주기. 8 보여주기.", "wo09-output-guard.ddn").unwrap();
+        let mut body = wo09_output_snapshot_body(&program);
+        let span = ddonirang_lang::Span { start: 0, end: 0 };
+        body.stmts[1] = Stmt::Guard {
+            id: 900, span, mood: ddonirang_lang::Mood::Declarative,
+            condition: Expr::new(901, span, ExprKind::Literal(Literal::Bool(true))),
+            body: Body { id: 902, span, stmts: Vec::new() },
+        };
+        program.root_stmts = body.stmts.clone();
+        let (_, patch, rejected, error) = wo09_output_snapshot_compare(&program, &body,
+            HashMap::new(), Default::default());
+        assert!(error.is_none());
+        assert!(rejected);
+        assert!(!patch.iter().any(|p| matches!(p, PatchOp::SetResourceValue { tag, .. } if tag == "output_log")));
+        assert!(patch.iter().any(|p| matches!(p, PatchOp::GuardViolation { .. })));
+    }
+
+    #[test]
+    fn wo09_output_snapshot_meter_overflow_matches_replay_error() {
+        let program = DdnProgram::from_v25_source("1 보여주기.", "wo09-output-meter.ddn").unwrap();
+        let counters = crate::work_cost::WorkCostCounters {
+            work_cost: u64::MAX - 1, ..Default::default()
+        };
+        let (_, patch, _, error) = wo09_output_snapshot_compare(&program,
+            &wo09_output_snapshot_body(&program), HashMap::new(), counters);
+        assert!(error.unwrap().contains("E_WORK_COST_OVERFLOW_CANDIDATE"));
+        assert!(patch.is_empty());
+    }
+
+    #[test]
+    fn wo09_output_snapshot_var_keeps_input_read_tracking() {
+        let program = DdnProgram::from_v25_source("입력키 보여주기.", "wo09-output-input.ddn").unwrap();
+        let initial = HashMap::from([("입력키".to_string(), Value::String("ArrowLeft".to_string()))]);
+        wo09_output_snapshot_compare(&program, &wo09_output_snapshot_body(&program), initial,
+            Default::default());
+        let mut runner = DdnRunner::new(program, "매마디");
+        let mut input = empty_input();
+        input.last_key_name = "ArrowLeft".to_string();
+        let output = runner.run_update(&NuriWorld::new(), &input, &HashMap::new()).unwrap();
+        assert!(output.input_reads.contains("last_key_name"));
+    }
+
+
+    fn wo09_patch_bytes(ops: Vec<PatchOp>) -> Vec<u8> {
+        ddonirang_core::canonical_patch_ops_text(&Patch { ops, ..Patch::default() }).into_bytes()
+    }
+
+    #[test]
+    fn wo09_patch_log_snapshot_append_restore_matches_deep_vec_bytes() {
+        let mut old = Vec::new();
+        let mut log = PatchLog::default();
+        for value in 0..4 {
+            let op = PatchOp::SetResourceValue {
+                tag: "output_log".to_string(),
+                value: ResourceValue::List(vec![ResourceValue::String("가".repeat(1000)); value + 1]),
+            };
+            old.push(op.clone());
+            log.push(op);
+        }
+        let deep_snapshot = old.clone();
+        let snapshot = log.clone();
+        assert!(Arc::ptr_eq(&log.0[0], &snapshot.0[0]), "snapshot must share immutable payload");
+        let op = PatchOp::SetResourceFixed64 { tag: "x".to_string(), value: Fixed64::ONE };
+        old.push(op.clone()); log.push(op);
+        assert_eq!(wo09_patch_bytes(log.clone().into_owned()), wo09_patch_bytes(old.clone()));
+        old.clear(); log.clear();
+        assert!(log.is_empty());
+        old = deep_snapshot; log = snapshot;
+        assert_eq!(wo09_patch_bytes(log.into_owned()), wo09_patch_bytes(old));
+    }
+
+    #[test]
+    fn wo09_patch_log_guard_clear_then_snapshot_restore_retains_prefix() {
+        let program = DdnProgram::from_v25_source("7 보여주기.", "wo09-patch-guard.ddn").unwrap();
+        let world = NuriWorld::new(); let defaults = HashMap::new();
+        let mut ctx = EvalContext::new(&program, &world, &defaults, None, InputState::new(0, 0), 0, 0, None);
+        let mut locals = HashMap::new();
+        ctx.eval_body(&mut locals, &wo09_output_snapshot_body(&program)).unwrap();
+        let deep_prefix = ctx.patch_ops.clone().into_owned();
+        let snapshot = ctx.capture_frame_snapshot(&locals);
+        let span = ddonirang_lang::Span { start: 0, end: 0 };
+        let guard = Stmt::Guard { id: 900, span, mood: ddonirang_lang::Mood::Declarative,
+            condition: Expr::new(901, span, ExprKind::Literal(Literal::Bool(true))),
+            body: Body { id: 902, span, stmts: Vec::new() } };
+        ctx.eval_stmt(&mut locals, &guard).unwrap();
+        assert!(ctx.guard_rejected);
+        assert!(ctx.patch_ops.iter().all(|op| !matches!(op, PatchOp::SetResourceValue { tag, .. } if tag == "output_log")));
+        ctx.restore_frame_snapshot(&mut locals, &snapshot);
+        assert!(!ctx.guard_rejected);
+        assert_eq!(wo09_patch_bytes(ctx.patch_ops.into_owned()), wo09_patch_bytes(deep_prefix));
+    }
+
+    #[test]
+    fn wo09_patch_log_child_success_and_failure_keep_parent_prefix_isolated() {
+        for (body, fails) in [
+            ("입력키 보여주기. 값 <- 3.", false),
+            ("입력키 보여주기. 값 <- 3. { 거짓 }인것 바탕으로(물림) 아니면 { 없음. }", true),
+        ] {
+            let source = format!("조치:움직씨 := {{ {body} }} 7 보여주기.");
+            let program = DdnProgram::from_v25_source(&source, "wo09-patch-child.ddn").unwrap();
+            let seed = program.functions.values().find(|seed| seed.body.as_ref()
+                .is_some_and(|body| body.stmts.iter().any(|stmt| matches!(stmt, Stmt::Mutate { .. }))))
+                .expect("parsed action");
+            let world = NuriWorld::new(); let defaults = HashMap::new();
+            let mut ctx = EvalContext::new(&program, &world, &defaults, None, InputState::new(0, 0), 0, 0, None);
+            ctx.resources.insert("입력키".to_string(), Value::String("ArrowLeft".to_string()));
+            let mut locals = HashMap::new();
+            ctx.eval_body(&mut locals, &wo09_output_snapshot_body(&program)).unwrap();
+            let prefix = ctx.patch_ops.clone();
+            let old_bytes = wo09_patch_bytes(prefix.clone().into_owned());
+            let before_cost = ctx.work_cost.borrow().receipt();
+            let result = ctx.eval_state_machine_transition_action(&seed.canonical_name, &HashMap::new());
+            assert_eq!(result.is_err(), fails, "child result: {result:?}");
+            assert_eq!(wo09_patch_bytes(prefix.into_owned()), old_bytes, "child cannot mutate captured prefix");
+            assert_ne!(ctx.work_cost.borrow().receipt(), before_cost, "child work remains accounted");
+            assert!(ctx.input_reads.borrow().contains("last_key_name"), "child input reads remain accounted");
+            if fails {
+                assert!(result.err().unwrap().message().contains("E_STATE_TRANSITION_ACTION_ABORTED"));
+                assert_eq!(wo09_patch_bytes(ctx.patch_ops.into_owned()), old_bytes);
+                assert!(!ctx.resources.contains_key("값"));
+            } else {
+                assert!(ctx.resources.contains_key("값"));
+                assert!(ctx.patch_ops.len() > 1);
+                assert!(matches!(ctx.patch_ops.iter().next(), Some(PatchOp::SetResourceValue { tag, .. }) if tag == "output_log"));
+            }
+        }
+    }
+
     static AGE_TARGET_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     struct AgeTargetTestGuard {
@@ -19610,6 +21817,209 @@ mod tests {
     }
 
     #[test]
+    fn i1_input_reads_follow_execution_not_source_presence() {
+        for (source, read) in [
+            ("1 보여주기.", false),
+            ("입력키 보여주기.", true),
+            ("검사값 := 거짓 그리고 (입력키 == \"ArrowLeft\"). 검사값 보여주기.", false),
+            ("검사값 := 참 그리고 (입력키 == \"ArrowLeft\"). 검사값 보여주기.", true),
+        ] {
+            let program = DdnProgram::from_v25_source(source, "i1-input.ddn").unwrap();
+            let mut runner = DdnRunner::new(program, "매마디");
+            let mut input = empty_input();
+            input.last_key_name = "ArrowLeft".into();
+            let output = runner.run_update(&NuriWorld::new(), &input, &HashMap::new()).unwrap();
+            assert_eq!(output.input_reads.contains("last_key_name"), read, "{source}");
+            assert_eq!(crate::input_receipt::validate_tape_v1_reads(&output.input_reads).is_err(), read);
+        }
+    }
+
+    #[test]
+    fn i1_builtin_resource_access_tracks_input_read() {
+        let program = DdnProgram::from_v25_source("1 보여주기.", "i1.ddn").unwrap();
+        let world = NuriWorld::new();
+        let defaults = HashMap::new();
+        let mut context = EvalContext::new(&program, &world, &defaults, None,
+            InputState::new(0, 0), 0, 0, None);
+        context.resources.insert("입력키".into(), Value::String("ArrowLeft".into()));
+        // 내장 보개 값 해소의 내부 자원 읽기. 새 테스트 전용 접근 경로를 만들지 않는다.
+        let value = context.parse_bogae_value_token(&mut HashMap::new(), "입력키");
+        assert!(matches!(value, Some(Value::String(ref value)) if value == "ArrowLeft"));
+        assert!(crate::input_receipt::validate_tape_v1_reads(&context.input_reads.borrow()).is_err());
+    }
+
+    #[test]
+    fn d9_explicit_entry_sees_initial_values_and_does_not_repeat_on_finish() {
+        let program = DdnProgram::from_v25_source(
+            "중력:수 := 9.8. 실행:움직씨 := { 중력 보여주기. }", "entry.ddn",
+        ).unwrap();
+        let mut runner = DdnRunner::new(program, "매마디");
+        assert!(runner.configure_project_entry("없는시작").is_err());
+        runner.configure_project_entry("실행").unwrap();
+        let world = DetNuri::new();
+        let output = runner.run_update(world.world(), &empty_input(), &HashMap::new()).unwrap();
+        assert!(output.resources.contains_key("중력"));
+        let finish = runner.run_finish(world.world(), &empty_input(), &HashMap::new()).unwrap();
+        assert!(finish.patch.ops.is_empty());
+        assert!(!finish.resources.contains_key("중력"));
+    }
+
+    #[test]
+    fn wo03_v25_arithmetic_failure_is_not_a_successful_signal() {
+        for source in [
+            "(1 / 0) 보여주기.",
+            "값 <- (1 / 0). 값 보여주기.",
+            "값 := (1 / 0). 값 보여주기.",
+            "(매마디)마다 { (1 / 0) 보여주기. }.",
+            "(매마디)마다 { 값 <- (1 / 0). 값 보여주기. }.",
+            "고장:움직씨 := { (1 / 0) 보여주기. } () 고장.",
+        ] {
+            let program = DdnProgram::from_v25_source(source, "wo03.ddn").expect(source);
+            let mut runner = DdnRunner::new(program, "매마디");
+            let result = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new());
+            assert!(result.is_err(), "must fail instead of publishing a frame: {source}");
+            assert!(result.err().unwrap().contains("0으로 나눌 수 없습니다"), "{source}");
+        }
+    }
+
+    #[test]
+    fn wo02_short_circuit_skips_only_the_unneeded_operand() {
+        for (expression, expected) in [
+            ("거짓 그리고 ((1 / 0) == 0)", false),
+            ("참 또는 ((1 / 0) == 0)", true),
+        ] {
+            let source = format!("검사값 <- {expression}.");
+            let program = DdnProgram::from_v25_source(&source, "wo02.ddn").expect(&source);
+            let mut runner = DdnRunner::new(program, "매마디");
+            let output = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).expect(&source);
+            assert!(matches!(output.resources.get("검사값"), Some(RuntimeValue::Bool(v)) if *v == expected), "{source}: {:?}", output.resources);
+        }
+        for expression in ["참 그리고 ((1 / 0) == 0)", "거짓 또는 ((1 / 0) == 0)"] {
+            let source = format!("결과 := {expression}.");
+            let program = DdnProgram::from_v25_source(&source, "wo02.ddn").expect(&source);
+            let mut runner = DdnRunner::new(program, "매마디");
+            assert!(runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).is_err(), "{source}");
+        }
+    }
+
+    #[test]
+    fn wo02_short_circuit_does_not_publish_rhs_effects() {
+        let source = "부작용:움직씨 := { 99 보여주기. } 검사값 <- (거짓 그리고 (() 부작용)).";
+        let program = DdnProgram::from_v25_source(source, "wo02.ddn").expect("source");
+        let mut runner = DdnRunner::new(program, "매마디");
+        let output = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).expect("skip effect");
+        assert!(matches!(output.resources.get("검사값"), Some(RuntimeValue::Bool(false))));
+        assert!(!output.resources.contains_key("output_log"));
+    }
+
+    #[test]
+    fn wo02_foreach_type_rejection_restores_outer_binding() {
+        let source = "항목 <- \"바깥\". (항목) (1, 2) 차림에 대해 { 항목 <- \"가\". }.";
+        let program = DdnProgram::from_v25_source(source, "wo02.ddn").expect("source");
+        let world = NuriWorld::new();
+        let defaults = HashMap::new();
+        let mut ctx = EvalContext::new(&program, &world, &defaults, None, InputState::new(0, 0), 0, 0, None);
+        let mut locals = HashMap::new();
+        ctx.eval_stmt(&mut locals, &program.root_stmts[0]).expect("outer binding");
+        let before = ctx.binding_type_scopes.clone();
+        let error = ctx.eval_stmt(&mut locals, &program.root_stmts[1]).err().expect("different iteration type");
+        assert!(error.to_string().contains("TYPE_MISMATCH"), "{error}");
+        assert_eq!(ctx.binding_type_scopes, before);
+    }
+
+    #[test]
+    fn wo02_internal_call_ast_uses_short_circuit_without_new_surface() {
+        for (op, expected) in [("그리고", false), ("또는", true)] {
+            let literal = if expected { "참" } else { "거짓" };
+            let source = format!("검사값 <- {literal} {op} ((1 / 0) == 0).");
+            let mut program = DdnProgram::from_v25_source(&source, "wo02.ddn").expect("infix source");
+            let mut infix_runner = DdnRunner::new(program.clone(), "매마디");
+            infix_runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).expect("infix run");
+            let infix_cost = infix_runner.work_cost_receipt().counters.base_dispatches;
+            let Stmt::Mutate { value, .. } = &mut program.root_stmts[0] else { panic!("binding") };
+            let ExprKind::Infix { left, right, .. } = value.kind.clone() else { panic!("infix") };
+            value.kind = ExprKind::Call {
+                func: op.to_string(),
+                args: [*left, *right].into_iter().map(|expr| ddonirang_lang::ArgBinding {
+                    id: expr.id, span: expr.span, expr, josa: None, resolved_pin: None,
+                    binding_reason: ddonirang_lang::BindingReason::Positional,
+                }).collect(),
+            };
+            let mut runner = DdnRunner::new(program, "매마디");
+            let output = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).expect("internal call short circuit");
+            assert!(matches!(output.resources.get("검사값"), Some(RuntimeValue::Bool(v)) if *v == expected));
+            // Existing call dispatch has one charge; an infix node does not.
+            // No RHS division dispatch or RHS error is observed in either path.
+            assert_eq!(runner.work_cost_receipt().counters.base_dispatches, infix_cost + 1);
+        }
+    }
+
+    #[test]
+    fn wo02_inferred_collection_category_does_not_claim_element_type_inference() {
+        let source = "값 := (1, 2) 차림. 값 <- (\"가\", \"나\") 차림. 값 보여주기.";
+        let program = DdnProgram::from_v25_source(source, "wo02.ddn").expect("source");
+        let mut runner = DdnRunner::new(program, "매마디");
+        runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).expect("existing collection-level category");
+    }
+
+    #[test]
+    fn wo02_inferred_local_and_first_binding_types_are_fixed() {
+        for body in ["값 := 1. 값 <- \"가\".", "값 <- 1. 값 <- \"가\"."] {
+            let source = format!("검산:움직씨 := {{ {body} }}");
+            let program = DdnProgram::from_v25_source(&source, "wo02.ddn").expect(&source);
+            let mut runner = DdnRunner::new(program, "검산");
+            let error = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).err().expect("reject different type");
+            assert!(error.to_string().contains("TYPE_MISMATCH"), "{error}");
+        }
+    }
+
+    #[test]
+    fn wo03_list_lookup_is_zero_based_and_preserves_absence() {
+        for (index, present) in [(0, true), (1, true), (2, false), (-1, false)] {
+            let source = format!("목록 <- (10, 20) 차림. p <- ((목록, {index}) 찾기) 있는가.");
+            let program = DdnProgram::from_v25_source(&source, "wo03.ddn").expect("parse");
+            let output = DdnRunner::new(program, "매마디")
+                .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).expect("lookup");
+            assert!(matches!(output.resources.get("p"), Some(RuntimeValue::Bool(value)) if *value == present));
+        }
+        for source in [
+            "목록 <- (10, 20) 차림. (목록, 0.5) 찾기 보여주기.",
+            "목록 <- (없음, 20) 차림. (목록, 0) 찾기 보여주기.",
+        ] {
+            let program = DdnProgram::from_v25_source(source, "wo03.ddn").expect("parse");
+            assert!(DdnRunner::new(program, "매마디")
+                .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).is_err());
+        }
+    }
+
+    #[test]
+    fn wo03_text_lookup_never_substitutes_codepoints_or_legacy_substring() {
+        for expression in ["(\"가\", 0) 찾기", "(\"é\", 0) 찾기", "(\"가나\", \"나\") 찾기"] {
+            let source = format!("결과 <- {expression}. 결과 보여주기.");
+            let program = DdnProgram::from_v25_source(&source, "wo03.ddn").expect("parse");
+            let error = DdnRunner::new(program, "매마디")
+                .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).err().expect("no silent substitution");
+            assert!(error.contains("E_RUNTIME_TEXT_LOOKUP_UNSUPPORTED"), "{error}");
+        }
+    }
+
+    #[test]
+    fn wo02_stored_none_lookup_fails_closed_but_missing_key_remains_absent() {
+        for function in ["찾기", "찾기?", "짝맞춤.값"] {
+            let source = format!("m <- (\"a\", 없음) 짝맞춤. p <- ((m, \"a\") {function}) 있는가.");
+            let program = DdnProgram::from_v25_source(&source, "wo02.ddn").expect(&source);
+            let mut runner = DdnRunner::new(program, "매마디");
+            let error = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).err().expect("stored None must not become absent");
+            assert!(error.to_string().contains("E_RUNTIME_NESTED_OPTIONAL_UNSUPPORTED"), "{error}");
+        }
+        let source = "m <- (\"a\", 없음) 짝맞춤. p <- ((m, \"zz\") 찾기) 있는가.";
+        let program = DdnProgram::from_v25_source(source, "wo02.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매마디");
+        let output = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).expect("missing key");
+        assert!(matches!(output.resources.get("p"), Some(RuntimeValue::Bool(false))));
+    }
+
+    #[test]
     fn v25_definition_then_rebinding_executes_as_distinct_local_operations() {
         let script = crate::self_contained_test_sources::V25_DEFINITION_AND_BINDING;
         let program = DdnProgram::from_v25_source(script, "pc01_runtime.ddn")
@@ -19636,6 +22046,581 @@ mod tests {
     }
 
     #[test]
+    fn v25_root_binding_rebinding_executes_without_a_synthetic_callable() {
+        let source = "값 <- 0.\n값 <- 값 + 1.\n값 보여주기.\n";
+        let program = DdnProgram::from_v25_source(source, "root_binding.ddn")
+            .expect("V25 root program parses");
+        assert!(program.has_root_program());
+        assert!(program.functions.is_empty());
+
+        let mut runner = DdnRunner::new(program, "매마디");
+        let output = runner
+            .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .expect("root binding program executes");
+        assert_eq!(extract_fixed(&output.resources, "값"), Fixed64::from_i64(1));
+
+        let Some(RuntimeValue::List(entries)) = output.resources.get("output_log") else {
+            panic!("root show must publish an output log entry");
+        };
+        assert_eq!(entries.len(), 1);
+    }
+
+    #[test]
+    fn alpha2_deferred_time_tokens_do_not_reject_text_or_other_namespaces() {
+        for source in [
+            "글 := \"표준시간.고정마디\".",
+            "결과 := () 다른.표준시간.고정마디.",
+        ] {
+            assert!(validate_alpha2_bogae_time_surface(source).is_ok(), "{source}");
+        }
+        for source in [
+            "시간 := (마디=2) 표준시간.고정마디.",
+            "시간 := (차이=-1) 표준시간.상대마디.",
+        ] {
+            let error = DdnProgram::from_v25_source(source, "time.ddn").err().expect("unsupported");
+            assert!(error.contains("E_BOGAE_TIME_POLICY_UNSUPPORTED"), "{error}");
+            assert!(error.contains("알파3"), "{error}");
+        }
+    }
+
+    #[test]
+    fn alpha2_primary_relation_accepts_only_a_typed_view() {
+        let source = "보기:보기값 := () 표준보기.결과표. 기본:으뜸보개관계값 := (보기=보기) 표준보개.으뜸. 기본 보여주기.";
+        let program = DdnProgram::from_v25_source(source, "alpha2_primary.ddn")
+            .expect("official V25 named-pin source");
+        let mut runner = DdnRunner::new(program, "매마디");
+        let output = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .expect("typed primary constructor");
+        let Some(RuntimeValue::List(rows)) = output.resources.get("output_log") else {
+            panic!("show must publish a text row");
+        };
+        let RuntimeValue::Map(row) = &rows[0] else { panic!("output row"); };
+        assert!(row.values().any(|entry| matches!((&entry.key, &entry.value),
+            (RuntimeValue::String(key), RuntimeValue::String(text))
+                if key == "text" && text == "<으뜸보개관계값>")));
+        assert!(output.patch.ops.iter().all(|op| !matches!(op,
+            PatchOp::SetResourceJson { tag, .. }
+            | PatchOp::SetResourceFixed64 { tag, .. }
+            | PatchOp::SetResourceValue { tag, .. } if tag == "기본")));
+
+        let program = DdnProgram::from_v25_source(
+            "기본 := (보기=\"결과표\") 표준보개.으뜸.", "alpha2_fake_primary.ddn")
+            .expect("source parses without a test-only rewrite");
+        let mut runner = DdnRunner::new(program, "매마디");
+        let error = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .err().expect("plain string rejected");
+        assert!(error.to_string().contains("보기값"), "{error}");
+    }
+
+    #[test]
+    fn alpha2_composition_accepts_typed_flat_relations_without_world_publication() {
+        let source = "보기 := () 표준보기.결과표. 기본 := (보기=보기) 표준보개.으뜸. 짜임:보개짜임값 := (관계들=차림[기본]) 표준보개.짜임. 짜임 보여주기.";
+        let program = DdnProgram::from_v25_source(source, "alpha2_composition.ddn").unwrap();
+        let mut runner = DdnRunner::new(program, "매마디");
+        let output = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).unwrap();
+        let Some(RuntimeValue::List(rows)) = output.resources.get("output_log") else { panic!("output row"); };
+        let RuntimeValue::Map(row) = &rows[0] else { panic!("output row map"); };
+        assert!(row.values().any(|entry| matches!((&entry.key, &entry.value),
+            (RuntimeValue::String(key), RuntimeValue::String(text))
+                if key == "text" && text == "<보개짜임값>")));
+        assert!(output.patch.ops.iter().all(|op| !matches!(op,
+            PatchOp::SetResourceJson { tag, .. }
+            | PatchOp::SetResourceFixed64 { tag, .. }
+            | PatchOp::SetResourceValue { tag, .. } if tag == "짜임")));
+    }
+
+    #[test]
+    fn alpha2_collection_search_compares_nested_coordinates() {
+        let source = "칸들 <- 차림[차림[0, 1], 차림[2, 3]]. ((칸들, 차림[2, 3]) 들어있나) 보여주기. ((칸들, 차림[2, 3]) 찾아보기) 보여주기. ((칸들, 차림[3, 2]) 들어있나) 보여주기. ((칸들, 차림[3, 2]) 찾아보기) 보여주기.";
+        let program = DdnProgram::from_v25_source(source, "alpha2_coordinate_search.ddn").unwrap();
+        let mut runner = DdnRunner::new(program, "매마디");
+        let output = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).unwrap();
+        let Some(RuntimeValue::List(rows)) = output.resources.get("output_log") else { panic!("output rows"); };
+        assert_eq!(rows.len(), 4);
+        for (row, expected) in rows.iter().zip(["참", "1", "거짓", "-1"]) {
+            let RuntimeValue::Map(row) = row else { panic!("output row"); };
+            assert!(row.values().any(|entry| matches!((&entry.key, &entry.value),
+                (RuntimeValue::String(key), RuntimeValue::String(text)) if key == "text" && text == expected)));
+        }
+    }
+
+    #[test]
+    fn alpha2_collection_search_rejects_nested_resource_equality() {
+        let program = DdnProgram::from_v25_source("", "alpha2_search.ddn").unwrap();
+        let world = NuriWorld::new();
+        let defaults = HashMap::new();
+        let context = EvalContext::new(&program, &world, &defaults, None, InputState::new(0, 0), 0, 0, None);
+        let candidate = Value::List(vec![Value::ResourceHandle(ResourceHandle::from_raw(1))]);
+        let error = context.eval_collection_search_equality(&candidate, &candidate).unwrap_err().to_string();
+        assert!(error.contains("E_VALUE_EQUALITY_UNSUPPORTED"), "{error}");
+        assert!(error.contains("왼쪽$[0]"), "{error}");
+    }
+
+    #[test]
+    fn alpha2_exact_equality_compares_nested_ordered_values() {
+        let program = DdnProgram::from_v25_source("", "alpha2_equality.ddn").unwrap();
+        let world = NuriWorld::new();
+        let defaults = HashMap::new();
+        let runner = EvalContext::new(&program, &world, &defaults, None, InputState::new(0, 0), 0, 0, None);
+        let value = Value::List(vec![Value::List(vec![Value::Bool(true), Value::Bool(false)])]);
+        let reversed = Value::List(vec![Value::List(vec![Value::Bool(false), Value::Bool(true)])]);
+        assert!(runner.eval_exact_value_equality(&value, &value).unwrap());
+        assert!(!runner.eval_exact_value_equality(&value, &reversed).unwrap());
+        assert!(!runner.eval_exact_value_equality(&value, &Value::List(vec![])).unwrap());
+        for wrap in [0, 1, 2] {
+            let fields = BTreeMap::from([("가".to_string(), value.clone())]);
+            let wrapped = match wrap {
+                0 => Value::Pack(fields),
+                1 => Value::Set(fields),
+                _ => Value::Map(BTreeMap::from([("가".to_string(), MapEntry {
+                    key: Value::String("가".to_string()), value: value.clone(),
+                })])),
+            };
+            assert!(runner.eval_exact_value_equality(&wrapped, &wrapped).unwrap());
+        }
+    }
+
+    #[test]
+    fn alpha2_exact_equality_rejects_unread_later_incomparable_values() {
+        let program = DdnProgram::from_v25_source("", "alpha2_equality.ddn").unwrap();
+        let world = NuriWorld::new();
+        let defaults = HashMap::new();
+        let runner = EvalContext::new(&program, &world, &defaults, None, InputState::new(0, 0), 0, 0, None);
+        let bad = Value::List(vec![Value::Bool(true), Value::List(vec![
+            Value::ResourceHandle(ResourceHandle::from_raw(1)),
+        ])]);
+        let other = Value::List(vec![Value::Bool(false)]);
+        for (left, right, operand) in [(&bad, &other, "왼쪽"), (&other, &bad, "오른쪽")] {
+            let error = runner.eval_exact_value_equality(left, right).unwrap_err().to_string();
+            assert!(error.contains("E_VALUE_EQUALITY_UNSUPPORTED"), "{error}");
+            assert!(error.contains(&format!("{operand}$[1][0]")), "{error}");
+        }
+    }
+
+    #[test]
+    fn alpha2_exact_equality_preserves_nested_diagnostic_paths() {
+        let program = DdnProgram::from_v25_source("", "alpha2_equality.ddn").unwrap();
+        let world = NuriWorld::new();
+        let defaults = HashMap::new();
+        let runner = EvalContext::new(&program, &world, &defaults, None, InputState::new(0, 0), 0, 0, None);
+        let bad = Value::ResourceHandle(ResourceHandle::from_raw(1));
+        let field = "칸\"이름".to_string();
+        let packed = Value::Pack(BTreeMap::from([(field.clone(), bad.clone())]));
+        let cases = [
+            (Value::List(vec![packed.clone()]), format!("[0][{}]", serde_json::to_string(&field).unwrap())),
+            (Value::Set(BTreeMap::from([("가".into(), packed)])), format!("[모음:0][{}]", serde_json::to_string(&field).unwrap())),
+            (Value::Map(BTreeMap::from([("가".into(), MapEntry { key: bad.clone(), value: Value::Bool(true) })])), "[짝:0].열쇠".into()),
+            (Value::Map(BTreeMap::from([("가".into(), MapEntry { key: Value::String("가".into()), value: bad })])), "[짝:0].값".into()),
+        ];
+        for (value, path) in cases {
+            let error = runner.validate_exact_comparison_value(&value, "오른쪽").unwrap_err().to_string();
+            assert_eq!(error, format!("E_VALUE_EQUALITY_UNSUPPORTED: 오른쪽${path}의 값은 기본 동등성 비교를 지원하지 않습니다"));
+        }
+    }
+
+    #[test]
+    fn alpha2_exact_equality_uses_official_source_operators() {
+        let source = "판 <- 차림[차림[1, 2], 차림[3, 4]]. (판 == 판) 보여주기. (판 != 차림[차림[1, 2], 차림[4, 3]]) 보여주기.";
+        let program = DdnProgram::from_v25_source(source, "alpha2_equality.ddn").unwrap();
+        let mut runner = DdnRunner::new(program, "매마디");
+        let output = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).unwrap();
+        let Some(RuntimeValue::List(rows)) = output.resources.get("output_log") else { panic!("output rows"); };
+        assert_eq!(rows.len(), 2);
+        for row in rows {
+            let RuntimeValue::Map(row) = row else { panic!("output row"); };
+            assert!(row.values().any(|entry| matches!((&entry.key, &entry.value),
+                (RuntimeValue::String(key), RuntimeValue::String(text)) if key == "text" && text == "참")));
+        }
+    }
+
+    #[test]
+    fn alpha2_scene_elements_append_without_comparison_but_equality_rejects() {
+        let prefix = "() 원그림:장면값:셈씨 := { 원 <- (중심=차림[0,0],반지름=1) 표준장면.원. 요소들 <- 차림[원]. 요소들 <- (요소들,원) 추가. 원그림 <- (요소들=요소들,가로범위=차림[-2,2],세로범위=차림[-2,2]) 표준장면.평면. }. 장면 := () 원그림.";
+        let program = DdnProgram::from_v25_source(prefix, "scene_append.ddn").unwrap();
+        let mut runner = DdnRunner::new(program, "매마디");
+        runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).unwrap();
+        let program = DdnProgram::from_v25_source(&format!("{prefix}(장면 == 장면) 보여주기."), "scene_equality.ddn").unwrap();
+        let mut runner = DdnRunner::new(program, "매마디");
+        let error = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).err().expect("scene equality rejected");
+        assert!(error.to_string().contains("E_SCENE_OPERATION_UNSUPPORTED"));
+    }
+
+    #[test]
+    fn alpha2_nested_selection_rebuilds_only_the_named_root() {
+        let source = "판 <- 차림[차림[0, 0], 차림[0, 0]]. 이전 <- 판. 행 <- 1. 열 <- 0. 판[행][열] <- 7. (이전[1][0]) 보여주기. (판[1][0]) 보여주기. (판[0][0]) 보여주기.";
+        let program = DdnProgram::from_v25_source(source, "alpha2_nested_write.ddn").unwrap();
+        let mut runner = DdnRunner::new(program, "매마디");
+        let output = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).unwrap();
+        let Some(RuntimeValue::List(rows)) = output.resources.get("output_log") else { panic!("output rows"); };
+        assert_eq!(rows.len(), 3);
+        for (row, expected) in rows.iter().zip(["0", "7", "0"]) {
+            let RuntimeValue::Map(row) = row else { panic!("output row map"); };
+            assert!(row.values().any(|entry| matches!((&entry.key, &entry.value),
+                (RuntimeValue::String(key), RuntimeValue::String(text)) if key == "text" && text == expected)));
+        }
+    }
+
+    #[test]
+    fn alpha2_nested_selection_rejects_every_missing_level() {
+        for indices in ["[2][0]", "[0][2]", "[-1][0]", "[0][-1]"] {
+            let source = format!("판 <- 차림[차림[0, 0], 차림[0, 0]]. 판{indices} <- 7.");
+            let program = DdnProgram::from_v25_source(&source, "alpha2_nested_bounds.ddn").unwrap();
+            let mut runner = DdnRunner::new(program, "매마디");
+            let error = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+                .err().expect("missing existing selection rejected");
+            assert!(error.to_string().contains("INDEX_OUT_OF_RANGE")
+                || error.to_string().contains("음수")
+                || error.to_string().contains("인덱스는 0 이상이어야 합니다"), "{indices}: {error}");
+        }
+    }
+
+    #[test]
+    fn alpha2_typed_constructor_errors_keep_the_authored_call_location() {
+        for newline in ["\n", "\r\n"] {
+            let body = "기본 := (보기=(() 표준보기.결과표)) 표준보개.으뜸.\n짜임 := (관계들=차림[기본,기본]) 표준보개.짜임.";
+            let source = format!("{newline}{newline}{}", body.replace('\n', newline));
+            let program = DdnProgram::from_v25_source(&source, "한글_진단.ddn").unwrap();
+            let mut runner = DdnRunner::new(program, "매마디");
+            let error = runner.run_update_diagnostic(&NuriWorld::new(), &empty_input(), &HashMap::new())
+                .err().expect("duplicate primary rejected");
+            let (code, message, span) = error.diagnostic_parts();
+            assert_eq!(code, "E_RUNTIME_EXECUTION", "existing classification preserved");
+            assert!(message.contains("E_BOGAE_PRIMARY_COUNT"));
+            assert!(message.contains("(4:"), "{message}");
+            let (start,end) = span.expect("structured source span");
+            assert!(source[start..end].contains("표준보개.짜임"));
+        }
+    }
+
+    #[test]
+    fn alpha2_nested_typed_constructor_error_keeps_inner_location() {
+        let source = "\n\n그림 := (장면=((요소들=차림[\n  (중심=차림[0,0], 반지름=0) 표준장면.원\n], 가로범위=차림[-1,1], 세로범위=차림[-1,1]) 표준장면.평면)) 표준보기.장면.";
+        let program = DdnProgram::from_v25_source(source, "중첩.ddn").unwrap();
+        let mut runner = DdnRunner::new(program, "매마디");
+        let error = runner.run_update_diagnostic(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .err().expect("nonpositive radius rejected");
+        let (_,message,span)=error.diagnostic_parts();
+        assert!(message.contains("E_SCENE_RADIUS"));
+        assert!(message.contains("(4:"), "{message}");
+        let (start,end)=span.unwrap();
+        assert!(source[start..end].contains("표준장면.원"));
+        assert!(!source[start..end].contains("표준장면.평면"));
+    }
+
+    #[test]
+    fn alpha2_composition_rejects_primary_count_and_nonflat_carriers() {
+        let prefix = "보기 := () 표준보기.결과표. 기본 := (보기=보기) 표준보개.으뜸. ";
+        let empty_source = format!("{prefix}짜임 := (관계들=차림[]) 표준보개.짜임.");
+        let error = DdnProgram::from_v25_source(&empty_source, "alpha2_empty_composition.ddn")
+            .err().expect("untyped empty list rejected by canonical parser");
+        assert!(error.contains("E_COLLECTION_CONSTRUCTOR_ELEMENT_TYPE_REQUIRED"));
+        for (relations, code) in [
+            ("차림[기본, 기본]", "E_BOGAE_PRIMARY_COUNT"),
+            ("차림[차림[기본]]", "E_BOGAE_UNSUPPORTED"),
+            ("차림[\"으뜸\"]", "E_BOGAE_UNSUPPORTED"),
+            ("기본", "E_BOGAE_UNSUPPORTED"),
+        ] {
+            let source = format!("{prefix}짜임 := (관계들={relations}) 표준보개.짜임.");
+            let program = DdnProgram::from_v25_source(&source, "alpha2_invalid_composition.ddn").unwrap();
+            let mut runner = DdnRunner::new(program, "매마디");
+            let error = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).err().expect("invalid composition rejected");
+            assert!(error.to_string().contains(code), "{relations}: {error}");
+        }
+    }
+
+    #[test]
+    fn alpha2_composition_identity_operations_remain_unresolved() {
+        let prefix = "보기 := () 표준보기.결과표. 기본 := (보기=보기) 표준보개.으뜸. 짜임 := (관계들=차림[기본]) 표준보개.짜임. ";
+        for operation in [
+            "(짜임 == 짜임) 보여주기.",
+            "결과 := (짜임, 짜임) 모음.",
+            "결과 := (짜임, 1) 짝맞춤.",
+            "결과 := (차림[짜임], 짜임) 찾아보기.",
+            "결과 := (관계들=차림[짜임]) 표준보개.짜임.",
+        ] {
+            let source = format!("{prefix}{operation}");
+            let program = DdnProgram::from_v25_source(&source, "alpha2_unresolved_composition.ddn").unwrap();
+            let mut runner = DdnRunner::new(program, "매마디");
+            let error = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).err().expect("unresolved composition rejected");
+            assert!(error.to_string().contains("정체 해소 전")
+                || error.to_string().contains("E_BOGAE_UNSUPPORTED"), "{operation}: {error}");
+        }
+    }
+
+    #[test]
+    fn alpha2_relation_guard_counts_repeated_visits_and_map_keys() {
+        let value = Value::List(vec![Value::Bool(false); 64]);
+        let mut meter = WorkCostMeter::default();
+        for _ in 0..3 {
+            assert!(!contains_unresolved_bogae_relation(&value, &mut meter).unwrap());
+        }
+        assert_eq!(meter.receipt().counters.collection_tensor_element_visits, 195);
+        let map = Value::Map(BTreeMap::from([("key".to_string(), MapEntry {
+            key: Value::List(vec![Value::Bool(true)]),
+            value: Value::Bool(false),
+        })]));
+        assert!(!contains_unresolved_bogae_relation(&map, &mut meter).unwrap());
+        assert_eq!(meter.receipt().counters.collection_tensor_element_visits, 199);
+    }
+
+    #[test]
+    fn alpha2_relation_guard_is_iterative_for_deep_values() {
+        let mut value = Value::Bool(false);
+        for _ in 0..4096 {
+            value = Value::List(vec![value]);
+        }
+        let mut meter = WorkCostMeter::default();
+        assert!(!contains_unresolved_bogae_relation(&value, &mut meter).unwrap());
+        assert_eq!(meter.receipt().counters.collection_tensor_element_visits, 4097);
+        // 검사뿐 아니라 시험 값 폐기도 Rust 재귀를 사용하지 않는다.
+        while let Value::List(mut items) = value {
+            value = items.pop().unwrap();
+        }
+    }
+
+    #[test]
+    fn alpha2_relation_guard_propagates_meter_overflow() {
+        let mut counters = crate::work_cost::WorkCostCounters::default();
+        counters.work_cost = u64::MAX;
+        let mut meter = WorkCostMeter::from_receipt_parts(
+            counters, StandardResourceLimitsV1::CANDIDATE, false);
+        let error = contains_unresolved_bogae_relation(&Value::Bool(false), &mut meter)
+            .err().expect("guard must not ignore accounting failure");
+        assert!(error.to_string().contains("E_WORK_COST_OVERFLOW_CANDIDATE"));
+    }
+
+    #[test]
+    fn alpha2_unresolved_relations_do_not_merge_as_collection_keys() {
+        let prefix = "보기 := () 표준보기.결과표. 기본 := (보기=보기) 표준보개.으뜸. ";
+        for operation in [
+            "결과 := (기본, 기본) 모음.",
+            "결과 := (기본, 1) 짝맞춤.",
+            "결과 := (차림[기본], 기본) 들어있나.",
+            "결과 := (차림[기본], 기본) 찾아보기.",
+            "결과 := (차림[기본], 차림[기본]) 모음.",
+        ] {
+            let source = format!("{prefix}{operation}");
+            let program = DdnProgram::from_v25_source(&source, "alpha2_relation_collection.ddn")
+                .expect("official source parses");
+            let mut runner = DdnRunner::new(program, "매마디");
+            let error = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+                .err().expect("unresolved relation must not silently merge or search");
+            assert!(error.to_string().contains("E_BOGAE_RELATION_UNRESOLVED"), "{operation}: {error}");
+        }
+
+        let source = format!("{prefix}관계들 := 차림[기본, 기본].");
+        let program = DdnProgram::from_v25_source(&source, "alpha2_relation_list.ddn").unwrap();
+        let mut runner = DdnRunner::new(program, "매마디");
+        runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .expect("ordered authored transport is not identity-based merging");
+    }
+
+    #[test]
+    fn alpha2_unresolved_relation_comparison_fails_closed() {
+        let source = "보기 := () 표준보기.결과표. 기본 := (보기=보기) 표준보개.으뜸. (기본 == 기본) 보여주기.";
+        let program = DdnProgram::from_v25_source(source, "alpha2_relation_compare.ddn")
+            .expect("official source frontdoor");
+        let mut runner = DdnRunner::new(program, "매마디");
+        let error = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .err().expect("unresolved identity is not view-content equality");
+        assert!(error.to_string().contains("정체 해소 전"), "{error}");
+    }
+
+    #[test]
+    fn alpha2_result_table_is_a_typed_non_world_view_binding() {
+        let source = "보기:보기값 := () 표준보기.결과표. 보기 보여주기.";
+        let program = DdnProgram::from_v25_source(source, "alpha2_result_table.ddn")
+            .expect("official V25 frontdoor");
+        let mut runner = DdnRunner::new(program, "매마디");
+        let output = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .expect("shared runtime constructor");
+        let Some(RuntimeValue::List(rows)) = output.resources.get("output_log") else {
+            panic!("show must publish a text row");
+        };
+        let RuntimeValue::Map(row) = &rows[0] else { panic!("output row"); };
+        assert!(row.values().any(|entry| matches!((&entry.key, &entry.value),
+            (RuntimeValue::String(key), RuntimeValue::String(text))
+                if key == "text" && text == "<보기값:결과표>")));
+        assert!(output.patch.ops.iter().all(|op| !matches!(op,
+            PatchOp::SetResourceJson { tag, .. }
+            | PatchOp::SetResourceFixed64 { tag, .. }
+            | PatchOp::SetResourceValue { tag, .. } if tag == "보기")));
+    }
+
+    #[test]
+    fn alpha2_view_type_rejects_a_plain_string_in_actual_source() {
+        let program = DdnProgram::from_v25_source(
+            "보기:보기값 := \"결과표\".", "alpha2_fake_view.ddn")
+            .expect("typed source parses");
+        let mut runner = DdnRunner::new(program, "매마디");
+        let error = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .err().expect("plain text is not a view");
+        assert!(error.to_string().contains("보기값"), "{error}");
+    }
+
+    #[test]
+    fn v25_root_rebinding_type_mismatch_fails_before_any_run_output_is_published() {
+        let source = "값 <- 0.\n값 <- \"글\".\n값 보여주기.\n";
+        let program = DdnProgram::from_v25_source(source, "root_binding_type_mismatch.ddn")
+            .expect("V25 root program parses");
+        let mut runner = DdnRunner::new(program, "매마디");
+        let error = match runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()) {
+            Ok(_) => panic!("root rebinding type mismatch must fail closed"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("E_ROOT_BINDING_TYPE_MISMATCH"));
+    }
+
+    #[test]
+    fn pg_cli_text_and_number_addition_fails_typed_before_output_publication() {
+        let source = "점수 <- 7.\n\"점수: \" + 점수 보여주기.\n";
+        let program = DdnProgram::from_v25_source(source, "pg_cli_text_number_addition.ddn")
+            .expect("the current source must reach the runtime type boundary");
+        let mut runner = DdnRunner::new(program, "매마디");
+        let world = NuriWorld::new();
+        let error = match runner.run_update(&world, &empty_input(), &HashMap::new()) {
+            Ok(_) => panic!("implicit text-number addition must fail closed"),
+            Err(error) => error,
+        };
+
+        assert!(
+            error.to_string().contains("E_RUNTIME_TYPE_MISMATCH"),
+            "{error}"
+        );
+        assert!(world.get_resource_value("output_log").is_none());
+        assert!(world.get_resource_value("점수").is_none());
+    }
+
+    #[test]
+    fn pg_cli_text_addition_uses_the_existing_glro_conversion_owner() {
+        let source = "점수 <- 7.\n\"점수: \" + (점수) 글로 보여주기.\n";
+        let program = DdnProgram::from_v25_source(source, "pg_cli_explicit_text_conversion.ddn")
+            .expect("the explicit current conversion surface parses");
+        let mut runner = DdnRunner::new(program, "매마디");
+        let output = runner
+            .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .expect("explicit 글로 conversion must reach normal string addition");
+        let Some(RuntimeValue::List(entries)) = output.resources.get("output_log") else {
+            panic!("the successful explicit conversion must publish one output entry");
+        };
+        let RuntimeValue::Map(entry) = entries.first().expect("one output entry") else {
+            panic!("output entry must be a map");
+        };
+        let text = entry
+            .values()
+            .find(|field| matches!(&field.key, RuntimeValue::String(key) if key == "text"))
+            .and_then(|field| match &field.value {
+                RuntimeValue::String(value) => Some(value.as_str()),
+                _ => None,
+            });
+        assert_eq!(text, Some("점수: 7"));
+    }
+
+    #[test]
+    fn pg_cli_collection_constructor_executes_in_authored_order() {
+        let source = r#"검산:움직씨 := {
+    목록:(수)차림 := 차림[1, 2, 3].
+    목록 보여주기.
+}
+"#;
+        let program = DdnProgram::from_v25_source(source, "collection_constructor.ddn")
+            .expect("current collection source parses");
+        let mut runner = DdnRunner::new(program, "검산");
+        let output = runner
+            .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .expect("collection constructor executes");
+        let Some(RuntimeValue::List(entries)) = output.resources.get("output_log") else {
+            panic!("successful show must publish the output log");
+        };
+        let RuntimeValue::Map(entry) = entries.first().expect("one output entry") else {
+            panic!("output entry must be a map");
+        };
+        let text = entry
+            .values()
+            .find(|field| matches!(&field.key, RuntimeValue::String(key) if key == "text"))
+            .and_then(|field| match &field.value {
+                RuntimeValue::String(value) => Some(value.as_str()),
+                _ => None,
+            });
+        assert_eq!(text, Some("차림[1, 2, 3]"));
+    }
+
+    #[test]
+    fn pg_cli_collection_constructor_type_failure_has_no_output_publication() {
+        let source = r#"검산:움직씨 := {
+    목록 <- 차림[1, "글"].
+    목록 보여주기.
+}
+"#;
+        let program = DdnProgram::from_v25_source(source, "collection_constructor_mixed.ddn")
+            .expect("mixed source reaches the typed runtime boundary");
+        let mut runner = DdnRunner::new(program, "검산");
+        let world = NuriWorld::new();
+        let error = match runner.run_update(&world, &empty_input(), &HashMap::new()) {
+            Ok(_) => panic!("mixed element types must fail closed"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("차림") || error.to_string().contains("타입"));
+        assert!(world.get_resource_value("output_log").is_none());
+        assert!(world.get_resource_value("목록").is_none());
+    }
+
+    #[test]
+    fn pg_cli_selection_place_rebinds_the_root_once() {
+        let source = r#"검산:움직씨 := {
+    목록:(수)차림 := 차림[1, 2, 3].
+    목록[1] <- 9.
+    목록 보여주기.
+}
+"#;
+        let program = DdnProgram::from_v25_source(source, "selection_place.ddn")
+            .expect("current selection source parses");
+        let mut runner = DdnRunner::new(program, "검산");
+        let output = runner
+            .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .expect("indexed replacement executes");
+        let Some(RuntimeValue::List(entries)) = output.resources.get("output_log") else {
+            panic!("successful show must publish the output log");
+        };
+        let RuntimeValue::Map(entry) = entries.first().expect("one output entry") else {
+            panic!("output entry must be a map");
+        };
+        let text = entry
+            .values()
+            .find(|field| matches!(&field.key, RuntimeValue::String(key) if key == "text"))
+            .and_then(|field| match &field.value {
+                RuntimeValue::String(value) => Some(value.as_str()),
+                _ => None,
+            });
+        assert_eq!(text, Some("차림[1, 9, 3]"));
+    }
+
+    #[test]
+    fn pg_cli_selection_place_failure_has_no_partial_root_or_output_publication() {
+        let source = r#"검산:움직씨 := {
+    목록:(수)차림 := 차림[1, 2, 3].
+    목록[3] <- 9.
+    목록 보여주기.
+}
+"#;
+        let program = DdnProgram::from_v25_source(source, "selection_place_range.ddn")
+            .expect("current selection source parses");
+        let mut runner = DdnRunner::new(program, "검산");
+        let world = NuriWorld::new();
+        let error = match runner.run_update(&world, &empty_input(), &HashMap::new()) {
+            Ok(_) => panic!("out-of-range indexed replacement must fail closed"),
+            Err(error) => error,
+        };
+        assert!(
+            error.to_string().contains("CHARIM_INDEX_OUT_OF_RANGE"),
+            "unexpected selection failure: {}",
+            error
+        );
+        assert!(world.get_resource_value("목록").is_none());
+        assert!(world.get_resource_value("output_log").is_none());
+    }
+
+    #[test]
     fn v25_typed_legacy_equals_fails_before_runtime_state_exists() {
         let script = "계산:움직씨 := {\n    값:수 = 1.\n}\n";
         let error = match DdnProgram::from_v25_source(script, "pc01_typed_legacy_equals.ddn") {
@@ -19643,6 +22628,100 @@ mod tests {
             Err(error) => error,
         };
         assert!(error.contains("E_V25_DEFINITION_MIGRATION_REQUIRED"));
+    }
+
+    #[test]
+    fn pg_cli_rd406_named_single_expression_callable_runs_and_checks_its_result_type() {
+        let source = r#"자리번호 (가로:셈수, 세로:셈수 --> 셈수) := 세로 * 10 + 가로.
+
+검산:움직씨 := {
+    (4, 3) 자리번호 보여주기.
+}
+"#;
+        let program = DdnProgram::from_v25_source(source, "pg_cli_pure_callable.ddn")
+            .expect("named callable source parses through the shared runtime frontdoor");
+        let mut runner = DdnRunner::new(program, "검산");
+        let output = runner
+            .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .expect("typed named callable executes");
+        let Some(RuntimeValue::List(entries)) = output.resources.get("output_log") else {
+            panic!("successful show must publish the output log");
+        };
+        let RuntimeValue::Map(entry) = entries.first().expect("one output entry") else {
+            panic!("output entry must be a map");
+        };
+        let text = entry
+            .values()
+            .find(|field| matches!(&field.key, RuntimeValue::String(key) if key == "text"))
+            .and_then(|field| match &field.value {
+                RuntimeValue::String(value) => Some(value.as_str()),
+                _ => None,
+            });
+        assert_eq!(text, Some("34"));
+
+        let wrong_result = r#"자리번호 (가로:셈수 --> 셈수) := "글".
+검산:움직씨 := { (4) 자리번호 보여주기. }
+"#;
+        let program = DdnProgram::from_v25_source(wrong_result, "pg_cli_pure_callable_bad.ddn")
+            .expect("result type failure reaches the runtime boundary");
+        let mut runner = DdnRunner::new(program, "검산");
+        let world = NuriWorld::new();
+        let error = match runner.run_update(&world, &empty_input(), &HashMap::new()) {
+            Ok(_) => panic!("wrong typed callable result must fail closed"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("자리번호 결과"));
+        assert!(world.get_resource_value("output_log").is_none());
+    }
+
+    #[test]
+    fn pg_cli_result_flow_updates_a_selection_only_after_the_candidate_is_ready() {
+        let source = r#"검산:움직씨 := {
+    판:(수)차림 := 차림[0, 0].
+    1 -> 판[0].
+    판 보여주기.
+}
+"#;
+        let program = DdnProgram::from_v25_source(source, "pg_cli_result_flow.ddn")
+            .expect("result-flow source parses through the shared runtime frontdoor");
+        let mut runner = DdnRunner::new(program, "검산");
+        let output = runner
+            .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .expect("a valid immutable selection replacement runs");
+        let Some(RuntimeValue::List(entries)) = output.resources.get("output_log") else {
+            panic!("successful result-flow show must publish one output entry");
+        };
+        let RuntimeValue::Map(entry) = entries.first().expect("one output entry") else {
+            panic!("output entry must be a map");
+        };
+        let text = entry
+            .values()
+            .find(|field| matches!(&field.key, RuntimeValue::String(key) if key == "text"))
+            .and_then(|field| match &field.value {
+                RuntimeValue::String(value) => Some(value.as_str()),
+                _ => None,
+            });
+        assert_eq!(text, Some("차림[1, 0]"));
+
+        let invalid = r#"검산:움직씨 := {
+    판:(수)차림 := 차림[0].
+    1 -> 판[2].
+    판 보여주기.
+}
+"#;
+        let program = DdnProgram::from_v25_source(invalid, "pg_cli_result_flow_bounds.ddn")
+            .expect("invalid index is a runtime candidate failure, not parser lowering");
+        let mut runner = DdnRunner::new(program, "검산");
+        let world = NuriWorld::new();
+        let error = match runner.run_update(&world, &empty_input(), &HashMap::new()) {
+            Ok(_) => panic!("out-of-range result-flow must fail closed"),
+            Err(error) => error,
+        };
+        assert!(
+            error.to_string().contains("FATAL:CHARIM_INDEX_OUT_OF_RANGE"),
+            "unexpected result-flow failure: {error}"
+        );
+        assert!(world.get_resource_value("output_log").is_none());
     }
 
     #[test]
@@ -20459,9 +23538,11 @@ mod tests {
 매틱:움직씨 = { (철수)의 ((값=1) 첫알림) ~> 관제탑. }
 "#;
         let program = DdnProgram::from_source(zero, "successor_async_zero.ddn").expect("parse");
-        let error = match DdnRunner::new(program, "매틱")
-            .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
-        {
+        let error = match DdnRunner::new(program, "매틱").run_update(
+            &NuriWorld::new(),
+            &empty_input(),
+            &HashMap::new(),
+        ) {
             Ok(_) => panic!("zero route must fail"),
             Err(error) => error,
         };
@@ -20477,9 +23558,11 @@ mod tests {
 "#;
         let program =
             DdnProgram::from_source(multiple, "successor_async_multiple.ddn").expect("parse");
-        let error = match DdnRunner::new(program, "매틱")
-            .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
-        {
+        let error = match DdnRunner::new(program, "매틱").run_update(
+            &NuriWorld::new(),
+            &empty_input(),
+            &HashMap::new(),
+        ) {
             Ok(_) => panic!("multiple routes must fail"),
             Err(error) => error,
         };
@@ -20584,10 +23667,13 @@ mod tests {
 }
 매틱:움직씨 = { (영희)의 7 ~> 관제탑. }
 "#;
-        let program = DdnProgram::from_source(script, "successor_sender_mismatch.ddn").expect("parse");
-        let error = match DdnRunner::new(program, "매틱")
-            .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
-        {
+        let program =
+            DdnProgram::from_source(script, "successor_sender_mismatch.ddn").expect("parse");
+        let error = match DdnRunner::new(program, "매틱").run_update(
+            &NuriWorld::new(),
+            &empty_input(),
+            &HashMap::new(),
+        ) {
             Ok(_) => panic!("sender mismatch must not deliver"),
             Err(error) => error,
         };
@@ -20633,8 +23719,7 @@ mod tests {
 }
 매틱:움직씨 = { (철수)의 7 ~> 중계소. }
 "#;
-        let program =
-            DdnProgram::from_source(script, "successor_owner_sender.ddn").expect("parse");
+        let program = DdnProgram::from_source(script, "successor_owner_sender.ddn").expect("parse");
         let mut defaults = HashMap::new();
         defaults.insert(
             "받은".to_string(),
@@ -20656,12 +23741,13 @@ mod tests {
 관제탑:임자 = { 첫알림을 받으면 { 없음. }. }
 매틱:움직씨 = { (철수)의 ((값=1) 첫알림) ~> 관제탑. }
 "#;
-        let program =
-            DdnProgram::from_source(script, "successor_no_historical_auto_migration.ddn")
-                .expect("parse");
-        let error = match DdnRunner::new(program, "매틱")
-            .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
-        {
+        let program = DdnProgram::from_source(script, "successor_no_historical_auto_migration.ddn")
+            .expect("parse");
+        let error = match DdnRunner::new(program, "매틱").run_update(
+            &NuriWorld::new(),
+            &empty_input(),
+            &HashMap::new(),
+        ) {
             Ok(_) => panic!("historical receive hook must not become a successor route"),
             Err(error) => error,
         };
@@ -20674,18 +23760,19 @@ mod tests {
 관제탑:임자 = { (받은수:수)를 받으면 { 없음. }. }
 매틱:움직씨 = { 7 ~> 관제탑. }
 "#;
-        let program = DdnProgram::from_source(script, "successor_sender_missing.ddn").expect("parse");
-        let error = match DdnRunner::new(program, "매틱")
-            .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
-        {
+        let program =
+            DdnProgram::from_source(script, "successor_sender_missing.ddn").expect("parse");
+        let error = match DdnRunner::new(program, "매틱").run_update(
+            &NuriWorld::new(),
+            &empty_input(),
+            &HashMap::new(),
+        ) {
             Ok(_) => panic!("missing sender identity must fail closed"),
             Err(error) => error,
         };
-        assert!(
-            error
-                .to_string()
-                .contains("E_ASYNC_SENDER_IDENTITY_UNRESOLVED_CANDIDATE")
-        );
+        assert!(error
+            .to_string()
+            .contains("E_ASYNC_SENDER_IDENTITY_UNRESOLVED_CANDIDATE"));
     }
 
     #[test]
@@ -20753,6 +23840,114 @@ mod tests {
             let output = runner
                 .run_update(world.world(), &input, &HashMap::new())
                 .expect("run update");
+            observed.push(extract_fixed(&output.resources, "t"));
+            let mut sink = ddonirang_core::signals::VecSignalSink::default();
+            world.apply_patch(&output.patch, tick_id, &mut sink);
+        }
+
+        assert_eq!(
+            observed,
+            vec![
+                Fixed64::from_i64(1),
+                Fixed64::from_i64(2),
+                Fixed64::from_i64(3),
+            ]
+        );
+    }
+
+    #[test]
+    fn v25_pure_callable_bindings_do_not_leak_to_same_named_world_resources() {
+        let source = r#"
+(값:수) 지역계산:수:셈씨 := {
+    값 <- 값 + 1.
+    임시 <- 20.
+    임시 <- 임시 + 1.
+    지역계산 <- 값 + 임시.
+}.
+(시작)할때 { 값 <- 100. 임시 <- 300. }.
+(매마디)마다 { 결과 <- (값=2) 지역계산. }.
+"#;
+        let program = DdnProgram::from_v25_source(source, "pure_local_resource.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매마디");
+        let mut world = DetNuri::new();
+        for tick_id in 0..3 {
+            let mut input = empty_input(); input.tick_id = tick_id;
+            let output = runner.run_update(world.world(), &input, &HashMap::new()).expect("run");
+            assert_eq!(extract_fixed(&output.resources, "결과"), Fixed64::from_i64(24));
+            let mut sink = ddonirang_core::signals::VecSignalSink::default();
+            world.apply_patch(&output.patch, tick_id, &mut sink);
+            let resources = crate::runtime_surface::serialize_world_resources(world.world());
+            assert_eq!(resources["fixed64"]["값"], "100");
+            assert_eq!(resources["fixed64"]["임시"], "300");
+        }
+    }
+
+    #[test]
+    fn v25_resultless_pure_callable_bindings_remain_local() {
+        let source = r#"
+(값:수) 지역계산:셈씨 := { 값 <- 값 + 1. 임시 <- 20. }.
+(시작)할때 { 값 <- 100. 임시 <- 300. }.
+(매마디)마다 { (값=2) 지역계산. }.
+"#;
+        let program = DdnProgram::from_v25_source(source, "resultless_local.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매마디");
+        let mut world = DetNuri::new();
+        for tick_id in 0..3 {
+            let mut input = empty_input(); input.tick_id = tick_id;
+            let output = runner.run_update(world.world(), &input, &HashMap::new()).expect("run");
+            let mut sink = ddonirang_core::signals::VecSignalSink::default();
+            world.apply_patch(&output.patch, tick_id, &mut sink);
+            let resources = crate::runtime_surface::serialize_world_resources(world.world());
+            assert_eq!(resources["fixed64"]["값"], "100");
+            assert_eq!(resources["fixed64"]["임시"], "300");
+        }
+    }
+
+    #[test]
+    fn v25_result_flow_to_ordinary_pin_is_not_world_alias() {
+        let source = r#"
+(판:(수)차림) 지역계산:수:셈씨 := { 7 -> 판[0]. 지역계산 <- 판[0]. }.
+(시작)할때 { 판 <- 차림[100,300]. }.
+(매마디)마다 { 결과 <- (판=차림[2,3]) 지역계산. }.
+"#;
+        let program = DdnProgram::from_v25_source(source, "resultflow_local.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매마디");
+        let mut world = DetNuri::new();
+        for tick_id in 0..3 {
+            let mut input = empty_input(); input.tick_id = tick_id;
+            let output = runner.run_update(world.world(), &input, &HashMap::new()).expect("run");
+            assert_eq!(extract_fixed(&output.resources, "결과"), Fixed64::from_i64(7));
+            let mut sink = ddonirang_core::signals::VecSignalSink::default();
+            world.apply_patch(&output.patch, tick_id, &mut sink);
+            let resources = crate::runtime_surface::serialize_world_resources(world.world());
+            assert_eq!(resources["value_json"]["판"][0].as_f64(), Some(100.0));
+            assert_eq!(resources["value_json"]["판"][1].as_f64(), Some(300.0));
+        }
+    }
+
+    #[test]
+    fn v25_definition_binding_initializes_top_level_state_for_periodic_hook() {
+        let source = r#"
+채비 {
+  t: 수 := 0.
+}.
+
+(매마디)마다 {
+  t <- t + 1.
+}.
+"#;
+        let program = DdnProgram::from_v25_source(source, "v25_definition_hook.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매마디");
+        let mut world = DetNuri::new();
+        let mut observed = Vec::new();
+
+        for tick_id in 0..3 {
+            let mut input = empty_input();
+            input.tick_id = tick_id;
+            let output = runner
+                .run_update(world.world(), &input, &HashMap::new())
+                .expect("run periodic hook");
             observed.push(extract_fixed(&output.resources, "t"));
             let mut sink = ddonirang_core::signals::VecSignalSink::default();
             world.apply_patch(&output.patch, tick_id, &mut sink);
@@ -21013,6 +24208,54 @@ mod tests {
     }
 
     #[test]
+    fn bogae_omitted_numeric_defaults_are_exact_fixed64_raw_values() {
+        assert_eq!(BOGAE_DEFAULT_STROKE_WIDTH.raw_i64(), 85_899_345);
+        assert_eq!(BOGAE_DEFAULT_CIRCLE_RADIUS.raw_i64(), 343_597_383);
+        assert_eq!(BOGAE_DEFAULT_POINT_SIZE.raw_i64(), 193_273_528);
+        assert_eq!(BOGAE_DEFAULT_RECT_WIDTH.raw_i64(), 858_993_459);
+        assert_eq!(BOGAE_DEFAULT_RECT_HEIGHT.raw_i64(), 515_396_075);
+        assert_eq!(BOGAE_DEFAULT_TEXT_SIZE.raw_i64(), 343_597_383);
+    }
+
+    #[test]
+    fn bogae_omitted_shape_fields_publish_exact_fixed64_defaults() {
+        let script = r##"
+매틱:움직씨 = {
+    모양: {
+        선(0, 0, 1, 1).
+        원(0, 0).
+        점(0, 0).
+        사각형(0, 0).
+        글(0, 0, "x").
+    }.
+}
+"##;
+        let program = DdnProgram::from_source(script, "bogae_defaults.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let output = runner
+            .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .expect("run omitted-default shapes");
+        let Some(RuntimeValue::List(items)) = output.resources.get("보개_그림판_목록") else {
+            panic!("drawlist must be present");
+        };
+        let value = |item: &RuntimeValue, key: &str| {
+            let RuntimeValue::Map(map) = item else {
+                panic!("draw item must be a map");
+            };
+            map.values()
+                .find(|entry| matches!(&entry.key, RuntimeValue::String(name) if name == key))
+                .map(|entry| entry.value.clone())
+                .expect("draw field")
+        };
+        assert_eq!(value(&items[0], "width"), RuntimeValue::Fixed64(Fixed64::from_raw_i64(85_899_345)));
+        assert_eq!(value(&items[1], "r"), RuntimeValue::Fixed64(Fixed64::from_raw_i64(343_597_383)));
+        assert_eq!(value(&items[2], "size"), RuntimeValue::Fixed64(Fixed64::from_raw_i64(193_273_528)));
+        assert_eq!(value(&items[3], "w"), RuntimeValue::Fixed64(Fixed64::from_raw_i64(858_993_459)));
+        assert_eq!(value(&items[3], "h"), RuntimeValue::Fixed64(Fixed64::from_raw_i64(515_396_075)));
+        assert_eq!(value(&items[4], "size"), RuntimeValue::Fixed64(Fixed64::from_raw_i64(343_597_383)));
+    }
+
+    #[test]
     fn bogae_shape_block_emits_drawlist() {
         let script = r##"
 매틱:움직씨 = {
@@ -21235,8 +24478,8 @@ mod tests {
         let script = r#"
 매틱:움직씨 = {
     m <- ("a", 1) 짝맞춤.
-    있음 <- (m, "a") 찾기?.
-    없음인가 <- ((m, "b") 찾기?) 아니다.
+    있음 <- (m, "a") 찾기.
+    없음인가 <- ((m, "b") 찾기) 없는가.
 }
 "#;
         let program = DdnProgram::from_source(script, "test.ddn").expect("parse");
@@ -21255,6 +24498,28 @@ mod tests {
         match output.resources.get("없음인가") {
             Some(RuntimeValue::Bool(true)) => {}
             other => panic!("없음인가 must be true, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn optional_presence_checks_do_not_use_payload_truthiness() {
+        // RD-088 observes absence, not the truthiness of the contained value.
+        let source = r#"
+매틱:움직씨 = {
+    m <- ("zero", 0, "false", 거짓) 짝맞춤.
+    a <- ((m, "zero") 찾기) 있는가.
+    b <- ((m, "false") 찾기) 있는가.
+    c <- ((m, "missing") 찾기) 있는가.
+    d <- ((m, "zero") 찾기) 없는가.
+    e <- ((m, "missing") 찾기) 없는가.
+}
+"#;
+        let program = DdnProgram::from_source(source, "presence.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let output = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            .expect("presence checks");
+        for (name, expected) in [("a", true), ("b", true), ("c", false), ("d", false), ("e", true)] {
+            assert!(matches!(output.resources.get(name), Some(RuntimeValue::Bool(value)) if *value == expected), "{name}");
         }
     }
 
@@ -21299,6 +24564,26 @@ mod tests {
     }
 
     #[test]
+    fn gini_overflow_is_typed_and_publishes_nothing() {
+        let script = r#"
+매틱:움직씨 = {
+    값목록 <- (1073741824, 1) 차림.
+    결과 <- (값목록) 지니.
+}
+"#;
+        let program = DdnProgram::from_source(script, "gini_overflow.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("결과".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let error = match runner.run_update_diagnostic(&NuriWorld::new(), &empty_input(), &defaults)
+        {
+            Ok(_) => panic!("gini overflow must reject before publication"),
+            Err(error) => error,
+        };
+        assert_eq!(error.diagnostic_parts().0, "E_RUNTIME_ARITH_OVERFLOW");
+    }
+
+    #[test]
     fn quantile_rejects_unknown_mode() {
         let script = r#"
 매틱:움직씨 = {
@@ -21317,6 +24602,26 @@ mod tests {
             err.contains("분위수 mode는 선형보간 또는 최근순위여야 합니다"),
             "unexpected error: {err}"
         );
+    }
+
+    #[test]
+    fn linear_quantile_extreme_interpolation_is_typed_and_publishes_nothing() {
+        let script = r#"
+매틱:움직씨 = {
+    값목록 <- (-2147483647, 2147483647.99999999976716935634613037109375) 차림.
+    결과 <- (값목록, 0.5, "선형보간") 분위수.
+}
+"#;
+        let program = DdnProgram::from_source(script, "quantile_extreme.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("결과".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let error = match runner.run_update_diagnostic(&NuriWorld::new(), &empty_input(), &defaults)
+        {
+            Ok(_) => panic!("unrepresentable interpolation must reject"),
+            Err(error) => error,
+        };
+        assert_eq!(error.diagnostic_parts().0, "E_RUNTIME_ARITH_OVERFLOW");
     }
 
     #[test]
@@ -21424,6 +24729,390 @@ mod tests {
     }
 
     #[test]
+    fn exponential_smoothing_preserves_fixed64_max_endpoint() {
+        let script = r#"
+매틱:움직씨 = {
+    y <- (2147483647.99999999976716935634613037109375, 2147483647.99999999976716935634613037109375, 0.5) 필터.지수평활.
+}
+"#;
+        let program = DdnProgram::from_source(script, "exponential_smoothing_max.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("y".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+
+        let output = runner
+            .run_update(&NuriWorld::new(), &empty_input(), &defaults)
+            .expect("representable endpoint must run");
+
+        assert_eq!(extract_fixed(&output.resources, "y"), Fixed64::MAX);
+    }
+
+    #[test]
+    fn exponential_smoothing_rounds_the_combined_weighted_value_once() {
+        let script = r#"
+매틱:움직씨 = {
+    y <- (-0.000000004656612873077392578125, -0.00000000442378222942352294921875, 0.12500000023283064365386962890625) 필터.지수평활.
+}
+"#;
+        let program = DdnProgram::from_source(script, "exponential_smoothing_tie.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("y".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+
+        let output = runner
+            .run_update(&NuriWorld::new(), &empty_input(), &defaults)
+            .expect("exact weighted blend must run");
+
+        assert_eq!(
+            extract_fixed(&output.resources, "y"),
+            Fixed64::from_raw_i64(-20),
+            "component-wise rounded products would produce -19 instead"
+        );
+    }
+
+    #[test]
+    fn moving_average_overflow_is_typed_and_publishes_nothing() {
+        let script = r#"
+매틱:움직씨 = {
+    창 <- (1073741824) 차림.
+    결과 <- (창, 1073741824) 필터.이동평균.
+}
+"#;
+        let program = DdnProgram::from_source(script, "moving_average_overflow.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("결과".to_string(), RuntimeValue::List(Vec::new()));
+        let error = match runner.run_update_diagnostic(&NuriWorld::new(), &empty_input(), &defaults)
+        {
+            Ok(_) => panic!("moving-average overflow must reject before publication"),
+            Err(error) => error,
+        };
+        assert_eq!(error.diagnostic_parts().0, "E_RUNTIME_ARITH_OVERFLOW");
+    }
+
+    #[test]
+    fn fixed64_min_abs_is_typed_and_publishes_nothing() {
+        let script = r#"
+매틱:움직씨 = {
+    결과 <- (값) abs.
+}
+"#;
+        let program = DdnProgram::from_source(script, "fixed64_min_abs.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("값".to_string(), RuntimeValue::Fixed64(Fixed64::MIN));
+        defaults.insert("결과".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+
+        let error = match runner.run_update_diagnostic(&NuriWorld::new(), &empty_input(), &defaults)
+        {
+            Ok(_) => panic!("Fixed64 minimum abs must reject before publication"),
+            Err(error) => error,
+        };
+        assert_eq!(error.diagnostic_parts().0, "E_RUNTIME_ARITH_OVERFLOW");
+    }
+
+    #[test]
+    fn fixed64_ceil_and_round_reject_unrepresentable_integer_results() {
+        for operation in [fixed64_ceil, fixed64_round_even] {
+            let error = operation(Fixed64::MAX)
+                .expect_err("rounding a positive fractional maximum must reject");
+            assert_eq!(error, ArithmeticFaultKind::Overflow);
+        }
+
+        assert_eq!(
+            fixed64_ceil(Fixed64::from_raw_i64(Fixed64::ONE.raw_i64() + 1)),
+            Ok(Fixed64::from_i64(2))
+        );
+        assert_eq!(
+            fixed64_round_even(Fixed64::from_raw_i64(
+                Fixed64::ONE.raw_i64() + (Fixed64::ONE.raw_i64() / 2),
+            )),
+            Ok(Fixed64::from_i64(2))
+        );
+    }
+
+    #[test]
+    fn fixed64_rounding_runtime_overflow_publishes_nothing() {
+        for method in ["천장", "반올림"] {
+            let script = format!(
+                "매틱:움직씨 = {{\n    결과 <- (값) {method}.\n}}\n"
+            );
+            let program = DdnProgram::from_source(&script, "fixed64_rounding_overflow.ddn")
+                .expect("parse rounding program");
+            let mut runner = DdnRunner::new(program, "매틱");
+            let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+            defaults.insert("값".to_string(), RuntimeValue::Fixed64(Fixed64::MAX));
+            defaults.insert("결과".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+
+            let error = match runner.run_update_diagnostic(
+                &NuriWorld::new(),
+                &empty_input(),
+                &defaults,
+            ) {
+                Err(error) => error,
+                Ok(_) => panic!("rounding overflow must reject before publication"),
+            };
+            assert_eq!(error.diagnostic_parts().0, "E_RUNTIME_ARITH_OVERFLOW");
+        }
+    }
+
+    #[test]
+    fn fixed64_powi_overflow_is_typed_and_does_not_saturate() {
+        let error = unit_powi(
+            UnitValue {
+                value: Fixed64::MAX,
+                dim: UnitDim::NONE,
+            },
+            2,
+        )
+        .expect_err("Fixed64 powi overflow must reject");
+        assert!(matches!(error, EvalError::ArithmeticFault(ArithmeticFaultKind::Overflow)));
+    }
+
+    #[test]
+    fn fixed64_powi_runtime_overflow_publishes_nothing() {
+        let script = r#"
+매틱:움직씨 = {
+    결과 <- (값, 2) powi.
+}
+"#;
+        let program = DdnProgram::from_source(script, "fixed64_powi_overflow.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("값".to_string(), RuntimeValue::Fixed64(Fixed64::MAX));
+        defaults.insert("결과".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+
+        let error = match runner.run_update_diagnostic(&NuriWorld::new(), &empty_input(), &defaults)
+        {
+            Ok(_) => panic!("Fixed64 powi overflow must reject before publication"),
+            Err(error) => error,
+        };
+        assert_eq!(error.diagnostic_parts().0, "E_RUNTIME_ARITH_OVERFLOW");
+    }
+
+    #[test]
+    fn fixed64_infix_multiply_overflow_publishes_nothing() {
+        let script = r#"
+매틱:움직씨 = {
+    결과 <- 값 * 값.
+}
+"#;
+        let program = DdnProgram::from_source(script, "fixed64_infix_mul_overflow.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("값".to_string(), RuntimeValue::Fixed64(Fixed64::MAX));
+        defaults.insert("결과".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+
+        let error = match runner.run_update_diagnostic(&NuriWorld::new(), &empty_input(), &defaults)
+        {
+            Ok(_) => panic!("Fixed64 infix multiply overflow must reject before publication"),
+            Err(error) => error,
+        };
+        assert_eq!(error.diagnostic_parts().0, "E_RUNTIME_ARITH_OVERFLOW");
+    }
+
+    #[test]
+    fn fixed64_infix_add_sub_overflow_publish_nothing() {
+        for (operator, lhs, rhs) in [
+            ("+", Fixed64::MAX, Fixed64::ONE),
+            ("-", Fixed64::MIN, Fixed64::ONE),
+        ] {
+            let script = format!(
+                "매틱:움직씨 = {{\n    결과 <- 값 {operator} 다른값.\n}}\n"
+            );
+            let program = DdnProgram::from_source(&script, "fixed64_infix_add_sub_overflow.ddn")
+                .expect("parse");
+            let mut runner = DdnRunner::new(program, "매틱");
+            let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+            defaults.insert("값".to_string(), RuntimeValue::Fixed64(lhs));
+            defaults.insert("다른값".to_string(), RuntimeValue::Fixed64(rhs));
+            defaults.insert("결과".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+
+            let error = match runner.run_update_diagnostic(&NuriWorld::new(), &empty_input(), &defaults)
+            {
+                Ok(_) => panic!("Fixed64 infix {operator} overflow must reject before publication"),
+                Err(error) => error,
+            };
+            assert_eq!(error.diagnostic_parts().0, "E_RUNTIME_ARITH_OVERFLOW");
+        }
+    }
+
+    #[test]
+    fn fixed64_infix_division_overflow_is_not_misreported_as_zero_division() {
+        let script = r#"
+매틱:움직씨 = {
+    결과 <- 값 / 작은값.
+}
+"#;
+        let program = DdnProgram::from_source(script, "fixed64_infix_div_overflow.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("값".to_string(), RuntimeValue::Fixed64(Fixed64::MAX));
+        defaults.insert(
+            "작은값".to_string(),
+            RuntimeValue::Fixed64(Fixed64::from_raw_i64(1)),
+        );
+        defaults.insert("결과".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+
+        let error = match runner.run_update_diagnostic(&NuriWorld::new(), &empty_input(), &defaults) {
+            Ok(_) => panic!("nonzero tiny divisor must report overflow before publication"),
+            Err(error) => error,
+        };
+        assert_eq!(error.diagnostic_parts().0, "E_RUNTIME_ARITH_OVERFLOW");
+    }
+
+    #[test]
+    fn fixed64_unit_suffix_overflow_rejects_before_publication() {
+        let script = r#"
+매틱:움직씨 = {
+    결과 <- 2147483647@C == 0@K.
+}
+"#;
+        let program = DdnProgram::from_source(script, "fixed64_unit_suffix_overflow.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("결과".to_string(), RuntimeValue::Bool(false));
+
+        let error = match runner.run_update_diagnostic(&NuriWorld::new(), &empty_input(), &defaults) {
+            Ok(_) => panic!("unit suffix overflow must reject before publication"),
+            Err(error) => error,
+        };
+        assert_eq!(
+            error.diagnostic_parts().0,
+            "E_RUNTIME_ARITH_OVERFLOW",
+            "unexpected error: {error:?}"
+        );
+    }
+
+    #[test]
+    fn fixed64_formula_pow_overflow_is_typed_and_does_not_saturate() {
+        let error = eval_formula_pow(
+            UnitValue {
+                value: Fixed64::MAX,
+                dim: UnitDim::NONE,
+            },
+            UnitValue {
+                value: Fixed64::from_i64(2),
+                dim: UnitDim::NONE,
+            },
+        )
+        .expect_err("Fixed64 formula power overflow must reject");
+        assert!(matches!(error, EvalError::ArithmeticFault(ArithmeticFaultKind::Overflow)));
+    }
+
+    #[test]
+    fn fixed64_formula_unary_neg_min_is_typed_overflow() {
+        let expr = FormulaExpr::Unary {
+            op: FormulaOp::Sub,
+            expr: Box::new(FormulaExpr::Number(UnitValue {
+                value: Fixed64::MIN,
+                dim: UnitDim::NONE,
+            })),
+        };
+        let error = eval_formula_expr(&expr, &BTreeMap::new())
+            .expect_err("Fixed64 formula unary negation of minimum must reject");
+        assert!(matches!(
+            error,
+            EvalError::ArithmeticFault(ArithmeticFaultKind::Overflow)
+        ));
+    }
+
+    #[test]
+    fn fixed64_formula_nonfinite_host_results_must_not_publish_as_numbers() {
+        assert_eq!(
+            eval_formula_func(
+                "sin",
+                vec![UnitValue {
+                    value: Fixed64::ZERO,
+                    dim: UnitDim::NONE,
+                }],
+            )
+            .expect("finite host result remains supported")
+            .value,
+            Fixed64::ZERO
+        );
+
+        for (name, value) in [
+            ("asin", Fixed64::from_i64(2)),
+            ("acos", Fixed64::from_i64(2)),
+            ("acosh", Fixed64::ZERO),
+            ("atanh", Fixed64::ONE),
+        ] {
+            let error = eval_formula_func(
+                name,
+                vec![UnitValue {
+                    value,
+                    dim: UnitDim::NONE,
+                }],
+            )
+            .expect_err("non-finite host result must fail closed");
+            assert!(matches!(
+                error,
+                EvalError::ArithmeticFault(ArithmeticFaultKind::Overflow)
+            ));
+        }
+    }
+
+    #[test]
+    fn fixed64_finite_host_ingress_rounds_half_ulp_to_even() {
+        let half_ulp = 0.5 / Fixed64::SCALE_F64;
+        assert_eq!(
+            fixed64_from_host_f64_checked(half_ulp),
+            Ok(Fixed64::ZERO),
+            "zero is the even neighbor at +0.5 raw"
+        );
+        assert_eq!(
+            fixed64_from_host_f64_checked(3.0 * half_ulp),
+            Ok(Fixed64::from_raw_i64(2)),
+            "two is the even neighbor at +1.5 raw"
+        );
+        assert_eq!(
+            fixed64_from_host_f64_checked(-half_ulp),
+            Ok(Fixed64::ZERO),
+            "zero is the even neighbor at -0.5 raw"
+        );
+        assert_eq!(
+            fixed64_from_host_f64_checked(-3.0 * half_ulp),
+            Ok(Fixed64::from_raw_i64(-2)),
+            "negative ties retain the same even-neighbor rule"
+        );
+    }
+
+    #[test]
+    fn formula_constants_use_the_checked_host_fixed64_ingress() {
+        let env = BTreeMap::new();
+        let pi = eval_formula_expr(&FormulaExpr::Var("pi".to_string()), &env)
+            .expect("pi constant must evaluate");
+        let e = eval_formula_expr(&FormulaExpr::Var("e".to_string()), &env)
+            .expect("e constant must evaluate");
+
+        assert_eq!(pi.dim, UnitDim::NONE);
+        assert_eq!(pi.value, Fixed64::from_raw_i64(13_493_037_705));
+        assert_eq!(e.dim, UnitDim::NONE);
+        assert_eq!(e.value, Fixed64::from_raw_i64(11_674_931_555));
+    }
+
+    #[test]
+    fn formula_derivative_log_constants_use_checked_host_fixed64_ingress() {
+        let FormulaExpr::Number(ln10) = num_ln10().expect("ln10 constant") else {
+            panic!("ln10 must be a numeric formula expression");
+        };
+        let FormulaExpr::Number(ln2) = num_ln2().expect("ln2 constant") else {
+            panic!("ln2 must be a numeric formula expression");
+        };
+
+        assert_eq!(ln10.dim, UnitDim::NONE);
+        assert_eq!(ln10.value, Fixed64::from_raw_i64(9_889_527_671));
+        assert_eq!(ln2.dim, UnitDim::NONE);
+        assert_eq!(ln2.value, Fixed64::from_raw_i64(2_977_044_472));
+    }
+
+    #[test]
     fn numeric_calculus_v1_builtins_return_value_error_method() {
         let script = r#"
 매틱:움직씨 = {
@@ -21466,11 +25155,11 @@ mod tests {
         }
         assert_eq!(
             extract_fixed(&output.resources, "적분값"),
-            Fixed64::from_raw_i64(1_431_655_766)
+            Fixed64::from_raw_i64(1_431_655_765)
         );
         assert_eq!(
             extract_fixed(&output.resources, "적분오차"),
-            Fixed64::from_raw_i64(44_739_242)
+            Fixed64::from_raw_i64(44_739_243)
         );
         match output.resources.get("적분방법") {
             Some(RuntimeValue::String(value)) => assert_eq!(value, "사다리꼴"),
@@ -21498,6 +25187,97 @@ mod tests {
         assert!(
             err.contains("E_CALC_NUMERIC_BAD_STEP"),
             "expected numeric step guard, got {err}"
+        );
+    }
+
+    #[test]
+    fn numeric_central_difference_overflow_is_typed_and_publishes_nothing() {
+        let script = r#"
+매틱:움직씨 = {
+    d <- (((#ascii) 수식{x}), "x", 2147483647.99999999976716935634613037109375, 1) 미분.중앙차분.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_central_difference_overflow.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let error = match runner.run_update_diagnostic(&NuriWorld::new(), &empty_input(), &HashMap::new()) {
+            Ok(_) => panic!("central-difference overflow must reject before publication"),
+            Err(error) => error,
+        };
+        assert_eq!(error.diagnostic_parts().0, "E_RUNTIME_ARITH_OVERFLOW");
+    }
+
+    #[test]
+    fn numeric_central_difference_checked_path_preserves_the_supported_result() {
+        let script = r#"
+매틱:움직씨 = {
+    d <- (((#ascii) 수식{x^3}), "x", 1, 0.5) 미분.중앙차분.
+    값 <- (d, 0) 차림.값.
+    오차 <- (d, 1) 차림.값.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_central_difference_checked.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("값".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("오차".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let output = runner
+            .run_update(&NuriWorld::new(), &empty_input(), &defaults)
+            .expect("checked central difference must preserve the supported result");
+        assert_eq!(extract_fixed(&output.resources, "값"), Fixed64::from_i64(3));
+        assert_eq!(
+            extract_fixed(&output.resources, "오차"),
+            Fixed64::from_f64_lossy(0.25)
+        );
+    }
+
+    #[test]
+    fn numeric_trapezoid_integral_overflow_is_typed_and_publishes_nothing() {
+        let script = r#"
+매틱:움직씨 = {
+    i <- (((#ascii) 수식{x - x}), "x", -2147483647, 2147483647, 2147483647) 적분.사다리꼴.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_trapezoid_integral_overflow.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let error = match runner.run_update_diagnostic(&NuriWorld::new(), &empty_input(), &HashMap::new()) {
+            Ok(_) => panic!("trapezoid interval overflow must reject before publication"),
+            Err(error) => error,
+        };
+        assert_eq!(
+            error.diagnostic_parts().0,
+            "E_RUNTIME_ARITH_OVERFLOW",
+            "unexpected diagnostic: {error:?}"
+        );
+    }
+
+    #[test]
+    fn numeric_trapezoid_integral_checked_path_preserves_the_supported_result() {
+        let script = r#"
+매틱:움직씨 = {
+    i <- (((#ascii) 수식{x^2}), "x", 0, 1, 0.5) 적분.사다리꼴.
+    값 <- (i, 0) 차림.값.
+    오차 <- (i, 1) 차림.값.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_trapezoid_integral_checked.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("값".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("오차".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let output = runner
+            .run_update(&NuriWorld::new(), &empty_input(), &defaults)
+            .expect("checked trapezoid path must preserve the supported result");
+        assert_eq!(
+            extract_fixed(&output.resources, "값"),
+            Fixed64::from_raw_i64(1_431_655_765)
+        );
+        assert_eq!(
+            extract_fixed(&output.resources, "오차"),
+            Fixed64::from_raw_i64(44_739_243)
         );
     }
 
@@ -21561,6 +25341,59 @@ mod tests {
         assert_eq!(runner.work_cost_receipt().counters.solver_evaluations, 2);
         assert_eq!(runner.work_cost_receipt().counters.call_depth_current, 0);
         assert_eq!(runner.work_cost_receipt().counters.call_depth_peak, 2);
+    }
+
+    #[test]
+    fn numeric_bisection_midpoint_overflow_is_typed_and_publishes_nothing() {
+        let script = r#"
+매틱:움직씨 = {
+    r <- (((#ascii) 수식{x - 2000000000}), "x", 1500000000, 2147483647, 1) 수치해.이분법.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_bisection_midpoint_overflow.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let error = match runner.run_update_diagnostic(&NuriWorld::new(), &empty_input(), &HashMap::new()) {
+            Ok(_) => panic!("bisection midpoint overflow must reject before publication"),
+            Err(error) => error,
+        };
+        assert_eq!(error.diagnostic_parts().0, "E_RUNTIME_ARITH_OVERFLOW");
+    }
+
+    #[test]
+    fn range_step_overflow_is_typed_and_publishes_nothing() {
+        let script = r#"
+매틱:움직씨 = {
+    r <- (2147483646, 2147483647, 2) 범위.
+}
+"#;
+        let program = DdnProgram::from_source(script, "range_step_overflow.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let error = match runner.run_update_diagnostic(&NuriWorld::new(), &empty_input(), &HashMap::new()) {
+            Ok(_) => panic!("range step overflow must reject before publication"),
+            Err(error) => error,
+        };
+        assert_eq!(error.diagnostic_parts().0, "E_RUNTIME_ARITH_OVERFLOW");
+    }
+
+    #[test]
+    fn range_endpoint_at_fixed64_max_stops_without_saturation_loop() {
+        let script = r#"
+매틱:움직씨 = {
+    r <- (2147483647, 2147483647, 1) 범위.
+}
+"#;
+        let program = DdnProgram::from_source(script, "range_endpoint_max.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("r".to_string(), RuntimeValue::List(Vec::new()));
+        let output = runner
+            .run_update(&NuriWorld::new(), &empty_input(), &defaults)
+            .expect("endpoint range must complete");
+        assert_eq!(
+            output.resources.get("r"),
+            Some(&RuntimeValue::List(vec![RuntimeValue::Fixed64(Fixed64::from_i64(2_147_483_647))]))
+        );
     }
 
     #[test]
@@ -21635,7 +25468,7 @@ mod tests {
         let work_cost = Rc::new(RefCell::new(WorkCostMeter::default()));
         let solved =
             eval_linear_inequality_solve(&[conditions, Value::String("x".to_string())], &work_cost)
-            .expect("solve");
+                .expect("solve");
         let Value::Pack(output) = solved else {
             panic!("solution must be pack");
         };
@@ -21670,7 +25503,7 @@ mod tests {
         let work_cost = Rc::new(RefCell::new(WorkCostMeter::default()));
         let solved =
             eval_linear_inequality_solve(&[conditions, Value::String("x".to_string())], &work_cost)
-            .expect("solve");
+                .expect("solve");
         let Value::Pack(output) = solved else {
             panic!("solution must be pack");
         };
@@ -21678,6 +25511,22 @@ mod tests {
             Some(RuntimeValue::String(value)) => assert_eq!(value, "공집합"),
             other => panic!("상태 must be string, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn linear_inequality_rhs_overflow_is_typed_and_publishes_nothing() {
+        let conditions = Value::List(vec![linear_inequality_test_condition(
+            "x - 2147483647",
+            "이하",
+            2_147_483_647,
+        )]);
+        let work_cost = Rc::new(RefCell::new(WorkCostMeter::default()));
+        let error = eval_linear_inequality_solve(
+            &[conditions, Value::String("x".to_string())],
+            &work_cost,
+        )
+        .expect_err("unrepresentable RHS must reject before solution publication");
+        assert_eq!(error.diagnostic_parts().0, "E_RUNTIME_ARITH_OVERFLOW");
     }
 
     #[test]
@@ -22071,8 +25920,8 @@ mod tests {
     다음 <- (기계, 현재) 다음으로.
 }
 "#;
-        let program = DdnProgram::from_source(script, "state_machine_guard_whole_set.ddn")
-            .expect("parse");
+        let program =
+            DdnProgram::from_source(script, "state_machine_guard_whole_set.ddn").expect("parse");
         let mut runner = DdnRunner::new(program, "매틱");
         let world = NuriWorld::new();
         let defaults: HashMap<String, RuntimeValue> = HashMap::new();
@@ -22112,8 +25961,8 @@ mod tests {
     다음 <- (기계, 현재) 다음으로.
 }
 "#;
-        let program = DdnProgram::from_source(script, "state_machine_guard_fault.ddn")
-            .expect("parse");
+        let program =
+            DdnProgram::from_source(script, "state_machine_guard_fault.ddn").expect("parse");
         let mut runner = DdnRunner::new(program, "매틱");
         let world = NuriWorld::new();
         let defaults: HashMap<String, RuntimeValue> = HashMap::new();
@@ -22833,6 +26682,97 @@ mod tests {
             extract_fixed(&output.resources, "다음위치"),
             Fixed64::from_i64(16)
         );
+    }
+
+    #[test]
+    fn physics_position_update_overflow_is_typed_and_publishes_nothing() {
+        let script = r##"
+매틱:움직씨 = {
+    다음위치 <- (2147483647.99999999976716935634613037109375, 1, 1) 물리1d.위치갱신.
+}
+"##;
+        let program = DdnProgram::from_source(script, "physics_overflow.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert(
+            "다음위치".to_string(),
+            RuntimeValue::Fixed64(Fixed64::ZERO),
+        );
+
+        let error = match runner.run_update_diagnostic(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("overflow must reject before publication"),
+            Err(error) => error,
+        };
+        let (code, _message, _span) = error.diagnostic_parts();
+        assert_eq!(code, "E_RUNTIME_ARITH_OVERFLOW");
+    }
+
+    #[test]
+    fn physics_velocity_update_overflow_is_typed_and_publishes_nothing() {
+        let script = r##"
+매틱:움직씨 = {
+    다음속도 <- (2147483647.99999999976716935634613037109375, 1, 1) 물리1d.속도갱신.
+}
+"##;
+        let program = DdnProgram::from_source(script, "physics_velocity_overflow.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert(
+            "다음속도".to_string(),
+            RuntimeValue::Fixed64(Fixed64::ZERO),
+        );
+
+        let error = match runner.run_update_diagnostic(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("overflow must reject before publication"),
+            Err(error) => error,
+        };
+        let (code, _message, _span) = error.diagnostic_parts();
+        assert_eq!(code, "E_RUNTIME_ARITH_OVERFLOW");
+    }
+
+    #[test]
+    fn physics_elastic_collision_uses_checked_fixed64_and_rejects_overflow() {
+        let normal_script = r##"
+매틱:움직씨 = {
+    충돌 <- (1, 2, 1, 0) 물리1d.탄성충돌1d.
+}
+"##;
+        let normal_program =
+            DdnProgram::from_source(normal_script, "physics_collision.ddn").expect("parse");
+        let mut normal_runner = DdnRunner::new(normal_program, "매틱");
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("충돌".to_string(), RuntimeValue::List(Vec::new()));
+        let output = normal_runner
+            .run_update(&NuriWorld::new(), &empty_input(), &defaults)
+            .expect("normal collision");
+        let collision = match output.resources.get("충돌") {
+            Some(RuntimeValue::List(items)) => items,
+            other => panic!("collision must be a pair, got {other:?}"),
+        };
+        assert_eq!(collision.len(), 2);
+        assert_eq!(collision[0], RuntimeValue::Fixed64(Fixed64::ZERO));
+        assert_eq!(collision[1], RuntimeValue::Fixed64(Fixed64::from_i64(2)));
+
+        let overflow_script = r##"
+매틱:움직씨 = {
+    충돌 <- (1073741824, 1, 0, 0) 물리1d.탄성충돌1d.
+}
+"##;
+        let overflow_program =
+            DdnProgram::from_source(overflow_script, "physics_collision_overflow.ddn")
+                .expect("parse");
+        let mut overflow_runner = DdnRunner::new(overflow_program, "매틱");
+        let error = match overflow_runner.run_update_diagnostic(
+            &NuriWorld::new(),
+            &empty_input(),
+            &defaults,
+        ) {
+            Ok(_) => panic!("overflow must reject before publication"),
+            Err(error) => error,
+        };
+        assert_eq!(error.diagnostic_parts().0, "E_RUNTIME_ARITH_OVERFLOW");
     }
 
     #[test]
@@ -25505,36 +29445,39 @@ mod tests {
         }
 
         let work_cost = Rc::new(RefCell::new(WorkCostMeter::default()));
-        let suite = eval_endpoint_solve_range_case_suite_with_meter(&[RuntimeValue::List(vec![
-            case(
-                "pass-default",
-                pass_relation.clone(),
-                pass_values.clone(),
-                pass_ranges.clone(),
-                None,
-            ),
-            case(
-                "expected-fail",
-                fail_relation.clone(),
-                fail_values.clone(),
-                fail_ranges.clone(),
-                Some("실패"),
-            ),
-            case(
-                "unexpected-fail",
-                fail_relation,
-                fail_values,
-                fail_ranges,
-                None,
-            ),
-            case(
-                "unexpected-success",
-                pass_relation,
-                pass_values,
-                pass_ranges,
-                Some("실패"),
-            ),
-        ])], Some(&work_cost))
+        let suite = eval_endpoint_solve_range_case_suite_with_meter(
+            &[RuntimeValue::List(vec![
+                case(
+                    "pass-default",
+                    pass_relation.clone(),
+                    pass_values.clone(),
+                    pass_ranges.clone(),
+                    None,
+                ),
+                case(
+                    "expected-fail",
+                    fail_relation.clone(),
+                    fail_values.clone(),
+                    fail_ranges.clone(),
+                    Some("실패"),
+                ),
+                case(
+                    "unexpected-fail",
+                    fail_relation,
+                    fail_values,
+                    fail_ranges,
+                    None,
+                ),
+                case(
+                    "unexpected-success",
+                    pass_relation,
+                    pass_values,
+                    pass_ranges,
+                    Some("실패"),
+                ),
+            ])],
+            Some(&work_cost),
+        )
         .expect("suite");
         assert_eq!(work_cost.borrow().receipt().counters.solver_evaluations, 4);
         let RuntimeValue::Pack(suite_pack) = &suite else {
@@ -28884,8 +32827,8 @@ mod tests {
   결과 <- (목록, {값| 없는값}) 변환.
 }
 "#;
-        let program = DdnProgram::from_source(source, "work_cost_callback_prefix.ddn")
-            .expect("parse");
+        let program =
+            DdnProgram::from_source(source, "work_cost_callback_prefix.ddn").expect("parse");
         let mut runner = DdnRunner::new(program, "매틱");
         let world = NuriWorld::new();
         let error = match runner.run_update_diagnostic(&world, &empty_input(), &HashMap::new()) {
@@ -28894,8 +32837,10 @@ mod tests {
         };
         assert!(error.message().contains("없는값"), "{error:?}");
         let receipt = runner.work_cost_receipt();
-        // 차림 생성 3개 + 변환에서 오류가 난 첫 요소. 뒤의 두 요소는 0이다.
-        assert_eq!(receipt.counters.collection_tensor_element_visits, 4);
+        // 기존 연산: 생성 3 + 첫 callback 1. 뒤 callback은 실행되지 않는다.
+        // 관계 보호 검사는 먼저 차림 자체와 3요소, callback 값까지 방문한다.
+        let relation_guard_visits = 1 + 3 + 1;
+        assert_eq!(receipt.counters.collection_tensor_element_visits, 4 + relation_guard_visits);
         assert_eq!(receipt.counters.call_depth_current, 0);
         assert_eq!(receipt.counters.call_depth_peak, 2);
         assert_eq!(receipt.counters.committed_madi, 0);
@@ -28913,20 +32858,19 @@ mod tests {
   조각 <- (목록, 1, 3) 토막내기.
 }
 "#;
-        let program = DdnProgram::from_source(source, "work_cost_collection_visits.ddn")
-            .expect("parse");
+        let program =
+            DdnProgram::from_source(source, "work_cost_collection_visits.ddn").expect("parse");
         let mut runner = DdnRunner::new(program, "매틱");
         let output = runner
             .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
             .expect("run update");
 
-        // 생성 3 + 첫번째 1 + 두 번째에서 찾음 2 + 끝까지 없음 3 + slice 복사 2.
+        // 기존 연산: 생성 3 + 첫번째 1 + 검색 2 + 없음 검색 3 + slice 복사 2.
+        // 각 호출의 관계 보호: 목록(1+3), 추가 scalar 받는자리(0/1/1/2).
+        let relation_guard_visits = 4 + 5 + 5 + 6;
         assert_eq!(
-            output
-                .work_cost
-                .counters
-                .collection_tensor_element_visits,
-            11
+            output.work_cost.counters.collection_tensor_element_visits,
+            11 + relation_guard_visits
         );
     }
 
@@ -28938,8 +32882,7 @@ mod tests {
   결과 <- (목록, ",") 합치기.
 }
 "#;
-        let program = DdnProgram::from_source(source, "work_cost_join_prefix.ddn")
-            .expect("parse");
+        let program = DdnProgram::from_source(source, "work_cost_join_prefix.ddn").expect("parse");
         let mut runner = DdnRunner::new(program, "매틱");
         let error = match runner.run_update_diagnostic(
             &NuriWorld::new(),
@@ -28951,8 +32894,9 @@ mod tests {
         };
         assert!(error.message().contains("차림<글>"), "{error:?}");
         let receipt = runner.work_cost_receipt();
-        // 생성 3 + join이 첫째, 둘째, 실패한 셋째를 방문했다.
-        assert_eq!(receipt.counters.collection_tensor_element_visits, 6);
+        // 기존 연산: 생성 3 + join 방문 3. 관계 보호: 목록(1+3) + 구분 글 1.
+        let relation_guard_visits = 4 + 1;
+        assert_eq!(receipt.counters.collection_tensor_element_visits, 6 + relation_guard_visits);
         // literal 생성 5 bytes + join prefix의 "가" 3, separator 1, "b" 1.
         // 실패한 셋째 앞에는 separator를 쓰지 않는다.
         assert_eq!(receipt.counters.canonical_utf8_byte_visits, 10);
@@ -29008,8 +32952,9 @@ mod tests {
             "{error:?}"
         );
         let receipt = runner.work_cost_receipt();
-        // 차림 생성 3개 + 합계가 첫째와 실패한 둘째까지 방문했다.
-        assert_eq!(receipt.counters.collection_tensor_element_visits, 5);
+        // 기존 연산: 생성 3 + 합계 prefix 2. 관계 보호는 목록(1+3)을 먼저 검사한다.
+        let relation_guard_visits = 1 + 3;
+        assert_eq!(receipt.counters.collection_tensor_element_visits, 5 + relation_guard_visits);
         assert_eq!(receipt.counters.committed_madi, 0);
     }
 

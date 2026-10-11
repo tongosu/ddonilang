@@ -3,7 +3,51 @@ use ddonirang_core::{
     is_key_just_pressed, is_key_pressed, unit_spec_from_symbol, Fixed64, ResourceHandle, UnitDim,
     UnitValue,
 };
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+
+#[cfg(test)]
+mod canonical_decimal_tests {
+    use super::*;
+    #[test]
+    fn view_type_does_not_admit_a_plain_pack_or_string() {
+        let type_ref = TypeRef::Named("보기값".to_string());
+        assert!(check_value_type(&Value::View(ViewValue::ResultTable), &type_ref).is_ok());
+        assert!(check_value_type(&Value::Pack(BTreeMap::new()), &type_ref).is_err());
+        assert!(check_value_type(&Value::String("결과표".to_string()), &type_ref).is_err());
+    }
+    #[test]
+    fn composition_type_is_not_a_plain_list_or_relation() {
+        assert_eq!(BogaeCompositionValue::from_relations(vec![]).unwrap_err(),
+            "E_BOGAE_PRIMARY_COUNT: 보개짜임에는 으뜸 관계가 정확히 하나 있어야 합니다");
+        let relation = BogaeRelationValue::Primary { view: ViewValue::ResultTable, source_location: None };
+        let carrier = BogaeCompositionValue::from_relations(vec![relation.clone()]).unwrap();
+        assert_eq!(carrier.relations(), &[relation.clone()]);
+        let ty = TypeRef::Named("보개짜임값".into());
+        assert!(check_value_type(&Value::BogaeComposition(carrier), &ty).is_ok());
+        assert!(check_value_type(&Value::List(vec![Value::BogaeRelation(relation)]), &ty).is_err());
+        assert!(check_value_type(&Value::String("짜임".into()), &ty).is_err());
+    }
+    #[test]
+    fn adjacent_fixed64_keys_are_exact_for_map_set_and_nested_units() {
+        let a = Value::Fixed64(Fixed64::from_raw_i64(-1));
+        let b = Value::Fixed64(Fixed64::ZERO);
+        let ka = map_key_canon(&a);
+        let kb = map_key_canon(&b);
+        assert_eq!(ka, "-0.00000000023283064365386962890625");
+        assert_eq!(kb, "0");
+        let set = Value::Set(BTreeMap::from([(ka.clone(), a.clone()), (kb.clone(), b.clone())]));
+        assert!(matches!(set, Value::Set(ref values) if values.len() == 2));
+        let map = BTreeMap::from([
+            (ka, MapEntry { key: a.clone(), value: Value::Bool(true) }),
+            (kb, MapEntry { key: b, value: Value::Bool(false) }),
+        ]);
+        assert!(matches!(map_get(&map, &a), Value::Bool(true)));
+        assert!(matches!(map_get(&map, &Value::Fixed64(Fixed64::ZERO)), Value::Bool(false)));
+        let unit = Value::Unit(UnitValue::new(Fixed64::from_raw_i64(-1), ddonirang_core::Unit::Second));
+        assert_eq!(map_key_canon(&Value::List(vec![unit])),
+            "차림[-0.00000000023283064365386962890625@s]");
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MapEntry {
@@ -43,6 +87,122 @@ pub enum Value {
     Template(Template),
     Regex(RegexLiteral),
     Lambda(LambdaValue),
+    View(ViewValue),
+    SceneElement(PlaneElement),
+    Scene(PlaneScene),
+    BogaeRelation(BogaeRelationValue),
+    BogaeComposition(BogaeCompositionValue),
+}
+
+/// RD-123의 명시 결과표. 세계 자원이 아니라 보개가 해소할 typed 보기값이다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ViewValue {
+    ResultTable,
+    Scene(PlaneScene),
+}
+
+/// RD-538 closed scene roles. Exact Fixed64 geometry is authored, not fitted by UI.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlaneElement {
+    Circle { center: [Fixed64; 2], radius: Fixed64 },
+    Polygon { vertices: Vec<[Fixed64; 2]> },
+    Text { position: [Fixed64; 2], content: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlaneScene {
+    pub elements: Vec<PlaneElement>,
+    pub horizontal: [Fixed64; 2],
+    pub vertical: [Fixed64; 2],
+}
+
+/// RD-520 작성 관계의 내용. 정체는 짜임 해소 시 별도로 결속한다.
+#[derive(Debug, Clone, PartialEq)]
+pub enum BogaeRelationValue {
+    Primary { view: ViewValue, source_location: Option<[u32; 4]> },
+    Overlay { view: ViewValue, basis_location: Option<[u32; 4]>, order: i64,
+        source_location: Option<[u32; 4]> },
+    Side { view: ViewValue, placement: SidePlacement, source_location: Option<[u32; 4]> },
+    Magnifier { target: Box<Value>, recipe: SealedViewRecipe, view: ViewValue,
+        source_location: Option<[u32; 4]> },
+}
+
+/// Product seal of an authored typed named callable, never a renderer callback.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SealedViewRecipe {
+    pub source_identity: String,
+    pub definition_name: String,
+    pub definition_span: [usize; 2],
+    pub parameter_type: String,
+    pub seal: String,
+    pub validation_visits: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SidePlacement { Left, Right, Top, Bottom, Auto }
+
+impl SidePlacement {
+    pub fn from_authored(value: &str) -> Option<Self> {
+        match value { "왼쪽" => Some(Self::Left), "오른쪽" => Some(Self::Right),
+            "위" => Some(Self::Top), "아래" => Some(Self::Bottom), "자동" => Some(Self::Auto), _ => None }
+    }
+    pub fn authored_name(self) -> &'static str {
+        match self { Self::Left => "왼쪽", Self::Right => "오른쪽", Self::Top => "위",
+            Self::Bottom => "아래", Self::Auto => "자동" }
+    }
+}
+
+impl BogaeRelationValue {
+    pub fn kind_name(&self) -> &'static str {
+        match self { Self::Primary {..} => "으뜸보개관계값", Self::Overlay {..} => "겹보개관계값",
+            Self::Side {..} => "곁보개관계값", Self::Magnifier {..} => "돋보개관계값" }
+    }
+    pub fn source_location(&self) -> Option<[u32; 4]> {
+        match self { Self::Primary {source_location,..} | Self::Overlay {source_location,..}
+            | Self::Side {source_location,..} | Self::Magnifier {source_location,..} => *source_location }
+    }
+    pub fn view(&self) -> &ViewValue {
+        match self { Self::Primary {view,..} | Self::Overlay {view,..} | Self::Side {view,..}
+            | Self::Magnifier {view,..} => view }
+    }
+}
+
+/// RD-129/520 authored carrier. Semantic identities are resolved separately;
+/// this value is neither a world resource nor an activated UI composition.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BogaeCompositionValue {
+    relations: Vec<BogaeRelationValue>,
+}
+
+impl BogaeCompositionValue {
+    pub fn from_relations(relations: Vec<BogaeRelationValue>) -> Result<Self, &'static str> {
+        let primary: Vec<_> = relations.iter().filter(|r| matches!(r, BogaeRelationValue::Primary {..})).collect();
+        if primary.len() != 1 {
+            return Err("E_BOGAE_PRIMARY_COUNT: 보개짜임에는 으뜸 관계가 정확히 하나 있어야 합니다");
+        }
+        let mut locations = BTreeSet::new();
+        let mut orders = BTreeSet::new();
+        for relation in &relations {
+            if let Some(location) = relation.source_location() {
+                if !locations.insert(location) {
+                    return Err("E_BOGAE_RELATION_DUPLICATE: 같은 작성 관계를 중복할 수 없습니다");
+                }
+            }
+            if let BogaeRelationValue::Overlay {basis_location, order, ..} = relation {
+                if basis_location.is_none() || *basis_location != primary[0].source_location() {
+                    return Err("E_BOGAE_OVERLAY_BASIS_INVALID: 겹 기준은 같은 짜임의 으뜸이어야 합니다");
+                }
+                if !orders.insert(*order) {
+                    return Err("E_BOGAE_OVERLAY_ORDER_DUPLICATE: 겹 순서는 중복할 수 없습니다");
+                }
+            }
+        }
+        Ok(Self { relations })
+    }
+
+    pub fn relations(&self) -> &[BogaeRelationValue] {
+        &self.relations
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -152,13 +312,13 @@ pub fn map_key_canon(value: &Value) -> String {
         Value::None => "없음".to_string(),
         Value::Bool(true) => "참".to_string(),
         Value::Bool(false) => "거짓".to_string(),
-        Value::Fixed64(n) => n.to_string(),
+        Value::Fixed64(n) => n.canonical_decimal_text(),
         Value::Unit(unit) => {
             let suffix = unit
                 .display_symbol()
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| unit.dim.format());
-            format!("{}@{}", unit.value, suffix)
+            format!("{}@{}", unit.value.canonical_decimal_text(), suffix)
         }
         Value::String(s) => format!("\"{}\"", escape_canon_string(s)),
         Value::ResourceHandle(handle) => format!("자원#{}", handle.to_hex()),
@@ -261,6 +421,11 @@ pub fn map_key_canon(value: &Value) -> String {
             }
         }
         Value::Lambda(lambda) => format!("<씨앗#{}>", lambda.id),
+        Value::View(view) => match view { ViewValue::ResultTable => "<보기값:결과표>", ViewValue::Scene(_) => "<보기값:장면>" }.to_string(),
+        Value::SceneElement(_) => "<장면요소값>".to_string(),
+        Value::Scene(_) => "<장면값>".to_string(),
+        Value::BogaeRelation(relation) => format!("<{}>", relation.kind_name()),
+        Value::BogaeComposition(_) => "<보개짜임값>".to_string(),
     }
 }
 
@@ -455,6 +620,11 @@ mod tests {
             string_to_number(&Value::String("not-a-number".to_string())),
             Ok(Value::None)
         );
+        assert_eq!(
+            string_to_number(&Value::String("2147483648".to_string())),
+            Ok(Value::None),
+            "current textual ingress must reject Fixed64 overflow rather than saturate"
+        );
     }
 
     #[test]
@@ -584,6 +754,20 @@ fn check_named_type(value: &Value, name: &str) -> Result<(), TypeMismatchDetail>
             Value::Regex(_) => Ok(()),
             _ => Err(type_mismatch_detail(&canonical, value)),
         },
+        "보기값" => match value {
+            Value::View(_) => Ok(()),
+            _ => Err(type_mismatch_detail(&canonical, value)),
+        },
+        "장면요소값" => match value { Value::SceneElement(_) => Ok(()), _ => Err(type_mismatch_detail(&canonical, value)) },
+        "장면값" => match value { Value::Scene(_) => Ok(()), _ => Err(type_mismatch_detail(&canonical, value)) },
+        "으뜸보개관계값" | "겹보개관계값" | "곁보개관계값" | "돋보개관계값" | "보개관계값" => match value {
+            Value::BogaeRelation(relation) if canonical == "보개관계값" || relation.kind_name() == canonical => Ok(()),
+            _ => Err(type_mismatch_detail(&canonical, value)),
+        },
+        "보개짜임값" => match value {
+            Value::BogaeComposition(_) => Ok(()),
+            _ => Err(type_mismatch_detail(&canonical, value)),
+        },
         _ => Err(type_mismatch_detail(&canonical, value)),
     }
 }
@@ -621,7 +805,10 @@ fn check_applied_type(
                 return Err(type_mismatch_detail(&canonical, value));
             };
             if args.len() != 1 {
-                return Ok(());
+                return Err(type_mismatch_detail(&format_type_ref(&TypeRef::Applied {
+                    name: canonical.clone(),
+                    args: args.to_vec(),
+                }), value));
             }
             for item in items {
                 if let Err(detail) = check_value_type(item, &args[0]) {
@@ -641,7 +828,10 @@ fn check_applied_type(
                 return Err(type_mismatch_detail(&canonical, value));
             };
             if args.len() != 1 {
-                return Ok(());
+                return Err(type_mismatch_detail(&format_type_ref(&TypeRef::Applied {
+                    name: canonical.clone(),
+                    args: args.to_vec(),
+                }), value));
             }
             for item in items.values() {
                 if let Err(detail) = check_value_type(item, &args[0]) {
@@ -661,7 +851,10 @@ fn check_applied_type(
                 return Err(type_mismatch_detail(&canonical, value));
             };
             if args.len() != 2 {
-                return Ok(());
+                return Err(type_mismatch_detail(&format_type_ref(&TypeRef::Applied {
+                    name: canonical.clone(),
+                    args: args.to_vec(),
+                }), value));
             }
             for entry in entries.values() {
                 if let Err(detail) = check_value_type(&entry.key, &args[0]) {
@@ -781,5 +974,10 @@ pub fn value_type_name(value: &Value) -> String {
         Value::Template(_) => "글무늬값".to_string(),
         Value::Regex(_) => "정규식".to_string(),
         Value::Lambda(_) => "씨앗".to_string(),
+        Value::View(_) => "보기값".to_string(),
+        Value::SceneElement(_) => "장면요소값".to_string(),
+        Value::Scene(_) => "장면값".to_string(),
+        Value::BogaeRelation(relation) => relation.kind_name().to_string(),
+        Value::BogaeComposition(_) => "보개짜임값".to_string(),
     }
 }

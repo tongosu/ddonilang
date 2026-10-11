@@ -27,6 +27,57 @@ impl Fixed64 {
         self.raw
     }
 
+    /// Current fixed-point arithmetic contract: overflow is a typed failure,
+    /// never a saturated value.
+    #[inline]
+    pub fn checked_add(self, rhs: Self) -> Result<Self, ArithmeticFaultKind> {
+        self.raw
+            .checked_add(rhs.raw)
+            .map(Self::from_raw_i64)
+            .ok_or(ArithmeticFaultKind::Overflow)
+    }
+
+    #[inline]
+    pub fn checked_sub(self, rhs: Self) -> Result<Self, ArithmeticFaultKind> {
+        self.raw
+            .checked_sub(rhs.raw)
+            .map(Self::from_raw_i64)
+            .ok_or(ArithmeticFaultKind::Overflow)
+    }
+
+    /// Q31.32 multiplication with exact integer ties-to-even rounding.
+    #[inline]
+    pub fn checked_mul(self, rhs: Self) -> Result<Self, ArithmeticFaultKind> {
+        let product = (self.raw as i128) * (rhs.raw as i128);
+        let raw = round_div_ties_to_even(product, 1i128 << Self::FRAC_BITS)
+            .ok_or(ArithmeticFaultKind::Overflow)?;
+        i64::try_from(raw)
+            .map(Self::from_raw_i64)
+            .map_err(|_| ArithmeticFaultKind::Overflow)
+    }
+
+    /// Exact Q31.32 weighted blend with a dimensionless weight in `[0, 1]`.
+    /// The two products are accumulated in one widened intermediate so a
+    /// representable endpoint is never lost to component-wise rounding.
+    #[inline]
+    pub fn checked_weighted_blend(
+        self,
+        next: Self,
+        weight: Self,
+    ) -> Result<Self, ArithmeticFaultKind> {
+        if weight.raw < 0 || weight.raw > Self::ONE_RAW {
+            return Err(ArithmeticFaultKind::Overflow);
+        }
+        let keep = Self::ONE_RAW - weight.raw;
+        let numerator = (self.raw as i128) * (keep as i128)
+            + (next.raw as i128) * (weight.raw as i128);
+        let raw = round_div_ties_to_even(numerator, Self::ONE_RAW as i128)
+            .ok_or(ArithmeticFaultKind::Overflow)?;
+        i64::try_from(raw)
+            .map(Self::from_raw_i64)
+            .map_err(|_| ArithmeticFaultKind::Overflow)
+    }
+
     /// 정수 -> Fixed64 (value << 32), 범위 밖은 포화
     #[inline]
     pub fn from_i64(value: i64) -> Self {
@@ -56,9 +107,10 @@ impl Fixed64 {
         Self::from_raw_i64(clamp_i128_to_i64(scaled / den as i128))
     }
 
-    /// 10진 문자열 -> Fixed64. 지수 표기를 포함하며 부동소수점 연산을 사용하지 않는다.
+    /// Current textual numeric admission.  Values outside Q31.32 are rejected;
+    /// this path never converts overflow into a saturated numeric value.
     pub fn parse_decimal(input: &str) -> Option<Self> {
-        parse_decimal_raw_checked(input).map(|(raw, _)| Self::from_raw_i64(raw))
+        Self::parse_decimal_exact(input)
     }
 
     /// 사용자 원문 10진 문자열 -> Fixed64. 표현 범위를 넘는 값은 포화하지 않고 거부한다.
@@ -103,10 +155,11 @@ impl Fixed64 {
             return Err(ArithmeticFaultKind::DivByZero);
         }
         let num = (self.raw as i128) << (Self::FRAC_BITS as i128);
-        let q = num / (rhs.raw as i128);
-        Ok(Self {
-            raw: clamp_i128_to_i64(q),
-        })
+        let raw = round_div_ties_to_even(num, rhs.raw as i128)
+            .ok_or(ArithmeticFaultKind::Overflow)?;
+        i64::try_from(raw)
+            .map(Self::from_raw_i64)
+            .map_err(|_| ArithmeticFaultKind::Overflow)
     }
 
     /// SSOT: 0으로 나누기 발생 시 "대입 무효화" + "산술고장 신호"
@@ -122,10 +175,10 @@ impl Fixed64 {
             // 대입 무효화: self 변경 없음
             return;
         }
-        // 정상: self <- self / rhs (포화 포함)
-        let num = (self.raw as i128) << (Self::FRAC_BITS as i128);
-        let q = num / (rhs.raw as i128);
-        self.raw = clamp_i128_to_i64(q);
+        match self.try_div(rhs) {
+            Ok(value) => *self = value,
+            Err(kind) => sink.emit(Signal::ArithmeticFault { ctx, kind }),
+        }
     }
 
     #[inline]
@@ -169,6 +222,32 @@ impl Fixed64 {
             b.try_div(a).expect("determinism_vector_v1 b/a").raw_i64(),
             (c + a).raw_i64(),
         ]
+    }
+}
+
+/// Integer-only round-to-nearest with exact ties-to-even.  `denominator` must
+/// be non-zero; `None` represents an impossible arithmetic domain.
+fn round_div_ties_to_even(numerator: i128, denominator: i128) -> Option<i128> {
+    if denominator == 0 {
+        return None;
+    }
+    let quotient = numerator / denominator;
+    let remainder = numerator % denominator;
+    if remainder == 0 {
+        return Some(quotient);
+    }
+    let abs_remainder = remainder.unsigned_abs();
+    let abs_denominator = denominator.unsigned_abs();
+    let twice_remainder = abs_remainder.checked_mul(2)?;
+    let direction = if (numerator < 0) == (denominator < 0) { 1 } else { -1 };
+    if twice_remainder < abs_denominator {
+        Some(quotient)
+    } else if twice_remainder > abs_denominator {
+        quotient.checked_add(direction)
+    } else if quotient & 1 == 0 {
+        Some(quotient)
+    } else {
+        quotient.checked_add(direction)
     }
 }
 
@@ -286,6 +365,19 @@ fn parse_decimal_raw_checked(input: &str) -> Option<(i64, bool)> {
         fractional_raw = (fractional_raw << 1) | carry as u64;
     }
 
+    // The next bit and residue decide the Q31.32 rounding boundary exactly.
+    let mut carry = 0u8;
+    for digit in fractional_digits.iter_mut().rev() {
+        let product = (*digit - b'0') * 2 + carry;
+        *digit = b'0' + product % 10;
+        carry = product / 10;
+    }
+    if carry == 1
+        && (fractional_digits.iter().any(|digit| *digit != b'0') || fractional_raw & 1 == 1)
+    {
+        fractional_raw = fractional_raw.checked_add(1)?;
+    }
+
     let absolute_raw = integer_value
         .saturating_mul(Fixed64::ONE_RAW as i128)
         .saturating_add(fractional_raw as i128);
@@ -351,25 +443,49 @@ impl core::ops::Div for Fixed64 {
 // 포맷팅
 // ============================================================================
 
+impl Fixed64 {
+    /// Q32.32 값 정체성·정본화용 정확한 십진 문자열. 화면 반올림과 분리한다.
+    pub fn canonical_decimal_text(self) -> String {
+        let raw = i128::from(self.raw);
+        let sign = if raw < 0 { "-" } else { "" };
+        let magnitude = raw.unsigned_abs();
+        let whole = magnitude >> Self::FRAC_BITS;
+        let fraction = magnitude & ((1u128 << Self::FRAC_BITS) - 1);
+        if fraction == 0 { return format!("{sign}{whole}"); }
+        // 2^32 분모의 십진 전개는 32자리 안에서 정확히 끝난다.
+        let decimal = fraction * 5u128.pow(Self::FRAC_BITS);
+        let digits = format!("{decimal:032}");
+        format!("{sign}{whole}.{}", digits.trim_end_matches('0'))
+    }
+
+    /// 세계 정체성·정본화가 아닌 화면/요약 자원 표시 전용 6자리 문자열.
+    pub fn display_rounded_six(self) -> String {
+        // WO-09 A: 세계 raw 값은 그대로 두고 기존 6자리 표시만 반올림한다.
+        // i64::MIN도 안전하게 표현하도록 절댓값 계산은 넓은 정수에서 한다.
+        let magnitude = (self.raw as i128).unsigned_abs();
+        let scaled = magnitude * 1_000_000;
+        let mut micros = scaled >> Self::FRAC_BITS;
+        let remainder = scaled & ((1u128 << Self::FRAC_BITS) - 1);
+        let half = 1u128 << (Self::FRAC_BITS - 1);
+        if remainder > half || (remainder == half && micros & 1 == 1) {
+            micros += 1;
+        }
+        let sign = if self.raw < 0 && micros != 0 { "-" } else { "" };
+        let integer = micros / 1_000_000;
+        let fraction = micros % 1_000_000;
+        if fraction == 0 {
+            format!("{sign}{integer}")
+        } else {
+            let digits = format!("{fraction:06}");
+            format!("{sign}{integer}.{}", digits.trim_end_matches('0'))
+        }
+    }
+}
+
+// 사용자 표시는 6자리 반올림이다. 정체성·정본화는 명시적 정확 formatter를 쓴다.
 impl fmt::Display for Fixed64 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let int_part = self.int_part();
-        let frac_part = self.frac_part();
-
-        if frac_part == 0 {
-            // 정수만 있는 경우
-            write!(f, "{}", int_part)
-        } else {
-            // 1. 소수점 아래 6자리 정밀도로 계산 (반올림 보정 포함)
-            // frac_part / 2^32 * 1,000,000
-            let frac_decimal = ((frac_part as u128 * 1_000_000) >> 32) as u32;
-
-            // 2. 임시 문자열 생성 후 0 제거 (한 번만 출력하기 위함)
-            let s = format!("{}.{:06}", int_part, frac_decimal);
-            let trimmed = s.trim_end_matches('0').trim_end_matches('.');
-
-            write!(f, "{}", trimmed)
-        }
+        f.write_str(&self.display_rounded_six())
     }
 }
 
@@ -377,6 +493,51 @@ impl fmt::Display for Fixed64 {
 mod tests {
     use super::*;
     use crate::signals::{FaultContext, VecSignalSink};
+
+    #[test]
+    fn exact_canonical_decimal_and_display_are_separate() {
+        for (raw, exact, display) in [
+            (-(1i64 << 31), "-0.5", "-0.5"),
+            (-1, "-0.00000000023283064365386962890625", "0"),
+            (i64::MIN, "-2147483648", "-2147483648"),
+            (i64::MAX, "2147483647.99999999976716935634613037109375", "2147483648"),
+            (1i64 << 25, "0.0078125", "0.007812"),
+            (3i64 << 25, "0.0234375", "0.023438"),
+            (-(1i64 << 25), "-0.0078125", "-0.007812"),
+            (-(3i64 << 25), "-0.0234375", "-0.023438"),
+        ] {
+            let value = Fixed64::from_raw_i64(raw);
+            assert_eq!(value.canonical_decimal_text(), exact);
+            assert_eq!(value.to_string(), display);
+            assert_eq!(Fixed64::parse_decimal_exact(exact).unwrap().raw_i64(), raw);
+            assert_eq!(value.raw_i64(), raw);
+        }
+    }
+
+    #[test]
+    fn exact_canonical_keys_preserve_adjacent_raw_and_raw_canon_bytes() {
+        use crate::platform::{ResourceMapEntry, ResourceValue};
+        for raw in [i64::MIN, -4294967297, -1, 0, 1, 4294967296, i64::MAX - 1] {
+            let a = Fixed64::from_raw_i64(raw);
+            let b = Fixed64::from_raw_i64(raw + 1);
+            assert_ne!(a.canonical_decimal_text(), b.canonical_decimal_text());
+            let av = ResourceValue::Fixed64(a);
+            let bv = ResourceValue::Fixed64(b);
+            assert_ne!(av.canon_key(), bv.canon_key());
+            let set = ResourceValue::set_from_values(vec![av.clone(), bv.clone()]);
+            assert!(matches!(set, ResourceValue::Set(ref items) if items.len() == 2));
+            let map = ResourceValue::map_from_entries(vec![
+                ResourceMapEntry { key: av.clone(), value: ResourceValue::None },
+                ResourceMapEntry { key: bv, value: ResourceValue::None },
+            ]);
+            assert!(matches!(map, ResourceValue::Map(ref entries) if entries.len() == 2));
+            let mut encoded = Vec::new();
+            av.encode_canon(&mut encoded);
+            let mut expected = vec![0x02];
+            expected.extend_from_slice(&raw.to_le_bytes());
+            assert_eq!(encoded, expected);
+        }
+    }
 
     #[test]
     fn q32_32_raw_is_exact() {
@@ -399,6 +560,46 @@ mod tests {
 
         let min = Fixed64::MIN;
         assert_eq!((min - one).raw_i64(), i64::MIN);
+    }
+
+    #[test]
+    fn checked_arithmetic_rejects_overflow_instead_of_saturating() {
+        assert_eq!(Fixed64::MAX.checked_add(Fixed64::ONE), Err(ArithmeticFaultKind::Overflow));
+        assert_eq!(Fixed64::MIN.checked_sub(Fixed64::ONE), Err(ArithmeticFaultKind::Overflow));
+        assert_eq!(Fixed64::MAX.checked_mul(Fixed64::from_i64(2)), Err(ArithmeticFaultKind::Overflow));
+        assert_eq!(Fixed64::MAX.try_div(Fixed64::from_raw_i64(1)), Err(ArithmeticFaultKind::Overflow));
+    }
+
+    #[test]
+    fn checked_mul_and_div_round_ties_to_even() {
+        let half_ulp = Fixed64::from_raw_i64(1i64 << 31);
+        let one_ulp = Fixed64::from_raw_i64(1);
+        let three_ulp = Fixed64::from_raw_i64(3);
+        assert_eq!(one_ulp.checked_mul(half_ulp), Ok(Fixed64::ZERO));
+        assert_eq!(three_ulp.checked_mul(half_ulp), Ok(Fixed64::from_raw_i64(2)));
+        assert_eq!(Fixed64::ONE.try_div(Fixed64::from_i64(2)), Ok(half_ulp));
+        assert_eq!(Fixed64::from_raw_i64(3).try_div(Fixed64::from_i64(2)), Ok(Fixed64::from_raw_i64(2)));
+    }
+
+    #[test]
+    fn checked_weighted_blend_preserves_exact_endpoint_and_ties_to_even() {
+        let half = Fixed64::from_raw_i64(1i64 << 31);
+        assert_eq!(
+            Fixed64::MAX.checked_weighted_blend(Fixed64::MAX, half),
+            Ok(Fixed64::MAX)
+        );
+        assert_eq!(
+            Fixed64::from_raw_i64(1).checked_weighted_blend(Fixed64::from_raw_i64(3), half),
+            Ok(Fixed64::from_raw_i64(2))
+        );
+        assert_eq!(
+            Fixed64::from_raw_i64(1).checked_weighted_blend(Fixed64::from_raw_i64(2), half),
+            Ok(Fixed64::from_raw_i64(2))
+        );
+        assert_eq!(
+            Fixed64::ONE.checked_weighted_blend(Fixed64::ZERO, Fixed64::from_raw_i64(-1)),
+            Err(ArithmeticFaultKind::Overflow)
+        );
     }
 
     #[test]
@@ -473,7 +674,7 @@ mod tests {
     fn decimal_conversion_is_integer_only_and_exact_at_raw_precision() {
         let cases = [
             ("0.5", 1i64 << 31),
-            ("-0.8", -3_435_973_836),
+            ("-0.8", -3_435_973_837),
             ("1.25e2", 125i64 << 32),
             ("3.14", 13_486_197_309),
             ("0.00000000023283064365386962890625", 1),
@@ -486,7 +687,7 @@ mod tests {
                 "decimal input: {text}"
             );
         }
-        assert_eq!(Fixed64::parse_decimal("2147483648"), Some(Fixed64::MAX));
+        assert_eq!(Fixed64::parse_decimal("2147483648"), None);
         assert_eq!(Fixed64::parse_decimal("-2147483648"), Some(Fixed64::MIN));
         assert_eq!(
             Fixed64::parse_decimal_exact("2147483647"),
@@ -540,6 +741,31 @@ mod tests {
         assert_eq!(format!("{}", Fixed64::from_i64(10)), "10");
 
         let display_val = format!("{}", Fixed64::parse_decimal("3.14").expect("valid decimal"));
-        assert_eq!(display_val, "3.139999");
+        assert_eq!(display_val, "3.14");
+        assert_eq!(Fixed64::parse_decimal("3.14").unwrap().display_rounded_six(), "3.14");
+    }
+
+    #[test]
+    fn display_signed_decimals_round_without_changing_raw_value() {
+        for (input, expected) in [
+            ("-0.08", "-0.08"), ("-1.5", "-1.5"),
+            ("-2", "-2"), ("0.25", "0.25"),
+            ("0.9999999", "1"), ("-0.9999999", "-1"),
+        ] {
+            let value = Fixed64::parse_decimal(input).unwrap();
+            let raw = value.raw_i64();
+            assert_eq!(value.display_rounded_six(), expected, "{input}");
+            assert_eq!(value.raw_i64(), raw);
+        }
+        assert_eq!(Fixed64::MIN.display_rounded_six(), "-2147483648");
+        assert_eq!(Fixed64::MAX.display_rounded_six(), "2147483648");
+        assert_eq!(Fixed64::from_raw_i64(-1).display_rounded_six(), "0");
+        // 정확한 반: 1/128 = .0078125 (짝수 아래), 3/128 = .0234375 (짝수 위).
+        for (raw, expected) in [
+            (1i64 << 25, "0.007812"), (3i64 << 25, "0.023438"),
+            (-(1i64 << 25), "-0.007812"), (-(3i64 << 25), "-0.023438"),
+        ] {
+            assert_eq!(Fixed64::from_raw_i64(raw).display_rounded_six(), expected);
+        }
     }
 }

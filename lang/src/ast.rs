@@ -34,7 +34,50 @@ pub struct CanonProgram {
     pub id: NodeId,
     pub source_epoch: SourceEpoch,
     pub items: Vec<TopLevelItem>,
+    /// Imperative source-program statements. They deliberately remain outside
+    /// callable definitions, so root `<-` never manufactures a callable or a
+    /// DefinitionIdentity.
+    pub root_stmts: Vec<Stmt>,
     pub origin: OriginMap,
+}
+
+/// DDL Wave 1 is a non-executable public-surface document.  It deliberately
+/// stays separate from `CanonProgram`: a DDL projection has no runtime body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DdlDocument {
+    pub extension: DdlExtension,
+    pub source_span: Span,
+    pub sections: Vec<LanguageSection>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DdlExtension {
+    Ddl,
+    Olgim,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LanguageSection {
+    pub language_profile_identity: String,
+    pub header_span: Span,
+    pub content_span: Span,
+    pub projection: ImmutablePublicValueProjection,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImmutablePublicValueProjection {
+    /// Stable registry-owned identity; localized spelling is never identity.
+    pub definition_identity: String,
+    pub type_identity: String,
+    pub localized_name: String,
+    pub localized_type: String,
+    pub declaration_span: Span,
+    pub omitted_payload: OmittedPayload,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OmittedPayload {
+    ValueInitializer,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +85,9 @@ pub struct OriginMap {
     pub file_path: String,
     pub source: String,
     pub node_spans: HashMap<NodeId, Span>,
+    /// Exact definition candidates admitted by the authored registered
+    /// surface. This is private compilation provenance, not a public identity.
+    pub registered_call_candidates: HashMap<NodeId, Vec<NodeId>>,
 }
 
 #[derive(Debug, Clone)]
@@ -54,10 +100,38 @@ pub struct SeedDef {
     pub id: NodeId,
     pub span: Span,
     pub canonical_name: String,
+    /// Explicit lexical alternates registered by `name{alternate~...}`.
+    ///
+    /// These spellings preserve this definition's identity. They are not
+    /// separate definitions and are never inferred from natural-language
+    /// knowledge.
+    pub alternate_forms: Vec<String>,
     pub seed_kind: SeedKind,
     pub params: Vec<ParamPin>,
+    /// The explicitly pinned result type for the RD-406 named, single-
+    /// expression callable surface. `None` keeps the established seed forms
+    /// unchanged.
+    pub result_type: Option<TypeRef>,
     pub body: Option<Body>,
     pub modifiers: Vec<Modifier>,
+}
+
+impl SeedDef {
+    /// Exact source spellings admitted for calls.
+    ///
+    /// A definition without an explicit set preserves the predecessor Korean
+    /// call tails. Once an explicit set is authored, that set is closed:
+    /// neither the preferred spelling nor an alternate gains a hidden tail.
+    pub fn callable_surface_names(&self) -> Vec<String> {
+        const CALL_TAILS: [&str; 4] = ["기", "고", "면", "면서"];
+        let mut surfaces = vec![self.canonical_name.clone()];
+        if self.alternate_forms.is_empty() {
+            surfaces.extend(CALL_TAILS.map(|tail| format!("{}{}", self.canonical_name, tail)));
+        } else {
+            surfaces.extend(self.alternate_forms.iter().cloned());
+        }
+        surfaces
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -157,6 +231,16 @@ pub enum Stmt {
         value: Expr,
         deferred: bool,
         deferred_span: Option<Span>,
+    },
+    /// A produced value written to an already-addressed writable place.
+    /// This is deliberately not a reverse spelling of `Mutate`: `producer ->
+    /// destination` preserves the producer/result role through canon and runtime.
+    ResultFlow {
+        id: NodeId,
+        span: Span,
+        mood: Mood,
+        producer: Expr,
+        destination: Expr,
     },
     Expr {
         id: NodeId,
@@ -373,6 +457,17 @@ pub enum ExprKind {
     Call {
         args: Vec<ArgBinding>,
         func: String,
+    },
+    /// `차림[...]` is a source-level collection constructor, not a call or
+    /// postfix selection.  Its elements retain their authored order.
+    CollectionConstructor {
+        elements: Vec<Expr>,
+    },
+    /// An indexed writable place. This is only valid as `Stmt::Mutate`'s
+    /// target and is deliberately distinct from postfix selection values.
+    SelectionPlace {
+        target: Box<Expr>,
+        index: Box<Expr>,
     },
     Infix {
         left: Box<Expr>,

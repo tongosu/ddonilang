@@ -20,8 +20,6 @@ pub const PROJECT_AUTHORING_HOVER_SCHEMA: &str = "ddn.project_authoring_hover.v1
 pub const PROJECT_AUTHORING_COMPLETION_SCHEMA: &str = "ddn.project_authoring_completion.v1";
 pub const PROJECT_AUTHORING_RENAME_REQUEST_SCHEMA: &str = "ddn.project_authoring_rename_request.v1";
 pub const PROJECT_AUTHORING_RENAME_PLAN_SCHEMA: &str = "ddn.project_authoring_rename_plan.v1";
-const FLAT_WRAPPER_PREFIX: &str = "매틱:움직씨 = {\n";
-const FLAT_WRAPPER_SUFFIX: &str = "}\n";
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -1144,8 +1142,7 @@ fn build_project_authoring_completion(
             });
         }
         const KEYWORDS: &[&str] = &[
-            "만약",
-            "이라면",
+            "이면",
             "아니면",
             "되풀이",
             "동안",
@@ -1431,6 +1428,12 @@ fn build_project_authoring_rename_preview(
             }) {
                 edits.push(edit);
             }
+            let text = project_source_text(&request.source, &export.module_path).unwrap_or("");
+            if let Some((_, internal)) = typed_directive_pin_spans(text, "드러냄", &export.external_name).into_iter().next() {
+                if let Some(edit) = source_range(text, internal.0, internal.1).and_then(|range| {
+                    rename_edit(&request.source, &export.module_path, range, &request.new_name, "export")
+                }) { edits.push(edit); }
+            }
         }
         for reference in snapshot
             .references
@@ -1531,6 +1534,8 @@ pub fn build_project_authoring_snapshot(
         ));
     }
 
+    // The authored root, not a token in an edited file, owns SourceEpoch.
+    local_project::project_source_profile(&request.source, None)?;
     let normalized = local_project::normalize_virtual_project_source(request.source.clone())?;
     let project_source_sha256 = local_project::virtual_project_source_sha256(&request.source)?;
     let mut diagnostics = Vec::new();
@@ -1566,15 +1571,19 @@ pub fn build_project_authoring_snapshot(
         ) {
             continue;
         }
-        match local_project::parse_imports(source, path) {
-            Ok(rows) => {
-                for row in rows {
-                    let range =
+        if path == &normalized.root_path { continue; }
+        match local_project::resolve_work_project_module_directives(&request.source, path) {
+            Ok(directives) => {
+                let typed_current = directives.typed_current;
+                for row in directives.imports {
+                    let range = if typed_current {
+                        typed_directive_pin_spans(source, "쓰임", &row.alias).into_iter().next()
+                            .and_then(|(span, _)| source_range(source, span.0, span.1))
+                    } else {
                         local_project::find_named_block_key_spans(source, "쓰임", &row.alias)
-                            .into_iter()
-                            .next()
-                            .and_then(|span| source_range(source, span.0, span.1));
-                    match local_project::resolve_import_source_path(path, &row.source) {
+                            .into_iter().next().and_then(|span| source_range(source, span.0, span.1))
+                    };
+                    match local_project::resolve_work_import_source_path(&request.source, &row.source) {
                         Ok(resolved_path) => {
                             let start = range.as_ref().map(|range| range.start).unwrap_or(0);
                             imports.push(AuthoringImport {
@@ -1596,12 +1605,7 @@ pub fn build_project_authoring_snapshot(
                         }
                     }
                 }
-            }
-            Err(err) => diagnostics.push(diagnostic_from_local_error(&err, &request.source)),
-        }
-        match local_project::parse_exports(source, path) {
-            Ok(rows) => {
-                for row in rows {
+                for row in directives.exports {
                     let span = local_project::find_named_block_key_spans(
                         source,
                         "드러냄",
@@ -1620,9 +1624,14 @@ pub fn build_project_authoring_snapshot(
                     });
                     exports.push(AuthoringExport {
                         module_path: path.clone(),
-                        external_name: row.external_name,
+                        external_name: row.external_name.clone(),
                         internal_name: row.internal_name,
-                        name_range: span.and_then(|span| source_range(source, span.0, span.1)),
+                        name_range: if typed_current {
+                            typed_directive_pin_spans(source, "드러냄", &row.external_name).into_iter().next()
+                                .and_then(|(span, _)| source_range(source, span.0, span.1))
+                        } else {
+                            span.and_then(|span| source_range(source, span.0, span.1))
+                        },
                     });
                 }
             }
@@ -2115,7 +2124,10 @@ fn parse_authoring_file(
         });
     }
 
-    match ddonirang_lang::parse_with_mode(&masked, path, ParseMode::Strict) {
+    // The snapshot entry has already validated the explicit supported profile.
+    // A parse error must not retry the file under a different grammar or wrapper.
+    let direct = ddonirang_lang::parse_v25_with_mode(&masked, path, ParseMode::Strict);
+    match direct {
         Ok(program) => Ok(ParsedAuthoringFile {
             program: Some(program),
             tokens: original_tokens.unwrap_or_default(),
@@ -2124,71 +2136,20 @@ fn parse_authoring_file(
             shift: 0,
             diagnostic: None,
         }),
-        Err(direct_error) => {
-            let mut wrapped = String::with_capacity(
-                FLAT_WRAPPER_PREFIX.len() + masked.len() + FLAT_WRAPPER_SUFFIX.len() + 1,
-            );
-            wrapped.push_str(FLAT_WRAPPER_PREFIX);
-            wrapped.push_str(&masked);
-            if !masked.ends_with('\n') {
-                wrapped.push('\n');
-            }
-            wrapped.push_str(FLAT_WRAPPER_SUFFIX);
-            match ddonirang_lang::parse_with_mode(&wrapped, path, ParseMode::Strict) {
-                Ok(program) => {
-                    let tokens = Lexer::new(&wrapped)
-                        .tokenize()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .filter_map(|mut token| {
-                            if token.span.start < FLAT_WRAPPER_PREFIX.len()
-                                || token.span.end < FLAT_WRAPPER_PREFIX.len()
-                            {
-                                return None;
-                            }
-                            let start = token.span.start - FLAT_WRAPPER_PREFIX.len();
-                            let end = token.span.end - FLAT_WRAPPER_PREFIX.len();
-                            if start > end || end > source.len() {
-                                return None;
-                            }
-                            token.span.start = start;
-                            token.span.end = end;
-                            Some(token)
-                        })
-                        .collect();
-                    Ok(ParsedAuthoringFile {
-                        program: Some(program),
-                        tokens,
-                        parse_status: "wrapped",
-                        parse_span_mode: "wrapper_shift_reversed",
-                        shift: FLAT_WRAPPER_PREFIX.len(),
-                        diagnostic: None,
-                    })
-                }
-                Err(wrapped_error) => {
-                    let mapped =
-                        map_span(wrapped_error.span, FLAT_WRAPPER_PREFIX.len(), source.len());
-                    let chosen = mapped.unwrap_or(direct_error.span);
-                    Ok(ParsedAuthoringFile {
-                        program: None,
-                        tokens: original_tokens.unwrap_or_default(),
-                        parse_status: "unavailable",
-                        parse_span_mode: "original_utf8_bytes",
-                        shift: 0,
-                        diagnostic: Some(AuthoringDiagnostic {
-                            code: "E_PROJECT_AUTHORING_PARSE_UNAVAILABLE".to_string(),
-                            message: format!(
-                                "정확한 원문 span을 보존하는 strict/direct 또는 bounded wrapper parse가 실패했습니다: {}",
-                                wrapped_error.message
-                            ),
-                            severity: "error",
-                            source_ref: Some(path.to_string()),
-                            source_range: source_range(source, chosen.start, chosen.end.min(source.len())),
-                        }),
-                    })
-                }
-            }
-        }
+        Err(error) => Ok(ParsedAuthoringFile {
+            program: None,
+            tokens: original_tokens.unwrap_or_default(),
+            parse_status: "unavailable",
+            parse_span_mode: "original_utf8_bytes",
+            shift: 0,
+            diagnostic: Some(AuthoringDiagnostic {
+                code: "E_PROJECT_AUTHORING_PARSE_UNAVAILABLE".to_string(),
+                message: format!("문법 판 v25로 원문을 읽을 수 없습니다: {}", error.message),
+                severity: "error",
+                source_ref: Some(path.to_string()),
+                source_range: source_range(source, error.span.start, error.span.end.min(source.len())),
+            }),
+        }),
     }
 }
 
@@ -2284,6 +2245,9 @@ impl<'a> DefinitionCollector<'a> {
                 self.collect_body(body, &seed_scope, false);
             }
         }
+        // Root statements became first-class in dae9389628f8. Navigation must
+        // collect that AST too, without manufacturing a wrapper callable.
+        self.collect_stmts(&program.root_stmts, &file_scope);
     }
 
     fn collect_body(&mut self, body: &Body, parent_scope: &str, nested: bool) {
@@ -2294,7 +2258,12 @@ impl<'a> DefinitionCollector<'a> {
         } else {
             parent_scope.to_string()
         };
-        for stmt in &body.stmts {
+        self.collect_stmts(&body.stmts, &scope_id);
+    }
+
+    fn collect_stmts(&mut self, stmts: &[Stmt], scope_id: &str) {
+        let scope_id = scope_id.to_string();
+        for stmt in stmts {
             match stmt {
                 Stmt::DeclBlock { items, .. } => {
                     for item in items {
@@ -2374,6 +2343,14 @@ impl<'a> DefinitionCollector<'a> {
                     if let ExprKind::Var(name) = &target.kind {
                         self.collect_record_field_definitions(name, value, &scope_id);
                     }
+                }
+                Stmt::ResultFlow {
+                    producer,
+                    destination,
+                    ..
+                } => {
+                    self.collect_expr(producer, &scope_id, false);
+                    self.collect_expr(destination, &scope_id, true);
                 }
                 Stmt::Receive {
                     span,
@@ -2590,6 +2567,15 @@ impl<'a> DefinitionCollector<'a> {
                 if let Some(span) = span {
                     self.record_occurrence(func, scope_id, span, false);
                 }
+            }
+            ExprKind::CollectionConstructor { elements } => {
+                for element in elements {
+                    self.collect_expr(element, scope_id, false);
+                }
+            }
+            ExprKind::SelectionPlace { target, index } => {
+                self.collect_expr(target, scope_id, write);
+                self.collect_expr(index, scope_id, false);
             }
             ExprKind::Infix { left, right, .. } => {
                 self.collect_expr(left, scope_id, false);
@@ -2845,6 +2831,53 @@ fn map_span(span: Span, shift: usize, source_len: usize) -> Option<Span> {
         return None;
     }
     Some(Span { start, end })
+}
+
+fn typed_directive_pin_spans(
+    source: &str,
+    directive: &str,
+    local: &str,
+) -> Vec<((usize, usize), (usize, usize))> {
+    let Ok(tokens) = Lexer::new(source).tokenize() else {
+        return Vec::new();
+    };
+    let mut result = Vec::new();
+    let mut pos = 0;
+    while pos < tokens.len() {
+        if !matches!(tokens[pos].kind, TokenKind::LParen) {
+            pos += 1;
+            continue;
+        }
+        let begin = pos;
+        let mut depth = 1usize;
+        pos += 1;
+        while pos < tokens.len() && depth > 0 {
+            match tokens[pos].kind {
+                TokenKind::LParen => depth += 1,
+                TokenKind::RParen => depth -= 1,
+                _ => {}
+            }
+            pos += 1;
+        }
+        if depth != 0 || pos >= tokens.len() {
+            break;
+        }
+        let verb = &tokens[pos];
+        if source.get(verb.span.start..verb.span.end) != Some(directive) {
+            continue;
+        }
+        for triple in tokens[begin + 1..pos - 1].windows(3) {
+            if matches!(triple[1].kind, TokenKind::Equals)
+                && source.get(triple[0].span.start..triple[0].span.end) == Some(local)
+            {
+                result.push((
+                    (triple[0].span.start, triple[0].span.end),
+                    (triple[2].span.start, triple[2].span.end),
+                ));
+            }
+        }
+    }
+    result
 }
 
 fn source_range(source: &str, start: usize, end: usize) -> Option<AuthoringSourceRange> {
@@ -3205,6 +3238,32 @@ fn sha256_hex(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn wo03_typed_directive_ranges_preserve_both_rename_sides() {
+        let source = "// (가짜=가짜) 드러냄.\n(값 = 값) 드러냄.\n글 := \"(가짜=가짜) 드러냄.\".";
+        let spans = super::typed_directive_pin_spans(source, "드러냄", "값");
+        assert_eq!(spans.len(), 1);
+        let (external, internal) = spans[0];
+        assert_eq!(&source[external.0..external.1], "값");
+        assert_eq!(&source[internal.0..internal.1], "값");
+        assert!(external.1 < internal.0);
+        assert!(super::typed_directive_pin_spans(source, "드러냄", "가짜").is_empty());
+    }
+
+    #[test]
+    fn wo03_authoring_uses_explicit_v25_without_legacy_retry() {
+        for source in ["값 <- 1. 값 보여주기.", "값 := 1. 값 보여주기."] {
+            let parsed = super::parse_authoring_file(source, "app/main.ddn").unwrap();
+            assert!(parsed.program.is_some(), "{source}");
+            assert_eq!(parsed.parse_status, "direct");
+            assert_eq!(parsed.shift, 0);
+        }
+        let rejected = super::parse_authoring_file("매틱:움직씨 = { 1 보여주기. }", "app/main.ddn").unwrap();
+        assert!(rejected.program.is_none());
+        assert_eq!(rejected.parse_status, "unavailable");
+        assert_eq!(rejected.shift, 0);
+    }
+
     use super::*;
     use crate::local_project::{
         VirtualProjectFileSource, LOCAL_PROJECT_TREE_KIND, VIRTUAL_PROJECT_SOURCE_SCHEMA,
@@ -3229,7 +3288,14 @@ mod tests {
     }
 
     fn root(entry: &str) -> String {
-        format!("프로젝트 {{\n  이름: \"저작검사\".\n  첫글: \"{entry}\".\n}}\n")
+        // D9: authoring-only library work has an explicit epoch and no start.
+        format!("(글판=\"v25\", 모듬=차림[(이름=앱, 머리=\"{entry}\", 원문=\"{entry}\")]) 얽음.\n")
+    }
+
+    fn root_with_module(entry: &str, module_name: &str, module_path: &str) -> String {
+        // D9 declared ownership is explicit; import spelling is a module name,
+        // never a guessed path alias. This fixture remains a library work.
+        format!("(글판=\"v25\", 모듬=차림[(이름=앱, 머리=\"{entry}\", 원문=\"{entry}\"), (이름={module_name}, 머리=\"{module_path}\", 원문=\"{module_path}\")]) 얽음.\n")
     }
 
     fn model_source() -> &'static str {
@@ -3255,9 +3321,7 @@ mod tests {
     }
 
     fn exact_method_module() -> &'static str {
-        r#"드러냄 {
-  정밀한방법.
-}
+        r#"(정밀한방법=정밀한방법) 드러냄.
 
 정밀한방법 <- (방식: #정밀).
 "#
@@ -3289,7 +3353,7 @@ mod tests {
     fn multifile_model_project(entry: &str, module: &str) -> VirtualProjectSource {
         project(
             vec![
-                ("뿌리.ddn", "root", &root("app/main.ddn")),
+                ("뿌리.ddn", "root", &root_with_module("app/main.ddn", "방법", "lib/method.ddn")),
                 ("app/main.ddn", "ddn_source", entry),
                 ("lib/method.ddn", "ddn_source", module),
             ],
@@ -3498,7 +3562,7 @@ mod tests {
                 .find(|file| file.path == "main.ddn")
                 .expect("main")
                 .parse_status,
-            "wrapped"
+            "direct"
         );
         assert_eq!(first.definitions.len(), 1);
         assert_eq!(first.definitions[0].name, "값");
@@ -3515,20 +3579,45 @@ mod tests {
     }
 
     #[test]
+    fn direct_root_definition_and_first_binding_keep_distinct_authoring_identity() {
+        let text = "정의값 := 1.\n결속값 <- 2.\n결속값 <- 3.\n정의값 보여주기.\n결속값 보여주기.\n";
+        let snapshot = build_project_authoring_snapshot(ProjectAuthoringSnapshotRequest {
+            schema: PROJECT_AUTHORING_SNAPSHOT_REQUEST_SCHEMA.to_string(),
+            source: project(
+                vec![
+                    ("뿌리.ddn", "root", &root("main.ddn")),
+                    ("main.ddn", "ddn_source", text),
+                ],
+                "main.ddn",
+            ),
+            source_version: "direct-root-identities".to_string(),
+        }).expect("direct root snapshot");
+        assert_eq!(snapshot.definitions.len(), 2);
+        let definition = snapshot.definitions.iter().find(|row| row.name == "정의값").unwrap();
+        let binding = snapshot.definitions.iter().find(|row| row.name == "결속값").unwrap();
+        assert_eq!(definition.kind, "definition");
+        assert!(definition.explicit);
+        assert_eq!(binding.kind, "variable");
+        assert!(!binding.explicit);
+        assert!(snapshot.references.iter().filter(|row| row.name == "결속값")
+            .all(|row| row.definition_id.as_deref() == Some(binding.id.as_str())));
+    }
+
+    #[test]
     fn snapshot_masks_metadata_with_offsets_and_links_import_export_rows() {
-        let root_text = root("main.ddn");
+        let root_text = root_with_module("main.ddn", "lib", "lib.ddn");
         let source = project(
             vec![
                 ("뿌리.ddn", "root", &root_text),
                 (
                     "main.ddn",
                     "ddn_source",
-                    "쓰임 { 도구: \"lib\". }\n결과 <- 도구.값.\n",
+                    "(도구=lib) 쓰임.\n결과 <- 도구.값.\n",
                 ),
                 (
                     "lib.ddn",
                     "ddn_source",
-                    "드러냄 { 값. }\n채비 {\n  값: 수 <- 3.\n}.\n",
+                    "(값=값) 드러냄.\n채비 {\n  값: 수 := 3.\n}.\n",
                 ),
             ],
             "main.ddn",
@@ -3539,9 +3628,9 @@ mod tests {
             source_version: "edit-2".to_string(),
         })
         .expect("snapshot");
-        assert_eq!(snapshot.imports.len(), 1);
+        assert_eq!(snapshot.imports.len(), 1, "{:?}", snapshot.diagnostics);
         assert_eq!(snapshot.imports[0].resolved_path, "lib.ddn");
-        assert_eq!(snapshot.exports.len(), 1);
+        assert_eq!(snapshot.exports.len(), 1, "{:?}", snapshot.diagnostics);
         assert!(snapshot
             .definitions
             .iter()
@@ -3719,7 +3808,7 @@ mod tests {
     }
 
     #[test]
-    fn bom_is_masked_for_parse_but_definition_range_stays_in_original_bytes() {
+    fn wo03_bom_is_rejected_without_masking_original_bytes() {
         let source = project(
             vec![
                 ("뿌리.ddn", "root", &root("main.ddn")),
@@ -3727,14 +3816,13 @@ mod tests {
             ],
             "main.ddn",
         );
-        let snapshot = build_project_authoring_snapshot(ProjectAuthoringSnapshotRequest {
+        let error = build_project_authoring_snapshot(ProjectAuthoringSnapshotRequest {
             schema: PROJECT_AUTHORING_SNAPSHOT_REQUEST_SCHEMA.to_string(),
             source,
             source_version: "bom-1".to_string(),
         })
-        .expect("snapshot");
-        assert_eq!(snapshot.definitions[0].range.start, 3);
-        assert_eq!(snapshot.definitions[0].range.start_column_utf16, 2);
+        .expect_err("RD-534 forbids BOM stripping");
+        assert_eq!(error.code, "E_SOURCE_UTF8_BOM_FORBIDDEN");
     }
 
     #[test]
@@ -3745,7 +3833,7 @@ mod tests {
                 (
                     "main.ddn",
                     "ddn_source",
-                    "(값:수) 첫째:셈씨 = { 값 돌려줘. }\n(값:수) 둘째:셈씨 = { 값 돌려줘. }\n",
+                    "(값:수) 첫째:수:셈씨 := { 값 돌려줘. }.\n(값:수) 둘째:수:셈씨 := { 값 돌려줘. }.\n",
                 ),
             ],
             "main.ddn",
@@ -3778,16 +3866,16 @@ mod tests {
     fn definition_and_references_use_bound_ast_and_reject_stale_identity() {
         let source = project(
             vec![
-                ("뿌리.ddn", "root", &root("main.ddn")),
+                ("뿌리.ddn", "root", &root_with_module("main.ddn", "lib", "lib.ddn")),
                 (
                     "main.ddn",
                     "ddn_source",
-                    "쓰임 { 도구: \"lib\". }\n결과 <- 도구.값.\n도구.값 보여주기.\n글 <- \"도구.값\".\n// 도구.값\n",
+                    "(도구=lib) 쓰임.\n결과 <- 도구.값.\n도구.값 보여주기.\n글 <- \"도구.값\".\n// 도구.값\n",
                 ),
                 (
                     "lib.ddn",
                     "ddn_source",
-                    "드러냄 { 값. }\n값 <- 3.\n값 보여주기.\n",
+                    "(값=값) 드러냄.\n값 := 3.\n값 보여주기.\n",
                 ),
             ],
             "main.ddn",
@@ -3877,16 +3965,16 @@ mod tests {
     fn hover_completion_and_rename_share_snapshot_binding_and_fail_closed() {
         let source = project(
             vec![
-                ("뿌리.ddn", "root", &root("main.ddn")),
+                ("뿌리.ddn", "root", &root_with_module("main.ddn", "lib", "lib.ddn")),
                 (
                     "main.ddn",
                     "ddn_source",
-                    "쓰임 { 도구: \"lib\". }\n결과 <- 도구.값.\n글 <- \"도구.값\".\n// 도구.값\n",
+                    "(도구=lib) 쓰임.\n결과 <- 도구.값.\n글 <- \"도구.값\".\n// 도구.값\n",
                 ),
                 (
                     "lib.ddn",
                     "ddn_source",
-                    "드러냄 { 값. }\n값 <- 3@m.\n값 보여주기.\n새값 <- 4.\n",
+                    "(값=값) 드러냄.\n값 := 3@m.\n값 보여주기.\n새값 <- 4.\n",
                 ),
             ],
             "main.ddn",
@@ -3983,6 +4071,12 @@ mod tests {
             .iter()
             .flat_map(|file| &file.edits)
             .any(|edit| edit.kind == "export"));
+        assert_eq!(
+            plan.files.iter().flat_map(|file| &file.edits)
+                .filter(|edit| edit.kind == "export").count(),
+            2,
+            "typed public mapping must rename both the external and internal names"
+        );
 
         let conflict = build_project_authoring_rename_preview(ProjectAuthoringRenameRequest {
             schema: PROJECT_AUTHORING_RENAME_REQUEST_SCHEMA.to_string(),
@@ -4002,8 +4096,8 @@ mod tests {
     #[test]
     fn public_observation_fields_use_exact_names_for_hover_references_and_atomic_rename() {
         let main = r#"채비 {
-  시간: 수 <- 1.
-  각도: 수 <- 15.
+  시간: 수 := 1.
+  각도: 수 := 15.
 }.
 (표시시간: 시간, 표시각도: 각도) 보임.
 (각도) 보임.
@@ -4115,13 +4209,11 @@ mod tests {
 
     #[test]
     fn multifile_public_observation_value_resolves_imported_alias_definition() {
-        let main = r#"쓰임 {
-  운동: "./lib/운동".
-}
+        let main = r#"(운동=운동) 쓰임.
 
 채비 {
-  시간 <- 0.
-  각도 <- 운동.시작각.
+  시간 := 0.
+  각도 := 운동.시작각.
 }.
 
 (매마디)마다 {
@@ -4132,12 +4224,12 @@ mod tests {
 "#;
         let source = project(
             vec![
-                ("뿌리.ddn", "root", &root("app/main.ddn")),
+                ("뿌리.ddn", "root", &root_with_module("app/main.ddn", "운동", "lib/운동.ddn")),
                 ("app/main.ddn", "ddn_source", main),
                 (
                     "lib/운동.ddn",
                     "ddn_source",
-                    "드러냄 {\n  시작각.\n  증가량.\n}\n\n시작각 <- 15.\n증가량 <- 2.\n",
+                    "(시작각=시작각, 증가량=증가량) 드러냄.\n\n시작각 := 15.\n증가량 := 2.\n",
                 ),
             ],
             "app/main.ddn",
@@ -4185,7 +4277,74 @@ mod tests {
     }
 
     #[test]
+    fn current_typed_directives_reach_the_authoring_symbol_frontdoor() {
+        // This is the exact current physics-project source emitted by the
+        // tracked Workbench generator.  It must cross the same typed resolver
+        // as an AddModule project; no test-only source lowering is involved.
+        let main = "(힘=힘) 쓰임.\n\n위치초기:수 := 0.\n속도초기:수 := 20.\n시간간격:수 := 0.1.\n중력가속도:수 := 힘.중력.\n속도:수 := 속도초기 - 중력가속도 * 시간간격.\n위치:수 := 위치초기 + 속도 * 시간간격.\n위치 보여주기.\n속도 보여주기.\n힘.중력 보여주기.\n";
+        let source = project(
+            vec![
+                ("뿌리.ddn", "root", &root_with_module("app/main.ddn", "힘", "lib/힘.ddn")),
+                ("app/main.ddn", "ddn_source", main),
+                (
+                    "lib/힘.ddn",
+                    "ddn_source",
+                    "(중력=중력) 드러냄.\n\n중력:수 := 9.8.\n",
+                ),
+            ],
+            "app/main.ddn",
+        );
+        let snapshot = build_project_authoring_snapshot(ProjectAuthoringSnapshotRequest {
+            schema: PROJECT_AUTHORING_SNAPSHOT_REQUEST_SCHEMA.to_string(),
+            source,
+            source_version: "rd457-current-directive-1".to_string(),
+        })
+        .expect("typed authoring snapshot");
+
+        assert!(snapshot.diagnostics.iter().all(|row| {
+            row.code != "E_PROJECT_BLOCK_UNSUPPORTED" && row.code != "E_SYMBOL_NOT_EXPORTED"
+        }));
+        assert!(snapshot.imports.iter().any(|row| {
+            row.importer_path == "app/main.ddn"
+                && row.alias == "힘"
+                && row.source == "힘"
+                && row.resolved_path == "lib/힘.ddn"
+        }));
+        assert!(snapshot.exports.iter().any(|row| {
+            row.module_path == "lib/힘.ddn"
+                && row.external_name == "중력"
+                && row.internal_name == "중력"
+        }));
+    }
+
+    #[cfg(not(feature = "beta-project-features"))]
+    fn assert_alpha_model_authoring_refusal(source: local_project::VirtualProjectSource)
+        -> ProjectAuthoringSnapshot {
+        let before = local_project::virtual_project_source_sha256(&source).unwrap();
+        let snapshot = authoring_snapshot(source.clone(), "d10-alpha-refusal");
+        let error = diagnostic(&snapshot, "E_ALPHA_MODEL_PROJECT_UNSUPPORTED");
+        assert_eq!(error.severity, "error");
+        assert_eq!(local_project::virtual_project_source_sha256(&source).unwrap(), before);
+        snapshot
+    }
+
+    #[test]
     fn w3_correction_valid_single_direct_and_alias_models_have_zero_diagnostics() {
+        #[cfg(not(feature = "beta-project-features"))]
+        {
+            // D10: formal model linkage is beta-only. Keep the original
+            // positive oracle below for beta and check explicit alpha refusal.
+            assert_alpha_model_authoring_refusal(project(vec![
+                ("뿌리.ddn", "root", &root("lesson.ddn")),
+                ("lesson.ddn", "ddn_source", model_source()),
+            ], "lesson.ddn"));
+            for alias in ["방법", "비율"] {
+                let entry = multifile_model_entry(&format!("({alias}=방법) 쓰임.\n"),
+                    &format!("{alias}.정밀한방법"), "");
+                assert_alpha_model_authoring_refusal(multifile_model_project(&entry, exact_method_module()));
+            }
+            return;
+        }
         let single = authoring_snapshot(
             project(
                 vec![
@@ -4200,7 +4359,7 @@ mod tests {
 
         for (case, alias) in [("direct", "방법"), ("alias", "비율")] {
             let entry = multifile_model_entry(
-                &format!("쓰임 {{\n  {alias}: \"./lib/method\".\n}}\n"),
+                &format!("({alias}=방법) 쓰임.\n"),
                 &format!("{alias}.정밀한방법"),
                 "",
             );
@@ -4227,13 +4386,21 @@ mod tests {
 
     #[test]
     fn w3_correction_alias_whitespace_preserves_meaning_and_original_span() {
+        #[cfg(not(feature = "beta-project-features"))]
+        {
+            for reference in ["비율.정밀한방법", "비율 \n    . \n    정밀한방법"] {
+                let entry = multifile_model_entry("(비율=방법) 쓰임.\n", reference, "");
+                assert_alpha_model_authoring_refusal(multifile_model_project(&entry, exact_method_module()));
+            }
+            return;
+        }
         let compact_entry = multifile_model_entry(
-            "쓰임 {\n  비율: \"./lib/method\".\n}\n",
+            "(비율=방법) 쓰임.\n",
             "비율.정밀한방법",
             "",
         );
         let spaced_entry = multifile_model_entry(
-            "쓰임 {\n  비율: \"./lib/method\".\n}\n",
+            "(비율=방법) 쓰임.\n",
             "비율 \n    . \n    정밀한방법",
             "",
         );
@@ -4268,7 +4435,7 @@ mod tests {
     #[test]
     fn w3_correction_real_top_level_violation_remains_file_qualified() {
         let entry = multifile_model_entry(
-            "쓰임 {\n  비율: \"./lib/method\".\n}\n",
+            "(비율=방법) 쓰임.\n",
             "비율.정밀한방법",
             "실제위반.\n",
         );
@@ -4284,8 +4451,20 @@ mod tests {
 
     #[test]
     fn w3_correction_import_failures_keep_exact_codes_and_source_locations() {
+        #[cfg(not(feature = "beta-project-features"))]
+        {
+            for (imports, reference) in [
+                ("(비율=없는방법) 쓰임.\n", "비율.정밀한방법"),
+                ("(비율=방법, 비율=방법) 쓰임.\n", "비율.정밀한방법"),
+                ("(비율=방법) 쓰임.\n", "비율.없는방법"),
+            ] {
+                let entry = multifile_model_entry(imports, reference, "");
+                assert_alpha_model_authoring_refusal(multifile_model_project(&entry, exact_method_module()));
+            }
+            return;
+        }
         let missing_entry = multifile_model_entry(
-            "쓰임 {\n  비율: \"./lib/missing\".\n}\n",
+            "(비율=없는방법) 쓰임.\n",
             "비율.정밀한방법",
             "",
         );
@@ -4305,7 +4484,7 @@ mod tests {
         );
 
         let duplicate_entry = multifile_model_entry(
-            "쓰임 {\n  비율: \"./lib/method\".\n  비율: \"./lib/method\".\n}\n",
+            "(비율=방법, 비율=방법) 쓰임.\n",
             "비율.정밀한방법",
             "",
         );
@@ -4325,7 +4504,7 @@ mod tests {
         );
 
         let missing_symbol_entry = multifile_model_entry(
-            "쓰임 {\n  비율: \"./lib/method\".\n}\n",
+            "(비율=방법) 쓰임.\n",
             "비율.없는방법",
             "",
         );
@@ -4347,8 +4526,21 @@ mod tests {
 
     #[test]
     fn w3_correction_stale_bad_entry_unrelated_error_and_failed_snapshot_fail_closed() {
+        #[cfg(not(feature = "beta-project-features"))]
+        {
+            let entry = multifile_model_entry("(비율=방법) 쓰임.\n", "비율.정밀한방법", "");
+            let source = multifile_model_project(&entry, exact_method_module());
+            let snapshot = assert_alpha_model_authoring_refusal(source.clone());
+            let stale = build_project_authoring_navigation(ProjectAuthoringCursorRequest {
+                schema: PROJECT_AUTHORING_CURSOR_REQUEST_SCHEMA.into(), source,
+                source_version: "d10-alpha-refusal".into(), expected_project_source_sha256: "0".repeat(64),
+                expected_snapshot_sha256: snapshot.snapshot_sha256, path: "app/main.ddn".into(), byte_offset: 0,
+            }, "definition").expect_err("stale request must still fail before navigation");
+            assert_eq!(stale.code, "E_PROJECT_AUTHORING_STALE");
+            return;
+        }
         let entry = multifile_model_entry(
-            "쓰임 {\n  비율: \"./lib/method\".\n}\n",
+            "(비율=방법) 쓰임.\n",
             "비율.정밀한방법",
             "",
         );
@@ -4388,6 +4580,8 @@ mod tests {
         assert_eq!(bad_entry_error.path.as_deref(), Some("app/missing.ddn"));
 
         let mut unrelated = clean_source.clone();
+        unrelated.files.iter_mut().find(|file| file.role == "root").unwrap().utf8_text =
+            "(글판=\"v25\", 모듬=차림[(이름=앱, 머리=\"app/main.ddn\", 원문=\"app/main.ddn\"), (이름=방법, 머리=\"lib/method.ddn\", 원문=\"lib/method.ddn\"), (이름=무관, 머리=\"unused/bad.ddn\", 원문=\"unused/bad.ddn\")]) 얽음.\n".into();
         unrelated
             .files
             .push(local_project::VirtualProjectFileSource {
@@ -4408,7 +4602,7 @@ mod tests {
         assert_eq!(unrelated_range.start, 0);
 
         let failed_entry = multifile_model_entry(
-            "쓰임 {\n  비율: \"./lib/method\".\n}\n",
+            "(비율=방법) 쓰임.\n",
             "비율.정밀한방법",
             "실제위반.\n",
         );

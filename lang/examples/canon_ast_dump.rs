@@ -283,6 +283,14 @@ fn collect_calls_from_stmt(stmt: &Stmt, out: &mut Vec<CallDet>) {
             collect_calls_from_expr(target, out);
             collect_calls_from_expr(value, out);
         }
+        Stmt::ResultFlow {
+            producer,
+            destination,
+            ..
+        } => {
+            collect_calls_from_expr(producer, out);
+            collect_calls_from_expr(destination, out);
+        }
         Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
             collect_calls_from_expr(expr, out)
         }
@@ -386,6 +394,15 @@ fn collect_calls_from_expr(expr: &Expr, out: &mut Vec<CallDet>) {
                 collect_calls_from_expr(&arg.expr, out);
             }
         }
+        ExprKind::CollectionConstructor { elements } => {
+            for element in elements {
+                collect_calls_from_expr(element, out);
+            }
+        }
+        ExprKind::SelectionPlace { target, index } => {
+            collect_calls_from_expr(target, out);
+            collect_calls_from_expr(index, out);
+        }
         ExprKind::FieldAccess { target, .. } => collect_calls_from_expr(target, out),
         ExprKind::SeedLiteral { body, .. } => collect_calls_from_expr(body, out),
         ExprKind::Infix { left, right, .. } => {
@@ -462,6 +479,10 @@ fn expr_fingerprint(expr: &Expr) -> String {
         ExprKind::FieldAccess { field, .. } => format!("field:{}", field),
         ExprKind::SeedLiteral { param, .. } => format!("seed_literal:{}", param),
         ExprKind::Call { func, .. } => format!("call:{}", func),
+        ExprKind::CollectionConstructor { elements } => {
+            format!("collection_constructor:{}", elements.len())
+        }
+        ExprKind::SelectionPlace { .. } => "selection_place".to_string(),
         ExprKind::Infix { op, .. } => format!("infix:{}", op),
         ExprKind::Suffix { at, .. } => format!("suffix:{:?}", at),
         ExprKind::Thunk(_) => "thunk".to_string(),

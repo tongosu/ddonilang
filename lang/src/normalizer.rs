@@ -51,6 +51,10 @@ impl Normalizer {
             self.normalize_top_level_item(item);
             self.write("\n\n");
         }
+        for stmt in &program.root_stmts {
+            self.normalize_stmt(stmt);
+            self.write("\n\n");
+        }
 
         self.output.trim_end().to_string()
     }
@@ -64,6 +68,35 @@ impl Normalizer {
     /// 씨앗 정의 정본화
     /// 표준 형식: (params) name:kind = { body }
     fn normalize_seed_def(&mut self, seed: &SeedDef) {
+        if let Some(result_type) = seed
+            .result_type
+            .as_ref()
+            .filter(|_| seed.seed_kind == SeedKind::ValueFunc)
+        {
+            self.write(&seed.canonical_name);
+            self.write(" (");
+            for (i, param) in seed.params.iter().enumerate() {
+                if i > 0 {
+                    self.write(", ");
+                }
+                self.normalize_param(param);
+            }
+            self.write(" --> ");
+            self.normalize_type(result_type);
+            self.write(")");
+            match self.source_epoch {
+                SourceEpoch::V25 => self.write(" := "),
+                SourceEpoch::PreV25 => self.write(" = "),
+            }
+            if let Some(Body { stmts, .. }) = &seed.body {
+                if let [Stmt::Return { value, .. }] = stmts.as_slice() {
+                    self.normalize_expr(value);
+                    self.write(".");
+                    return;
+                }
+            }
+            return;
+        }
         // 매개변수
         if !seed.params.is_empty() {
             self.write("(");
@@ -78,9 +111,19 @@ impl Normalizer {
 
         // 이름
         self.write(&seed.canonical_name);
+        if !seed.alternate_forms.is_empty() {
+            self.write("{");
+            self.write(&seed.alternate_forms.join("~"));
+            self.write("}");
+        }
 
         // 콜론 (N1: 앞뒤 공백 없음)
         self.write(":");
+
+        if let Some(result_type) = &seed.result_type {
+            self.normalize_type(result_type);
+            self.write(":");
+        }
 
         // 씨앗 종류
         self.normalize_seed_kind(&seed.seed_kind);
@@ -92,7 +135,14 @@ impl Normalizer {
 
         // 본문
         if let Some(body) = &seed.body {
-            if seed.params.is_empty() {
+            if self.source_epoch == SourceEpoch::V25 && seed.result_type.is_none() {
+                if let Some(Stmt::Return { value, .. }) = body.stmts.first() {
+                    if body.stmts.len() == 1 {
+                        self.normalize_expr(value);
+                        return;
+                    }
+                }
+            } else if seed.params.is_empty() {
                 if let Some(Stmt::Return { value, .. }) = body.stmts.first() {
                     if body.stmts.len() == 1 {
                         self.normalize_expr(value);
@@ -254,6 +304,16 @@ impl Normalizer {
                 }
                 self.write_stmt_terminator(stmt);
             }
+            Stmt::ResultFlow {
+                producer,
+                destination,
+                ..
+            } => {
+                self.normalize_expr(producer);
+                self.write(" -> ");
+                self.normalize_expr(destination);
+                self.write_stmt_terminator(stmt);
+            }
             Stmt::Expr { expr, .. } => {
                 self.normalize_expr(expr);
                 self.write_stmt_terminator(stmt);
@@ -397,13 +457,27 @@ impl Normalizer {
                 else_body,
                 ..
             } => {
-                self.write("만약 ");
-                self.normalize_expr(condition);
-                self.write(" 이라면 ");
+                if self.source_epoch == SourceEpoch::V25 {
+                    if let ExprKind::Eval { thunk, mode: ThunkEvalMode::Bool } = &condition.kind {
+                        self.normalize_expr(thunk);
+                    } else {
+                        self.write("{ ");
+                        self.normalize_expr(condition);
+                        self.write(" }");
+                    }
+                    self.write("이면 ");
+                } else {
+                    self.write("만약 ");
+                    self.normalize_expr(condition);
+                    self.write(" 이라면 ");
+                }
                 self.normalize_body(then_body);
                 if let Some(body) = else_body {
                     self.write(" 아니면 ");
                     self.normalize_body(body);
+                }
+                if self.source_epoch == SourceEpoch::V25 {
+                    self.write_stmt_terminator(stmt);
                 }
             }
             Stmt::Try { action, body, .. } => {
@@ -474,9 +548,18 @@ impl Normalizer {
             Stmt::While {
                 condition, body, ..
             } => {
-                self.normalize_expr(condition);
-                self.write(" 동안 ");
+                if let ExprKind::Eval {
+                    thunk,
+                    mode: ThunkEvalMode::Bool,
+                } = &condition.kind
+                {
+                    self.normalize_expr(thunk);
+                } else {
+                    self.normalize_expr(condition);
+                }
+                self.write("인 동안 ");
                 self.normalize_body(body);
+                self.write_stmt_terminator(stmt);
             }
             Stmt::ForEach {
                 item,
@@ -560,6 +643,19 @@ impl Normalizer {
         }
     }
 
+    fn normalize_selection_target(&mut self, expr: &Expr) {
+        if let ExprKind::Call { args, func } = &expr.kind {
+            if func == "차림.값" && args.len() == 2 {
+                self.normalize_selection_target(&args[0].expr);
+                self.write("[");
+                self.normalize_expr(&args[1].expr);
+                self.write("]");
+                return;
+            }
+        }
+        self.normalize_expr(expr);
+    }
+
     fn normalize_expr(&mut self, expr: &Expr) {
         match &expr.kind {
             ExprKind::Literal(lit) => self.normalize_literal(lit),
@@ -590,6 +686,22 @@ impl Normalizer {
                     return;
                 }
                 self.normalize_positional_call(args, func);
+            }
+            ExprKind::CollectionConstructor { elements } => {
+                self.write("차림[");
+                for (index, element) in elements.iter().enumerate() {
+                    if index > 0 {
+                        self.write(", ");
+                    }
+                    self.normalize_expr(element);
+                }
+                self.write("]");
+            }
+            ExprKind::SelectionPlace { target, index } => {
+                self.normalize_selection_target(target);
+                self.write("[");
+                self.normalize_expr(index);
+                self.write("]");
             }
             ExprKind::Infix { left, op, right } => {
                 self.normalize_expr(left);
@@ -707,6 +819,20 @@ impl Normalizer {
     }
 
     fn normalize_call_arg_fallback(&mut self, arg: &ArgBinding, func: &str) {
+        if let ExprKind::Call {
+            args,
+            func: nested_func,
+        } = &arg.expr.kind
+        {
+            self.write("(");
+            self.normalize_nested_positional_call(args, nested_func);
+            self.write(")");
+            if let Some(josa) = &arg.josa {
+                self.write("~");
+                self.write(josa);
+            }
+            return;
+        }
         if let Some(text) = self.render_bound_arg_text(arg, func) {
             self.write(&text);
             return;
@@ -716,6 +842,37 @@ impl Normalizer {
             self.write("~");
             self.write(josa);
         }
+    }
+
+    fn normalize_nested_positional_call(&mut self, args: &[ArgBinding], func: &str) {
+        self.write("(");
+        let mut first = true;
+        for arg in args {
+            if matches!(arg.binding_reason, BindingReason::FlowInjected) {
+                continue;
+            }
+            if !first {
+                self.write(", ");
+            }
+            first = false;
+            if let ExprKind::Call {
+                args,
+                func: nested_func,
+            } = &arg.expr.kind
+            {
+                self.write("(");
+                self.normalize_nested_positional_call(args, nested_func);
+                self.write(")");
+            } else {
+                self.normalize_expr(&arg.expr);
+            }
+            if let Some(josa) = &arg.josa {
+                self.write("~");
+                self.write(josa);
+            }
+        }
+        self.write(") ");
+        self.write(func);
     }
 
     fn render_bound_call_args(&self, args: &[ArgBinding], func: &str) -> Vec<String> {
@@ -734,8 +891,20 @@ impl Normalizer {
 
     fn render_bound_arg_text(&self, arg: &ArgBinding, func: &str) -> Option<String> {
         let mut expr = self.render_expr_inline(&arg.expr)?;
+        // `이름:핀`을 V25의 `이름:타입 := ...`와 혼동하지 않도록
+        // 기존 괄호 식으로 값 경계를 보존한다. 핀 identity는 그대로다.
+        let fixed_expr = if self.source_epoch == SourceEpoch::V25
+            && matches!(arg.expr.kind, ExprKind::Var(_))
+        {
+            format!("({expr})")
+        } else {
+            expr.clone()
+        };
         if matches!(arg.binding_reason, BindingReason::ContextItemInjected) {
-            return arg.resolved_pin.as_ref().map(|pin| format!("{expr}:{pin}"));
+            return arg.resolved_pin.as_ref().map(|pin| format!("{fixed_expr}:{pin}"));
+        }
+        if matches!(arg.binding_reason, BindingReason::UserFixed) {
+            return arg.resolved_pin.as_ref().map(|pin| format!("{fixed_expr}:{pin}"));
         }
         if let Some(josa) = self.preferred_param_josa(func, arg) {
             if let Some(pin) = arg.resolved_pin.as_deref() {
@@ -744,7 +913,7 @@ impl Normalizer {
             return Some(format!("{expr}~{josa}"));
         }
         if let Some(pin) = &arg.resolved_pin {
-            return Some(format!("{expr}:{pin}"));
+            return Some(format!("{fixed_expr}:{pin}"));
         }
         if let Some(josa) = &arg.josa {
             return Some(format!("{expr}~{josa}"));
@@ -809,7 +978,7 @@ impl Normalizer {
     fn normalize_literal(&mut self, lit: &Literal) {
         match lit {
             Literal::Int(n) => self.write(&n.to_string()),
-            Literal::Fixed64(f) => self.write(&f.to_string()),
+            Literal::Fixed64(f) => self.write(&f.canonical_decimal_text()),
             Literal::Bool(b) => self.write(if *b { "참" } else { "거짓" }),
             Literal::Atom(a) => {
                 self.write("#");
@@ -977,6 +1146,7 @@ impl Normalizer {
             Stmt::DeclBlock { mood, .. } => mood,
             Stmt::Definition { mood, .. } => mood,
             Stmt::Mutate { mood, .. } => mood,
+            Stmt::ResultFlow { mood, .. } => mood,
             Stmt::Expr { mood, .. } => mood,
             Stmt::Receive { mood, .. } => mood,
             Stmt::Send { mood, .. } => mood,
@@ -1042,12 +1212,8 @@ fn collect_call_signatures(program: &CanonProgram) -> HashMap<String, Vec<ParamP
     let mut out = HashMap::new();
     for item in &program.items {
         let TopLevelItem::SeedDef(seed) = item;
-        out.insert(seed.canonical_name.clone(), seed.params.clone());
-        for tail in ["기", "고", "면", "면서"] {
-            out.insert(
-                format!("{}{}", seed.canonical_name, tail),
-                seed.params.clone(),
-            );
+        for surface in seed.callable_surface_names() {
+            out.insert(surface, seed.params.clone());
         }
     }
     out
@@ -1068,6 +1234,21 @@ mod tests {
     use crate::lexer::Lexer;
     use crate::parser::Parser;
 
+    #[test]
+    fn fixed64_literal_canonical_decimal_preserves_bits_including_min() {
+        use ddonirang_core::Fixed64;
+        for raw in [i64::MIN, -1, 0, 1, 1i64 << 25, 3i64 << 25, i64::MAX] {
+            let mut normalizer = Normalizer::new(NormalizationLevel::N1);
+            normalizer.normalize_literal(&Literal::Fixed64(Fixed64::from_raw_i64(raw)));
+            let text = normalizer.output;
+            assert_eq!(Fixed64::parse_decimal_exact(&text).unwrap().raw_i64(), raw);
+            assert_eq!(text, Fixed64::from_raw_i64(raw).canonical_decimal_text());
+            let source = format!("x <- {text}.");
+            let normalized = parse_and_normalize(&source, NormalizationLevel::N1);
+            assert_eq!(parse_and_normalize(&normalized, NormalizationLevel::N1), normalized);
+        }
+    }
+
     fn parse_and_normalize(source: &str, level: NormalizationLevel) -> String {
         let tokens = Lexer::new(source).tokenize().unwrap();
         let mut parser = Parser::new(tokens);
@@ -1075,6 +1256,24 @@ mod tests {
             .parse_program(source.to_string(), "test.ddoni".to_string())
             .unwrap();
         normalize(&program, level)
+    }
+
+    #[test]
+    fn wo09_signed_min_ingress_suffix_and_range_roundtrip() {
+        for expression in ["-2147483648", "-2147483648@m", "(-2147483648)",
+            "(-2147483648@m)", "- -2147483648", "-2147483648 아님"] {
+            let source = format!("x <- {expression}.");
+            let canonical = parse_and_normalize(&source, NormalizationLevel::N1);
+            assert_eq!(parse_and_normalize(&canonical, NormalizationLevel::N1), canonical,
+                "{expression}");
+        }
+        for expression in ["2147483648", "2147483648@m", "-2147483649",
+            "-2147483648.000000001", "(-2147483649)"] {
+            let source = format!("x <- {expression}.");
+            let tokens = Lexer::new(&source).tokenize().unwrap();
+            let error = Parser::new(tokens).parse_program(source, "range.ddn".into()).unwrap_err();
+            assert!(error.message.contains("E_FIXED64_LITERAL_RANGE"), "{expression}: {error:?}");
+        }
     }
 
     #[test]
@@ -1102,6 +1301,26 @@ mod tests {
     x + 1 되돌림.
 }"#;
         assert_eq!(normalized.trim(), expected);
+    }
+
+    #[test]
+    fn v25_single_return_callable_emits_current_expression_surface() {
+        let source = "(x:수) 증가:셈씨 := x + 1";
+        let normalized =
+            crate::parse_v25_and_normalize(source, "v25_single_return.ddn", NormalizationLevel::N1)
+                .expect("V25 source must normalize");
+
+        assert_eq!(normalized.trim(), "(x:수) 증가:셈씨 := x + 1");
+        assert!(!normalized.contains("되돌림"));
+        assert!(!normalized.contains("돌려줘"));
+
+        let roundtrip = crate::parse_v25_and_normalize(
+            &normalized,
+            "v25_single_return.ddn",
+            NormalizationLevel::N1,
+        )
+        .expect("emitted V25 source must normalize");
+        assert_eq!(normalized, roundtrip);
     }
 
     #[test]
@@ -1240,6 +1459,25 @@ mod tests {
     }
 
     #[test]
+    fn test_named_multi_call_keeps_fixed_pins_for_roundtrip() {
+        let source = r#"
+(위치:수~을~를, 속도:수~과~와, 시간:수~로~으로) 다음:셈씨 = {
+    위치 + 속도 * 시간 돌려줘.
+}
+
+실행:셈씨 = {
+    (위치=1, 속도=2, 시간=3) 다음.
+}
+"#;
+        let normalized = parse_and_normalize(source, NormalizationLevel::N1);
+        assert!(normalized.contains("1:위치 2:속도 3:시간 다음"));
+        let reparsed = crate::parse(&normalized, "named_multi_roundtrip.ddn")
+            .expect("fixed-pin canonical output must reparse");
+        let renormalized = normalize(&reparsed, NormalizationLevel::N1);
+        assert_eq!(normalized, renormalized);
+    }
+
+    #[test]
     fn test_template_injection_normalization() {
         let source = r#"
 Test:셈씨 = {
@@ -1288,7 +1526,7 @@ Test:셈씨 = {
     채비: { 값:수 <- 0. }.
     설정: { 화면: "기본". }.
     반복: { 멈추기. }.
-    { 값 < 1 }인것 동안: { 멈추기. }.
+    { 값 < 1 }인 동안 { 멈추기. }.
     (x) 값목록에 대해: { x 보여주기. }.
 }
 "#;

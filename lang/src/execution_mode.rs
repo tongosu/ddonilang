@@ -41,6 +41,13 @@ pub fn decide_execution_mode(program: &CanonProgram) -> ExecutionModeDecision {
             scan_body(body, &mut counts);
         }
     }
+    // V25 single-file programs keep imperative declarations and hooks at the
+    // program root.  Those hooks drive the same runtime loop as callable-body
+    // hooks, so excluding them incorrectly turns a live simulation into a
+    // completed one-shot run.
+    for stmt in &program.root_stmts {
+        scan_stmt(stmt, &mut counts);
+    }
     ExecutionModeDecision {
         mode: if counts.live > 0 {
             ExecutionMode::Live
@@ -85,6 +92,10 @@ fn scan_stmt(stmt: &Stmt, counts: &mut LiveHookCounts) {
         Stmt::Mutate { target, value, .. } => {
             scan_expr(target, counts);
             scan_expr(value, counts);
+        }
+        Stmt::ResultFlow { producer, destination, .. } => {
+            scan_expr(producer, counts);
+            scan_expr(destination, counts);
         }
         Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
             scan_expr(expr, counts);
@@ -204,6 +215,15 @@ fn scan_expr(expr: &Expr, counts: &mut LiveHookCounts) {
                 scan_expr(&arg.expr, counts);
             }
         }
+        ExprKind::CollectionConstructor { elements } => {
+            for element in elements {
+                scan_expr(element, counts);
+            }
+        }
+        ExprKind::SelectionPlace { target, index } => {
+            scan_expr(target, counts);
+            scan_expr(index, counts);
+        }
         ExprKind::Infix { left, right, .. } => {
             scan_expr(left, counts);
             scan_expr(right, counts);
@@ -240,7 +260,7 @@ fn scan_expr(expr: &Expr, counts: &mut LiveHookCounts) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{canonicalize, parse};
+    use crate::{canonicalize, parse, parse_v25};
 
     fn decision(source: &str) -> ExecutionModeDecision {
         let mut program =
@@ -285,5 +305,19 @@ mod tests {
         let comment = decision("검사:움직씨 = { // (매마디)마다 { }\n1 보여주기. }");
         assert_eq!(string.mode, ExecutionMode::OneShot);
         assert_eq!(comment.mode, ExecutionMode::OneShot);
+    }
+
+    #[test]
+    fn v25_root_tick_hook_is_live() {
+        let source = r#"
+설정 { 마디수: 240. }.
+채비 { 중력: 수 := (9.8). }.
+(매마디)마다 { 중력 보여주기. }.
+"#;
+        let mut program = parse_v25(source, "root_live.ddn").expect("parse V25 root program");
+        canonicalize(&mut program).expect("canonicalize V25 root program");
+        let result = decide_execution_mode(&program);
+        assert_eq!(result.mode, ExecutionMode::Live);
+        assert_eq!(result.every_madi_hook_count, 1);
     }
 }
