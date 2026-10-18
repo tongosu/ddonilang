@@ -72,6 +72,7 @@ pub struct LegacyInternalCheckArgs {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CheckTypeKind {
     Str,
+    Bytes,
     Num,
     Bool,
     None,
@@ -82,6 +83,7 @@ impl CheckTypeKind {
     fn name(self) -> Option<&'static str> {
         match self {
             Self::Str => Some("글"),
+            Self::Bytes => Some("바이트열"),
             Self::Num => Some("수"),
             Self::Bool => Some("참거짓"),
             Self::None => Some("없음"),
@@ -232,6 +234,7 @@ fn check_expr_type(expr: &Expr, symbols: &BTreeMap<String, CheckTypeKind>) -> Ch
             Literal::Int(_) | Literal::Fixed64(_) => CheckTypeKind::Num,
             Literal::Bool(_) => CheckTypeKind::Bool,
             Literal::None => CheckTypeKind::None,
+            Literal::Bytes(_) => CheckTypeKind::Bytes,
             Literal::Regex(_) | Literal::Resource(_) => CheckTypeKind::Unknown,
         },
         ExprKind::Var(name) => symbols.get(name).copied().unwrap_or(CheckTypeKind::Unknown),

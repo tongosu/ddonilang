@@ -5,6 +5,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use unicode_segmentation::UnicodeSegmentation;
+mod phase_diagnostics;
 
 use crate::fixed64_boundary::Fixed64FloatBoundary;
 fn manipulation_phase_text(phase: ddonirang_core::input::ValueEventPhase) -> &'static str {
@@ -52,7 +54,7 @@ use ddonirang_lang::{
     LogicalAsyncQueue, LogicalWaitReceipt, MessageTransfer, NodeId, ParamPin, ParseError,
     ParseMode, ProviderRegistrationIdentity, QueueAdmission, ReactionProviderRegistry,
     RegexLiteral, SeedDef, SeedKind, SenderIdentityPredicate, StagedDeliveryOutbox, StateMachine,
-    StateTransition, Stmt, TemplateFormat, TemplatePart, Token, TokenKind, TopLevelItem, TypeRef,
+    StateTransition, Stmt, SumBranchDecl, TemplateFormat, TemplatePart, Token, TokenKind, TopLevelItem, TypeRef,
 };
 use libm;
 use num_bigint::{BigInt, Sign};
@@ -1309,7 +1311,7 @@ fn std_grid_game_bogae_color(source: &str) -> &'static str {
 fn std_grid_game_bogae_rects(cells: Vec<Value>, cell: i64) -> Result<Value, EvalError> {
     let mut items = Vec::with_capacity(cells.len());
     for value in cells {
-        let Value::Pack(cell_fields) = value else {
+        let Value::Pack(cell_fields) = &value else {
             return Err(std_grid_error("격자게임보기 칸 묶음이 필요합니다"));
         };
         let x = cell_fields
@@ -1704,6 +1706,14 @@ pub struct DdnProgram {
     #[allow(dead_code)]
     program: CanonProgram,
     functions: HashMap<String, SeedDef>,
+    products: HashMap<String, SeedDef>,
+    record_schemas: ddonirang_lang::runtime::RecordSchemas,
+    nominal_constructors:BTreeMap<NodeId,crate::authored_project::registration::ResolvedConstructorV1>,
+    registered_atom_literals:BTreeMap<NodeId,ddonirang_core::platform::RegisteredAtomValueV1>,
+    temporary_registration:Option<Arc<crate::authored_project::registration::temporary::TemporaryRegisteredSource>>,
+    temporary_subject_bootstrap:Option<crate::unit_wire::subject_execution::SubjectExecutionStage>,
+    registered_nominal_catalog:Option<Arc<crate::authored_project::registration::SavedNominalCatalogV1>>,
+    registered_atom_contracts:Arc<Vec<crate::registered_atom_contract::RecordedAtomContract>>,
     ordinary_overloads: HashMap<String, Vec<SeedDef>>,
     ordinary_callable_admission_evidence:
         Vec<ddonirang_lang::OrdinaryCallableAdmissionEvidence>,
@@ -1714,6 +1724,8 @@ pub struct DdnProgram {
     parse_warnings: Vec<DdnParseWarning>,
     configured_madi: Option<u64>,
     public_observation_source_refs: HashMap<NodeId, OriginalObservationFieldRef>,
+    numeric_constraint_plan: Option<Arc<crate::numeric_constraint_plan::NumericConstraintPlan>>,
+    host_numeric_supply:Option<crate::runtime_surface::BogaeHostNumericSupply>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1724,6 +1736,105 @@ struct OriginalObservationFieldRef {
 }
 
 impl DdnProgram {
+    fn check_value_type(&self,value:&Value,type_ref:&TypeRef)->Result<(),ddonirang_lang::runtime::TypeMismatchDetail>{
+        let mut pending=vec![(value,type_ref)];
+        while let Some((value,type_ref))=pending.pop(){
+            if let TypeRef::Applied{name,args}=type_ref {
+                if name=="맺음"&&args.len()==2 {
+                    let expected=ddonirang_lang::sum_owner::resolve_applied_sum_owner(type_ref,ddonirang_lang::Span{start:0,end:0})
+                        .map_err(|_|ddonirang_lang::runtime::TypeMismatchDetail{expected:"맺음".into(),actual:ddonirang_lang::runtime::value_type_name(value)})?;
+                    if let Value::SumBranch{owner,branch,payload}=value {
+                        let selected=match branch.as_str(){"잘됨"=>Some(("값",0)),"안됨"=>Some(("이유",1)),_=>None};
+                        if let Some((pin,index))=selected {
+                            if owner==&expected.key&&payload.len()==1 {
+                                if let Some(child)=payload.get(pin){pending.push((child,&args[index]));continue;}
+                            }
+                        }
+                    }
+                    return Err(ddonirang_lang::runtime::TypeMismatchDetail{expected:expected.key,actual:ddonirang_lang::runtime::value_type_name(value)});
+                }
+                if name=="가리킴"&&args.len()==1 {
+                    let expected=match &args[0] {
+                        TypeRef::Named(owner)=>self.products.get(owner).and_then(|seed|self.nominal_constructors.get(&seed.id)).filter(|schema|schema.category==1),
+                        _=>None,
+                    };
+                    let valid=matches!((value,expected),(Value::IdentityReference(reference),Some(schema))
+                        if reference.profile_version==1&&reference.generation==0&&reference.target_type_identity.as_slice()==schema.name_type
+                        &&reference.owner_space_identity.len()==32&&reference.target_identity.len()==32);
+                    if !valid{return Err(ddonirang_lang::runtime::TypeMismatchDetail{expected:"원 임자에 결속된 가리킴".into(),actual:ddonirang_lang::runtime::value_type_name(value)});}
+                    continue;
+                }
+            }
+            if let TypeRef::Tuple(kinds)=type_ref {
+                let Value::Tuple(items)=value else {
+                    return Err(ddonirang_lang::runtime::TypeMismatchDetail{expected:"위치형 씨".into(),actual:ddonirang_lang::runtime::value_type_name(value)});
+                };
+                if items.len()!=kinds.len(){
+                    return Err(ddonirang_lang::runtime::TypeMismatchDetail{expected:format!("위치형 {}개",kinds.len()),actual:format!("위치형 {}개",items.len())});
+                }
+                pending.extend(items.iter().zip(kinds).rev());
+                continue;
+            }
+            if let TypeRef::Named(name)=type_ref {
+            if let Some(schema)=self.products.get(name).and_then(|seed|self.nominal_constructors.get(&seed.id)) {
+                let matches=match value {
+                    Value::NominalValueV1(value)=>schema.category==2&&value.name_type_identity()==&schema.name_type,
+                    Value::SubjectHandleV1(value)=>schema.category==1&&value.name_type_identity==schema.name_type,
+                    Value::FrozenSubjectViewV1(value)=>schema.category==1&&value.name_type_identity()==&schema.name_type,
+                    _=>false,
+                };
+                if !matches{return Err(ddonirang_lang::runtime::TypeMismatchDetail{
+                    expected:name.clone(),actual:ddonirang_lang::runtime::value_type_name(value)});}
+                continue;
+            }
+            }
+            ddonirang_lang::runtime::check_value_type_with_records(value,type_ref,&self.record_schemas)?;
+        }
+        Ok(())
+    }
+    fn nominal_type_ids(&self)->BTreeMap<String,(u8,[u8;32])>{
+        self.products.iter().filter_map(|(name,seed)|self.nominal_constructors.get(&seed.id)
+            .map(|schema|(name.clone(),(schema.category,schema.name_type)))).collect()
+    }
+    pub(crate) fn bind_registered_project_context(&mut self,owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1)->Result<(),String> {
+        if self.temporary_registration.is_some(){return Err("E_VC04_TEMPORARY_SAVED_ESCAPE: 임시 실행을 저장 작품 권한으로 바꿀 수 없습니다".into());}
+        if !self.saved_project_sources.as_ref().is_some_and(|sources|Arc::ptr_eq(sources,owned.sources())) {
+            return Err("E_SCHEMA_REGISTERED_CONTEXT_REQUIRED: 다른 원문 소유자의 등록 자료입니다".into());
+        }
+        if let Some(registration)=owned.registration() {
+            registration.bind_resolved_program(owned,&mut self.program)?;
+            self.refresh_registered_executable_copies()?;
+            self.nominal_constructors=registration.bind_constructors(owned,&self.program)?;
+            self.registered_atom_literals=registration.bind_atom_values(owned,&self.program)?;
+            self.registered_nominal_catalog=Some(Arc::new(registration.saved_nominal_catalog(owned)?));
+            self.registered_atom_contracts=Arc::new(registration.verified_recorded_atom_contracts(owned)?.to_vec());
+        }
+        Ok(())
+    }
+    pub(crate) fn prepare_temporary_source_execution(&mut self)->Result<(),String>{
+        if self.saved_project_sources.is_some()||self.temporary_registration.is_some(){return Ok(())}
+        let Some(context)=crate::authored_project::registration::temporary::TemporaryRegisteredSource::prepare(self)? else{return Ok(())};
+        context.bind_resolved_program(&mut self.program)?;
+        self.refresh_registered_executable_copies()?;
+        let constructors=context.bind_constructors(&self.program)?;
+        let atoms=context.bind_atoms(&self.program)?;
+        let stage=crate::unit_wire::subject_execution::SubjectExecutionStage::fresh_for_temporary(&context,&self.program)?;
+        let catalog=context.catalog(&self.program)?;let contracts=context.contracts().to_vec();
+        self.nominal_constructors=constructors;self.registered_atom_literals=atoms;
+        self.registered_nominal_catalog=Some(Arc::new(catalog));self.registered_atom_contracts=Arc::new(contracts);
+        self.temporary_subject_bootstrap=stage;self.temporary_registration=Some(Arc::new(context));Ok(())
+    }
+    pub(crate) fn has_temporary_registration(&self)->bool{self.temporary_registration.is_some()}
+    fn refresh_registered_executable_copies(&mut self)->Result<(),String> {
+        let seeds=self.program.items.iter().map(|TopLevelItem::SeedDef(seed)|(seed.id,seed)).collect::<HashMap<_,_>>();
+        for seed in self.functions.values_mut().chain(self.products.values_mut()).chain(self.ordinary_overloads.values_mut().flat_map(|seeds|seeds.iter_mut())) {
+            *seed=(*seeds.get(&seed.id).ok_or("E_RESOLVED_SUPPLY_EXECUTABLE_COPY: 실행 선언의 소유 원문이 없습니다")?).clone();
+        }
+        self.root_stmts=self.program.root_stmts.clone();
+        self.numeric_constraint_plan=Some(Arc::new(crate::numeric_constraint_plan::NumericConstraintPlan::compile_with_host(
+            &self.program,&self.top_level_decl_names,self.host_numeric_supply.as_ref())?));
+        Ok(())
+    }
     pub fn from_source(source: &str, file_path: &str) -> Result<Self, String> {
         Self::from_source_with_mode(source, file_path, default_parse_mode())
     }
@@ -1742,7 +1853,7 @@ impl DdnProgram {
         mode: ParseMode,
         age_target: AgeTarget,
     ) -> Result<Self, String> {
-        Self::from_source_epoch_with_mode(source, file_path, mode, false, age_target)
+        Self::from_source_epoch_with_mode(source, file_path, mode, false, age_target,None)
     }
 
     pub fn from_v25_source(source: &str, file_path: &str) -> Result<Self, String> {
@@ -1768,7 +1879,7 @@ impl DdnProgram {
         mode: ParseMode,
         age_target: AgeTarget,
     ) -> Result<Self, String> {
-        Self::from_source_epoch_with_mode(source, file_path, mode, true, age_target)
+        Self::from_source_epoch_with_mode(source, file_path, mode, true, age_target,None)
     }
 
     pub fn from_supported_source_profile_with_mode(
@@ -1795,8 +1906,8 @@ impl DdnProgram {
     ) -> Result<Self, String> {
         match profile {
             SupportedSourceProfile::V1CoreV25 => {
-                let program = Self::from_v25_source_with_mode_and_age_target(
-                    source, file_path, mode, age_target,
+                let program = Self::from_source_epoch_with_mode(
+                    source, file_path, mode,true, age_target,Some(crate::runtime_surface::bogae_host_numeric_supply()),
                 )?;
                 validate_v1_core_no_named_callable_recursion(&program.program)?;
                 Ok(program)
@@ -1810,6 +1921,7 @@ impl DdnProgram {
         mode: ParseMode,
         v25: bool,
         age_target: AgeTarget,
+        host_numeric_supply:Option<crate::runtime_surface::BogaeHostNumericSupply>,
     ) -> Result<Self, String> {
         if source.starts_with('\u{feff}') {
             return Err("E_SOURCE_UTF8_BOM_FORBIDDEN: 원문은 BOM 없는 UTF-8이어야 합니다".to_string());
@@ -1826,7 +1938,7 @@ impl DdnProgram {
         let source_capture = if v25 {
             Some(crate::source_snapshot_admission::capture_declared_v25(source.as_bytes())?)
         } else { None };
-        Self::parse_captured_source(source, file_path, mode, v25, age_target, source_capture)
+        Self::parse_captured_source(source, file_path, mode, v25, age_target, source_capture,host_numeric_supply)
     }
 
     /// RD-643 replay frontdoor: a typed saved capture, not a live editor buffer.
@@ -1837,11 +1949,18 @@ impl DdnProgram {
         mode: ParseMode,
         age_target: AgeTarget,
     ) -> Result<Self, String> {
+        Self::from_sealed_v25_source_with_host(source_capture,file_path,mode,age_target,None)
+    }
+
+    fn from_sealed_v25_source_with_host(
+        source_capture:crate::source_snapshot_admission::SourceCapture,file_path:&str,mode:ParseMode,age_target:AgeTarget,
+        host_numeric_supply:Option<crate::runtime_surface::BogaeHostNumericSupply>,
+    )->Result<Self,String> {
         crate::source_snapshot_admission::replay(
             &crate::source_snapshot_admission::EpochSupply::for_declared_epoch(ddonirang_lang::SourceEpoch::V25),
             &source_capture,
         ).map_err(|_| "E_SOURCE_ADMISSION_CUSTODY: 저장된 원문 봉인과 글판이 맞지 않습니다".to_string())?;
-        Self::parse_captured_source("", file_path, mode, true, age_target, Some(source_capture))
+        Self::parse_captured_source("", file_path, mode, true, age_target, Some(source_capture),host_numeric_supply)
     }
 
     /// Sealing proves source custody, not permission to bypass profile limits.
@@ -1854,8 +1973,8 @@ impl DdnProgram {
     ) -> Result<Self, String> {
         match profile {
             SupportedSourceProfile::V1CoreV25 => {
-                let program = Self::from_sealed_v25_source_with_mode(
-                    source_capture, file_path, mode, age_target,
+                let program = Self::from_sealed_v25_source_with_host(
+                    source_capture, file_path, mode, age_target,Some(crate::runtime_surface::bogae_host_numeric_supply()),
                 )?;
                 validate_v1_core_no_named_callable_recursion(&program.program)?;
                 Ok(program)
@@ -1879,7 +1998,7 @@ impl DdnProgram {
         }
         let preparation=saved.preparation();
         let mut program=Self::parse_captured_source(
-            &preparation.source,&preparation.target_path,mode,true,age_target,None,
+            &preparation.source,&preparation.target_path,mode,true,age_target,None,Some(crate::runtime_surface::bogae_host_numeric_supply()),
         )?;
         validate_v1_core_no_named_callable_recursion(&program.program)?;
         program.saved_project_sources=Some(saved);
@@ -1893,6 +2012,7 @@ impl DdnProgram {
         v25: bool,
         age_target: AgeTarget,
         source_capture: Option<crate::source_snapshot_admission::SourceCapture>,
+        host_numeric_supply:Option<crate::runtime_surface::BogaeHostNumericSupply>,
     ) -> Result<Self, String> {
         if mode == ParseMode::HistoricalMigrationEvidence {
             return Err("E_HISTORICAL_ASYNC_MIGRATION_EXECUTION_FORBIDDEN: migration evidence mode cannot enter product execution".to_string());
@@ -1901,7 +2021,7 @@ impl DdnProgram {
         validate_no_legacy_header(source)?;
         validate_no_legacy_boim_surface(source)?;
         let meta_parse = split_file_meta(source);
-        let top_level_decl_names = collect_top_level_decl_names(&meta_parse.stripped);
+        let mut top_level_decl_names = collect_top_level_decl_names(&meta_parse.stripped);
         let configured_madi = extract_setting_madi(&meta_parse.stripped)?;
         let cleaned = if v25 {
             meta_parse.stripped.clone()
@@ -1920,7 +2040,9 @@ impl DdnProgram {
         }
         .map_err(|e| format_parse_error(&prepared, &e))?;
         let report = canonicalize(&mut program).map_err(|e| format_parse_error(&prepared, &e))?;
-        let parse_warnings = report
+        if v25 { top_level_decl_names = authored_top_level_decl_names(&program, &prepared); }
+        if v25 { validate_v25_known_infix_operand_types(&program)?; }
+        let mut parse_warnings: Vec<DdnParseWarning> = report
             .warnings
             .into_iter()
             .map(|warning| DdnParseWarning {
@@ -1930,6 +2052,7 @@ impl DdnProgram {
                 span_end: warning.span.end,
             })
             .collect();
+        parse_warnings.extend(phase_diagnostics::collect(&program));
         enforce_regex_age_gate(&program, age_target)?;
         enforce_assertion_age_gate(&program, age_target)?;
         enforce_state_machine_age_gate(&program, age_target)?;
@@ -1956,10 +2079,21 @@ impl DdnProgram {
             ddonirang_lang::validate_ordinary_callable_admission(&program)
                 .map_err(|failure| failure.diagnostic_message())?;
         let mut functions = HashMap::new();
+        let mut products = HashMap::new();
+        let mut record_schemas = BTreeMap::new();
         let mut ordinary_overloads = HashMap::<String, Vec<SeedDef>>::new();
         let root_stmts = program.root_stmts.clone();
         for item in &program.items {
             let ddonirang_lang::TopLevelItem::SeedDef(seed) = item;
+            if matches!(seed.seed_kind,SeedKind::Product|SeedKind::Schema(_)) {
+                let name = seed.canonical_name.clone();
+                if seed.seed_kind==SeedKind::Product {
+                    record_schemas.insert(name.clone(), seed.params.iter().map(|field|
+                        (field.pin_name.clone(), field.type_ref.clone())).collect());
+                }
+                products.insert(name, seed.clone());
+                continue;
+            }
             for surface in seed.callable_surface_names() {
                 functions.insert(surface.clone(), seed.clone());
                 if ddonirang_lang::is_v1_ordinary_callable(seed) {
@@ -1970,20 +2104,44 @@ impl DdnProgram {
                 }
             }
         }
+        let numeric_constraint_plan = if v25 {
+            Some(Arc::new(crate::numeric_constraint_plan::NumericConstraintPlan::compile_with_host(&program,&top_level_decl_names,host_numeric_supply.as_ref())
+                .map_err(|error|{
+                    if error.starts_with("E_TYPE_MISMATCH:")
+                        || error.starts_with("E_TUPLE_STATIC_SELECTION:")
+                        || error.starts_with("E_SELECTION_BOUNDS:") {
+                        // Preserve the established source diagnostic and exact
+                        // selection span when that checker independently
+                        // proves the same invalid source. Otherwise retain
+                        // N1's fail-closed diagnostic; never turn it into Ok.
+                        crate::source_analysis::existing_static_rejection(&program).unwrap_or(error)
+                    } else {error}
+                })?))
+        } else { None };
         Ok(Self {
             source_identity: format!("sha256:{}", crate::runtime_surface::sha256_hex(source.as_bytes())),
             source_capture,
             saved_project_sources: None,
+            nominal_constructors:BTreeMap::new(),
+            registered_atom_literals:BTreeMap::new(),
+            temporary_registration:None,
+            temporary_subject_bootstrap:None,
+            registered_nominal_catalog:None,
+            registered_atom_contracts:Arc::new(Vec::new()),
             program,
             functions,
             ordinary_overloads,
             ordinary_callable_admission_evidence,
+            products,
+            record_schemas,
             root_stmts,
             top_level_decl_names,
             file_meta: meta_parse.meta,
             parse_warnings,
             configured_madi,
             public_observation_source_refs,
+            numeric_constraint_plan,
+            host_numeric_supply,
         })
     }
 
@@ -2105,6 +2263,16 @@ fn collect_v1_core_named_calls_body(
 ) {
     for stmt in &body.stmts {
         match stmt {
+            Stmt::SumDefinition { .. } => {}
+            Stmt::SumMatch { subject, arms, default_body, .. } => {
+                collect_v1_core_named_calls_expr(subject, alias_owner, calls);
+                for arm in arms {
+                    collect_v1_core_named_calls_body(&arm.body, alias_owner, calls);
+                }
+                if let Some(body) = default_body {
+                    collect_v1_core_named_calls_body(body, alias_owner, calls);
+                }
+            }
             Stmt::PublicObservation { fields, .. } => {
                 for field in fields {
                     collect_v1_core_named_calls_expr(&field.value, alias_owner, calls);
@@ -2230,12 +2398,274 @@ fn collect_v1_core_named_calls_body(
     }
 }
 
+fn validate_v25_known_infix_operand_types(program: &CanonProgram) -> Result<(), String> {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum KnownType {
+        Number,
+        Text,
+        Other,
+        Unknown,
+    }
+
+    fn type_label(kind: KnownType) -> &'static str {
+        match kind {
+            KnownType::Number => "수",
+            KnownType::Text => "글",
+            KnownType::Other => "다른 값",
+            KnownType::Unknown => "미확정",
+        }
+    }
+
+    fn infer_expr(expr: &Expr, bindings: &HashMap<String, KnownType>, checking_product: bool) -> Result<KnownType, String> {
+        match &expr.kind {
+            ExprKind::Literal(Literal::Int(_) | Literal::Fixed64(_)) => Ok(KnownType::Number),
+            ExprKind::Literal(Literal::String(_) | Literal::Atom(_)) => Ok(KnownType::Text),
+            ExprKind::Literal(_) => Ok(KnownType::Other),
+            ExprKind::Var(name) => Ok(*bindings.get(name).unwrap_or(&KnownType::Unknown)),
+            ExprKind::Call { args, func } => {
+                for arg in args {
+                    infer_expr(&arg.expr, bindings, checking_product)?;
+                }
+                if func == "글로" {
+                    Ok(KnownType::Text)
+                } else {
+                    Ok(KnownType::Unknown)
+                }
+            }
+            ExprKind::Infix { left, op, right } if op == "+" => {
+                let left_kind = infer_expr(left, bindings, checking_product)?;
+                let right_kind = infer_expr(right, bindings, checking_product)?;
+                match (left_kind, right_kind) {
+                    (KnownType::Text, KnownType::Text) => Ok(KnownType::Text),
+                    (KnownType::Number, KnownType::Number) => Ok(KnownType::Number),
+                    (KnownType::Unknown, _) | (_, KnownType::Unknown) => Ok(KnownType::Unknown),
+                    (KnownType::Text, _) if checking_product => Err(format!(
+                        "[E_RUNTIME_TYPE_MISMATCH] 핀=더하기 오른쪽 피연산자 기대=글 실제={}",
+                        type_label(right_kind)
+                    )),
+                    (_, KnownType::Text) if checking_product => Err(format!(
+                        "[E_RUNTIME_TYPE_MISMATCH] 핀=더하기 왼쪽 피연산자 기대=글 실제={}",
+                        type_label(left_kind)
+                    )),
+                    _ => Ok(KnownType::Other),
+                }
+            }
+            ExprKind::Infix { left, right, .. } => {
+                infer_expr(left, bindings, checking_product)?;
+                infer_expr(right, bindings, checking_product)?;
+                Ok(KnownType::Unknown)
+            }
+            ExprKind::FieldAccess { target, .. }
+            | ExprKind::SeedLiteral { body: target, .. }
+            | ExprKind::Suffix { value: target, .. }
+            | ExprKind::Eval { thunk: target, .. }
+            | ExprKind::Nuance { expr: target, .. } => {
+                infer_expr(target, bindings, checking_product)?;
+                Ok(KnownType::Unknown)
+            }
+            ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } | ExprKind::Pipe { stages: elements } => {
+                for element in elements {
+                    infer_expr(element, bindings, checking_product)?;
+                }
+                Ok(KnownType::Other)
+            }
+            ExprKind::SelectionPlace { target, index } => {
+                infer_expr(target, bindings, checking_product)?;
+                infer_expr(index, bindings, checking_product)?;
+                Ok(KnownType::Unknown)
+            }
+            ExprKind::Pack { fields } => {
+                for (_, value) in fields {
+                    infer_expr(value, bindings, checking_product)?;
+                }
+                Ok(KnownType::Other)
+            }
+            ExprKind::ProductConstruction { fields, .. } => {
+                for field in fields {
+                    infer_expr(&field.expr, bindings, true)?;
+                }
+                Ok(KnownType::Other)
+            }
+            ExprKind::TemplateRender { inject, .. } | ExprKind::FormulaEval { inject, .. } => {
+                for (_, value) in inject {
+                    infer_expr(value, bindings, checking_product)?;
+                }
+                Ok(KnownType::Unknown)
+            }
+            _ => Ok(KnownType::Unknown),
+        }
+    }
+
+    fn validate_stmts(
+        stmts: &[Stmt],
+        bindings: &mut HashMap<String, KnownType>,
+    ) -> Result<(), String> {
+        for stmt in stmts {
+        match stmt {
+            Stmt::SumDefinition { name, .. } => {
+                bindings.insert(name.clone(), KnownType::Other);
+            }
+            Stmt::SumMatch { subject, arms, default_body, .. } => {
+                infer_expr(subject, bindings, false)?;
+                for arm in arms {
+                    validate_stmts(&arm.body.stmts, &mut bindings.clone())?;
+                }
+                if let Some(body) = default_body {
+                    validate_stmts(&body.stmts, &mut bindings.clone())?;
+                }
+            }
+            Stmt::DeclBlock { items, .. } => {
+                for item in items {
+                    if let Some(value) = &item.value {
+                        let value_kind = infer_expr(value, bindings, false)?;
+                        bindings.insert(item.name.clone(), value_kind);
+                    }
+                }
+            }
+            Stmt::Mutate { target, value, .. } => {
+                let value_kind = infer_expr(value, &bindings, false)?;
+                if let ExprKind::Var(name) = &target.kind {
+                    bindings.insert(name.clone(), value_kind);
+                }
+            }
+            Stmt::Definition { name, value, .. } => {
+                let value_kind = infer_expr(value, &bindings, false)?;
+                bindings.insert(name.clone(), value_kind);
+            }
+            Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
+                infer_expr(expr, &bindings, false)?;
+            }
+            Stmt::Return { value, .. } => {
+                infer_expr(value, bindings, false)?;
+            }
+            Stmt::PublicObservation { fields, .. } => {
+                for field in fields {
+                    infer_expr(&field.value, bindings, false)?;
+                }
+            }
+                Stmt::ResultFlow {
+                    producer,
+                    destination,
+                    ..
+                } => {
+                infer_expr(producer, bindings, false)?;
+                infer_expr(destination, bindings, false)?;
+            }
+                Stmt::If {
+                    condition,
+                    then_body,
+                    else_body,
+                    ..
+                } => {
+                infer_expr(condition, bindings, false)?;
+                validate_stmts(&then_body.stmts, &mut bindings.clone())?;
+                if let Some(else_body) = else_body {
+                    validate_stmts(&else_body.stmts, &mut bindings.clone())?;
+                }
+            }
+                Stmt::Receive {
+                    condition, body, ..
+                } => {
+                if let Some(condition) = condition {
+                    infer_expr(condition, bindings, false)?;
+                }
+                validate_stmts(&body.stmts, &mut bindings.clone())?;
+            }
+            Stmt::Try { action, body, .. } => {
+                infer_expr(action, bindings, false)?;
+                validate_stmts(&body.stmts, &mut bindings.clone())?;
+            }
+                Stmt::Choose {
+                    branches,
+                    else_body,
+                    ..
+                } => {
+                for branch in branches {
+                    infer_expr(&branch.condition, bindings, false)?;
+                    validate_stmts(&branch.body.stmts, &mut bindings.clone())?;
+                }
+                validate_stmts(&else_body.stmts, &mut bindings.clone())?;
+            }
+                Stmt::Repeat { body, .. }
+                | Stmt::BeatBlock { body, .. }
+                | Stmt::Hook { body, .. }
+                | Stmt::Quantifier { body, .. } => {
+                    validate_stmts(&body.stmts, &mut bindings.clone())?
+                }
+                Stmt::While {
+                    condition, body, ..
+                }
+                | Stmt::HookWhenBecomes {
+                    condition, body, ..
+                }
+                | Stmt::HookWhile {
+                    condition, body, ..
+                }
+                | Stmt::Guard {
+                    condition, body, ..
+                } => {
+                infer_expr(condition, bindings, false)?;
+                validate_stmts(&body.stmts, &mut bindings.clone())?;
+            }
+            Stmt::ForEach { iterable, body, .. } => {
+                infer_expr(iterable, bindings, false)?;
+                validate_stmts(&body.stmts, &mut bindings.clone())?;
+            }
+                Stmt::Contract {
+                    condition,
+                    then_body,
+                    else_body,
+                    ..
+                } => {
+                infer_expr(condition, bindings, false)?;
+                if let Some(then_body) = then_body {
+                    validate_stmts(&then_body.stmts, &mut bindings.clone())?;
+                }
+                validate_stmts(&else_body.stmts, &mut bindings.clone())?;
+            }
+                Stmt::Send {
+                    sender,
+                    payload,
+                    receiver,
+                    ..
+                } => {
+                if let Some(sender) = sender {
+                    infer_expr(sender, bindings, false)?;
+                }
+                infer_expr(payload, bindings, false)?;
+                infer_expr(receiver, bindings, false)?;
+            }
+                Stmt::MetaBlock { .. }
+                | Stmt::Pragma { .. }
+                | Stmt::Break { .. }
+                | Stmt::ContinueLoop { .. } => {}
+        }
+    }
+        Ok(())
+    }
+
+    validate_stmts(&program.root_stmts, &mut HashMap::new())?;
+    for item in &program.items {
+        let TopLevelItem::SeedDef(seed) = item;
+        if let Some(body) = &seed.body {
+            validate_stmts(&body.stmts, &mut HashMap::new())?;
+        }
+    }
+    Ok(())
+}
+
+
 fn collect_v1_core_named_calls_expr(
     expr: &Expr,
     alias_owner: &BTreeMap<String, String>,
     calls: &mut BTreeSet<String>,
 ) {
     match &expr.kind {
+        ExprKind::SumBranchValue { payload, .. } => {
+            for payload in payload {
+                collect_v1_core_named_calls_expr(&payload.value, alias_owner, calls);
+            }
+        }
         ExprKind::Tensor(value) => collect_v1_core_named_calls_expr(value.input(), alias_owner, calls),
         ExprKind::MultiAxisSelection(value) => { for child in value.children() { collect_v1_core_named_calls_expr(child, alias_owner, calls); } }
         ExprKind::FieldAccess { target, .. }
@@ -2253,7 +2683,12 @@ fn collect_v1_core_named_calls_expr(
                 collect_v1_core_named_calls_expr(&arg.expr, alias_owner, calls);
             }
         }
-        ExprKind::CollectionConstructor { elements } => {
+        ExprKind::ProductConstruction { fields, .. } => {
+            for field in fields {
+                collect_v1_core_named_calls_expr(&field.expr, alias_owner, calls);
+            }
+        }
+        ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
             for element in elements {
                 collect_v1_core_named_calls_expr(element, alias_owner, calls);
             }
@@ -2412,6 +2847,16 @@ fn collect_public_observation_fields_stmts<'a>(
 ) {
     for stmt in stmts {
         match stmt {
+            Stmt::SumDefinition { .. } => {}
+            Stmt::SumMatch { subject, arms, default_body, .. } => {
+                collect_public_observation_fields_expr(subject, fields);
+                for arm in arms {
+                    collect_public_observation_fields_body(&arm.body, fields);
+                }
+                if let Some(body) = default_body {
+                    collect_public_observation_fields_body(body, fields);
+                }
+            }
             Stmt::PublicObservation {
                 fields: observed, ..
             } => {
@@ -2545,6 +2990,11 @@ fn collect_public_observation_fields_expr<'a>(
     fields: &mut Vec<&'a ddonirang_lang::PublicObservationField>,
 ) {
     match &expr.kind {
+        ExprKind::SumBranchValue { payload, .. } => {
+            for payload in payload {
+                collect_public_observation_fields_expr(&payload.value, fields);
+            }
+        }
         ExprKind::Tensor(value) => collect_public_observation_fields_expr(value.input(), fields),
         ExprKind::MultiAxisSelection(value) => { for child in value.children() { collect_public_observation_fields_expr(child, fields); } }
         ExprKind::FieldAccess { target, .. }
@@ -2554,12 +3004,12 @@ fn collect_public_observation_fields_expr<'a>(
         | ExprKind::Nuance { expr: target, .. } => {
             collect_public_observation_fields_expr(target, fields);
         }
-        ExprKind::Call { args, .. } => {
+        ExprKind::Call { args, .. } | ExprKind::ProductConstruction { fields: args, .. } => {
             for arg in args {
                 collect_public_observation_fields_expr(&arg.expr, fields);
             }
         }
-        ExprKind::CollectionConstructor { elements } => {
+        ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
             for element in elements {
                 collect_public_observation_fields_expr(element, fields);
             }
@@ -2602,6 +3052,30 @@ fn collect_public_observation_fields_expr<'a>(
 
 fn collect_top_level_decl_names(source: &str) -> HashSet<String> {
     let mut names = HashSet::new();
+    for range in top_level_decl_ranges(source) { collect_decl_names_from_block(&source[range],&mut names); }
+    names
+}
+
+fn authored_top_level_decl_names(program:&CanonProgram,source:&str) -> HashSet<String> {
+    let ranges=top_level_decl_ranges(source);
+    let mut names=HashSet::new();
+    let in_range=|span:ddonirang_lang::Span| ranges.iter().any(|range|range.start<=span.start && span.end<=range.end);
+    let mut statements=program.root_stmts.iter().collect::<Vec<_>>();
+    for ddonirang_lang::TopLevelItem::SeedDef(seed) in &program.items {
+        if let Some(body)=&seed.body {statements.extend(body.stmts.iter());}
+    }
+    for statement in statements {
+        match statement {
+            Stmt::DeclBlock{items,..} => for item in items {if in_range(item.span) {names.insert(item.name.clone());}},
+            Stmt::Definition{name,span,..} if in_range(*span) => {names.insert(name.clone());},
+            _=>{},
+        }
+    }
+    names
+}
+
+fn top_level_decl_ranges(source:&str) -> Vec<std::ops::Range<usize>> {
+    let mut ranges=Vec::new();
     let mut depth = 0usize;
     let mut i = 0usize;
     let mut in_string = false;
@@ -2631,7 +3105,7 @@ fn collect_top_level_decl_names(source: &str) -> HashSet<String> {
             }
             if source[cursor..].starts_with('{') {
                 if let Some(close) = find_matching_brace(source, cursor) {
-                    collect_decl_names_from_block(&source[cursor + 1..close], &mut names);
+                    ranges.push(cursor+1..close);
                     i = close + '}'.len_utf8();
                     continue;
                 }
@@ -2644,7 +3118,7 @@ fn collect_top_level_decl_names(source: &str) -> HashSet<String> {
         }
         i += ch.len_utf8();
     }
-    names
+    ranges
 }
 
 fn is_ident_boundary(source: &str, start: usize, keyword: &str) -> bool {
@@ -2959,6 +3433,12 @@ fn body_quantifier_feature(body: &Body) -> Option<&'static str> {
 
 fn stmt_regex_feature(stmt: &Stmt) -> Option<&'static str> {
     match stmt {
+        Stmt::SumDefinition { .. } => None,
+        Stmt::SumMatch { subject, arms, default_body, .. } => {
+            expr_regex_feature(subject)
+                .or_else(|| arms.iter().find_map(|arm| body_regex_feature(&arm.body)))
+                .or_else(|| default_body.as_ref().and_then(body_regex_feature))
+        }
         Stmt::DeclBlock { items, .. } => {
             for item in items {
                 if let Some(value) = &item.value {
@@ -3062,6 +3542,12 @@ fn stmt_regex_feature(stmt: &Stmt) -> Option<&'static str> {
 
 fn stmt_assertion_feature(stmt: &Stmt) -> Option<&'static str> {
     match stmt {
+        Stmt::SumDefinition { .. } => None,
+        Stmt::SumMatch { subject, arms, default_body, .. } => {
+            expr_assertion_feature(subject)
+                .or_else(|| arms.iter().find_map(|arm| body_assertion_feature(&arm.body)))
+                .or_else(|| default_body.as_ref().and_then(body_assertion_feature))
+        }
         Stmt::DeclBlock { items, .. } => {
             for item in items {
                 if let Some(value) = &item.value {
@@ -3165,6 +3651,12 @@ fn stmt_assertion_feature(stmt: &Stmt) -> Option<&'static str> {
 
 fn stmt_state_machine_feature(stmt: &Stmt) -> Option<&'static str> {
     match stmt {
+        Stmt::SumDefinition { .. } => None,
+        Stmt::SumMatch { subject, arms, default_body, .. } => {
+            expr_state_machine_feature(subject)
+                .or_else(|| arms.iter().find_map(|arm| body_state_machine_feature(&arm.body)))
+                .or_else(|| default_body.as_ref().and_then(body_state_machine_feature))
+        }
         Stmt::DeclBlock { items, .. } => {
             for item in items {
                 if let Some(value) = &item.value {
@@ -3269,6 +3761,11 @@ fn stmt_state_machine_feature(stmt: &Stmt) -> Option<&'static str> {
 
 fn stmt_quantifier_feature(stmt: &Stmt) -> Option<&'static str> {
     match stmt {
+        Stmt::SumDefinition { .. } => None,
+        Stmt::SumMatch { arms, default_body, .. } => arms
+            .iter()
+            .find_map(|arm| body_quantifier_feature(&arm.body))
+            .or_else(|| default_body.as_ref().and_then(body_quantifier_feature)),
         Stmt::DeclBlock { items, .. } => {
             for item in items {
                 if let Some(value) = &item.value {
@@ -3332,6 +3829,8 @@ fn stmt_quantifier_feature(stmt: &Stmt) -> Option<&'static str> {
 
 fn expr_regex_feature(expr: &Expr) -> Option<&'static str> {
     match &expr.kind {
+        ExprKind::SumBranchValue { payload, .. } => payload.iter().find_map(|arg|expr_regex_feature(&arg.value)),
+        ExprKind::ProductConstruction { fields, .. } => fields.iter().find_map(|field| expr_regex_feature(&field.expr)),
         ExprKind::Tensor(value) => expr_regex_feature(value.input()),
         ExprKind::MultiAxisSelection(value) => value.children().find_map(expr_regex_feature),
         ExprKind::Literal(Literal::Regex(_)) => Some("regex_literal"),
@@ -3363,7 +3862,7 @@ fn expr_regex_feature(expr: &Expr) -> Option<&'static str> {
             }
             None
         }
-        ExprKind::CollectionConstructor { elements } => {
+        ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
             for element in elements {
                 if let Some(feature) = expr_regex_feature(element) {
                     return Some(feature);
@@ -3408,6 +3907,8 @@ fn expr_regex_feature(expr: &Expr) -> Option<&'static str> {
 
 fn expr_assertion_feature(expr: &Expr) -> Option<&'static str> {
     match &expr.kind {
+        ExprKind::SumBranchValue { payload, .. } => payload.iter().find_map(|arg|expr_assertion_feature(&arg.value)),
+        ExprKind::ProductConstruction { fields, .. } => fields.iter().find_map(|field| expr_assertion_feature(&field.expr)),
         ExprKind::Tensor(value) => expr_assertion_feature(value.input()),
         ExprKind::MultiAxisSelection(value) => value.children().find_map(expr_assertion_feature),
         ExprKind::Assertion(_) => Some("assertion_literal"),
@@ -3430,7 +3931,7 @@ fn expr_assertion_feature(expr: &Expr) -> Option<&'static str> {
             }
             None
         }
-        ExprKind::CollectionConstructor { elements } => {
+        ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
             for element in elements {
                 if let Some(feature) = expr_assertion_feature(element) {
                     return Some(feature);
@@ -3475,6 +3976,8 @@ fn expr_assertion_feature(expr: &Expr) -> Option<&'static str> {
 
 fn expr_state_machine_feature(expr: &Expr) -> Option<&'static str> {
     match &expr.kind {
+        ExprKind::SumBranchValue { payload, .. } => payload.iter().find_map(|arg|expr_state_machine_feature(&arg.value)),
+        ExprKind::ProductConstruction { fields, .. } => fields.iter().find_map(|field| expr_state_machine_feature(&field.expr)),
         ExprKind::Tensor(value) => expr_state_machine_feature(value.input()),
         ExprKind::MultiAxisSelection(value) => value.children().find_map(expr_state_machine_feature),
         ExprKind::StateMachine(_) => Some("state_machine_literal"),
@@ -3497,7 +4000,7 @@ fn expr_state_machine_feature(expr: &Expr) -> Option<&'static str> {
             }
             None
         }
-        ExprKind::CollectionConstructor { elements } => {
+        ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
             for element in elements {
                 if let Some(feature) = expr_state_machine_feature(element) {
                     return Some(feature);
@@ -4133,6 +4636,8 @@ impl Default for InternalDdnRunnerDispatchState {
 }
 
 pub struct DdnRunner {
+    subject_bootstrap:Option<crate::unit_wire::subject_execution::SubjectExecutionStage>,
+    tuple_type_plan: Rc<crate::tuple_saved_type_plan::TupleSavedTypePlan>,
     program: DdnProgram,
     update_name: String,
     named_entry_after_definitions: bool,
@@ -4159,6 +4664,8 @@ pub struct StateTransitionRecord {
 }
 
 pub struct DdnRunOutput {
+    /// Explicit UTF-8 decoding provenance, separate from display and world state.
+    pub explicit_nfc_provenance: Vec<(NodeId, ddonirang_core::bytes::NfcDecodeProvenance)>,
     /// A3-P1: typed display sidecar; never a world resource or input authority.
     pub display_outputs: Vec<crate::output_display::OutputDisplay>,
     pub bogae_projection: Option<serde_json::Value>,
@@ -4262,9 +4769,71 @@ fn collect_state_transition_records(ops: &[PatchOp]) -> Vec<StateTransitionRecor
         .collect()
 }
 
+pub(crate) struct SavedTupleRestorePlan {
+    plan: crate::tuple_saved_type_plan::TupleSavedTypePlan,
+}
+
+impl SavedTupleRestorePlan {
+    pub(crate) fn admit_resource(&self, tag: &str, value: &ResourceValue) -> Result<(), String> {
+        let kind = self.plan.expected(tag).ok_or("E_TUPLE_PERSISTENCE_UNBOUND: 저장 원문의 유일한 자원 결속·위치씨를 확인할 수 없습니다")?;
+        crate::unit_wire::validate_saved_value_type(value, kind)
+            .map_err(|_| "E_TUPLE_PERSISTENCE_UNBOUND: 복원 값이 원문에 결속된 위치씨와 다릅니다".to_owned())
+    }
+}
+
 impl DdnRunner {
+    pub(crate) fn saved_tuple_restore_plan(&self) -> Option<SavedTupleRestorePlan> {
+        let saved = self.program.sealed_project_sources()?;
+        if !self.named_entry_after_definitions || self.update_name != saved.entry_declaration().name() { return None; }
+        Some(SavedTupleRestorePlan { plan: crate::tuple_saved_type_plan::TupleSavedTypePlan::compile(
+            &self.program.program, Some(&self.update_name), false, &self.program.top_level_decl_names, &self.program.record_schemas,
+            self.program.numeric_constraint_plan.as_deref(),&self.program.nominal_type_ids()) })
+    }
+
+    pub(crate) fn validate_persisted_records(&self, world: &NuriWorld) -> Result<(), String> {
+        world.validate_typed_resource_lanes().map_err(|reason|
+            format!("E_RESOURCE_SNAPSHOT_INVALID: {reason}"))?;
+        // The shared parser places top-level chaebi declarations in the
+        // update body's prefix. Local declarations of other callables do not
+        // constrain world resources and must not be collected here.
+        let update_stmts = self.program.functions.get(&self.update_name)
+            .and_then(|seed| seed.body.as_ref())
+            .map(|body| body.stmts.as_slice()).unwrap_or(&[]);
+        for (name, value) in world.resource_value_entries() {
+            if crate::unit_wire::saved_resource_contains_tuple(&value) {
+                // Live madis use the current compiler-owned program. The
+                // separate restore boundary requires SavedTupleRestorePlan.
+                let kind = self.tuple_type_plan.expected(&name).ok_or("E_TUPLE_PERSISTENCE_UNBOUND: 현재 원문의 유일한 위치씨 결속이 필요합니다")?;
+                crate::unit_wire::validate_saved_value_type(&value, kind)
+                    .map_err(|_| "E_TUPLE_PERSISTENCE_UNBOUND: 현재 원문의 위치씨와 세계 값이 다릅니다".to_owned())?;
+            }
+            let restored = value_from_resource_value(&value);
+            ddonirang_lang::runtime::validate_record_tree(&restored).map_err(|detail|
+                type_mismatch_error(&name, &detail.expected, &detail.actual).to_string())?;
+            for stmt in self.program.root_stmts.iter().chain(update_stmts.iter()) {
+                if let Stmt::DeclBlock { items, .. } = stmt {
+                    for item in items.iter().filter(|item| item.name == name
+                        && self.program.top_level_decl_names.contains(&item.name)) {
+                        if matches!(&restored, Value::Record { .. }|Value::NominalValueV1(_)|Value::SubjectHandleV1(_)) ||
+                            matches!(&item.type_ref, TypeRef::Named(owner) if self.program.record_schemas.contains_key(owner)
+                                || owner=="글" || owner=="참거짓") {
+                            self.program.check_value_type(&restored,&item.type_ref)
+                                .map_err(|detail| type_mismatch_error(&name, &detail.expected, &detail.actual).to_string())?;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn new(program: DdnProgram, update_name: &str) -> Self {
+        let temporary_subject_bootstrap=program.temporary_subject_bootstrap.clone();
+        let tuple_type_plan = Rc::new(crate::tuple_saved_type_plan::TupleSavedTypePlan::compile(
+            &program.program, Some(update_name), true, &program.top_level_decl_names, &program.record_schemas, program.numeric_constraint_plan.as_deref(),&program.nominal_type_ids()));
         Self {
+            subject_bootstrap:temporary_subject_bootstrap,
+            tuple_type_plan,
             program,
             update_name: update_name.to_string(),
             named_entry_after_definitions: false,
@@ -4360,6 +4929,7 @@ impl DdnRunner {
                 self.program.top_level_decl_names.insert(name.clone());
             }
         }
+        self.refresh_tuple_type_plan();
         self
     }
 
@@ -4376,7 +4946,14 @@ impl DdnRunner {
                 self.program.top_level_decl_names.insert(name.clone());
             }
         }
+        self.refresh_tuple_type_plan();
         Ok(())
+    }
+
+    fn refresh_tuple_type_plan(&mut self) {
+        self.tuple_type_plan = Rc::new(crate::tuple_saved_type_plan::TupleSavedTypePlan::compile(
+            &self.program.program, Some(&self.update_name), !self.named_entry_after_definitions,
+            &self.program.top_level_decl_names, &self.program.record_schemas, self.program.numeric_constraint_plan.as_deref(),&self.program.nominal_type_ids()));
     }
 
     /// Product-internal typed registry injection for W1-C2 integration
@@ -4458,6 +5035,19 @@ impl DdnRunner {
         self.work_cost.borrow().receipt()
     }
 
+    pub(crate) fn saved_program_sources(&self) -> Option<&crate::project_revision_envelope_supply::VerifiedSavedV25Sources> {
+        self.program.sealed_project_sources()
+    }
+
+    /// Existing dispatch owner encoding, not a new resume identity issuer.
+    pub(crate) fn execution_instance_owner_bytes(&self) -> &[u8] {
+        self.internal_dispatch.execution_identity.as_str().as_bytes()
+    }
+
+    pub(crate) fn configured_saved_start(&self) -> Option<&str> {
+        self.named_entry_after_definitions.then_some(self.update_name.as_str())
+    }
+
     pub fn set_sealed_input_bytes(&mut self, bytes: usize) -> Result<(), WorkCostFailure> {
         self.work_cost.borrow_mut().set_sealed_input_bytes(bytes)
     }
@@ -4520,6 +5110,20 @@ impl DdnRunner {
         defaults: &HashMap<String, Value>,
         initial_held: Option<&BTreeMap<String, bool>>,
     ) -> Result<(DdnRunOutput, serde_json::Value), String> {
+        let (output, receipt, _) = self.run_update_logical_retaining_input(
+            world, binding, snapshot, defaults, initial_held,
+        )?;
+        Ok((output, receipt))
+    }
+
+    /// Return the actual core input passed to execution, never a reconstructed history.
+    pub(crate) fn run_update_logical_retaining_input(
+        &mut self, world: &NuriWorld,
+        binding: &crate::logical_input_tape::LogicalInputBinding,
+        snapshot: &crate::logical_input_tape::LogicalSnapshot,
+        defaults: &HashMap<String, Value>,
+        initial_held: Option<&BTreeMap<String, bool>>,
+    ) -> Result<(DdnRunOutput, serde_json::Value, InputSnapshot), String> {
         let query = crate::logical_input_tape::query(binding, snapshot)?;
         let query = if let Some(initial) = initial_held {
             query.with_initial_held(initial.clone()).map_err(|_| "E_LOGICAL_INPUT_STATE: 사건 전후 눌림 상태가 다릅니다".to_string())?
@@ -4544,7 +5148,7 @@ impl DdnRunner {
             "input_snapshot_sha256": crate::logical_input_tape::snapshot_digest(snapshot)?,
             "input_reads": output.input_reads,
         });
-        Ok((output, receipt))
+        Ok((output, receipt, input))
     }
 
     // WO15 provisional typed manipulation intake. The common codec validates
@@ -4679,6 +5283,9 @@ impl DdnRunner {
         logical_input: Option<&ddonirang_core::input::LogicalInputQuery<String>>,
     ) -> Result<DdnRunOutput, EvalError> {
         verify_stdlib_registry_totality()?;
+        // Validate committed record evidence before creating a candidate frame
+        // or advancing input state. A malformed record is never a missing value.
+        self.validate_persisted_records(world)?;
         self.work_cost
             .borrow_mut()
             .note_external_events(input.ai_injections.len())?;
@@ -4703,6 +5310,17 @@ impl DdnRunner {
             self.internal_dispatch.clone(),
         );
         ctx.logical_input = logical_input.cloned();
+        if let Some(bootstrap)=&self.subject_bootstrap {
+            let staged=match world.subject_world().map(|snapshot|bootstrap.stage_committed(snapshot)).transpose() {
+                Ok(stage)=>stage.unwrap_or_else(||bootstrap.clone()),
+                Err(error)=>{self.prev_keys_pressed=prev_keys_pressed;return Err(error.into());}
+            };
+            ctx.subject_stage=Some(Rc::new(RefCell::new(staged)));
+        } else if world.subject_world().is_some() {
+            self.prev_keys_pressed=prev_keys_pressed;
+            return Err("E_VC04_SUBJECT_CONTEXT_REQUIRED: 실제 실행 소유자 없는 대상 상태는 실행하지 않습니다".to_string().into());
+        }
+        ctx.tuple_type_plan = Rc::clone(&self.tuple_type_plan);
         if logical_input.is_none() {
         ctx.resources.insert(
             "입력키".to_string(),
@@ -4814,6 +5432,7 @@ impl DdnRunner {
                 resources: ctx.resources.into_owned(),
                 input_reads: ctx.input_reads.borrow().clone(),
                 public_observations: Vec::new(),
+                explicit_nfc_provenance: Vec::new(),
                 state_transitions: Vec::new(),
                 work_cost: self.work_cost.borrow().receipt(),
             });
@@ -4831,6 +5450,12 @@ impl DdnRunner {
         }
         ctx.flush_factor_route_metrics_resource();
         ctx.emit_factor_route_summary_diag();
+        if let Some(stage)=&ctx.subject_stage {
+            let snapshot=match stage.borrow().committed_snapshot() {
+                Ok(value)=>value,Err(error)=>{self.prev_keys_pressed=prev_keys_pressed;return Err(error.into());}
+            };
+            if world.subject_world()!=Some(&snapshot) {ctx.patch_ops.push(PatchOp::SetSubjectWorld{value:snapshot});}
+        }
         let patch = Patch {
             ops: ctx.patch_ops.into_owned(),
             origin: Origin::system("ddn"),
@@ -4885,6 +5510,7 @@ impl DdnRunner {
             resources,
             input_reads,
             public_observations: ctx.public_observations,
+            explicit_nfc_provenance: ctx.explicit_nfc_provenance,
             state_transitions,
             work_cost,
         })
@@ -4896,7 +5522,17 @@ impl DdnRunner {
         self.bogae_history.clear();
     }
 
+    pub(crate) fn bind_subject_bootstrap(&mut self,stage:crate::unit_wire::subject_execution::SubjectExecutionStage) {
+        self.subject_bootstrap=Some(stage);
+    }
+    pub(crate) fn has_temporary_registration(&self)->bool{self.program.has_temporary_registration()}
+    pub(crate) fn saved_initial_subject_world(&self)->Result<Option<ddonirang_core::platform::SubjectWorldStateV1>,String>{
+        self.subject_bootstrap.as_ref().map(|stage|stage.committed_snapshot()).transpose()
+    }
+
     pub fn scene_history_snapshot(&self) -> serde_json::Value { self.bogae_history.snapshot() }
+
+    pub(crate) fn bogae_history_for_resume(&self)->&crate::bogae_time::SceneHistory { &self.bogae_history }
 
     // A3-P11: consumed input history is distinct from a newer host snapshot.
     pub(crate) fn consumed_keys_pressed(&self) -> u64 { self.prev_keys_pressed }
@@ -4956,6 +5592,9 @@ impl From<HashMap<String, Value>> for ResourceBindings {
 }
 
 struct EvalContext<'a> {
+    subject_stage:Option<Rc<RefCell<crate::unit_wire::subject_execution::SubjectExecutionStage>>>,
+    tuple_type_plan: Rc<crate::tuple_saved_type_plan::TupleSavedTypePlan>,
+    explicit_nfc_provenance: Vec<(NodeId, ddonirang_core::bytes::NfcDecodeProvenance)>,
     program: &'a DdnProgram,
     // Bound to this immutable program; shared only by its child contexts.
     source_span_cache: Rc<RefCell<HashMap<(usize, usize), SourceSpan>>>,
@@ -4997,6 +5636,10 @@ struct EvalContext<'a> {
     /// not silently change their runtime value category on a later rebind.
     root_program_active: bool,
     root_binding_types: HashMap<String, String>,
+    sum_definitions: HashMap<String, Vec<SumBranchDecl>>,
+    // Pattern payloads are lexical bindings, never world slots by spelling.
+    // A named call starts its own binding owner and restores this stack.
+    sum_pattern_bindings: Vec<String>,
     project_asset_registry: Option<&'a gate0_registry::ProjectAssetRegistry>,
     work_cost: Rc<RefCell<WorkCostMeter>>,
     internal_dispatch: InternalDdnRunnerDispatchState,
@@ -5043,6 +5686,8 @@ fn restore_local_binding(locals: &mut HashMap<String, Value>, name: &str, previo
 
 #[derive(Clone)]
 struct EvalFrameSnapshot {
+    subject_stage:Option<crate::unit_wire::subject_execution::SubjectExecutionStage>,
+    explicit_nfc_provenance: Vec<(NodeId, ddonirang_core::bytes::NfcDecodeProvenance)>,
     locals: Option<HashMap<String, Value>>,
     resources: ResourceBindings,
     patch_ops: PatchLog,
@@ -5056,6 +5701,8 @@ struct EvalFrameSnapshot {
     public_observations: Vec<PublicObservationEvent>,
     display_outputs: Vec<crate::output_display::OutputDisplay>,
     root_binding_types: HashMap<String, String>,
+    sum_definitions: HashMap<String, Vec<SumBranchDecl>>,
+    sum_pattern_bindings: Vec<String>,
 }
 
 // This is an implementation proof of no local writes, not a language purity
@@ -5076,7 +5723,7 @@ fn expression_preserves_local_bindings(expr: &Expr) -> bool {
                 check(left, depth - 1, visits) && check(right, depth - 1, visits)
             }
             ExprKind::FieldAccess { target, .. } => check(target, depth - 1, visits),
-            ExprKind::CollectionConstructor { elements } => elements.iter()
+            ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => elements.iter()
                 .all(|element| check(element, depth - 1, visits)),
             ExprKind::Pack { fields } => fields.iter()
                 .all(|(_, value)| check(value, depth - 1, visits)),
@@ -5103,6 +5750,11 @@ fn statement_cannot_abort(stmt: &Stmt) -> bool {
 
 fn root_binding_type_key(value: &Value) -> String {
     match value {
+        Value::Record { field_types, .. } => {
+            let mut bytes = Vec::new();
+            ddonirang_core::platform::RecordFieldType::Record { fields: field_types.clone() }.encode_canon(&mut bytes);
+            format!("record-v1:{}", bytes.iter().map(|byte| format!("{byte:02x}")).collect::<String>())
+        }
         Value::Tensor(tensor) => {
             let mut axes = tensor.shape().iter().map(u64::to_string).collect::<Vec<_>>().join(", ");
             if tensor.shape().len() == 1 { axes.push(','); }
@@ -5202,8 +5854,34 @@ enum IndexedSelectionExpr<'a> {
 }
 
 enum EvaluatedIndexedSelection {
-    Single(Value),
+    Single {value:Value, static_index:Option<usize>},
+    Range {start:u64,end:u64,dynamic:bool},
     Axes(Vec<crate::unit_wire::TensorSelector>),
+}
+
+fn tuple_position_type_equal(left:&Value,right:&Value)->bool {
+    let mut pending=vec![(left,right)];
+    while let Some((left,right))=pending.pop() {
+        match (left,right) {
+            (Value::Tuple(a),Value::Tuple(b))=>{
+                if a.len()!=b.len(){return false;}
+                pending.extend(a.iter().zip(b));
+            }
+            (Value::Record{field_types:a,..},Value::Record{field_types:b,..})=>if a!=b{return false;},
+            (Value::List(a),Value::List(b))=>{
+                if let Some(first)=a.first(){pending.extend(b.iter().map(|item|(first,item)));}
+            }
+            _=>if root_binding_type_key(left)!=root_binding_type_key(right){return false;},
+        }
+    }
+    true
+}
+
+fn checked_selection_range(start:u64,end:u64,len:usize) -> Result<(usize,usize),EvalError> {
+    let convert=|| {Some((usize::try_from(start).ok()?,usize::try_from(end).ok()?))};
+    let Some((start,end))=convert() else {return Err("E_SELECTION_RANGE_BOUNDS: 범위가 주소 크기를 넘습니다".to_string().into());};
+    if start>end || end>len {return Err("E_SELECTION_RANGE_BOUNDS: 차림 범위는 시작 ≤ 끝 ≤ 길이여야 합니다".to_string().into());}
+    Ok((start,end))
 }
 
 #[derive(Debug)]
@@ -5429,7 +6107,9 @@ impl<'a> EvalContext<'a> {
     ) -> Self {
         Self {
             program,
+            subject_stage:None,
             source_span_cache: Rc::new(RefCell::new(HashMap::new())),
+            tuple_type_plan: Rc::new(crate::tuple_saved_type_plan::TupleSavedTypePlan::default()),
             world,
             defaults,
             param_overrides,
@@ -5460,9 +6140,15 @@ impl<'a> EvalContext<'a> {
             factor_bits_min: None,
             factor_bits_max: 0,
             public_observations: Vec::new(),
+            explicit_nfc_provenance: Vec::new(),
             display_outputs: Vec::new(),
             root_program_active: false,
             root_binding_types: HashMap::new(),
+            sum_definitions: program.program.root_stmts.iter().filter_map(|stmt|match stmt {
+                Stmt::SumDefinition {name,branches,..} => Some((name.clone(),branches.clone())),
+                _ => None,
+            }).collect(),
+            sum_pattern_bindings: Vec::new(),
             project_asset_registry,
             work_cost,
             internal_dispatch,
@@ -5502,7 +6188,7 @@ impl<'a> EvalContext<'a> {
             if *optional && matches!(value, Value::None) {
                 return Ok(());
             }
-            if let Err(detail) = check_value_type(value, type_ref) {
+            if let Err(detail) = self.check_value_type(value, type_ref) {
                 return Err(type_mismatch_error(name, &detail.expected, &detail.actual));
             }
         }
@@ -5564,6 +6250,7 @@ impl<'a> EvalContext<'a> {
             self.current_owner_identity = Some(seed.canonical_name.clone());
         }
         self.enter_const_scope();
+        let caller_pattern_bindings = std::mem::take(&mut self.sum_pattern_bindings);
         let result = (|| {
             if self.aborted {
                 return if resultful {
@@ -5642,7 +6329,7 @@ impl<'a> EvalContext<'a> {
             } else {
                 let value = out_value.unwrap_or(Value::None);
                 if let Some(result_type) = &seed.result_type {
-                    if let Err(detail) = check_value_type(&value, result_type) {
+                    if let Err(detail) = self.check_value_type(&value, result_type) {
                         return Err(type_mismatch_error(
                             &format!("{} 결과", seed.canonical_name),
                             &detail.expected,
@@ -5655,6 +6342,7 @@ impl<'a> EvalContext<'a> {
         })();
         self.result_place_frames.truncate(frame_depth);
         self.exit_const_scope();
+        self.sum_pattern_bindings = caller_pattern_bindings;
         self.current_seed_name = prev_seed;
         self.active_callable_name = prev_callable;
         self.current_owner_identity = prev_owner;
@@ -5699,6 +6387,10 @@ impl<'a> EvalContext<'a> {
         Ok(())
     }
 
+    fn check_value_type(&self, value: &Value, type_ref: &TypeRef) -> Result<(), ddonirang_lang::runtime::TypeMismatchDetail> {
+        self.program.check_value_type(value,type_ref)
+    }
+
     fn check_param_type(&self, param: &ParamPin, value: &Value) -> Result<(), EvalError> {
         if matches!(param.type_ref, TypeRef::Infer) {
             return Ok(());
@@ -5706,7 +6398,7 @@ impl<'a> EvalContext<'a> {
         if param.optional && matches!(value, Value::None) {
             return Ok(());
         }
-        match check_value_type(value, &param.type_ref) {
+        match self.check_value_type(value, &param.type_ref) {
             Ok(()) => Ok(()),
             Err(detail) => {
                 let expected = if param.optional {
@@ -5836,13 +6528,13 @@ impl<'a> EvalContext<'a> {
             return Ok(ThunkResult::Value(Value::None));
         }
         match stmt {
-            Stmt::DeclBlock { .. } | Stmt::Definition { .. } => match self.eval_stmt(locals, stmt)? {
+            Stmt::DeclBlock { .. } | Stmt::Definition { .. } | Stmt::SumDefinition {..} => match self.eval_stmt(locals, stmt)? {
                 FlowControl::Continue => Ok(ThunkResult::Value(Value::None)),
                 FlowControl::Return(value) => Ok(ThunkResult::Return(value)),
                 FlowControl::ContinueLoop(span) => Ok(ThunkResult::ContinueLoop(span)),
                 FlowControl::Break(span) => Ok(ThunkResult::Break(span)),
             },
-            Stmt::Mutate { .. } | Stmt::ResultFlow { .. } => match self.eval_stmt(locals, stmt)? {
+            Stmt::Mutate { .. } | Stmt::ResultFlow { .. } | Stmt::SumMatch {..} => match self.eval_stmt(locals, stmt)? {
                 FlowControl::Continue => Ok(ThunkResult::Value(Value::None)),
                 FlowControl::Return(value) => Ok(ThunkResult::Return(value)),
                 FlowControl::ContinueLoop(span) => Ok(ThunkResult::ContinueLoop(span)),
@@ -5951,11 +6643,11 @@ impl<'a> EvalContext<'a> {
                 body,
                 ..
             } => {
-                let iter_value = self.eval_expr(locals, iterable)?;
-                let items = match iter_value {
-                    Value::List(items) => items,
-                    Value::Set(items) => items.into_values().collect(),
-                    Value::Map(entries) => entries
+                let mut iter_value = self.eval_expr(locals, iterable)?;
+                let items = match &mut iter_value {
+                    Value::List(items) => std::mem::take(items),
+                    Value::Set(items) => std::mem::take(items).into_values().collect(),
+                    Value::Map(entries) => std::mem::take(entries)
                         .into_values()
                         .map(|entry| Value::List(vec![entry.key, entry.value]))
                         .collect(),
@@ -6141,6 +6833,55 @@ impl<'a> EvalContext<'a> {
             return Ok(FlowControl::Continue);
         }
         match stmt {
+            Stmt::SumDefinition {name,branches,..} => {
+                self.sum_definitions.insert(name.clone(),branches.clone());
+                Ok(FlowControl::Continue)
+            }
+            Stmt::SumMatch {subject,arms,default_body,..} => {
+                let subject=self.eval_expr(locals,subject)?;
+                let Value::SumBranch {owner,branch,payload,..}=&subject else {
+                    return Err("E_SUM_MATCH_SUBJECT_TYPE: `에 따라`의 값은 고름씨 갈래여야 합니다".to_string().into());
+                };
+                if arms.first().map(|arm|arm.owner.as_str())!=Some(owner.as_str()) {
+                    return Err("E_SUM_MATCH_OWNER_MISMATCH: `에 따라`의 갈래 소유자가 값의 고름씨와 다릅니다".to_string().into());
+                }
+                if let Some(arm)=arms.iter().find(|arm|arm.owner==*owner&&arm.branch==*branch) {
+                    // Resolve every selection before entering the arm. A missing
+                    // pin must not publish a partial group of local bindings.
+                    let mut bindings=Vec::new();
+                    for binder in &arm.binder {
+                        let name=&binder.pin;
+                        let value=payload.get(name).ok_or_else(||EvalError::from(
+                            "E_SUM_MATCH_PAYLOAD_MISSING: 값 갈래 payload가 없습니다".to_string()))?.clone();
+                        let schema=if let Some(kind)=&arm.applied_owner {
+                            ddonirang_lang::sum_owner::resolve_applied_sum_owner(kind,arm.span)
+                                .map_err(EvalError::from)?.branches.into_iter().find(|declaration|declaration.name==arm.branch)
+                                .map(|declaration|declaration.payload)
+                        } else {
+                            self.sum_definitions.get(&arm.owner)
+                                .and_then(|branches|branches.iter().find(|declaration|declaration.name==arm.branch))
+                                .map(|declaration|declaration.payload.clone())
+                        };
+                        let binder_type=schema.as_ref().and_then(|payload|payload.iter().find(|schema|schema.binder==*name))
+                            .map(|schema|schema.type_ref.clone())
+                            .ok_or_else(||EvalError::from("E_SUM_MATCH_BINDER_UNKNOWN: 받는 이름을 해소할 수 없습니다".to_string()))?;
+                        bindings.push((name.clone(),value,binder_type,locals.get(name).cloned()));
+                    }
+                    let pattern_depth=self.sum_pattern_bindings.len();
+                    self.enter_const_scope();
+                    for (name,value,binder_type,_) in &bindings {
+                        self.declare_binding_type(name,binder_type);
+                        self.sum_pattern_bindings.push(name.clone());
+                        locals.insert(name.clone(),value.clone());
+                    }
+                    let outcome=self.eval_body(locals,&arm.body);
+                    for (name,_,_,previous) in bindings {restore_local_binding(locals,&name,previous);}
+                    self.sum_pattern_bindings.truncate(pattern_depth);
+                    self.exit_const_scope();
+                    outcome
+                } else if let Some(body)=default_body {self.eval_body(locals,body)}
+                else {Err("E_SUM_MATCH_BRANCH_UNCOVERED: 선언된 갈래에 대응하는 문장이 없습니다".to_string().into())}
+            }
             Stmt::DeclBlock { items, .. } => {
                 for item in items {
                     let is_top_level_decl =
@@ -6158,7 +6899,7 @@ impl<'a> EvalContext<'a> {
                         self.get_resource(&item.name).ok_or_else(|| EvalError::Message(
                             format!("E_CHAEBI_RESOURCE_UNRESOLVED: 채비의 저장 값을 읽을 수 없습니다: {}", item.name)))?
                     } else if let Some(expr) = &item.value {
-                        match self.eval_expr(locals, expr) {
+                        match self.eval_expr_expected(locals, expr, &item.type_ref) {
                             Ok(val) => val,
                             Err(err) => return Err(err),
                         }
@@ -6180,7 +6921,7 @@ impl<'a> EvalContext<'a> {
                         value
                     };
                     if item.value.is_some() {
-                        if let Err(detail) = check_value_type(&value, &item.type_ref) {
+                        if let Err(detail) = self.check_value_type(&value, &item.type_ref) {
                             return Err(type_mismatch_error(&item.name, &detail.expected, &detail.actual));
                         }
                     }
@@ -6190,7 +6931,8 @@ impl<'a> EvalContext<'a> {
                         value
                     };
                     let binding_type = if matches!(item.type_ref, TypeRef::Infer) {
-                        inferred_binding_type(&value)
+                        item.value.as_ref().map(|expr| self.inferred_expression_binding_type(locals, expr, &value))
+                            .unwrap_or_else(|| inferred_binding_type(&value))
                     } else { item.type_ref.clone() };
                     self.declare_binding_type(&item.name, &binding_type);
                     if is_top_level_decl {
@@ -6203,7 +6945,7 @@ impl<'a> EvalContext<'a> {
                             .cloned()
                             .unwrap_or(Value::None);
                         if !matches!(initial, Value::None) {
-                            self.set_resource(&item.name, initial)?;
+                            self.set_source_resource(&item.name, initial, item.id)?;
                         }
                     }
                     if matches!(item.kind, ddonirang_lang::DeclKind::Butbak) {
@@ -6213,6 +6955,7 @@ impl<'a> EvalContext<'a> {
                 Ok(FlowControl::Continue)
             }
             Stmt::Definition {
+                id,
                 name,
                 type_ref,
                 value,
@@ -6239,11 +6982,11 @@ impl<'a> EvalContext<'a> {
                 } else {
                     self.resource_exists(name)
                 };
-                let evaluated = self.eval_expr(locals, value)?;
+                let evaluated = self.eval_expr_expected(locals, value, type_ref)?;
                 if self.aborted {
                     return Ok(FlowControl::Continue);
                 }
-                if let Err(detail) = check_value_type(&evaluated, type_ref) {
+                if let Err(detail) = self.check_value_type(&evaluated, type_ref) {
                     return Err(type_mismatch_error(name, &detail.expected, &detail.actual));
                 }
                 let evaluated = if is_top_level_decl && !resource_exists {
@@ -6256,11 +6999,11 @@ impl<'a> EvalContext<'a> {
                 } else {
                     evaluated
                 };
-                if let Err(detail) = check_value_type(&evaluated, type_ref) {
+                if let Err(detail) = self.check_value_type(&evaluated, type_ref) {
                     return Err(type_mismatch_error(name, &detail.expected, &detail.actual));
                 }
                 let binding_type = if matches!(type_ref, TypeRef::Infer) {
-                    inferred_binding_type(&evaluated)
+                    self.inferred_expression_binding_type(locals, value, &evaluated)
                 } else { type_ref.clone() };
                 self.declare_binding_type(name, &binding_type);
                 if is_top_level_decl {
@@ -6270,12 +7013,12 @@ impl<'a> EvalContext<'a> {
                 if is_top_level_decl && !resource_exists {
                     let initial = locals.get(name).cloned().unwrap_or(Value::None);
                     if !matches!(initial, Value::None) {
-                        self.set_resource(name, initial)?;
+                        self.set_source_resource(name, initial, *id)?;
                     }
                 }
                 Ok(FlowControl::Continue)
             }
-            Stmt::Mutate { target, value, .. } => {
+            Stmt::Mutate { id, target, value, .. } => {
                 if self.guard_rejected {
                     return Ok(FlowControl::Continue);
                 }
@@ -6337,7 +7080,12 @@ impl<'a> EvalContext<'a> {
                         Ok(updated)
                     })()
                 } else {
-                    self.eval_expr(locals, value)
+                    let expected = self.result_place_frames.last()
+                        .filter(|frame| frame.canonical_name == *target_name)
+                        .and_then(|frame| frame.result_type.clone())
+                        .or_else(|| self.binding_type_scopes.iter().rev()
+                            .find_map(|scope| scope.get(target_name).map(|(kind, _)| kind.clone())));
+                    self.eval_expr_expected(locals, value, expected.as_ref().unwrap_or(&TypeRef::Infer))
                 };
                 if self.aborted {
                     return Ok(FlowControl::Continue);
@@ -6382,13 +7130,20 @@ impl<'a> EvalContext<'a> {
                 // Pure named callables own their ordinary bindings. A local
                 // pin/temp with the same spelling as a world resource must not
                 // acquire a world write merely because that resource exists.
-                let pure_local = self.owns_pure_local_bindings();
+                let pattern_local = self.sum_pattern_bindings.iter().any(|name|name==target_name);
+                let pure_local = self.owns_pure_local_bindings() || pattern_local;
                 if pure_local && !self.binding_type_scopes.last().unwrap().contains_key(target_name) {
-                    self.declare_binding_type(target_name, &inferred_binding_type(&val));
+                    self.declare_binding_type(target_name, &self.inferred_expression_binding_type(locals, value, &val));
+                }
+                if let Some(old @ Value::Tuple(_))=locals.get(target_name) {
+                    if !tuple_position_type_equal(old,&val) {
+                        self.restore_frame_snapshot(locals,&assignment_snapshot);
+                        return Err("E_TUPLE_REPLACEMENT: 위치형 재결속의 위치씨가 다릅니다".to_string().into());
+                    }
                 }
                 if let Err(error) = self.check_binding_type(target_name, &val) {
                     self.restore_frame_snapshot(locals, &assignment_snapshot);
-                    if self.root_program_active && self.current_seed_name.is_none() {
+                    if self.root_program_active && self.current_seed_name.is_none() && !pattern_local {
                         if let Some(expected) = self.root_binding_types.get(target_name) {
                             return Err(format!(
                                 "E_ROOT_BINDING_TYPE_MISMATCH: '{}'의 재결속 값 형식이 다릅니다 (기대: {}, 실제: {})",
@@ -6398,7 +7153,7 @@ impl<'a> EvalContext<'a> {
                     }
                     return Err(error);
                 }
-                if self.root_program_active && self.current_seed_name.is_none() {
+                if self.root_program_active && self.current_seed_name.is_none() && !pattern_local {
                     let actual = root_binding_type_key(&val);
                     if let Some(expected) = self.root_binding_types.get(target_name).cloned() {
                         if expected != actual {
@@ -6416,20 +7171,24 @@ impl<'a> EvalContext<'a> {
                 if !self.binding_type_scopes.last().unwrap().contains_key(target_name)
                     && !self.binding_type_scopes.first().unwrap().contains_key(target_name)
                 {
-                    self.declare_binding_type(target_name, &inferred_binding_type(&val));
+                    self.declare_binding_type(target_name, &self.inferred_expression_binding_type(locals, value, &val));
                 }
                 if pure_local {
                     locals.insert(target_name.clone(), val);
                 } else if locals.contains_key(target_name) {
                     locals.insert(target_name.clone(), val.clone());
                     if self.resource_exists(target_name) {
-                        if let Err(err) = self.set_resource(target_name, val) {
+                        if let Err(err) = self.set_source_resource(target_name, val, *id) {
                             self.restore_frame_snapshot(locals, &assignment_snapshot);
                             return Err(err);
                         }
                     }
+                } else if matches!(val,Value::SumBranch {..}) {
+                    // Existing VC08 contract: branch values are lexical only;
+                    // do not create a resource carrier or a JSON fallback.
+                    locals.insert(target_name.clone(),val);
                 } else {
-                    match self.set_resource(target_name, val) {
+                    match self.set_source_resource(target_name, val, *id) {
                         Ok(()) => {}
                         Err(err) => {
                             self.restore_frame_snapshot(locals, &assignment_snapshot);
@@ -6478,11 +7237,12 @@ impl<'a> EvalContext<'a> {
                     }
                 };
 
+                let pattern_local = self.sum_pattern_bindings.iter().any(|name|name==root_name);
                 if let Err(error) = self.check_binding_type(root_name, &replacement) {
                     self.restore_frame_snapshot(locals, &assignment_snapshot);
                     return Err(error);
                 }
-                if self.root_program_active && self.current_seed_name.is_none() {
+                if self.root_program_active && self.current_seed_name.is_none() && !pattern_local {
                     let actual = root_binding_type_key(&replacement);
                     if let Some(expected) = self.root_binding_types.get(root_name).cloned() {
                         if expected != actual {
@@ -6497,7 +7257,7 @@ impl<'a> EvalContext<'a> {
                         self.root_binding_types.insert(root_name.clone(), actual);
                     }
                 }
-                if self.owns_pure_local_bindings() && locals.contains_key(root_name) {
+                if (self.owns_pure_local_bindings() || pattern_local) && locals.contains_key(root_name) {
                     locals.insert(root_name.clone(), replacement);
                 } else if locals.contains_key(root_name) {
                     locals.insert(root_name.clone(), replacement.clone());
@@ -6547,6 +7307,18 @@ impl<'a> EvalContext<'a> {
                 Ok(FlowControl::Continue)
             }
             Stmt::Expr { expr, .. } => {
+                if self.program.program.origin.retirement_commands.contains_key(&expr.id) {
+                    let stage=self.subject_stage.as_ref().map(Rc::clone).ok_or_else(||EvalError::from(
+                        "E_VC04_RETIRE_CONTEXT_REQUIRED: 봉인된 대상·가리킴과 폐기 권한의 실행 공급이 필요합니다".to_string()))?;
+                    let ExprKind::Call{args,..}=&expr.kind else{return Err("E_VC04_RETIRE_PIN".to_string().into())};
+                    let target=args.first().ok_or_else(||EvalError::from("E_VC04_RETIRE_PIN".to_string()))?;
+                    let target_value=self.eval_expr(locals,&target.expr)?;
+                    let Value::IdentityReference(reference)=&target_value else {
+                        return Err("E_VC04_RETIRE_TARGET: 임자를 가리키는 가리킴이 필요합니다".to_string().into());
+                    };
+                    stage.borrow_mut().retire(&reference).map_err(EvalError::from)?;
+                    return Ok(FlowControl::Continue);
+                }
                 match self.eval_expr(locals, expr) {
                     Ok(_) => {}
                     Err(err) => return Err(err),
@@ -6572,7 +7344,8 @@ impl<'a> EvalContext<'a> {
             }
             Stmt::Pragma { .. } => Ok(FlowControl::Continue),
             Stmt::Return { value, .. } => {
-                let val = self.eval_expr(locals, value)?;
+                let expected = self.result_place_frames.last().and_then(|frame| frame.result_type.clone());
+                let val = self.eval_expr_expected(locals, value, expected.as_ref().unwrap_or(&TypeRef::Infer))?;
                 Ok(FlowControl::Return(val))
             }
             Stmt::If {
@@ -6653,11 +7426,11 @@ impl<'a> EvalContext<'a> {
                 body,
                 ..
             } => {
-                let iter_value = self.eval_expr(locals, iterable)?;
-                let items = match iter_value {
-                    Value::List(items) => items,
-                    Value::Set(items) => items.into_values().collect(),
-                    Value::Map(entries) => entries
+                let mut iter_value = self.eval_expr(locals, iterable)?;
+                let items = match &mut iter_value {
+                    Value::List(items) => std::mem::take(items),
+                    Value::Set(items) => std::mem::take(items).into_values().collect(),
+                    Value::Map(entries) => std::mem::take(entries)
                         .into_values()
                         .map(|entry| Value::List(vec![entry.key, entry.value]))
                         .collect(),
@@ -6826,6 +7599,202 @@ impl<'a> EvalContext<'a> {
         }
     }
 
+    fn source_numeric_literal_tree(expr: &Expr) -> bool {
+        crate::numeric_constraint_plan::literal_arithmetic_tree(expr)
+    }
+
+    fn source_literal_exact(&mut self, expr: &Expr) -> Result<BigRational, EvalError> {
+        let source = expr.numeric_literal_source.as_ref().ok_or_else(|| EvalError::from(
+            "E_TYPE_MISMATCH: 수 리터럴의 원 token 근거가 없습니다".to_string()))?;
+        self.work_cost.borrow_mut().charge_canonical_utf8_bytes(source.raw())?;
+        let (whole, fraction) = source.raw().split_once('.').unwrap_or((source.raw(), ""));
+        let coefficient = BigInt::parse_bytes(format!("{whole}{fraction}").as_bytes(), 10)
+            .ok_or_else(|| EvalError::from("E_TYPE_MISMATCH: 정확한 수 리터럴이 아닙니다".to_string()))?;
+        let scale = u32::try_from(fraction.len())
+            .map_err(|_| EvalError::from("E_TYPE_MISMATCH: 수 리터럴 자릿수 범위 초과".to_string()))?;
+        Ok(BigRational::new(coefficient, BigInt::from(10).pow(scale)))
+    }
+
+    fn issue_planned_numeric_literal(&mut self, expr: &Expr, kind: crate::numeric_constraint_plan::NumericKind) -> Result<Value, EvalError> {
+        use crate::numeric_constraint_plan::NumericKind as K;
+        let ExprKind::Literal(literal) = &expr.kind else {
+            return Err("E_TYPE_MISMATCH: 정적 수 발급 위치가 리터럴이 아닙니다".to_string().into());
+        };
+        match kind {
+            K::Approximate => Ok(literal_to_value(literal)),
+            K::Rational => Ok(make_rational_pack_from_big_rational(&self.source_literal_exact(expr)?)),
+            K::BigInteger => {
+                let exact = self.source_literal_exact(expr)?;
+                if !exact.is_integer() { return Err("E_TYPE_MISMATCH: 큰바른수 리터럴은 정수여야 합니다".to_string().into()); }
+                Ok(make_big_int_pack_from_bigint(&exact.to_integer()))
+            }
+            K::Integer => {
+                let exact = self.source_literal_exact(expr)?;
+                if !exact.is_integer() {
+                    return Err("E_TYPE_MISMATCH: 바른수 리터럴의 정확한 정수 범위를 벗어났습니다".to_string().into());
+                }
+                // Check the exact Q32 carrier before construction. from_i64
+                // saturates and therefore cannot be an admission operation.
+                let raw=(exact.to_integer()<<32usize).to_i64().ok_or_else(||EvalError::from(
+                    "E_TYPE_MISMATCH: 바른수 리터럴의 정확한 물리 표현 범위를 벗어났습니다".to_string()))?;
+                Ok(Value::Fixed64(Fixed64::from_raw_i64(raw)))
+            }
+            K::Factor => Err("E_TYPE_MISMATCH: 곱수 리터럴의 정적 발급 계약이 공급되지 않았습니다".to_string().into()),
+        }
+    }
+
+    /// Only an explicitly unique rational expectation may issue exact decimal
+    /// literals. Unsupported trees fall through to established evaluation;
+    /// no evaluated Fixed64 is reverse-converted and no mixed-literal ban is
+    /// introduced while that admission policy remains with SSOT/Owner.
+    fn eval_expr_expected(
+        &mut self, locals: &mut HashMap<String, Value>, expr: &Expr, expected: &TypeRef,
+    ) -> Result<Value, EvalError> {
+        if self.program.numeric_constraint_plan.is_some() {
+            // The admitted compilation already issued literal goals. A
+            // consumer must not build a competing plan from runtime values.
+            return self.eval_expr(locals, expr);
+        }
+        let rational = matches!(expected, TypeRef::Named(name)
+            if ddonirang_lang::stdlib::canonicalize_type_alias(name) == "나눔수");
+        if !rational || !Self::source_numeric_literal_tree(expr) { return self.eval_expr(locals, expr); }
+        enum Job<'a> { Expr(&'a Expr), Op(&'a str), Negate }
+        let mut jobs = vec![Job::Expr(expr)];
+        let mut values = Vec::new();
+        while let Some(job) = jobs.pop() {
+            match job {
+                Job::Expr(node) => {
+                    self.work_cost.borrow_mut().charge_dispatch()?;
+                    if let Some(operand) = node.source_negated_operand() {
+                        jobs.push(Job::Negate); jobs.push(Job::Expr(operand));
+                    } else if let ExprKind::Infix { left, op, right } = &node.kind {
+                        jobs.push(Job::Op(op)); jobs.push(Job::Expr(right)); jobs.push(Job::Expr(left));
+                    } else {
+                        values.push(make_rational_pack_from_big_rational(&self.source_literal_exact(node)?));
+                    }
+                }
+                Job::Op(op) => {
+                    let right = values.pop().expect("right operand");
+                    let left = values.pop().expect("left operand");
+                    values.push(self.eval_infix(op, left, right)?);
+                }
+                Job::Negate => {
+                    let operand = values.pop().expect("negative operand");
+                    let exact = exact_numeric_from_value(&operand)?.expect("exact negative operand");
+                    values.push(make_rational_pack_from_big_rational(&-exact.value));
+                }
+            }
+        }
+        let value = values.pop().expect("exact expression root");
+        let exact = exact_numeric_from_value(&value)?.expect("exact expression result");
+        // Denominator one still has the expected rational owner (RD-076).
+        Ok(make_rational_pack_from_big_rational(&exact.value))
+    }
+
+    // Resolve authored type owners, never guess a numeric kind from an
+    // integral Fixed64 payload. Literal-only division remains undecided.
+    fn comparison_operand_type(&self, locals: &HashMap<String, Value>, expr: &Expr) -> Option<ddonirang_core::platform::RecordFieldType> {
+        if let Some(plan) = &self.program.numeric_constraint_plan {
+            return plan.position_types.get(&expr.id).cloned();
+        }
+        use ddonirang_lang::runtime::record_type_identity;
+        let mut bare = expr;
+        while let Some(operand) = bare.source_negated_operand() { bare = operand; }
+        if matches!(bare.kind, ExprKind::Literal(_)) { return None; }
+        let mut bindings = std::collections::BTreeMap::new();
+        let mut calls = std::collections::BTreeMap::new();
+        let mut pending = vec![expr];
+        while let Some(node) = pending.pop() {
+            match &node.kind {
+                ExprKind::Var(name) => {
+                    let local = self.binding_type_scopes.last().and_then(|scope| scope.get(name));
+                    let owner = local.or_else(|| (!locals.contains_key(name)).then(||
+                        self.binding_type_scopes.first().and_then(|scope| scope.get(name))).flatten());
+                    let kind = owner.and_then(|(kind, _)| record_type_identity(kind, &self.program.record_schemas).ok())
+                        .or_else(|| (self.binding_type_scopes.len() == 1 || !locals.contains_key(name))
+                            .then(|| self.tuple_type_plan.expected(name).cloned()).flatten());
+                    if let Some(kind) = kind { bindings.insert(name.clone(), kind); }
+                }
+                ExprKind::Call { func, .. } if !locals.contains_key(func) && !self.resources.contains_key(func) => {
+                    let canonical = ddonirang_lang::stdlib::canonicalize_stdlib_alias(func);
+                    if crate::work_cost::builtin_work_cost_rule(canonical).is_ok_and(|rule| rule.is_none()) {
+                        let kind = self.program.functions.get(func).and_then(|seed| seed.result_type.as_ref())
+                            .and_then(|kind| record_type_identity(kind, &self.program.record_schemas).ok());
+                        calls.insert(func.clone(), kind);
+                    }
+                }
+                ExprKind::Infix { left, right, .. } => { pending.push(left); pending.push(right); }
+                ExprKind::SelectionPlace { target, .. } => pending.push(target),
+                ExprKind::MultiAxisSelection(selection) => pending.push(&selection.target),
+                ExprKind::TupleConstructor { elements } => pending.extend(elements),
+                _ => {}
+            }
+        }
+        crate::tuple_saved_type_plan::expression_type_from_owners(expr, bindings, &calls)
+    }
+
+    fn inferred_expression_binding_type(&self, locals: &HashMap<String, Value>, expr: &Expr, value: &Value) -> TypeRef {
+        // Absence initializes no inferred payload type. Keep the existing
+        // inferred_binding_type rule before considering a source projection.
+        if matches!(value,Value::None) {return TypeRef::Infer;}
+        // Inferred 차림 keeps its existing coarse runtime category. Private
+        // homogeneous source evidence authorizes numeric consumers, not a
+        // permanent List<T> declaration that bans ordinary heterogeneous use.
+        // Explicitly declared List<T> still uses its separate declaration gate.
+        if matches!(value,Value::List(_)) {return inferred_binding_type(value);}
+        if let Some(kind) = self.program.numeric_constraint_plan.as_ref().and_then(|plan| plan.expressions.get(&expr.id)) {
+            return kind.clone();
+        }
+        // Copy an already-issued owner through a binding, not a default for a
+        // literal nor a guess from Fixed64 bits. R2 monomorphic inference is not
+        // implemented here. A caller's same-spelled local is never consulted.
+        if let Some(ddonirang_core::platform::RecordFieldType::Named { ref name }) = self.comparison_operand_type(locals, expr) {
+            let canonical = ddonirang_lang::stdlib::canonicalize_type_alias(name);
+            if matches!(canonical, "바른수" | "셈수" | "나눔수" | "큰바른수" | "곱수") {
+                let kind = TypeRef::Named(canonical.into());
+                if check_value_type(value, &kind).is_ok() { return kind; }
+            }
+        }
+        inferred_binding_type(value)
+    }
+
+    fn check_numeric_comparison_owners(&self, locals: &HashMap<String, Value>, left: &Expr, right: &Expr, op: &str, values: Option<(&Value, &Value)>) -> Result<(), EvalError> {
+        use ddonirang_core::platform::RecordFieldType as R;
+        let known_value = |value: Option<&Value>| value.and_then(numeric_pack_kind)
+            .map(|name| R::Named { name: name.into() });
+        let mut left_kind = self.comparison_operand_type(locals, left).or_else(|| known_value(values.map(|v| v.0)));
+        let mut right_kind = self.comparison_operand_type(locals, right).or_else(|| known_value(values.map(|v| v.1)));
+        let rational = |kind: &Option<R>| matches!(kind,Some(R::Named {name})
+            if ddonirang_lang::stdlib::canonicalize_type_alias(name)=="나눔수");
+        // Only the authored, statically issued owner supplies expectation.
+        // Runtime pack discovery alone does not authorize literal reissuance.
+        if rational(&self.comparison_operand_type(locals,left)) && Self::source_numeric_literal_tree(right) {
+            right_kind=Some(R::Named {name:"나눔수".into()});
+        }
+        if rational(&self.comparison_operand_type(locals,right)) && Self::source_numeric_literal_tree(left) {
+            left_kind=Some(R::Named {name:"나눔수".into()});
+        }
+        let mut pending = match (&left_kind, &right_kind) {
+            (Some(left), Some(right)) => vec![(left, right)],
+            _ => Vec::new(),
+        };
+        while let Some((left, right)) = pending.pop() {
+            match (left, right) {
+                (R::Named { name: left }, R::Named { name: right }) => {
+                    let left = ddonirang_lang::stdlib::canonicalize_type_alias(&left);
+                    let right = ddonirang_lang::stdlib::canonicalize_type_alias(&right);
+                    let numeric = |name: &str| matches!(name, "바른수" | "셈수" | "나눔수" | "큰바른수" | "곱수");
+                    if numeric(left) && numeric(right) && left != right {
+                        return Err(format!("E_NUMERIC_COMPARISON_TYPE_MISMATCH: {op} 비교의 왼쪽은 {left}, 오른쪽은 {right}입니다. 형식이 정해진 서로 다른 수 종류는 자동 변환하여 비교하지 않습니다. 같은 수 종류로 명시적으로 맞춰 주세요").into());
+                    }
+                }
+                (R::Tuple { items: left }, R::Tuple { items: right }) => pending.extend(left.iter().zip(right)),
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
     fn eval_expr(
         &mut self,
         locals: &mut HashMap<String, Value>,
@@ -6836,7 +7805,9 @@ impl<'a> EvalContext<'a> {
         // existing code and the innermost failing call, but do not lose its
         // authored source location at the shared CLI/WASM boundary.
         if let Err(EvalError::Message(message)) = &result {
-            if matches!(&expr.kind, ExprKind::Tensor(_) | ExprKind::MultiAxisSelection(_)) {
+            if matches!(&expr.kind, ExprKind::Tensor(_) | ExprKind::MultiAxisSelection(_))
+                || message.starts_with("E_NUMERIC_COMPARISON_TYPE_MISMATCH:")
+                || message.starts_with("E_NUMERIC_COMPARISON_TYPE_UNRESOLVED:") {
                 if let Some(location) = self.source_span_for_expr(expr) {
                     return result.map_err(|error| EvalError::SourceLocated {
                         error: Box::new(error), span: (expr.span.start,expr.span.end),
@@ -6863,17 +7834,83 @@ impl<'a> EvalContext<'a> {
     }
 
     fn eval_indexed_selection(&mut self, locals: &mut HashMap<String, Value>, selection: &IndexedSelectionExpr<'_>) -> Result<EvaluatedIndexedSelection, EvalError> {
+        let single = match selection {
+            IndexedSelectionExpr::Single(expr) => Some(*expr),
+            IndexedSelectionExpr::Axes(selectors) => match *selectors {
+                [ddonirang_lang::ast::TensorAxisSelector::Index(expr)] => Some(expr.as_ref()),
+                [ddonirang_lang::ast::TensorAxisSelector::Range {start,end}] =>
+                    return Ok(EvaluatedIndexedSelection::Range {start:*start,end:*end,dynamic:false}),
+                _ => None,
+            },
+        };
+        if let Some(Expr {kind:ExprKind::Call {func,args},..}) = single {
+            if func == "표준.범위" && args.len() == 3 {
+                let start_value=self.eval_expr(locals,&args[0].expr)?;
+                let end_value=self.eval_expr(locals,&args[1].expr)?;
+                let start=value_to_tensor_index(&start_value)? as u64;
+                let end=value_to_tensor_index(&end_value)? as u64;
+                return Ok(EvaluatedIndexedSelection::Range {start,end,dynamic:true});
+            }
+        }
         match selection {
-            IndexedSelectionExpr::Single(expr) => self.eval_expr(locals, expr).map(EvaluatedIndexedSelection::Single),
-            IndexedSelectionExpr::Axes(selectors) => self.eval_tensor_selectors(locals, selectors).map(EvaluatedIndexedSelection::Axes),
+            IndexedSelectionExpr::Single(expr) => self.eval_expr(locals, expr).map(|value| EvaluatedIndexedSelection::Single{value,static_index:crate::source_analysis::static_tuple_index(expr)}),
+            IndexedSelectionExpr::Axes(selectors) => {
+                if let [ddonirang_lang::ast::TensorAxisSelector::Index(expr)] = *selectors {
+                    self.eval_expr(locals, expr).map(|value| EvaluatedIndexedSelection::Single{value,static_index:crate::source_analysis::static_tuple_index(expr)})
+                } else {
+                    self.eval_tensor_selectors(locals, selectors).map(EvaluatedIndexedSelection::Axes)
+                }
+            }
         }
     }
 
     fn read_indexed_selection(&mut self, locals: &mut HashMap<String, Value>, collection: Value, selection: &EvaluatedIndexedSelection, location: &Expr) -> Result<Value, EvalError> {
         match selection {
-            EvaluatedIndexedSelection::Single(index) => self.eval_call(locals,"차림.값",vec![collection,index.clone()],self.source_span_for_expr(location)),
+            EvaluatedIndexedSelection::Range {start,end,dynamic} => {
+                if let Value::Tuple(items)=&collection {
+                    if *dynamic {return Err("E_TUPLE_STATIC_SELECTION: 위치형 범위는 정적이어야 합니다".to_string().into());}
+                    let (start,end)=checked_selection_range(*start,*end,items.len())?;
+                    self.work_cost.borrow_mut().charge_element_visits(end-start)?;
+                    return Ok(Value::Tuple(items[start..end].to_vec()));
+                }
+                if let Value::List(items)=&collection {
+                    let (start,end)=checked_selection_range(*start,*end,items.len())?;
+                    self.work_cost.borrow_mut().charge_element_visits(end-start)?;
+                    return Ok(Value::List(items[start..end].to_vec()));
+                }
+                if let Value::Tensor(tensor)=&collection {
+                    if *dynamic {return Err("E_TENSOR_STATIC_RANGE: 텐서 축 범위는 정적이어야 합니다".to_string().into());}
+                    self.work_cost.borrow_mut().charge_element_visits(tensor.elements().len())?;
+                    return crate::unit_wire::tensor_select(tensor,&[crate::unit_wire::TensorSelector::Range {start:*start,end:*end}]).map_err(Into::into);
+                }
+                Err("E_SELECTION_RANGE_TARGET: 범위 선택 대상은 차림 또는 텐서여야 합니다".to_string().into())
+            }
+            EvaluatedIndexedSelection::Single{value:index,static_index} => {
+                if let Value::Tuple(items)=&collection {
+                    let index=static_index.ok_or_else(||"E_TUPLE_STATIC_SELECTION: 위치형 위치는 정적이어야 합니다".to_string())?;
+                    self.work_cost.borrow_mut().charge_element_visits(1)?;
+                    return items.get(index).cloned().ok_or_else(||"E_SELECTION_BOUNDS: 위치형 위치가 범위를 벗어났습니다".to_string().into());
+                }
+                if let Value::Map(entries) = &collection {
+                    self.work_cost.borrow_mut().charge_element_visits(1)?;
+                    return entries.get(&map_key_canon(index)).map(|entry| entry.value.clone())
+                        .ok_or_else(|| "E_SELECTION_KEY_MISSING: 짝맞춤에 선택한 열쇠가 없습니다".to_string().into());
+                }
+                if let Value::String(text) = &collection {
+                    let position = value_to_tensor_index(index).map_err(|_| EvalError::from(
+                        "E_SELECTION_TEXT_INDEX: 글 위치는 0 이상의 정수여야 합니다".to_string()))?;
+                    // RD354: 기존 글 bytes를 보존하고 고정 Unicode 확장 글자 경계만 읽는다.
+                    // 선택 때문에 NFC를 다시 적용하거나 code point로 대체하지 않는다.
+                    for (ordinal, grapheme) in text.graphemes(true).enumerate() {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
+                        if ordinal == position { return Ok(Value::String(grapheme.to_string())); }
+                    }
+                    return Err("E_SELECTION_TEXT_BOUNDS: 글 위치가 글자 수 범위를 벗어났습니다".to_string().into());
+                }
+                self.eval_call(locals,"차림.값",vec![collection,index.clone()],self.source_span_for_expr(location))
+            }
             EvaluatedIndexedSelection::Axes(selectors) => {
-                let Value::Tensor(tensor) = collection else { return Err("E_TENSOR_SELECTION_TARGET: 다축 선택 대상은 텐서여야 합니다".to_string().into()); };
+                let Value::Tensor(tensor) = &collection else { return Err("E_TENSOR_SELECTION_TARGET: 다축 선택 대상은 텐서여야 합니다".to_string().into()); };
                 self.work_cost.borrow_mut().charge_element_visits(tensor.elements().len())?;
                 crate::unit_wire::tensor_select(&tensor,selectors).map_err(Into::into)
             }
@@ -6882,9 +7919,97 @@ impl<'a> EvalContext<'a> {
 
     fn replace_indexed_selection(&mut self, locals: &mut HashMap<String, Value>, collection: Value, selection: &EvaluatedIndexedSelection, replacement: Value, location: &Expr) -> Result<Value, EvalError> {
         match selection {
-            EvaluatedIndexedSelection::Single(index) => self.eval_call(locals,"차림.바꾼값",vec![collection,index.clone(),replacement],self.source_span_for_expr(location)),
+            EvaluatedIndexedSelection::Range {start,end,dynamic} => {
+                if let Value::Tuple(items)=&collection {
+                    if *dynamic {return Err("E_TUPLE_STATIC_SELECTION: 위치형 범위는 정적이어야 합니다".to_string().into());}
+                    let (start,end)=checked_selection_range(*start,*end,items.len())?;
+                    let Value::Tuple(values)=&replacement else {return Err("E_TUPLE_REPLACEMENT: 위치형 범위는 같은 위치씨의 위치형 값으로 교체해야 합니다".to_string().into());};
+                    if values.len()!=end-start || items[start..end].iter().zip(values).any(|(a,b)|!tuple_position_type_equal(a,b)) {
+                        return Err("E_TUPLE_REPLACEMENT: 위치형 범위의 길이 또는 위치씨가 다릅니다".to_string().into());
+                    }
+                    self.work_cost.borrow_mut().charge_element_visits(items.len()+values.len())?;
+                    let mut updated=items.clone();updated[start..end].clone_from_slice(values);
+                    return Ok(Value::Tuple(updated));
+                }
+                if let Value::List(items)=&collection {
+                    let (start,end)=checked_selection_range(*start,*end,items.len())?;
+                    let Value::List(values)=&replacement else {return Err("E_SELECTION_RANGE_REPLACEMENT: 차림 범위는 같은 길이의 차림으로 교체해야 합니다".to_string().into());};
+                    if values.len()!=end-start {return Err("E_SELECTION_RANGE_REPLACEMENT: 범위 교체로 차림 길이를 바꿀 수 없습니다".to_string().into());}
+                    self.work_cost.borrow_mut().charge_element_visits(items.len()+values.len())?;
+                    let mut updated=items.clone();
+                    updated[start..end].clone_from_slice(values);
+                    return Ok(Value::List(updated));
+                }
+                if let Value::Tensor(tensor)=&collection {
+                    if *dynamic {return Err("E_TENSOR_STATIC_RANGE: 텐서 축 범위는 정적이어야 합니다".to_string().into());}
+                    self.work_cost.borrow_mut().charge_element_visits(tensor.elements().len())?;
+                    return crate::unit_wire::tensor_replace(tensor,&[crate::unit_wire::TensorSelector::Range {start:*start,end:*end}],&replacement).map(Value::Tensor).map_err(Into::into);
+                }
+                Err("E_SELECTION_RANGE_TARGET: 범위 교체 대상은 차림 또는 텐서여야 합니다".to_string().into())
+            }
+            EvaluatedIndexedSelection::Single{value:index,static_index} => {
+                if let Value::Tuple(items)=&collection {
+                    let index=static_index.ok_or_else(||"E_TUPLE_STATIC_SELECTION: 위치형 위치는 정적이어야 합니다".to_string())?;
+                    let old=items.get(index).ok_or_else(||EvalError::from("E_SELECTION_BOUNDS: 위치형 위치가 범위를 벗어났습니다".to_string()))?;
+                    if !tuple_position_type_equal(old,&replacement){return Err("E_TUPLE_REPLACEMENT: 위치씨가 다릅니다".to_string().into());}
+                    self.work_cost.borrow_mut().charge_element_visits(items.len())?;
+                    let mut updated=items.clone();updated[index]=replacement;
+                    return Ok(Value::Tuple(updated));
+                }
+                if let Value::Map(entries) = &collection {
+                    let key = map_key_canon(index);
+                    if !entries.contains_key(&key) {
+                        return Err("E_SELECTION_KEY_MISSING: 짝맞춤에 선택한 열쇠가 없습니다".to_string().into());
+                    }
+                    self.work_cost.borrow_mut().charge_element_visits(entries.len())?;
+                    let mut updated = entries.clone();
+                    updated.get_mut(&key).expect("existing map entry").value = replacement;
+                    return Ok(Value::Map(updated));
+                }
+                if let Value::String(text)=&collection {
+                    let position=value_to_tensor_index(index).map_err(|_| EvalError::from(
+                        "E_SELECTION_TEXT_INDEX: 글 위치는 0 이상의 정수여야 합니다".to_string()))?;
+                    let Value::String(value)=&replacement else {
+                        return Err("E_SELECTION_TEXT_REPLACEMENT: 글 위치는 글자 하나를 담은 글로 교체해야 합니다".to_string().into());
+                    };
+                    let mut replacement_letters=value.graphemes(true);
+                    self.work_cost.borrow_mut().charge_element_visits(2)?;
+                    if replacement_letters.next().is_none() || replacement_letters.next().is_some() {
+                        return Err("E_SELECTION_TEXT_REPLACEMENT: 글 위치 교체로 글자 수를 바꿀 수 없습니다".to_string().into());
+                    }
+                    let mut selected=None;
+                    for (ordinal,(start,letter)) in text.grapheme_indices(true).enumerate() {
+                        self.work_cost.borrow_mut().charge_element_visits(1)?;
+                        if ordinal==position { selected=Some((start,start+letter.len()));break; }
+                    }
+                    let Some((start,end))=selected else {
+                        return Err("E_SELECTION_TEXT_BOUNDS: 글 위치가 글자 수 범위를 벗어났습니다".to_string().into());
+                    };
+                    let length=text.len().checked_sub(end-start).and_then(|n|n.checked_add(value.len()))
+                        .ok_or_else(|| EvalError::from("E_SELECTION_TEXT_REPLACEMENT: 글 크기 범위를 벗어났습니다".to_string()))?;
+                    let mut updated=String::new();
+                    updated.try_reserve_exact(length).map_err(|_| EvalError::from(
+                        "E_SELECTION_TEXT_REPLACEMENT: 글 교체 메모리를 확보할 수 없습니다".to_string()))?;
+                    updated.push_str(&text[..start]);updated.push_str(value);updated.push_str(&text[end..]);
+                    // RD355 replaces one existing item, never merges neighbours
+                    // or inserts new items. Preserve the exact nonselected bytes.
+                    let mut actual=updated.graphemes(true);
+                    for (ordinal,letter) in text.graphemes(true).enumerate() {
+                        self.work_cost.borrow_mut().charge_element_visits(2)?;
+                        let expected=if ordinal==position {value.as_str()} else {letter};
+                        if actual.next()!=Some(expected) {
+                            return Err("E_SELECTION_TEXT_REPLACEMENT: 교체로 주변 글자의 경계를 바꿀 수 없습니다".to_string().into());
+                        }
+                    }
+                    if actual.next().is_some() {
+                        return Err("E_SELECTION_TEXT_REPLACEMENT: 글 위치 교체로 글자 수를 바꿀 수 없습니다".to_string().into());
+                    }
+                    return Ok(Value::String(updated));
+                }
+                self.eval_call(locals,"차림.바꾼값",vec![collection,index.clone(),replacement],self.source_span_for_expr(location))
+            }
             EvaluatedIndexedSelection::Axes(selectors) => {
-                let Value::Tensor(tensor) = collection else { return Err("E_TENSOR_SELECTION_TARGET: 다축 선택 대상은 텐서여야 합니다".to_string().into()); };
+                let Value::Tensor(tensor) = &collection else { return Err("E_TENSOR_SELECTION_TARGET: 다축 선택 대상은 텐서여야 합니다".to_string().into()); };
                 self.work_cost.borrow_mut().charge_element_visits(tensor.elements().len())?;
                 crate::unit_wire::tensor_replace(&tensor,selectors,&replacement).map(Value::Tensor).map_err(Into::into)
             }
@@ -6912,17 +8037,93 @@ impl<'a> EvalContext<'a> {
         let _registry_key = expr_registry_key(&expr.kind);
         self.work_cost.borrow_mut().charge_dispatch()?;
         match &expr.kind {
+            ExprKind::SumBranchValue {owner,applied_owner,branch,payload} => {
+                let schema=if let Some(kind)=applied_owner {
+                    let resolved=ddonirang_lang::sum_owner::resolve_applied_sum_owner(kind,expr.span).map_err(EvalError::from)?;
+                    if resolved.key!=*owner {return Err("E_SUM_MATCH_OWNER_MISMATCH: 적용 고름씨 정체가 일치하지 않습니다".to_string().into());}
+                    resolved.branches.into_iter().find(|candidate|candidate.name==*branch).map(|declaration|declaration.payload)
+                } else {self.sum_definitions.get(owner)
+                    .and_then(|branches|branches.iter().find(|candidate|candidate.name==*branch)).map(|declaration|declaration.payload.clone())}
+                    .ok_or_else(||EvalError::from(format!("E_SUM_BRANCH_UNKNOWN: `{owner}.${branch}` 갈래가 선언되지 않았습니다")))?;
+                if schema.len()!=payload.len() {
+                    return Err(format!("E_SUM_BRANCH_PAYLOAD_REQUIRED: `{owner}.${branch}`의 값 개수가 일치하지 않습니다").into());
+                }
+                let mut evaluated_payload=BTreeMap::new();
+                for argument in payload {
+                        let expected=schema.iter().find(|schema|schema.binder==argument.pin)
+                            .ok_or_else(||EvalError::from(format!("E_SUM_BRANCH_PAYLOAD_PIN: `{owner}.${branch}` 값 이름이 일치하지 않습니다")))?;
+                        if evaluated_payload.contains_key(&argument.pin) {
+                            return Err("E_SUM_BRANCH_PAYLOAD_DUPLICATE: 값 이름이 중복되었습니다".to_string().into());
+                        }
+                        let value=self.eval_expr(locals,&argument.value)?;
+                        if let Err(detail)=self.check_value_type(&value,&expected.type_ref) {
+                            return Err(type_mismatch_error(&expected.binder,&detail.expected,&detail.actual));
+                        }
+                        evaluated_payload.insert(argument.pin.clone(),value);
+                }
+                Ok(Value::SumBranch {owner:owner.clone(),branch:branch.clone(),payload:evaluated_payload})
+            }
+            ExprKind::ProductConstruction { owner, definition, fields, category } => {
+                let registered=if category.is_some() {
+                    let resolved=self.program.nominal_constructors.get(definition).cloned()
+                        .ok_or_else(||EvalError::from("E_SCHEMA_REGISTERED_CONTEXT_REQUIRED: 봉인된 명목 정체와 생성 권한의 실행 공급이 필요합니다".to_string()))?;
+                    if resolved.category==1 && self.subject_stage.is_none() {return Err("E_SCHEMA_REGISTERED_CONTEXT_REQUIRED: 임자 생성에는 실제 Subject 수명 owner가 필요합니다".to_string().into());}
+                    Some(resolved)
+                }else{None};
+                let schema = self.program.products.get(owner).filter(|schema| schema.id == *definition)
+                    .cloned().ok_or_else(|| EvalError::from(
+                        format!("E_PRODUCT_OWNER_MISMATCH: `{owner}`의 구성 schema가 일치하지 않습니다")))?;
+                if schema.params.len() != fields.len() {
+                    return Err("E_PRODUCT_FIELD_MISSING: 구성 필드 수가 일치하지 않습니다".to_string().into());
+                }
+                let mut values = BTreeMap::new();
+                for field in fields {
+                    let name = field.resolved_pin.as_deref().ok_or_else(|| EvalError::from(
+                        "E_PRODUCT_NAMED_FIELD_REQUIRED: 구성 필드 이름이 없습니다".to_string()))?;
+                    let expected = schema.params.iter().find(|candidate| candidate.pin_name == name)
+                        .ok_or_else(|| EvalError::from("E_PRODUCT_FIELD_UNKNOWN: 알려지지 않은 구성 필드입니다".to_string()))?;
+                    if values.contains_key(name) {
+                        return Err("E_PRODUCT_FIELD_DUPLICATE: 구성 필드가 중복되었습니다".to_string().into());
+                    }
+                    let value = self.eval_expr(locals, &field.expr)?;
+                    if let Some(registered)=&registered {
+                        let slot=registered.slots.iter().find(|slot|slot.label==name)
+                            .ok_or_else(||EvalError::from("E_SCHEMA_REGISTERED_CONTEXT_REQUIRED: 붙이 정체가 없습니다".to_string()))?;
+                        resource_value_from_typed_value(&value,&slot.kind)?;
+                    }else if let Err(detail) = self.check_value_type(&value, &expected.type_ref) {
+                        return Err(type_mismatch_error(name, &detail.expected, &detail.actual));
+                    }
+                    values.insert(name.to_string(), value);
+                }
+                if let Some(registered)=registered {
+                    let slots=registered.slots.iter().map(|slot| {
+                        let value=values.get(&slot.label).ok_or_else(||EvalError::from("E_PRODUCT_FIELD_MISSING: 붙이가 없습니다".to_string()))?;
+                        Ok((slot.identity,slot.kind.clone(),resource_value_from_typed_value(value,&slot.kind)?))
+                    }).collect::<Result<Vec<_>,EvalError>>()?;
+                    let saved=ddonirang_core::nominal::NominalSlotTableV1::from_slots(registered.name_type,&slots,2_000_000,1_000_000)
+                        .map_err(|_|EvalError::from("E_SCHEMA_VALUE_LIMIT: 명목값의 크기 또는 붙이 결속이 잘못되었습니다".to_string()))?;
+                    let saved=Arc::new(saved);
+                    return if registered.category==1 {
+                        let handle=self.subject_stage.as_ref().ok_or_else(||EvalError::from("E_VC04_SUBJECT_CONTEXT_REQUIRED".to_string()))?
+                            .borrow_mut().create(saved).map_err(EvalError::from)?;
+                        Ok(Value::SubjectHandleV1(Box::new(handle)))
+                    } else {Ok(Value::NominalValueV1(saved))};
+                }
+                let mut identity = ddonirang_lang::runtime::record_type_identity(
+                    &TypeRef::Named(owner.clone()), &self.program.record_schemas)?;
+                let ddonirang_core::platform::RecordFieldType::Record { fields: field_types } = &mut identity else {
+                    return Err("E_PRODUCT_TYPE_IDENTITY: 묶음 타입이 필요합니다".to_string().into());
+                };
+                Ok(Value::Record { field_types: std::mem::take(field_types), fields: values })
+            }
             ExprKind::MultiAxisSelection(selection) => {
                 if selection.writable {
                     return Err("E_TENSOR_SELECTION_PLACE: 쓰기 위치는 값으로 읽을 수 없습니다".to_string().into());
                 }
                 let value = self.eval_expr(locals, &selection.target)?;
-                let Value::Tensor(value) = value else {
-                    return Err("E_TENSOR_SELECTION_TARGET: 다축 선택 대상은 텐서여야 합니다".to_string().into());
-                };
-                let selectors = self.eval_tensor_selectors(locals, &selection.selectors)?;
-                self.work_cost.borrow_mut().charge_element_visits(value.elements().len())?;
-                crate::unit_wire::tensor_select(&value, &selectors).map_err(Into::into)
+                let selectors = self.eval_indexed_selection(locals,
+                    &IndexedSelectionExpr::Axes(&selection.selectors))?;
+                self.read_indexed_selection(locals, value, &selectors, expr)
             }
             ExprKind::Tensor(provider) => {
                 use ddonirang_lang::ast::TensorProviderExpr;
@@ -6940,7 +8141,8 @@ impl<'a> EvalContext<'a> {
                             .map(Value::Tensor).map_err(EvalError::from)
                     }
                     TensorProviderExpr::ToCollection { input } => {
-                        let Value::Tensor(value) = self.eval_expr(locals, input)? else {
+                        let evaluated = self.eval_expr(locals, input)?;
+                        let Value::Tensor(value) = &evaluated else {
                             return Err("E_TENSOR_TYPE: 차림으로 입력은 Tensor여야 합니다".to_string().into());
                         };
                         crate::unit_wire::verify_runtime_tensor(&value).map_err(EvalError::from)?;
@@ -6969,7 +8171,30 @@ impl<'a> EvalContext<'a> {
             }
             ExprKind::Literal(lit) => {
                 let _registry_key = literal_registry_key(lit);
+                if let Some(occurrence)=self.program.program.origin.atom_value_occurrences.get(&expr.id)
+                    .filter(|_|self.program.program.source_epoch==ddonirang_lang::ast::SourceEpoch::V25){
+                    if let ddonirang_lang::ast::AtomValueRole::StandardBogaeSide{selector}=&occurrence.role{
+                        let side=ddonirang_lang::runtime::SidePlacement::from_authored(selector)
+                            .ok_or_else(||EvalError::from("E_ATOM_POLICY_OWNER_REQUIRED: 곁 위치 policy 결속이 다릅니다".to_owned()))?;
+                        self.work_cost.borrow_mut().charge_canonical_utf8_bytes(side.authored_name())?;
+                        return Ok(Value::String(side.authored_name().into()));
+                    }
+                    let atom=self.program.registered_atom_literals.get(&expr.id)
+                        .ok_or_else(||EvalError::from("E_VC04_ATOM_SOURCE_CONTEXT_REQUIRED: 원자 값의 기록된 원문 등록이 필요합니다".to_owned()))?;
+                    self.work_cost.borrow_mut().charge_canonical_utf8_bytes(&occurrence.label)?;
+                    return Ok(Value::RegisteredAtom(Box::new(atom.clone())));
+                }
+                if let Some(plan) = &self.program.numeric_constraint_plan {
+                    if expr.numeric_literal_source.is_some() {
+                        let kind = plan.literals.get(&expr.id).copied().ok_or_else(||EvalError::from(
+                            "E_TYPE_MISMATCH: 원문 수 리터럴의 정적 발급 계획이 없습니다".to_string()))?;
+                        return self.issue_planned_numeric_literal(expr, kind);
+                    }
+                }
                 match lit {
+                    Literal::Bytes(bytes) => {
+                        self.work_cost.borrow_mut().charge_element_visits(bytes.len())?;
+                    }
                     Literal::String(text) | Literal::Atom(text) | Literal::Resource(text) => {
                         self.work_cost
                             .borrow_mut()
@@ -6985,6 +8210,14 @@ impl<'a> EvalContext<'a> {
                 Ok(literal_to_value(lit))
             }
             ExprKind::Var(name) => {
+                if name=="프레임수" && self.program.host_numeric_supply.is_some()
+                    && !locals.contains_key(name) && !self.resources.contains_key(name) && !self.committed_resource_exists(name) {
+                    let expected=self.program.numeric_constraint_plan.as_ref().and_then(|plan|plan.expressions.get(&expr.id));
+                    if expected!=Some(&TypeRef::Named("바른수".into()))
+                        || !matches!(self.defaults.get(name),Some(Value::Fixed64(value)) if *value==Fixed64::ZERO) {
+                        return Err("E_TYPE_MISMATCH: 프레임수 host 원천은 바른수 초기 0이며 source 씨/초기화와 충돌합니다".to_string().into());
+                    }
+                }
                 if self
                     .result_place_frames
                     .iter()
@@ -7017,8 +8250,27 @@ impl<'a> EvalContext<'a> {
                 field_span,
             } => {
                 let base = self.eval_expr(locals, target)?;
-                match base {
-                    Value::Pack(pack) => {
+                match &base {
+                    Value::NominalValueV1(value)=>{
+                        let catalog=self.program.registered_nominal_catalog.as_ref().ok_or_else(||EvalError::from("E_SCHEMA_REGISTERED_CONTEXT_REQUIRED: 이름씨 붙이의 등록 정보가 없습니다".to_string()))?;
+                        let schema=catalog.schema(value.name_type_identity()).filter(|s|s.category==2)
+                            .ok_or_else(||EvalError::from("E_SCHEMA_REGISTERED_CONTEXT_REQUIRED: 다른 원문의 이름씨입니다".to_string()))?;
+                        let slot=schema.slots.iter().find(|s|s.label==*field).ok_or_else(||EvalError::FieldAccess{code:"E_FIELD_MISSING",message:format!("이름씨에 `{field}` 붙이가 없습니다"),span:(field_span.start,field_span.end)})?;
+                        let stage=self.subject_stage.as_ref().map(|s|s.borrow());
+                        let refs=stage.as_ref().map(|s|s.reference_context()).transpose().map_err(EvalError::from)?;
+                        let values=crate::unit_wire::read_registered_nominal_slots(value,catalog,refs.as_ref(),&self.program.registered_atom_contracts)
+                            .map_err(|cause|EvalError::from(format!("E_SCHEMA_VALUE_BINDING: 이름씨 붙이 결속이 다릅니다 ({cause:?})")))?;
+                        Ok(value_from_resource_value(values.get(&slot.identity).ok_or_else(||EvalError::from("E_FIELD_MISSING: 붙이 값이 없습니다".to_string()))?))
+                    }
+                    Value::FrozenSubjectViewV1(view)=>{
+                        let schema=self.program.nominal_constructors.values().find(|schema|schema.category==1&&&schema.name_type==view.name_type_identity())
+                            .ok_or_else(||EvalError::from("E_VC04_READ_CATALOG: 읽기값의 원 등록 씨가 없습니다".to_string()))?;
+                        let slot=schema.slots.iter().find(|slot|slot.label==*field)
+                            .ok_or_else(||EvalError::from("E_FIELD_MISSING: 읽기값의 붙이가 없습니다".to_string()))?;
+                        let value=view.slot(&slot.identity).ok_or_else(||EvalError::from("E_VC04_READ_SLOT: 고정 붙이 값이 없습니다".to_string()))?;
+                        Ok(value_from_resource_value(value))
+                    }
+                    Value::Pack(pack) | Value::Record { fields: pack, .. } => {
                         let Some(value) = pack.get(field) else {
                             return Err(EvalError::FieldAccess {
                                 code: "E_FIELD_MISSING",
@@ -7055,6 +8307,56 @@ impl<'a> EvalContext<'a> {
                 }
             }
             ExprKind::Call { args, func } => {
+                if let Some(binding)=self.program.program.origin.manipulation_phase_calls.get(&expr.id){
+                    if binding.definition!="B1.DEF.INPUT_PHASE.R1"||binding.ordinal_pin!="B1.PIN.INPUT_PHASE.ORDINAL.R1"
+                        ||args.len()!=1||args[0].resolved_pin.as_deref()!=Some("순서")||locals.contains_key(func){
+                        return Err("E_INPUT_PHASE_BINDING: 조작단계의 정의·순서 받는자리 결속이 다릅니다".to_string().into());
+                    }
+                    let value=self.eval_expr(locals,&args[0].expr)?;
+                    let ordinal=value_to_i64(&value)?;
+                    if !(0..4096).contains(&ordinal){return Err("E_LOGICAL_INPUT_ORDER: 사건 순서는 0~4095의 원순번이어야 합니다".to_string().into());}
+                    let input=self.logical_input.as_ref().ok_or_else(||EvalError::from("E_LOGICAL_INPUT_PROFILE_REQUIRED: 조작단계에는 결속된 입력 마디가 필요합니다".to_string()))?;
+                    self.work_cost.borrow_mut().charge_element_visits(input.events().len())?;
+                    let event=input.events().iter().find(|event|event.receive_ordinal==ordinal as u64)
+                        .ok_or_else(||EvalError::from("E_LOGICAL_INPUT_ORDER: 현재 마디에 그 원순번 사건이 없습니다".to_string()))?;
+                    let phase=match event.kind {
+                        ddonirang_core::input::LogicalInputEventKind::Number(_,phase)
+                        |ddonirang_core::input::LogicalInputEventKind::Coordinate(_,phase)=>phase,
+                        _=>return Err("E_LOGICAL_INPUT_CHANNEL: 조작단계는 수·좌표 사건만 조회합니다".to_string().into()),
+                    };
+                    self.input_reads.borrow_mut().insert(format!("logical.phase:{ordinal}"));
+                    self.work_cost.borrow_mut().charge_dispatch()?;
+                    return Ok(Value::String(manipulation_phase_text(phase).into()));
+                }
+                if let Some(binding)=self.program.program.origin.subject_reference_calls.get(&expr.id){
+                    let read=binding.definition=="VC04.DEF.ILGI.R1"&&binding.receiver_pin=="VC04.PIN.ILGI.REFERENCE.R1";
+                    if (!read&&(binding.definition!="VC04.DEF.GARIKIGI.R1"||binding.receiver_pin!="VC04.PIN.GARIKIGI.TARGET.R1"))||args.len()!=1 {
+                        return Err("E_VC04_REFERENCE_BINDING: 가리키기의 정의·받는자리 정체가 다릅니다".to_string().into());
+                    }
+                    let definition=self.program.numeric_constraint_plan.as_ref().and_then(|plan|plan.subject_reference_targets.get(&expr.id)).copied()
+                        .ok_or_else(||EvalError::from("E_VC04_REFERENCE_STATIC_TARGET: 원 임자 선언이 결속되지 않았습니다".to_string()))?;
+                    let schema=self.program.nominal_constructors.get(&definition).filter(|schema|schema.category==1)
+                        .ok_or_else(||EvalError::from("E_VC04_REGISTERED_CONTEXT: 원 임자 등록 정체가 없습니다".to_string()))?;
+                    let expected=schema.name_type;
+                    let stage=self.subject_stage.as_ref().map(Rc::clone).ok_or_else(||EvalError::from("E_VC04_SUBJECT_CONTEXT_REQUIRED".to_string()))?;
+                    let value=self.eval_expr(locals,&args[0].expr)?;
+                    if read {
+                        let Value::IdentityReference(reference)=&value else {return Err("E_VC04_READ_RECEIVER: 발급된 가리킴이 필요합니다".to_string().into())};
+                        let seed=self.program.products.values().find(|seed|seed.id==definition).ok_or_else(||EvalError::from("E_VC04_READ_STATIC_TARGET".to_string()))?;
+                        let kind=TypeRef::Applied{name:"맺음".into(),args:vec![TypeRef::Named(seed.canonical_name.clone()),TypeRef::Named("가리킴안됨".into())]};
+                        let owner=ddonirang_lang::sum_owner::resolve_applied_sum_owner(&kind,expr.span).map_err(EvalError::from)?;
+                        let outcome=stage.borrow().read(reference,&expected).map_err(EvalError::from)?;
+                        let (branch,pin,payload)=match outcome {
+                            crate::unit_wire::subject_execution::SubjectReadOutcome::Snapshot(view)=>("잘됨","값",Value::FrozenSubjectViewV1(view)),
+                            crate::unit_wire::subject_execution::SubjectReadOutcome::Broken=>("안됨","이유",Value::SumBranch{owner:"가리킴안됨".into(),branch:"끊김".into(),payload:BTreeMap::new()}),
+                        };
+                        return Ok(Value::SumBranch{owner:owner.key,branch:branch.into(),payload:BTreeMap::from([(pin.into(),payload)])});
+                    }
+                    let Value::SubjectHandleV1(handle)=&value else {return Err("E_VC04_REFERENCE_RECEIVER: 실제 임자 값이 필요합니다".to_string().into())};
+                    if handle.name_type_identity!=expected{return Err("E_VC04_REFERENCE_TARGET_TYPE: 정적 원 임자와 실제 대상 씨가 다릅니다".to_string().into())}
+                    let reference=stage.borrow().acquire(&handle).map_err(EvalError::from)?;
+                    return Ok(Value::IdentityReference(Box::new(reference)));
+                }
                 if func == "표준보개.돋" {
                     use ddonirang_lang::runtime::BogaeRelationValue;
                     if !(2..=3).contains(&args.len()) {return Err("E_BOGAE_RECIPE_TYPE: 돋은 대상·보기법과 선택 시간 인자를 받습니다".to_string().into());}
@@ -7082,8 +8384,9 @@ impl<'a> EvalContext<'a> {
                     self.work_cost.borrow_mut().charge_element_visits(visits.checked_mul(2).ok_or_else(||
                         EvalError::from("E_BOGAE_TARGET_UNSUPPORTED: 대상 검사 비용이 범위를 넘습니다".to_string()))?)?;
                     self.check_param_type(&seed.params[0],&target)?;
-                    let result=self.eval_seed(&seed,vec![target.clone()])?;
-                    let Value::View(view)=result else {return Err("E_BOGAE_RECIPE_TYPE: 보기법 결과는 보기값이어야 합니다".to_string().into());};
+                    let mut result=self.eval_seed(&seed,vec![target.clone()])?;
+                    let Value::View(view)=&mut result else {return Err("E_BOGAE_RECIPE_TYPE: 보기법 결과는 보기값이어야 합니다".to_string().into());};
+                    let view=std::mem::replace(view,ddonirang_lang::runtime::ViewValue::ResultTable);
                     let source_location=self.source_span_for_expr(expr).map(|span|
                         [span.start_line,span.start_col.unwrap_or(0),span.end_line,span.end_col.unwrap_or(0)]);
                     let time_override=if args.len()==3 {
@@ -7111,11 +8414,60 @@ impl<'a> EvalContext<'a> {
                     return self.eval_call(locals, func, vec![left, right], self.source_span_for_expr(expr));
                 }
                 let mut values = Vec::with_capacity(args.len());
-                for arg in args {
-                    values.push(self.eval_expr(locals, &arg.expr)?);
+                let math_is_declared=matches!(ddonirang_lang::ordinary_callable::resolve_scalar_math_callable(&self.program.program,func),
+                    Some(ddonirang_lang::ordinary_callable::ScalarMathCallableOwner::Declared(_)));
+                let declared_pins = if !locals.contains_key(func)
+                    && (math_is_declared || crate::work_cost::builtin_work_cost_rule(
+                        ddonirang_lang::stdlib::canonicalize_stdlib_alias(func)).is_ok_and(|rule| rule.is_none())) {
+                    self.program.functions.get(func).map(|seed| seed.params.clone())
+                } else { None };
+                for (index, arg) in args.iter().enumerate() {
+                    // Reuse the already resolved ordinary callable and pin.
+                    // Sealed builtin/lambda dispatch cannot borrow its name.
+                    let expected = declared_pins.as_ref().and_then(|pins| {
+                        if let Some(pin) = arg.resolved_pin.as_deref() {
+                            pins.iter().find(|p| p.pin_name == pin)
+                        } else if args.len() == pins.len() { pins.get(index) } else { None }
+                    }).map(|pin| &pin.type_ref).unwrap_or(&TypeRef::Infer);
+                    values.push(self.eval_expr_expected(locals, &arg.expr, expected)?);
+                }
+                if let Some(operation) = self.program.program.origin.bytes_calls.get(&expr.id).copied() {
+                    use ddonirang_lang::bytes::BytesConversion;
+                    self.work_cost.borrow_mut().charge_dispatch()?;
+                    return match (operation, values.as_slice()) {
+                        (BytesConversion::EncodeUtf8Exact, [Value::String(text)]) => {
+                            self.work_cost.borrow_mut().charge_canonical_utf8_bytes(text)?;
+                            Ok(Value::Bytes(ddonirang_core::bytes::ByteSequence::encode_utf8_exact(text)))
+                        }
+                        (BytesConversion::DecodeUtf8Nfc, [Value::Bytes(bytes)]) => {
+                            self.work_cost.borrow_mut().charge_element_visits(bytes.len())?;
+                            let provenance = bytes.decode_utf8_nfc_with_provenance()
+                                .map_err(|error| {
+                                    use ddonirang_core::bytes::BytesError;
+                                    let code = match error {
+                                        BytesError::Utf8 => "E_BYTES_UTF8_INVALID",
+                                        BytesError::UnicodeVersion => "E_UNICODE_DATA_VERSION_MISMATCH",
+                                        _ => return EvalError::Message(error.to_string()),
+                                    };
+                                    EvalError::FieldAccess {
+                                        code,
+                                        message: error.to_string(),
+                                        span: (expr.span.start, expr.span.end),
+                                    }
+                                })?;
+                            let text = provenance.decoded_text.clone();
+                            self.explicit_nfc_provenance.push((expr.id, provenance));
+                            Ok(Value::String(text))
+                        }
+                        _ => Err(EvalError::Message("E_TYPE_MISMATCH: UTF-8 변환의 인자 타입이 일치하지 않습니다".into())),
+                    };
                 }
                 // A3-TIME-P1: evaluate in authored order, then bind optional
                 // named time arguments using the single public signature table.
+                if let Some(owner)=crate::numeric_constraint_plan::resolve_source_builtin_roles(&self.program.program,func,args,locals.contains_key(func)).map_err(EvalError::from)? {
+                    let mut source_values=values.into_iter().map(Some).collect::<Vec<_>>();
+                    values=owner.canonical_order.into_iter().map(|index|source_values[index].take().expect("unique admitted source role")).collect();
+                }
                 if matches!(func.as_str(),"표준보기.결과표"|"표준보기.장면"|"표준보개.으뜸"|"표준보개.곁"|"표준보개.겹")
                     && args.iter().any(|arg|arg.resolved_pin.is_some()) {
                     let signature=ddonirang_lang::stdlib::view_function_sigs().into_iter().find(|sig|sig.name==func).expect("view signature");
@@ -7169,6 +8521,7 @@ impl<'a> EvalContext<'a> {
             }
             ExprKind::SelectionPlace { .. } => Err("E_SELECTION_PLACE_VALUE_CONTEXT: 선택 위치는 `<-` 대입 대상에서만 사용할 수 있습니다".to_string().into()),
             ExprKind::SeedLiteral { param, body } => {
+                if locals.values().any(Value::contains_transient_subject_view){return Err("E_VC04_READ_SNAPSHOT_ESCAPE: 임자 읽기값을 함수 캡처에 보존할 수 없습니다".to_string().into());}
                 self.work_cost.borrow_mut().note_created_identity()?;
                 Ok(Value::Lambda(LambdaValue {
                     id: next_lambda_id(),
@@ -7178,7 +8531,24 @@ impl<'a> EvalContext<'a> {
                 }))
             }
             ExprKind::Infix { left, op, right } => {
-                let l = self.eval_expr(locals, left)?;
+                let comparison = matches!(op.as_str(), "==" | "!=" | "<" | "<=" | ">" | ">=");
+                if comparison {
+                    self.check_numeric_comparison_owners(locals, left, right, op, None)?;
+                }
+                // A statically issued rational operand supplies the unique
+                // operator expectation to a source literal tree. This reuses
+                // the typed declaration/pin path before rounding, not a cast
+                // of an evaluated Fixed64 or a default for standalone (3/10).
+                let (left_expected,right_expected) = if comparison {
+                    let rational = |expr: &Expr| match self.comparison_operand_type(locals,expr) {
+                        Some(ddonirang_core::platform::RecordFieldType::Named { ref name })
+                            if ddonirang_lang::stdlib::canonicalize_type_alias(&name)=="나눔수" => Some(TypeRef::Named("나눔수".into())),
+                        _ => None,
+                    };
+                    (rational(right),rational(left))
+                } else { (None,None) };
+                let mut l = if let Some(expected)=left_expected { self.eval_expr_expected(locals,left,&expected)? }
+                    else { self.eval_expr(locals, left)? };
                 if matches!(op.as_str(), "그리고" | "또는" | "&&" | "||") {
                     let truth = is_truthy(&l)?;
                     if (matches!(op.as_str(), "그리고" | "&&") && !truth)
@@ -7187,8 +8557,38 @@ impl<'a> EvalContext<'a> {
                         return Ok(Value::Bool(truth));
                     }
                 }
-                let r = self.eval_expr(locals, right)?;
-                self.eval_infix(op, l, r)
+                let mut r = if let Some(expected)=right_expected { self.eval_expr_expected(locals,right,&expected)? }
+                    else { self.eval_expr(locals, right)? };
+                if l.contains_transient_subject_view()||r.contains_transient_subject_view(){return Err("E_VC04_READ_SNAPSHOT_OPERATION_UNSUPPORTED: 읽기값 자체의 연산 대신 붙이를 조회하세요".to_string().into());}
+                if comparison {
+                    self.check_numeric_comparison_owners(locals, left, right, op, Some((&l, &r)))?;
+                }
+                if matches!(op.as_str(), "+"|"-"|"*"|"/") && self.program.numeric_constraint_plan.as_ref()
+                    .and_then(|plan| plan.expressions.get(&expr.id)).is_some_and(|kind| *kind == TypeRef::Named("나눔수".into())) {
+                    // RD083: only statically issued integer operands may be
+                    // widened here. An approximate Fixed64 is never reversed.
+                    for (operand, value) in [(left.as_ref(), &mut l), (right.as_ref(), &mut r)] {
+                        let integer = self.program.numeric_constraint_plan.as_ref().and_then(|plan| plan.expressions.get(&operand.id))
+                            .is_some_and(|kind| *kind == TypeRef::Named("바른수".into()));
+                        if integer {
+                            let Value::Fixed64(fixed) = value else { return Err("E_TYPE_MISMATCH: 바른수 연산 carrier가 맞지 않습니다".to_string().into()); };
+                            if fixed.frac_part() != 0 { return Err("E_TYPE_MISMATCH: 바른수 연산에 소수값이 들어왔습니다".to_string().into()); }
+                            *value = make_rational_pack_from_big_rational(&BigRational::from_integer(BigInt::from(fixed.int_part())));
+                        }
+                    }
+                }
+                let negated_rational = expr.source_negated_operand().is_some()
+                    && numeric_pack_kind(&r) == Some(NUMERIC_KIND_RATIONAL);
+                let result = self.eval_infix(op, l, r)?;
+                if negated_rational {
+                    // The old generic 0-rhs path can choose an integer carrier
+                    // for n/1. Negating an issued rational must not erase its
+                    // owner. No approximate value is admitted as exact here.
+                    let exact = exact_numeric_from_value(&result)?
+                        .ok_or_else(|| EvalError::from("E_NUMERIC_NEGATION_OWNER: 나눔수 부호 결과를 보존하지 못했습니다".to_string()))?;
+                    return Ok(make_rational_pack_from_big_rational(&exact.value));
+                }
+                Ok(result)
             }
             ExprKind::Suffix { value, at } => {
                 let base = self.eval_expr(locals, value)?;
@@ -7237,6 +8637,14 @@ impl<'a> EvalContext<'a> {
                 } else {
                     Ok(Value::None)
                 }
+            }
+            ExprKind::TupleConstructor { elements } => {
+                let mut values=Vec::with_capacity(elements.len());
+                for element in elements {
+                    self.work_cost.borrow_mut().charge_element_visits(1)?;
+                    values.push(self.eval_expr(locals,element)?);
+                }
+                Ok(Value::Tuple(values))
             }
             ExprKind::Pack { fields } => {
                 let mut map = std::collections::BTreeMap::new();
@@ -7633,10 +9041,12 @@ impl<'a> EvalContext<'a> {
             if !matches!(&alert.seed_kind,SeedKind::Named(kind) if kind=="알림씨") {
                 return Err("E_LOGICAL_REACTION_ALERT: 결속 대상은 알림씨여야 합니다".to_string().into());
             }
-            let required=[("채널","글"),("알림","글"),("순서","수"),("마디번호","수")];
+            // These pins consume the canonical type owner. The source alias
+            // `수` is normalized to `셈수` before this admission boundary.
+            let required=[("채널","글"),("알림","글"),("순서","셈수"),("마디번호","셈수")];
             if alert.params.len()!=required.len() || required.iter().any(|(name,ty)|
                 !alert.params.iter().any(|pin|pin.pin_name==*name&&pin.type_ref==TypeRef::Named((*ty).into())&&!pin.optional&&pin.default_value.is_none())) {
-                return Err("E_LOGICAL_REACTION_ALERT: 알림씨는 채널:글·알림:글·순서:수·마디번호:수 받는자리를 명시해야 합니다".to_string().into());
+                return Err("E_LOGICAL_REACTION_ALERT: 알림씨는 채널:글·알림:글·순서:셈수·마디번호:셈수 받는자리를 명시해야 합니다".to_string().into());
             }
         }
         if bindings.is_empty() {return Ok(())}
@@ -8024,7 +9434,8 @@ impl<'a> EvalContext<'a> {
     ) -> Result<(), EvalError> {
         let mut draw_items = Vec::new();
         for (entry_index, entry) in entries.iter().enumerate() {
-            if let Some(Value::Map(mut draw_item)) = self.bogae_entry_to_draw_item(locals, entry) {
+            if let Some(mut draw_value) = self.bogae_entry_to_draw_item(locals, entry) {
+                let Value::Map(draw_item) = &mut draw_value else { continue; };
                 // A draw list is a frame-local ordered collection.  Its items
                 // need a stable identity for the structured WASM space2d
                 // boundary; otherwise several anonymous primitives collapse
@@ -8037,7 +9448,7 @@ impl<'a> EvalContext<'a> {
                         value: id,
                     },
                 );
-                draw_items.push(Value::Map(draw_item));
+                draw_items.push(draw_value);
             }
         }
         if draw_items.is_empty() {
@@ -8054,6 +9465,7 @@ impl<'a> EvalContext<'a> {
         let mut committed = Vec::with_capacity(fields.len());
         for (field_index, field) in fields.iter().enumerate() {
             let value = self.eval_expr(locals, &field.value)?;
+            if value.contains_transient_subject_view(){return Err("E_VC04_READ_SNAPSHOT_ESCAPE: 임자 읽기값을 관찰 이력에 저장할 수 없습니다".to_string().into());}
             let dataset_scalar = dataset_public_observation_scalar(&value);
             let (name, dtype, unit, value_canon, value_text, dataset_target) =
                 if let Some(dataset_scalar) = dataset_scalar {
@@ -8723,7 +10135,7 @@ impl<'a> EvalContext<'a> {
                     self.charge_builtin_value_visits(&entry.value, rule)?;
                 }
             }
-            Value::Pack(fields) => {
+            Value::Pack(fields) | Value::Record { fields, .. } => {
                 for value in fields.values() {
                     self.charge_builtin_value_visits(value, rule)?;
                 }
@@ -8791,7 +10203,27 @@ impl<'a> EvalContext<'a> {
         args: Vec<Value>,
         source_span: Option<SourceSpan>,
     ) -> Result<Value, EvalError> {
-        let func = Self::canonicalize_stdlib_alias(func);
+        use ddonirang_lang::ordinary_callable::{resolve_scalar_math_callable,ScalarMathCallableOwner};
+        let math_owner=resolve_scalar_math_callable(&self.program.program,func);
+        if !locals.contains_key(func) && matches!(math_owner,Some(ScalarMathCallableOwner::Declared(_))) {
+            let seed=self.resolve_ordinary_callable_overload(func,&args)?
+                .or_else(||self.program.functions.get(func).cloned())
+                .ok_or_else(||EvalError::from("E_ORDINARY_CALLABLE_NO_MATCH: 수학 함수와 동명인 원문 정의를 해소할 수 없습니다".to_string()))?;
+            if let Some(call_span)=source_span.as_ref() {
+                let origin=&self.program.program.origin;
+                for (call_id,admitted) in &origin.registered_call_candidates {
+                    if origin.node_spans.get(call_id).and_then(|span|self.source_span_from_span(span))
+                        .is_some_and(|span|&span==call_span) && !admitted.contains(&seed.id) {
+                        return Err("E_ORDINARY_CALLABLE_NO_MATCH: 등록 표면의 정의와 인자 타입이 일치하지 않습니다".to_string().into());
+                    }
+                }
+            }
+            return self.eval_seed(&seed,args);
+        }
+        let func = match math_owner {
+            Some(ScalarMathCallableOwner::Builtin(builtin))=>builtin.canonical_name(),
+            _=>Self::canonicalize_stdlib_alias(func),
+        };
         if matches!(func,"표준시간.공통"|"표준시간.고정마디"|"표준시간.상대마디") {
             self.work_cost.borrow_mut().charge_dispatch()?;
             builtin_work_cost_rule(func)?;
@@ -8960,11 +10392,11 @@ impl<'a> EvalContext<'a> {
                             for element in elements {self.work_cost.borrow_mut().charge_element_visits(crate::scene_value::clone_visits(element))?;}
                         }
                     }
-                    let value=crate::scene_value::construct_with_meter(func, &args,Some(&mut self.work_cost.borrow_mut())).map_err(EvalError::from)?;
-                    Ok(match (value,time_override) {
-                        (Value::View(view),Some(policy))=>Value::View(ddonirang_lang::runtime::ViewValue::Timed {view:Box::new(view),policy}),
-                        (value,_)=>value,
-                    })
+                    let mut value=crate::scene_value::construct_with_meter(func, &args,Some(&mut self.work_cost.borrow_mut())).map_err(EvalError::from)?;
+                    if let (Value::View(view),Some(policy))=(&mut value,time_override) {
+                        let view=std::mem::replace(view,ddonirang_lang::runtime::ViewValue::ResultTable);
+                        Ok(Value::View(ddonirang_lang::runtime::ViewValue::Timed {view:Box::new(view),policy}))
+                    } else { Ok(value) }
                 }
                 "아님" | "아니다" => {
                     if args.len() != 1 {
@@ -9183,7 +10615,7 @@ impl<'a> EvalContext<'a> {
                     if args.len() != 1 {
                         return Err("키목록은 인자 1개를 받습니다".to_string().into());
                     }
-                    let Value::Pack(pack) = &args[0] else {
+                    let (Value::Pack(pack) | Value::Record { fields: pack, .. }) = &args[0] else {
                         return Err("키목록은 묶음 인자를 받습니다".to_string().into());
                     };
                     let keys = pack.keys().cloned().map(Value::String).collect::<Vec<_>>();
@@ -9193,7 +10625,7 @@ impl<'a> EvalContext<'a> {
                     if args.len() != 1 {
                         return Err("값목록은 인자 1개를 받습니다".to_string().into());
                     }
-                    let Value::Pack(pack) = &args[0] else {
+                    let (Value::Pack(pack) | Value::Record { fields: pack, .. }) = &args[0] else {
                         return Err("값목록은 묶음 인자를 받습니다".to_string().into());
                     };
                     let values = pack.values().cloned().collect::<Vec<_>>();
@@ -9203,7 +10635,7 @@ impl<'a> EvalContext<'a> {
                     if args.len() != 1 {
                         return Err("쌍목록은 인자 1개를 받습니다".to_string().into());
                     }
-                    let Value::Pack(pack) = &args[0] else {
+                    let (Value::Pack(pack) | Value::Record { fields: pack, .. }) = &args[0] else {
                         return Err("쌍목록은 묶음 인자를 받습니다".to_string().into());
                     };
                     let pairs = pack
@@ -10269,10 +11701,9 @@ impl<'a> EvalContext<'a> {
                     };
                     let start = value_to_index(&args[1])?;
                     let end = value_to_index(&args[2])?;
-                    if start >= items.len() || end <= start {
-                        return Ok(Value::List(Vec::new()));
+                    if start>end || end>items.len() {
+                        return Err("E_SELECTION_BOUNDS: 토막내기 범위가 차림을 벗어나거나 뒤집혔습니다".to_string().into());
                     }
-                    let end = end.min(items.len());
                     self.work_cost
                         .borrow_mut()
                         .charge_element_visits(end - start)?;
@@ -11528,11 +12959,12 @@ impl<'a> EvalContext<'a> {
                     if state != "멈춤" {
                         return Ok(args[0].clone());
                     }
-                    let previous = match std_grid_game_state_previous(fields) {
+                    let previous_value = std_grid_game_state_previous(fields);
+                    let previous = match &previous_value {
                         Value::String(candidate)
                             if is_allowed_grid_game_state(&candidate) && candidate != "멈춤" =>
                         {
-                            candidate
+                            candidate.clone()
                         }
                         _ => "진행".to_string(),
                     };
@@ -12039,7 +13471,7 @@ impl<'a> EvalContext<'a> {
                 pending.push((child, Some(next)));
             };
             match value {
-                Value::List(items) => {
+                Value::List(items) | Value::Tuple(items) => {
                     for (index, item) in items.iter().enumerate().rev() {
                         push(item, Segment::Index(index));
                     }
@@ -12110,7 +13542,7 @@ impl<'a> EvalContext<'a> {
                 continue;
             }
             match (left, right) {
-                (Value::List(left), Value::List(right)) => {
+                (Value::List(left), Value::List(right)) | (Value::Tuple(left), Value::Tuple(right)) => {
                     if left.len() != right.len() { return Ok(false); }
                     pending.extend(left.iter().zip(right).rev());
                 }
@@ -12148,17 +13580,17 @@ impl<'a> EvalContext<'a> {
     fn eval_infix(&self, op: &str, left: Value, right: Value) -> Result<Value, EvalError> {
         match op {
             "relation_eq" | "=:=" => {
-                let Value::Formula(left_formula) = left else {
+                let Value::Formula(left_formula) = &left else {
                     return Err("방정식 관계의 왼쪽은 수식값이어야 합니다"
                         .to_string()
                         .into());
                 };
-                let Value::Formula(right_formula) = right else {
+                let Value::Formula(right_formula) = &right else {
                     return Err("방정식 관계의 오른쪽은 수식값이어야 합니다"
                         .to_string()
                         .into());
                 };
-                Ok(make_relation_pack(left_formula, right_formula))
+                Ok(make_relation_pack(left_formula.clone(), right_formula.clone()))
             }
             "+" => {
                 if matches!((&left, &right), (Value::String(_), Value::String(_))) {
@@ -12618,6 +14050,8 @@ impl<'a> EvalContext<'a> {
         keep_locals: bool,
     ) -> EvalFrameSnapshot {
         EvalFrameSnapshot {
+            subject_stage:self.subject_stage.as_ref().map(|stage|stage.borrow().clone()),
+            explicit_nfc_provenance: self.explicit_nfc_provenance.clone(),
             locals: keep_locals.then(|| locals.clone()),
             resources: self.resources.clone(),
             patch_ops: self.patch_ops.clone(),
@@ -12631,6 +14065,8 @@ impl<'a> EvalContext<'a> {
             public_observations: self.public_observations.clone(),
             display_outputs: self.display_outputs.clone(),
             root_binding_types: self.root_binding_types.clone(),
+            sum_definitions: self.sum_definitions.clone(),
+            sum_pattern_bindings: self.sum_pattern_bindings.clone(),
         }
     }
 
@@ -12643,6 +14079,7 @@ impl<'a> EvalContext<'a> {
             *locals = saved_locals.clone();
         }
         self.resources = snapshot.resources.clone();
+        if let (Some(stage),Some(saved))=(&self.subject_stage,&snapshot.subject_stage) {*stage.borrow_mut()=saved.clone();}
         self.patch_ops = snapshot.patch_ops.clone();
         self.guard_rejected = snapshot.guard_rejected;
         self.const_scopes = snapshot.const_scopes.clone();
@@ -12652,8 +14089,11 @@ impl<'a> EvalContext<'a> {
         self.factor_bits_min = snapshot.factor_bits_min;
         self.factor_bits_max = snapshot.factor_bits_max;
         self.public_observations = snapshot.public_observations.clone();
+        self.explicit_nfc_provenance = snapshot.explicit_nfc_provenance.clone();
         self.display_outputs = snapshot.display_outputs.clone();
         self.root_binding_types = snapshot.root_binding_types.clone();
+        self.sum_definitions = snapshot.sum_definitions.clone();
+        self.sum_pattern_bindings = snapshot.sum_pattern_bindings.clone();
     }
 
     fn restore_frame_snapshot_preserving_abort_contract_diag(
@@ -12728,7 +14168,6 @@ impl<'a> EvalContext<'a> {
         self.world.get_resource_value(name).is_some()
             || self.world.get_resource_fixed64(name).is_some()
             || self.world.get_resource_handle(name).is_some()
-            || self.world.get_resource_json(name).is_some()
     }
 
     fn get_resource(&mut self, name: &str) -> Option<Value> {
@@ -12765,17 +14204,6 @@ impl<'a> EvalContext<'a> {
             self.resources.insert(name.to_string(), v.clone());
             return Some(v);
         }
-        if let Some(value) = self.world.get_resource_json(name) {
-            let v = if value == "참" {
-                Value::Bool(true)
-            } else if value == "거짓" {
-                Value::Bool(false)
-            } else {
-                Value::String(value)
-            };
-            self.resources.insert(name.to_string(), v.clone());
-            return Some(v);
-        }
         if let Some(value) = self.defaults.get(name) {
             let v = value.clone();
             self.resources.insert(name.to_string(), v.clone());
@@ -12785,6 +14213,38 @@ impl<'a> EvalContext<'a> {
     }
 
     fn set_resource(&mut self, name: &str, value: Value) -> Result<(), EvalError> {
+        self.set_resource_with_type(name, value, None)
+    }
+
+    fn set_source_resource(&mut self, name: &str, value: Value, site: NodeId) -> Result<(), EvalError> {
+        if value.contains_transient_subject_view(){return Err("E_VC04_READ_SNAPSHOT_ESCAPE: 임자 읽기값은 현재 실행 안에서만 사용할 수 있습니다".to_string().into());}
+        let kind = self.tuple_type_plan.for_write(site, name).cloned();
+        self.set_resource_with_type(name, value, kind.as_ref())
+    }
+
+    fn set_resource_with_type(&mut self, name: &str, value: Value, kind: Option<&ddonirang_core::platform::RecordFieldType>) -> Result<(), EvalError> {
+        if value.contains_transient_subject_view(){return Err("E_VC04_READ_SNAPSHOT_ESCAPE: 임자 읽기값은 지속 상태에 넣을 수 없습니다".to_string().into());}
+        // A value may replace its own lane, never shadow another committed
+        // lane or an earlier write in this same candidate patch.
+        let lane=match &value {
+            Value::Fixed64(_) => 0,
+            Value::Unit(unit) if parse_resource_unit_tag(name).is_some() || unit.is_dimensionless() => 0,
+            Value::ResourceHandle(_) => 1,
+            _ => 2,
+        };
+        let wrong_committed=(lane!=0 && self.world.get_resource_fixed64(name).is_some())
+            || (lane!=1 && self.world.get_resource_handle(name).is_some())
+            || (lane!=2 && self.world.get_resource_value(name).is_some());
+        let wrong_staged=self.patch_ops.iter().any(|op|match op {
+            PatchOp::SetResourceFixed64 {tag,..} => tag==name && lane!=0,
+            PatchOp::SetResourceHandle {tag,..} => tag==name && lane!=1,
+            PatchOp::SetResourceValue {tag,..} => tag==name && lane!=2,
+            PatchOp::SetResourceJson {tag,..} => tag==name,
+            _=>false,
+        });
+        if wrong_committed || wrong_staged {
+            return Err("E_RESOURCE_SNAPSHOT_INVALID: 같은 자원 이름이 여러 저장 통로에 있습니다".to_string().into());
+        }
         if let Some(Value::Tensor(old)) = self.resources.get(name) {
             let Value::Tensor(next) = &value else {
                 return Err("Tensor 교체는 같은 원소씨와 모양이어야 합니다".to_string().into());
@@ -12793,13 +14253,44 @@ impl<'a> EvalContext<'a> {
                 return Err("Tensor 교체 모양 또는 원소씨 불일치".to_string().into());
             }
         }
-        match value {
+        match &value {
+            Value::SumBranch {..} => return Err("고름씨 갈래값은 자원에 대입할 수 없습니다".to_string().into()),
+            Value::FrozenSubjectViewV1(_) => return Err("E_VC04_READ_SNAPSHOT_ESCAPE".to_string().into()),
+            Value::Tuple(_) | Value::Rational(_) => {
+                let kind = kind.ok_or_else(|| EvalError::from(format!("E_TUPLE_PERSISTENCE_UNBOUND: 원문에 결속된 위치별 씨를 확인할 수 없습니다: {name}")))?;
+                let resource = resource_value_from_typed_value(&value, kind)?;
+                self.patch_ops.push(PatchOp::SetResourceValue { tag: name.to_owned(), value: resource });
+                self.resources.insert(name.to_owned(), value);
+            }
             Value::Tensor(tensor) => {
                 let saved = crate::unit_wire::tensor_to_resource(&tensor).map_err(EvalError::from)?;
                 self.patch_ops.push(PatchOp::SetResourceValue { tag: name.to_string(), value: saved });
-                self.resources.insert(name.to_string(), Value::Tensor(tensor));
+                self.resources.insert(name.to_string(), value);
+            }
+            Value::IdentityReference(reference) => {
+                self.patch_ops.push(PatchOp::SetResourceValue { tag:name.to_string(),value:ResourceValue::IdentityReference(reference.clone()) });
+                self.resources.insert(name.to_string(),value);
+            },
+            Value::NominalValueV1(nominal) => {
+                self.patch_ops.push(PatchOp::SetResourceValue {tag:name.to_owned(),value:ResourceValue::NominalValueV1(nominal.clone())});
+                self.resources.insert(name.to_owned(),value);
+            }
+            Value::SubjectHandleV1(handle) => {
+                self.patch_ops.push(PatchOp::SetResourceValue {tag:name.to_owned(),value:ResourceValue::SubjectHandleV1(handle.clone())});
+                self.resources.insert(name.to_owned(),value);
+            }
+            Value::RegisteredAtom(atom) => {
+                self.patch_ops.push(PatchOp::SetResourceValue { tag: name.to_string(), value: ResourceValue::RegisteredAtom(atom.clone()) });
+                self.resources.insert(name.to_string(), value);
+            }
+            Value::Bytes(bytes) => {
+                self.patch_ops.push(PatchOp::SetResourceValue {
+                    tag: name.to_string(), value: ResourceValue::Bytes(bytes.clone()),
+                });
+                self.resources.insert(name.to_string(), value);
             }
             Value::Fixed64(v) => {
+                let v = *v;
                 if let Some(spec) = parse_resource_unit_tag(name) {
                     let unit_value = UnitValue::try_from_spec(v, spec).map_err(unit_error)?;
                     self.patch_ops.push(PatchOp::SetResourceFixed64 {
@@ -12817,6 +14308,7 @@ impl<'a> EvalContext<'a> {
                 }
             }
             Value::Unit(unit) => {
+                let unit = *unit;
                 if let Some(spec) = parse_resource_unit_tag(name) {
                     if unit.dim != spec.dim {
                         return Err(unit_error(UnitError::DimensionMismatch {
@@ -12849,33 +14341,33 @@ impl<'a> EvalContext<'a> {
                 }
             }
             Value::String(s) => {
-                self.patch_ops.push(PatchOp::SetResourceJson {
+                self.patch_ops.push(PatchOp::SetResourceValue {
                     tag: name.to_string(),
-                    json: s.clone(),
+                    value: ResourceValue::String(s.clone()),
                 });
-                self.resources.insert(name.to_string(), Value::String(s));
+                self.resources.insert(name.to_string(), value);
             }
             Value::Bool(b) => {
-                let s = if b { "참" } else { "거짓" }.to_string();
-                self.patch_ops.push(PatchOp::SetResourceJson {
+                self.patch_ops.push(PatchOp::SetResourceValue {
                     tag: name.to_string(),
-                    json: s.clone(),
+                    value: ResourceValue::Bool(*b),
                 });
-                self.resources.insert(name.to_string(), Value::Bool(b));
+                self.resources.insert(name.to_string(), value);
             }
             Value::ResourceHandle(handle) => {
                 self.patch_ops.push(PatchOp::SetResourceHandle {
                     tag: name.to_string(),
-                    handle,
+                    handle: *handle,
                 });
                 self.resources
-                    .insert(name.to_string(), Value::ResourceHandle(handle));
+                    .insert(name.to_string(), value);
             }
             Value::None => return Err("없음은 자원에 대입할 수 없습니다".to_string().into()),
             Value::List(_)
             | Value::Set(_)
             | Value::Map(_)
             | Value::Pack(_)
+            | Value::Record { .. }
             | Value::Assertion(_)
             | Value::StateMachine(_)
             | Value::Formula(_) => {
@@ -12886,7 +14378,10 @@ impl<'a> EvalContext<'a> {
                             .into(),
                     );
                 }
-                let resource_value = resource_value_from_value(&value)?;
+                let resource_value = if runtime_value_contains_tuple(&value) {
+                    let kind = kind.ok_or_else(|| EvalError::from("E_TUPLE_PERSISTENCE_UNBOUND: 중첩 위치형의 원문 씨가 필요합니다".to_owned()))?;
+                    resource_value_from_typed_value(&value, kind)?
+                } else { resource_value_from_value(&value)? };
                 self.patch_ops.push(PatchOp::SetResourceValue {
                     tag: name.to_string(),
                     value: resource_value,
@@ -12897,22 +14392,22 @@ impl<'a> EvalContext<'a> {
                 return Err("글무늬는 자원에 대입할 수 없습니다".to_string().into())
             }
             Value::Regex(_) => return Err("정규식은 자원에 대입할 수 없습니다".to_string().into()),
-            Value::Lambda(lambda) => {
+            Value::Lambda(_) => {
                 self.resources
-                    .insert(name.to_string(), Value::Lambda(lambda));
+                    .insert(name.to_string(), value);
             }
-            Value::TimePolicy(policy) => { self.resources.insert(name.to_string(),Value::TimePolicy(policy)); }
-            Value::View(view) => {
+            Value::TimePolicy(_) => { self.resources.insert(name.to_string(),value); }
+            Value::View(_) => {
                 // Authored 보기값은 실행기 결속만 유지한다. world Patch/hash에 넣지 않는다.
-                self.resources.insert(name.to_string(), Value::View(view));
+                self.resources.insert(name.to_string(), value);
             }
-            Value::SceneElement(element) => { self.resources.insert(name.to_string(), Value::SceneElement(element)); }
-            Value::Scene(scene) => { self.resources.insert(name.to_string(), Value::Scene(scene)); }
-            Value::BogaeRelation(relation) => {
-                self.resources.insert(name.to_string(), Value::BogaeRelation(relation));
+            Value::SceneElement(_) => { self.resources.insert(name.to_string(), value); }
+            Value::Scene(_) => { self.resources.insert(name.to_string(), value); }
+            Value::BogaeRelation(_) => {
+                self.resources.insert(name.to_string(), value);
             }
-            Value::BogaeComposition(composition) => {
-                self.resources.insert(name.to_string(), Value::BogaeComposition(composition));
+            Value::BogaeComposition(_) => {
+                self.resources.insert(name.to_string(), value);
             }
         }
         Ok(())
@@ -12952,13 +14447,13 @@ impl<'a> EvalContext<'a> {
     }
 
     fn take_list_resource(&mut self, name: &str) -> Vec<Value> {
-        if let Some(Value::List(items)) = self.resources.remove(name) {
-            return items;
+        if let Some(mut value) = self.resources.remove(name) {
+            if let Value::List(items) = &mut value { return std::mem::take(items); }
         }
-        match self.get_resource(name) {
+        match &mut self.get_resource(name) {
             Some(Value::List(items)) => {
                 self.resources.remove(name);
-                items
+                std::mem::take(items)
             }
             _ => {
                 self.resources.remove(name);
@@ -12996,6 +14491,7 @@ fn literal_to_value(lit: &Literal) -> Value {
         Literal::Int(n) => Value::Fixed64(Fixed64::from_i64(*n)),
         Literal::Fixed64(n) => Value::Fixed64(*n),
         Literal::String(s) => Value::String(s.clone()),
+        Literal::Bytes(bytes) => Value::Bytes(bytes.clone()),
         Literal::Bool(b) => Value::Bool(*b),
         Literal::Atom(a) => Value::String(a.clone()),
         Literal::Regex(regex) => Value::Regex(regex.clone()),
@@ -13465,8 +14961,11 @@ impl<'a> EvalContext<'a> {
             .clone();
         let args = state_machine_transition_action_args(&seed, bindings)?;
         let mut child = EvalContext {
+            explicit_nfc_provenance: self.explicit_nfc_provenance.clone(),
             program: self.program,
             source_span_cache: Rc::clone(&self.source_span_cache),
+            subject_stage:self.subject_stage.as_ref().map(Rc::clone),
+            tuple_type_plan: Rc::clone(&self.tuple_type_plan),
             world: self.world,
             defaults: self.defaults,
             param_overrides: self.param_overrides,
@@ -13500,6 +14999,8 @@ impl<'a> EvalContext<'a> {
             root_program_active: self.root_program_active,
             display_outputs: self.display_outputs.clone(),
             root_binding_types: self.root_binding_types.clone(),
+            sum_definitions: self.sum_definitions.clone(),
+            sum_pattern_bindings: self.sum_pattern_bindings.clone(),
             project_asset_registry: self.project_asset_registry,
             work_cost: Rc::clone(&self.work_cost),
             internal_dispatch: self.internal_dispatch.clone(),
@@ -13522,6 +15023,7 @@ impl<'a> EvalContext<'a> {
         self.factor_bits_min = child.factor_bits_min;
         self.factor_bits_max = child.factor_bits_max;
         self.public_observations = child.public_observations;
+        self.explicit_nfc_provenance = child.explicit_nfc_provenance;
         self.display_outputs = child.display_outputs;
         self.root_binding_types = child.root_binding_types;
         self.pending_async_signals = child.pending_async_signals;
@@ -13539,8 +15041,11 @@ impl<'a> EvalContext<'a> {
     ) -> Result<(), EvalError> {
         let bindings = build_state_machine_transition_bindings(&transition.from, &transition.to);
         let mut child = EvalContext {
+            explicit_nfc_provenance: self.explicit_nfc_provenance.clone(),
             program: self.program,
             source_span_cache: Rc::clone(&self.source_span_cache),
+            subject_stage:self.subject_stage.as_ref().map(Rc::clone),
+            tuple_type_plan: Rc::clone(&self.tuple_type_plan),
             world: self.world,
             defaults: self.defaults,
             param_overrides: self.param_overrides,
@@ -13574,6 +15079,8 @@ impl<'a> EvalContext<'a> {
             root_program_active: self.root_program_active,
             display_outputs: self.display_outputs.clone(),
             root_binding_types: self.root_binding_types.clone(),
+            sum_definitions: self.sum_definitions.clone(),
+            sum_pattern_bindings: self.sum_pattern_bindings.clone(),
             project_asset_registry: self.project_asset_registry,
             work_cost: Rc::clone(&self.work_cost),
             internal_dispatch: self.internal_dispatch.clone(),
@@ -13598,6 +15105,7 @@ impl<'a> EvalContext<'a> {
         self.factor_bits_min = child.factor_bits_min;
         self.factor_bits_max = child.factor_bits_max;
         self.public_observations = child.public_observations;
+        self.explicit_nfc_provenance = child.explicit_nfc_provenance;
         self.display_outputs = child.display_outputs;
         self.pending_async_signals = child.pending_async_signals;
         self.async_outbox = child.async_outbox;
@@ -13695,6 +15203,8 @@ impl<'a> EvalContext<'a> {
         let mut child = EvalContext {
             program: self.program,
             source_span_cache: Rc::clone(&self.source_span_cache),
+            subject_stage:self.subject_stage.as_ref().map(Rc::clone),
+            tuple_type_plan: Rc::clone(&self.tuple_type_plan),
             world: self.world,
             defaults: self.defaults,
             param_overrides: self.param_overrides,
@@ -13726,8 +15236,11 @@ impl<'a> EvalContext<'a> {
             factor_bits_max: self.factor_bits_max,
             public_observations: Vec::new(),
             root_program_active: self.root_program_active,
+            explicit_nfc_provenance: Vec::new(),
             display_outputs: Vec::new(),
             root_binding_types: self.root_binding_types.clone(),
+            sum_definitions: self.sum_definitions.clone(),
+            sum_pattern_bindings: self.sum_pattern_bindings.clone(),
             project_asset_registry: self.project_asset_registry,
             work_cost: Rc::clone(&self.work_cost),
             internal_dispatch: self.internal_dispatch.clone(),
@@ -14062,6 +15575,9 @@ fn contains_unresolved_bogae_relation_for_builtin<'a>(
 
 fn values_equal(left: &Value, right: &Value) -> bool {
     match (left, right) {
+        (Value::Rational(a), Value::Rational(b)) => a == b,
+        (Value::SumBranch {..},Value::SumBranch {..}) => left==right,
+        (Value::Tuple(_),Value::Tuple(_)) => left == right,
         (Value::Tensor(a), Value::Tensor(b)) => a == b,
         (Value::Fixed64(a), Value::Fixed64(b)) => a.raw_i64() == b.raw_i64(),
         (Value::Fixed64(a), Value::Unit(b)) if b.is_dimensionless() => {
@@ -14074,10 +15590,17 @@ fn values_equal(left: &Value, right: &Value) -> bool {
             a.dim == b.dim && a.value.raw_i64() == b.value.raw_i64()
         }
         (Value::String(a), Value::String(b)) => a == b,
+        (Value::RegisteredAtom(a), Value::RegisteredAtom(b)) => a.owner_registry_identity == b.owner_registry_identity && a.registered_atom_identity == b.registered_atom_identity,
+        (Value::IdentityReference(a),Value::IdentityReference(b)) => a==b,
+        (Value::NominalValueV1(a),Value::NominalValueV1(b)) => a==b,
+        (Value::FrozenSubjectViewV1(a),Value::FrozenSubjectViewV1(b)) => a==b,
+        (Value::SubjectHandleV1(a),Value::SubjectHandleV1(b)) => a==b,
+        (Value::Bytes(a), Value::Bytes(b)) => a == b,
         (Value::Bool(a), Value::Bool(b)) => a == b,
         (Value::ResourceHandle(a), Value::ResourceHandle(b)) => a == b,
         (Value::None, Value::None) => true,
         (Value::Pack(a), Value::Pack(b)) => a == b,
+        (Value::Record { field_types: a, fields: av }, Value::Record { field_types: b, fields: bv }) => a == b && av == bv,
         (Value::Assertion(a), Value::Assertion(b)) => a.canon == b.canon,
         (Value::StateMachine(a), Value::StateMachine(b)) => a == b,
         (Value::Formula(a), Value::Formula(b)) => a == b,
@@ -14092,10 +15615,19 @@ fn values_equal(left: &Value, right: &Value) -> bool {
 
 fn value_rank(value: &Value) -> u8 {
     match value {
+        Value::FrozenSubjectViewV1(_) => 30,
+        Value::SumBranch {..} => 27,
+        Value::Tuple(_) => 26,
+        Value::RegisteredAtom(_) => 24,
+        Value::IdentityReference(_) => 25,
+        Value::NominalValueV1(_) => 28,
+        Value::SubjectHandleV1(_) => 29,
+        Value::Bytes(_) => 23,
+        Value::Record { .. } => 22,
         Value::Tensor(_) => 21,
         Value::None => 0,
         Value::Bool(_) => 1,
-        Value::Fixed64(_) | Value::Unit(_) => 2,
+        Value::Fixed64(_) | Value::Unit(_) | Value::Rational(_) => 2,
         Value::String(_) => 3,
         Value::ResourceHandle(_) => 4,
         Value::Formula(_) => 5,
@@ -14146,6 +15678,12 @@ fn value_cmp(left: &Value, right: &Value) -> std::cmp::Ordering {
             a.value.raw_i64().cmp(&b.raw_i64())
         }
         (Value::String(a), Value::String(b)) => a.cmp(b),
+        (Value::RegisteredAtom(a), Value::RegisteredAtom(b)) => (&a.owner_registry_identity, &a.registered_atom_identity).cmp(&(&b.owner_registry_identity, &b.registered_atom_identity)),
+        (Value::IdentityReference(a),Value::IdentityReference(b)) => (&a.target_type_identity,&a.owner_space_identity,&a.target_identity,a.generation).cmp(&(&b.target_type_identity,&b.owner_space_identity,&b.target_identity,b.generation)),
+        (Value::NominalValueV1(a),Value::NominalValueV1(b)) => a.canonical_body().cmp(b.canonical_body()),
+        (Value::FrozenSubjectViewV1(a),Value::FrozenSubjectViewV1(b)) => a.canonical_body().cmp(b.canonical_body()),
+        (Value::SubjectHandleV1(a),Value::SubjectHandleV1(b)) => (&a.name_type_identity,&a.world_identity,&a.subject_identity).cmp(&(&b.name_type_identity,&b.world_identity,&b.subject_identity)),
+        (Value::Bytes(a), Value::Bytes(b)) => a.as_slice().cmp(b.as_slice()),
         (Value::ResourceHandle(a), Value::ResourceHandle(b)) => a.cmp(b),
         (Value::Formula(a), Value::Formula(b)) => a.raw.cmp(&b.raw),
         (Value::Template(a), Value::Template(b)) => a.raw.cmp(&b.raw),
@@ -14158,6 +15696,7 @@ fn value_cmp(left: &Value, right: &Value) -> std::cmp::Ordering {
             state_machine_canon(a).cmp(&state_machine_canon(b))
         }
         (Value::Lambda(a), Value::Lambda(b)) => a.id.cmp(&b.id),
+        (Value::Record { .. }, Value::Record { .. }) => map_key_canon(left).cmp(&map_key_canon(right)),
         _ => value_canon(left).cmp(&value_canon(right)),
     }
 }
@@ -14692,10 +16231,11 @@ fn eval_polynomial_solve_result_with_meter(
         dialect: formula.dialect.clone(),
         explicit_tag: formula.explicit_tag,
     };
-    let Value::Pack(relation) = make_relation_pack(formula, zero) else {
+    let mut relation_value = make_relation_pack(formula, zero);
+    let Value::Pack(relation) = &mut relation_value else {
         return Err("다항식.풀기 relation pack 생성 실패".to_string().into());
     };
-    eval_relation_solve_result_with_meter(&[relation], work_cost)
+    eval_relation_solve_result_with_meter(&[std::mem::take(relation)], work_cost)
 }
 
 #[cfg(test)]
@@ -15208,16 +16748,20 @@ fn make_numeric_pack(kind: &str, mut fields: BTreeMap<String, Value>) -> Value {
 }
 
 fn numeric_pack_kind(value: &Value) -> Option<&str> {
+    if matches!(value, Value::Rational(_)) { return Some(NUMERIC_KIND_RATIONAL); }
     let Value::Pack(fields) = value else {
         return None;
     };
     let Value::String(kind) = fields.get(NUMERIC_PACK_KIND_KEY)? else {
         return None;
     };
-    Some(kind.as_str())
+    (kind != NUMERIC_KIND_RATIONAL).then_some(kind.as_str())
 }
 
 fn numeric_pack_approx(value: &Value) -> Option<Fixed64> {
+    if let Value::Rational(value) = value {
+        return Some(Fixed64::from_i64(value.ratio().numer().to_i64()?) / Fixed64::from_i64(value.ratio().denom().to_i64()?));
+    }
     let Value::Pack(fields) = value else {
         return None;
     };
@@ -15257,7 +16801,7 @@ fn value_to_i64_strict(value: &Value) -> Result<i64, EvalError> {
             .trim()
             .parse::<i64>()
             .map_err(|_| "정수 값이 필요합니다".to_string().into()),
-        Value::Pack(_) => {
+        Value::Pack(_) | Value::Rational(_) => {
             let Some(exact) = exact_numeric_from_value(value)? else {
                 return Err("정수 값이 필요합니다".to_string().into());
             };
@@ -15953,6 +17497,8 @@ fn eval_exact_numeric_infix(
         return Ok(Some(value));
     }
     let prefer_rational = op == "/"
+        || left_kind == Some(NUMERIC_KIND_RATIONAL)
+        || right_kind == Some(NUMERIC_KIND_RATIONAL)
         || both_factor && matches!(op, "+" | "-")
         || !left_exact.is_integer()
         || !right_exact.is_integer();
@@ -15964,6 +17510,24 @@ fn eval_exact_numeric_compare_infix(
     left: &Value,
     right: &Value,
 ) -> Result<Option<bool>, EvalError> {
+    // The operator expectation must issue source literals before evaluation.
+    // Do not reverse-convert an otherwise anonymous Fixed64 to a rational at
+    // equality time, including recursive collection comparisons. Preserve the
+    // existing legacy integer-family/i64 producer path; statically issued
+    // cross-kind owners are still rejected by check_numeric_comparison_owners.
+    let unresolved = if numeric_pack_kind(left) == Some(NUMERIC_KIND_RATIONAL) && matches!(right, Value::Fixed64(_)) {
+        Some(("오른쪽", numeric_pack_kind(left).expect("exact kind")))
+    } else if numeric_pack_kind(right) == Some(NUMERIC_KIND_RATIONAL) && matches!(left, Value::Fixed64(_)) {
+        Some(("왼쪽", numeric_pack_kind(right).expect("exact kind")))
+    } else { None };
+    if let Some((side, exact_kind))=unresolved {
+        return Err(format!("E_NUMERIC_COMPARISON_TYPE_UNRESOLVED: {op} 비교에서 {exact_kind}와 비교할 {side} 계산식의 수 종류를 확정할 수 없습니다. 미지원 수 혼합을 참·거짓으로 처리하지 않습니다. 두 값을 같은 수 종류로 명시해 주세요").into());
+    }
+    if let (Some(left), Some(right)) = (numeric_pack_kind(left), numeric_pack_kind(right)) {
+        if left != right {
+            return Err(format!("E_NUMERIC_COMPARISON_TYPE_MISMATCH: {op} 비교의 왼쪽은 {left}, 오른쪽은 {right}입니다. 형식이 정해진 서로 다른 수 종류는 자동 변환하여 비교하지 않습니다").into());
+        }
+    }
     if !is_exact_numeric_family_value(left) && !is_exact_numeric_family_value(right) {
         return Ok(None);
     }
@@ -15995,6 +17559,7 @@ fn is_exact_numeric_family_value(value: &Value) -> bool {
 
 fn exact_numeric_from_value(value: &Value) -> Result<Option<ExactNumeric>, EvalError> {
     match value {
+        Value::Rational(value) => Ok(Some(ExactNumeric { value: value.ratio().clone() })),
         Value::Fixed64(n) => Ok(Some(ExactNumeric::from_fixed64(*n))),
         Value::Unit(unit) if unit.is_dimensionless() => {
             Ok(Some(ExactNumeric::from_fixed64(unit.value)))
@@ -16116,18 +17681,9 @@ fn make_big_int_pack_from_bigint(value: &BigInt) -> Value {
 }
 
 fn make_rational_pack_from_big_rational(value: &BigRational) -> Value {
-    let num = value.numer();
-    let den = value.denom();
-    let mut fields = BTreeMap::new();
-    fields.insert("분자".to_string(), Value::String(num.to_string()));
-    fields.insert("분모".to_string(), Value::String(den.to_string()));
-    if let (Some(n), Some(d)) = (num.to_i64(), den.to_i64()) {
-        fields.insert(
-            NUMERIC_PACK_APPROX_KEY.to_string(),
-            Value::Fixed64(Fixed64::from_i64(n) / Fixed64::from_i64(d)),
-        );
-    }
-    make_numeric_pack(NUMERIC_KIND_RATIONAL, fields)
+    Value::Rational(ddonirang_core::saved_rational::NormalizedRationalValueV1::from_parts(
+        value.numer().clone(), value.denom().clone(),
+    ).expect("BigRational denominator is nonzero"))
 }
 
 fn exact_numeric_to_value(value: ExactNumeric, prefer_rational: bool) -> Value {
@@ -17932,7 +19488,7 @@ fn endpoint_formula_relation_bridge(
     let mut mappings = Vec::new();
     let mut relation_packs = Vec::new();
     for relation in flat_relations {
-        let Value::Pack(fields) = relation else {
+        let Value::Pack(fields) = &relation else {
             return Err("endpoint connect relation 묶음이 필요합니다"
                 .to_string()
                 .into());
@@ -18554,9 +20110,101 @@ pub(crate) fn value_to_display_text(value: &Value) -> String {
 }
 
 fn format_value_text(value: &Value, display_only: bool) -> String {
+    // Restored saved values can be much deeper than the host call stack.
+    // Preserve existing display spelling/rounding, but traverse containers
+    // and the existing equation/solver carriers through heap jobs.
+    use std::borrow::Cow;
+    enum Job<'a> { Value(&'a Value, bool), Text(Cow<'a, str>) }
+    let mut jobs = vec![Job::Value(value, display_only)];
+    let mut out = String::new();
+    fn fields<'a>(jobs: &mut Vec<Job<'a>>, items: &'a BTreeMap<String, Value>, display: bool, separator: &'static str) {
+        jobs.push(Job::Text(Cow::Borrowed(")")));
+        for (index, (name, value)) in items.iter().enumerate().rev() {
+            jobs.push(Job::Value(value, display));
+            jobs.push(Job::Text(Cow::Borrowed(separator)));
+            jobs.push(Job::Text(Cow::Borrowed(name)));
+            if index != 0 { jobs.push(Job::Text(Cow::Borrowed(", "))); }
+        }
+    }
+    while let Some(job) = jobs.pop() {
+        match job {
+            Job::Text(text) => out.push_str(&text),
+            Job::Value(Value::SumBranch {owner,branch,payload,..},display) => {
+                out.push_str(owner);out.push_str(".$");out.push_str(branch);
+                if payload.len()==1 {
+                    out.push('(');jobs.push(Job::Text(Cow::Borrowed(")")));jobs.push(Job::Value(payload.values().next().expect("one payload"),display));
+                } else if !payload.is_empty() {
+                    out.push('(');fields(&mut jobs,payload,display,"=");
+                }
+            }
+            Job::Value(Value::List(items), display) => {
+                out.push_str("차림["); jobs.push(Job::Text(Cow::Borrowed("]")));
+                for (index, value) in items.iter().enumerate().rev() {
+                    jobs.push(Job::Value(value, display));
+                    if index != 0 { jobs.push(Job::Text(Cow::Borrowed(", "))); }
+                }
+            }
+            Job::Value(Value::Tuple(items), display) => {
+                out.push('(');jobs.push(Job::Text(Cow::Borrowed(")")));
+                if items.len()==1 {jobs.push(Job::Text(Cow::Borrowed(",")));}
+                for (index,value) in items.iter().enumerate().rev() {
+                    jobs.push(Job::Value(value,display));
+                    if index!=0 {jobs.push(Job::Text(Cow::Borrowed(", ")));}
+                }
+            }
+            // Historically Record children use value_to_string, not the
+            // display-only six-place policy. Do not change that contract.
+            Job::Value(Value::Record { fields: items, .. }, _) => {
+                out.push('('); fields(&mut jobs, items, false, ": ");
+            }
+            Job::Value(value @ Value::Pack(items), display) if numeric_pack_kind(value).is_none() => {
+                if matches!(items.get(RELATION_KIND_FIELD), Some(Value::String(kind)) if kind == RELATION_KIND_EQUATION) {
+                    for (name, separator) in [(RELATION_RIGHT_FIELD, Some(" =:= ")), (RELATION_LEFT_FIELD, None)] {
+                        jobs.push(match items.get(name) { Some(value) => Job::Value(value, display),
+                            None => Job::Text(Cow::Borrowed("[수식]")) });
+                        if let Some(text) = separator { jobs.push(Job::Text(Cow::Borrowed(text))); }
+                    }
+                    continue;
+                }
+                if matches!(items.get(RELATION_SOLVE_RESULT_KIND_FIELD), Some(Value::String(kind)) if kind == RELATION_SOLVE_RESULT_SUCCESS) {
+                    if let (Some(Value::String(variable)), Some(value)) = (items.get(RELATION_SOLVE_VAR_FIELD), items.get(RELATION_SOLVE_VALUE_FIELD)) {
+                        out.push_str(&format!("#성공(미지수=\"{variable}\", 값="));
+                        jobs.push(Job::Text(Cow::Borrowed(")"))); jobs.push(Job::Value(value, display));
+                        continue;
+                    }
+                    if let Some(Value::Pack(bindings)) = items.get(RELATION_SOLVE_BINDINGS_FIELD) {
+                        out.push_str("#성공(해=("); jobs.push(Job::Text(Cow::Borrowed(")")));
+                        fields(&mut jobs, bindings, display, "="); continue;
+                    }
+                }
+                if matches!(items.get(RELATION_SOLVE_RESULT_KIND_FIELD), Some(Value::String(kind)) if kind == RELATION_SOLVE_RESULT_FAILURE) {
+                    let reason = match items.get(RELATION_SOLVE_REASON_FIELD) { Some(Value::String(text)) => text.as_str(), _ => "?" };
+                    out.push_str(&format!("#실패(사유=\"{reason}\")")); continue;
+                }
+                out.push('('); fields(&mut jobs, items, display, ": ");
+            }
+            Job::Value(value, display) => out.push_str(&format_value_leaf_text(value, display)),
+        }
+    }
+    out
+}
+
+fn format_value_leaf_text(value: &Value, display_only: bool) -> String {
     match value {
+        Value::Rational(value) => format!("{}/{}", value.ratio().numer(), value.ratio().denom()),
+        Value::SumBranch {..} => unreachable!("Sum payloads use the heap formatter"),
+        Value::Tuple(_) => map_key_canon(value),
         Value::Tensor(_) => map_key_canon(value),
+        Value::Record { fields, .. } => format!("({})", fields.iter()
+            .map(|(name, value)| format!("{name}: {}", value_to_string(value)))
+            .collect::<Vec<_>>().join(", ")),
         Value::String(s) => s.clone(),
+        Value::RegisteredAtom(atom) => ResourceValue::RegisteredAtom(atom.clone()).canon_key(),
+        Value::IdentityReference(value) => ResourceValue::IdentityReference(value.clone()).canon_key(),
+        Value::NominalValueV1(value) => ResourceValue::NominalValueV1(value.clone()).canon_key(),
+        Value::FrozenSubjectViewV1(_) => "<임자 읽기값: 읽기 전용>".into(),
+        Value::SubjectHandleV1(value) => ResourceValue::SubjectHandleV1(value.clone()).canon_key(),
+        Value::Bytes(bytes) => bytes.canonical_literal(),
         Value::Fixed64(n) => if display_only { n.display_rounded_six() }
             else { format_fixed64_for_display(*n) },
         Value::Unit(unit) => {
@@ -18908,11 +20556,11 @@ fn resource_map_to_state_machine(
     if kind != STATE_MACHINE_RESOURCE_KIND {
         return None;
     }
-    let states = match resource_map_lookup(entries, "states")?.clone() {
+    let states = match resource_map_lookup(entries, "states")? {
         ResourceValue::List(items) => items
-            .into_iter()
+            .iter()
             .map(|item| match item {
-                ResourceValue::String(value) => Some(value),
+                ResourceValue::String(value) => Some(value.clone()),
                 _ => None,
             })
             .collect::<Option<Vec<_>>>()?,
@@ -18923,11 +20571,11 @@ fn resource_map_to_state_machine(
         _ => return None,
     };
     let checks = match resource_map_lookup(entries, "checks") {
-        Some(value) => match value.clone() {
+        Some(value) => match value {
             ResourceValue::List(items) => items
-                .into_iter()
+                .iter()
                 .map(|item| match item {
-                    ResourceValue::String(value) => Some(value),
+                    ResourceValue::String(value) => Some(value.clone()),
                     _ => None,
                 })
                 .collect::<Option<Vec<_>>>()?,
@@ -18935,9 +20583,9 @@ fn resource_map_to_state_machine(
         },
         None => Vec::new(),
     };
-    let transitions = match resource_map_lookup(entries, "transitions")?.clone() {
+    let transitions = match resource_map_lookup(entries, "transitions")? {
         ResourceValue::List(items) => items
-            .into_iter()
+            .iter()
             .map(|item| match item {
                 ResourceValue::Map(map) => {
                     let from = match resource_map_lookup(&map, "from")? {
@@ -19098,58 +20746,155 @@ fn resource_map_to_formula(entries: &BTreeMap<String, ResourceMapEntry>) -> Opti
     })
 }
 
+fn runtime_value_contains_tuple(root: &Value) -> bool {
+    let mut pending = vec![root];
+    while let Some(value) = pending.pop() {
+        match value {
+            Value::Tuple(_) | Value::Rational(_) => return true,
+            Value::List(items) => pending.extend(items.iter()),
+            Value::Pack(fields) | Value::Set(fields) | Value::Record { fields, .. } => pending.extend(fields.values()),
+            Value::Map(items) => for item in items.values() { pending.push(&item.key); pending.push(&item.value); },
+            _ => {},
+        }
+    }
+    false
+}
+
+fn resource_value_from_typed_value(value: &Value, kind: &ddonirang_core::platform::RecordFieldType) -> Result<ResourceValue, EvalError> {
+    if value.contains_transient_subject_view(){return Err("E_VC04_READ_SNAPSHOT_ESCAPE: 임자 읽기값에는 저장 형식이 없습니다".to_string().into());}
+    use ddonirang_core::platform::RecordFieldType as R;
+    enum Job<'a> { Pair(&'a Value, &'a R), Tuple(&'a [R], usize), List(usize), Record(&'a BTreeMap<String, R>) }
+    let unbound = || EvalError::from("E_TUPLE_PERSISTENCE_UNBOUND: 위치별 씨와 평가값의 결속이 다릅니다".to_owned());
+    let mut pending = vec![Job::Pair(value, kind)];
+    let mut built = Vec::<ResourceValue>::new();
+    while let Some(job) = pending.pop() {
+        match job {
+            Job::Pair(Value::Rational(value), R::Named { name }) if name == "나눔수" => {
+                built.push(ResourceValue::RationalV1(value.clone()));
+            }
+            Job::Pair(Value::Rational(_), _) => return Err(unbound()),
+            Job::Pair(Value::Tuple(values), R::Tuple { items: types }) => {
+                if values.len() != types.len() { return Err(unbound()); }
+                pending.push(Job::Tuple(types, values.len()));
+                pending.extend(values.iter().zip(types).rev().map(|(value, kind)| Job::Pair(value, kind)));
+            }
+            Job::Pair(Value::List(values), R::Applied { name, args }) if name == "차림" && args.len() == 1 => {
+                pending.push(Job::List(values.len()));
+                pending.extend(values.iter().rev().map(|value| Job::Pair(value, &args[0])));
+            }
+            Job::Pair(Value::Record { field_types, fields }, R::Record { fields: types }) => {
+                if types != field_types || !types.keys().eq(fields.keys()) { return Err(unbound()); }
+                pending.push(Job::Record(types));
+                pending.extend(fields.values().zip(types.values()).rev().map(|(value, kind)| Job::Pair(value, kind)));
+            }
+            Job::Pair(Value::Tuple(_), _) | Job::Pair(_, R::Tuple { .. }) => return Err(unbound()),
+            Job::Pair(value, kind) => {
+                let converted = resource_value_from_value(value)?;
+                crate::unit_wire::validate_saved_value_type(&converted, kind).map_err(|_| unbound())?;
+                built.push(converted);
+            }
+            Job::Tuple(types, n) => {
+                let items = built.split_off(built.len() - n);
+                built.push(ResourceValue::Tuple { element_types: types.to_vec(), items });
+            }
+            Job::List(n) => { let items = built.split_off(built.len() - n); built.push(ResourceValue::List(items)); }
+            Job::Record(types) => {
+                let items = built.split_off(built.len() - types.len());
+                built.push(ResourceValue::Record { field_types: types.clone(), fields: types.keys().cloned().zip(items).collect() });
+            }
+        }
+    }
+    built.pop().ok_or_else(unbound)
+}
+
 fn resource_value_from_value(value: &Value) -> Result<ResourceValue, EvalError> {
-    match value {
+    enum Job<'a> {
+        Value(&'a Value), List(usize), Set(Vec<String>), Map(Vec<String>), Pack(Vec<String>),
+        Record(&'a BTreeMap<String, ddonirang_core::platform::RecordFieldType>, Vec<String>),
+    }
+    struct Built(Vec<ResourceValue>);
+    impl Drop for Built {
+        fn drop(&mut self) { for value in self.0.drain(..) { value.drop_stack_safe(); } }
+    }
+    let mut built = Built(Vec::new());
+    let mut pending = vec![Job::Value(value)];
+    while let Some(job) = pending.pop() {
+        let value = match job {
+            Job::Value(value) => value,
+            Job::List(count) => {
+                let values = built.0.split_off(built.0.len() - count);
+                built.0.push(ResourceValue::List(values)); continue;
+            }
+            Job::Set(keys) => {
+                let values = built.0.split_off(built.0.len() - keys.len());
+                built.0.push(ResourceValue::Set(keys.into_iter().zip(values).collect())); continue;
+            }
+            Job::Record(field_types, keys) => {
+                let values = built.0.split_off(built.0.len() - keys.len());
+                built.0.push(ResourceValue::Record { field_types: field_types.clone(), fields: keys.into_iter().zip(values).collect() }); continue;
+            }
+            Job::Map(keys) => {
+                let values = built.0.split_off(built.0.len() - keys.len() * 2);
+                let mut values = values.into_iter();
+                let entries = keys.into_iter().map(|index| (index, ResourceMapEntry {
+                    key: values.next().expect("map key"), value: values.next().expect("map value"),
+                })).collect();
+                built.0.push(ResourceValue::Map(entries)); continue;
+            }
+            Job::Pack(keys) => {
+                let values = built.0.split_off(built.0.len() - keys.len());
+                let entries = keys.into_iter().zip(values).map(|(key, value)| {
+                    let key = ResourceValue::String(key);
+                    (key.canon_key(), ResourceMapEntry { key, value })
+                }).collect();
+                built.0.push(ResourceValue::Map(entries)); continue;
+            }
+        };
+        let converted = match value {
+        Value::FrozenSubjectViewV1(_) => Err("E_VC04_READ_SNAPSHOT_ESCAPE: 임자 읽기값에는 저장 형식이 없습니다".to_string().into()),
+        Value::Tuple(_) => Err("E_TUPLE_PERSISTENCE_UNBOUND: 위치형 값꾸러미의 저장 계약이 결속되지 않았습니다".to_string().into()),
+        Value::Record { field_types, fields } => {
+            ddonirang_lang::runtime::validate_record_value(value).map_err(|detail|
+                type_mismatch_error("묶음 복원", &detail.expected, &detail.actual))?;
+            pending.push(Job::Record(field_types, fields.keys().cloned().collect()));
+            pending.extend(fields.values().rev().map(Job::Value));
+            continue;
+        }
         Value::Tensor(value) => crate::unit_wire::tensor_to_resource(value).map_err(EvalError::from),
+        Value::Rational(_) => Err("E_RATIONAL_SOURCE_TYPE_REQUIRED: 나눔수 저장에는 원문에 결속된 씨가 필요합니다".to_string().into()),
         Value::None => Ok(ResourceValue::None),
         Value::Bool(value) => Ok(ResourceValue::Bool(*value)),
         Value::Fixed64(value) => Ok(ResourceValue::Fixed64(*value)),
         Value::Unit(value) => Ok(ResourceValue::Unit(*value)),
         Value::String(value) => Ok(ResourceValue::String(value.clone())),
+        Value::RegisteredAtom(atom) => Ok(ResourceValue::RegisteredAtom(atom.clone())),
+        Value::IdentityReference(value) => Ok(ResourceValue::IdentityReference(value.clone())),
+        Value::NominalValueV1(value) => Ok(ResourceValue::NominalValueV1(value.clone())),
+        Value::SubjectHandleV1(value) => Ok(ResourceValue::SubjectHandleV1(value.clone())),
+        Value::Bytes(bytes) => Ok(ResourceValue::Bytes(bytes.clone())),
         Value::ResourceHandle(value) => Ok(ResourceValue::ResourceHandle(*value)),
         Value::List(items) => {
-            let mut converted = Vec::with_capacity(items.len());
-            for item in items {
-                converted.push(resource_value_from_value(item)?);
-            }
-            Ok(ResourceValue::List(converted))
+            pending.push(Job::List(items.len()));
+            pending.extend(items.iter().rev().map(Job::Value));
+            continue;
         }
         Value::Set(items) => {
-            let mut converted = BTreeMap::new();
-            for (key, value) in items {
-                converted.insert(key.clone(), resource_value_from_value(value)?);
-            }
-            Ok(ResourceValue::Set(converted))
+            pending.push(Job::Set(items.keys().cloned().collect()));
+            pending.extend(items.values().rev().map(Job::Value));
+            continue;
         }
         Value::Map(entries) => {
-            let mut converted = BTreeMap::new();
-            for (key, entry) in entries {
-                let entry_key = resource_value_from_value(&entry.key)?;
-                let entry_value = resource_value_from_value(&entry.value)?;
-                converted.insert(
-                    key.clone(),
-                    ResourceMapEntry {
-                        key: entry_key,
-                        value: entry_value,
-                    },
-                );
+            pending.push(Job::Map(entries.keys().cloned().collect()));
+            for entry in entries.values().rev() {
+                pending.push(Job::Value(&entry.value));
+                pending.push(Job::Value(&entry.key));
             }
-            Ok(ResourceValue::Map(converted))
+            continue;
         }
         Value::Pack(entries) => {
-            let mut converted = BTreeMap::new();
-            for (key, value) in entries {
-                let entry_key = ResourceValue::String(key.clone());
-                let entry_value = resource_value_from_value(value)?;
-                converted.insert(
-                    entry_key.canon_key(),
-                    ResourceMapEntry {
-                        key: entry_key,
-                        value: entry_value,
-                    },
-                );
-            }
-            Ok(ResourceValue::Map(converted))
+            pending.push(Job::Pack(entries.keys().cloned().collect()));
+            pending.extend(entries.values().rev().map(Job::Value));
+            continue;
         }
         Value::Assertion(assertion) => Ok(assertion_resource_value(assertion)),
         Value::StateMachine(machine) => Ok(state_machine_resource_value(machine)),
@@ -19157,16 +20902,24 @@ fn resource_value_from_value(value: &Value) -> Result<ResourceValue, EvalError> 
         Value::Template(_) => Err("글무늬는 자원에 대입할 수 없습니다".to_string().into()),
         Value::Regex(_) => Err("정규식은 자원에 대입할 수 없습니다".to_string().into()),
         Value::Lambda(_) => Err("씨앗은 자원에 대입할 수 없습니다".to_string().into()),
+        Value::SumBranch {..} => Err("고름씨 갈래값은 자원에 대입할 수 없습니다".to_string().into()),
         Value::View(_) => Err("보기값은 세계 자원에 대입할 수 없습니다".to_string().into()),
         Value::SceneElement(_) | Value::Scene(_) => Err("장면 값은 세계 자원에 대입할 수 없습니다".to_string().into()),
         Value::BogaeRelation(_) => Err("보개관계값은 세계 자원에 대입할 수 없습니다".to_string().into()),
         Value::BogaeComposition(_) => Err("보개짜임값은 세계 자원에 대입할 수 없습니다".to_string().into()),
         Value::TimePolicy(_) => Err("보개시간값은 세계 자원에 대입할 수 없습니다".to_string().into()),
+        }?;
+        built.0.push(converted);
     }
+    Ok(built.0.pop().expect("saved root"))
 }
 
 fn public_observation_type(value: &Value) -> (&'static str, String) {
     match value {
+        Value::FrozenSubjectViewV1(_) => ("transient_subject_view",String::new()),
+        Value::Rational(_) => ("rational_v1", String::new()),
+        Value::SumBranch {..} => ("sum_branch",String::new()),
+        Value::Tuple(_) => ("tuple", String::new()),
         Value::Tensor(_) => ("basic_tensor_v1", String::new()),
         Value::None => ("none", String::new()),
         Value::Bool(_) => ("bool", String::new()),
@@ -19178,11 +20931,16 @@ fn public_observation_type(value: &Value) -> (&'static str, String) {
                 .unwrap_or_else(|| unit.dim.format()),
         ),
         Value::String(_) => ("string", String::new()),
+        Value::RegisteredAtom(_) => ("registered_atom_v1", String::new()),
+        Value::IdentityReference(_) => ("identity_reference_v1",String::new()),
+        Value::NominalValueV1(_) => ("nominal_value_v1",String::new()),
+        Value::SubjectHandleV1(_) => ("subject_handle_v1",String::new()),
+        Value::Bytes(_) => ("bytes", String::new()),
         Value::ResourceHandle(_) => ("resource_handle", String::new()),
         Value::List(_) => ("list", String::new()),
         Value::Set(_) => ("set", String::new()),
         Value::Map(_) => ("map", String::new()),
-        Value::Pack(_) => ("pack", String::new()),
+        Value::Pack(_) | Value::Record { .. } => ("pack", String::new()),
         Value::Assertion(_) => ("assertion", String::new()),
         Value::StateMachine(_) => ("state_machine", String::new()),
         Value::Formula(_) => ("formula", String::new()),
@@ -19281,42 +21039,109 @@ fn canonical_dataset_observation_name(name: &str) -> Result<String, EvalError> {
         .ok_or_else(|| format!("E_DATASET_OBSERVATION_NAME: 자료 열 이름 {name}").into())
 }
 
-fn value_from_resource_value(value: &ResourceValue) -> Value {
-    match value {
+pub(crate) fn value_from_resource_value(value: &ResourceValue) -> Value {
+    enum Job<'a> {
+        Tuple(usize),
+        Value(&'a ResourceValue), List(usize), Set(Vec<String>), Map(Vec<String>),
+        Pack(Vec<String>), Record(&'a BTreeMap<String, ddonirang_core::platform::RecordFieldType>, Vec<String>),
+    }
+    struct Built(Vec<Value>);
+    impl Drop for Built {
+        fn drop(&mut self) {
+            for value in self.0.drain(..) { value.drop_saved_tree_stack_safe(); }
+        }
+    }
+    fn take_fields(keys: Vec<String>, built: &mut Vec<Value>) -> BTreeMap<String, Value> {
+        let items = built.split_off(built.len() - keys.len());
+        let mut fields = BTreeMap::new();
+        for (key, value) in keys.into_iter().zip(items) {
+            if let Some(previous) = fields.insert(key, value) { previous.drop_saved_tree_stack_safe(); }
+        }
+        fields
+    }
+    let mut pending = vec![Job::Value(value)];
+    let mut built = Built(Vec::new());
+    while let Some(job) = pending.pop() {
+        let value = match job {
+            Job::Value(value) => value,
+            Job::Tuple(count) => {
+                let items = built.0.split_off(built.0.len() - count);
+                built.0.push(Value::Tuple(items)); continue;
+            }
+            Job::List(count) => {
+                let items = built.0.split_off(built.0.len() - count);
+                built.0.push(Value::List(items)); continue;
+            }
+            Job::Set(keys) => {
+                let fields = take_fields(keys, &mut built.0);
+                built.0.push(Value::Set(fields)); continue;
+            }
+            Job::Pack(keys) => {
+                let fields = take_fields(keys, &mut built.0);
+                built.0.push(Value::Pack(fields)); continue;
+            }
+            Job::Record(field_types, keys) => {
+                let fields = take_fields(keys, &mut built.0);
+                built.0.push(Value::Record { field_types: field_types.clone(), fields }); continue;
+            }
+            Job::Map(keys) => {
+                let items = built.0.split_off(built.0.len() - keys.len() * 2);
+                let mut items = items.into_iter();
+                let converted = keys.into_iter().map(|key| (key, MapEntry {
+                    key: items.next().expect("map key"), value: items.next().expect("map value"),
+                })).collect();
+                built.0.push(Value::Map(converted)); continue;
+            }
+        };
+        let converted = match value {
+        ResourceValue::RationalV1(value) => Value::Rational(value.clone()),
+        ResourceValue::NominalValueV1(value) => Value::NominalValueV1(value.clone()),
+        ResourceValue::SubjectHandleV1(value) => Value::SubjectHandleV1(value.clone()),
+        ResourceValue::SubjectPayloadV1(_) => unreachable!("Subject payload is field05-only, not an ordinary resource"),
+        ResourceValue::Tuple { items, .. } => {
+            pending.push(Job::Tuple(items.len()));
+            pending.extend(items.iter().rev().map(Job::Value));
+            continue;
+        }
         ResourceValue::BasicTensorV1(carrier) => Value::Tensor(
             crate::unit_wire::tensor_from_carrier(carrier).expect("admitted Tensor resource")),
+        ResourceValue::Record { field_types, fields } => {
+            pending.push(Job::Record(field_types, fields.keys().cloned().collect()));
+            pending.extend(fields.values().rev().map(Job::Value));
+            continue;
+        },
         ResourceValue::None => Value::None,
         ResourceValue::Bool(value) => Value::Bool(*value),
         ResourceValue::Fixed64(value) => Value::Fixed64(*value),
         ResourceValue::Unit(value) => Value::Unit(*value),
         ResourceValue::String(value) => Value::String(value.clone()),
+        ResourceValue::RegisteredAtom(atom) => Value::RegisteredAtom(atom.clone()),
+        ResourceValue::IdentityReference(value) => Value::IdentityReference(value.clone()),
+        ResourceValue::Bytes(bytes) => Value::Bytes(bytes.clone()),
         ResourceValue::ResourceHandle(value) => Value::ResourceHandle(*value),
-        ResourceValue::List(items) => Value::List(
-            items
-                .iter()
-                .map(value_from_resource_value)
-                .collect::<Vec<_>>(),
-        ),
+        ResourceValue::List(items) => {
+            pending.push(Job::List(items.len()));
+            pending.extend(items.iter().rev().map(Job::Value));
+            continue;
+        },
         ResourceValue::Set(items) => {
-            let mut converted = BTreeMap::new();
-            for (key, value) in items {
-                converted.insert(key.clone(), value_from_resource_value(value));
-            }
-            Value::Set(converted)
+            pending.push(Job::Set(items.keys().cloned().collect()));
+            pending.extend(items.values().rev().map(Job::Value));
+            continue;
         }
         ResourceValue::Map(entries) => {
             if let Some(assertion) = resource_map_to_assertion(entries) {
-                return Value::Assertion(assertion);
+                built.0.push(Value::Assertion(assertion)); continue;
             }
             if let Some(machine) = resource_map_to_state_machine(entries) {
-                return Value::StateMachine(machine);
+                built.0.push(Value::StateMachine(machine)); continue;
             }
             if let Some(formula) = resource_map_to_formula(entries) {
-                return Value::Formula(formula);
+                built.0.push(Value::Formula(formula)); continue;
             }
             // These existing standard-library records already carry their kind
             // in the committed resource map. Restore their Pack representation
-            // recursively; otherwise a session accepted in one tick becomes an
+            // structurally; otherwise a session accepted in one tick becomes an
             // incompatible ordinary Map at the next tick.
             let is_grid_record = entries.values().any(|entry| match (&entry.key, &entry.value) {
                 (ResourceValue::String(key), ResourceValue::String(kind)) =>
@@ -19330,25 +21155,152 @@ fn value_from_resource_value(value: &ResourceValue) -> Value {
             });
             if is_grid_record
                 && entries.values().all(|entry| matches!(entry.key, ResourceValue::String(_))) {
-                let fields = entries.values().filter_map(|entry| match &entry.key {
-                    ResourceValue::String(key) => Some((key.clone(), value_from_resource_value(&entry.value))),
-                    _ => None,
+                let keys = entries.values().map(|entry| match &entry.key {
+                    ResourceValue::String(key) => key.clone(), _ => unreachable!("string keys"),
                 }).collect();
-                return Value::Pack(fields);
+                pending.push(Job::Pack(keys));
+                pending.extend(entries.values().rev().map(|entry| Job::Value(&entry.value)));
+                continue;
             }
-            let mut converted = BTreeMap::new();
-            for (key, entry) in entries {
-                converted.insert(
-                    key.clone(),
-                    MapEntry {
-                        key: value_from_resource_value(&entry.key),
-                        value: value_from_resource_value(&entry.value),
-                    },
-                );
+            pending.push(Job::Map(entries.keys().cloned().collect()));
+            for entry in entries.values().rev() {
+                pending.push(Job::Value(&entry.value));
+                pending.push(Job::Value(&entry.key));
             }
-            Value::Map(converted)
+            continue;
         }
+        };
+        built.0.push(converted);
     }
+    built.0.pop().expect("restored root")
+}
+
+#[cfg(test)]
+#[test]
+fn rd694_saved_display_heap_jobs_preserve_existing_spellings() {
+    let fields = BTreeMap::from([("a".into(),Value::Fixed64(Fixed64::from_ratio(1,3))),
+        ("b".into(),Value::List(vec![Value::Bool(true),Value::String("한글".into())]))]);
+    let cases = vec![Value::List(fields.values().cloned().collect()),Value::Pack(fields.clone()),
+        Value::Record{field_types:BTreeMap::new(),fields},
+        Value::Pack(BTreeMap::from([(RELATION_KIND_FIELD.into(),Value::String(RELATION_KIND_EQUATION.into())),
+            (RELATION_LEFT_FIELD.into(),Value::List(vec![Value::Fixed64(Fixed64::ONE)])),
+            (RELATION_RIGHT_FIELD.into(),Value::Bool(false))])),
+        Value::Pack(BTreeMap::from([(RELATION_SOLVE_RESULT_KIND_FIELD.into(),Value::String(RELATION_SOLVE_RESULT_SUCCESS.into())),
+            (RELATION_SOLVE_VAR_FIELD.into(),Value::String("x".into())),
+            (RELATION_SOLVE_VALUE_FIELD.into(),Value::List(vec![Value::Fixed64(Fixed64::ONE)]))])),
+        Value::Pack(BTreeMap::from([(RELATION_SOLVE_RESULT_KIND_FIELD.into(),Value::String(RELATION_SOLVE_RESULT_SUCCESS.into())),
+            (RELATION_SOLVE_BINDINGS_FIELD.into(),Value::Pack(BTreeMap::from([("x".into(),Value::Bool(true))])))])),
+        Value::Pack(BTreeMap::from([(RELATION_SOLVE_RESULT_KIND_FIELD.into(),Value::String(RELATION_SOLVE_RESULT_FAILURE.into()))]))];
+    for value in cases {for display in [false,true] {
+        assert_eq!(format_value_text(&value,display),format_value_leaf_text(&value,display));
+    }}
+}
+
+#[cfg(test)]
+#[test]
+fn rd694_saved_conversion_and_automatic_cleanup_use_heap_traversal() {
+    std::thread::Builder::new().stack_size(128 * 1024).spawn(|| {
+        use ddonirang_core::platform::RecordFieldType as R;
+        let mut key = ResourceValue::None;
+        let mut kind = R::Named { name: "셈수".into() };
+        let mut field = ResourceValue::Fixed64(Fixed64::ZERO);
+        for _ in 0..20_000 {
+            key = ResourceValue::List(vec![key]);
+            field = ResourceValue::List(vec![field]);
+            kind = R::Applied { name: "차림".into(), args: vec![kind] };
+        }
+        let saved = ResourceValue::Map(BTreeMap::from([("stored-index".into(), ResourceMapEntry {
+            key, value: ResourceValue::Record {
+                field_types: BTreeMap::from([("a".into(), kind)]),
+                fields: BTreeMap::from([("a".into(), field)]),
+            },
+        })]));
+        let restored = value_from_resource_value(&saved);
+        let Value::Map(entries) = &restored else { panic!("map") };
+        let entry = &entries["stored-index"];
+        let admitted = ddonirang_lang::runtime::validate_record_value(&entry.value);
+        let shown_key = value_to_display_text(&entry.key);
+        let shown_field = value_to_display_text(&entry.value);
+        assert_eq!(shown_key.matches("차림[").count(),20_000);
+        assert_eq!(shown_field.matches("차림[").count(),20_000);
+        assert!(shown_field.starts_with("(a: 차림["));
+        let mut leaf = &entry.key;
+        let mut depth = 0;
+        while let Value::List(items) = leaf { depth += 1; leaf = &items[0]; }
+        let none = matches!(leaf, Value::None);
+        // Real restored runtime values must remain safe when project staging
+        // copies them before saving again, including record type identities.
+        let copied = restored.clone();
+        let same_runtime = restored == copied;
+        let serialized = resource_value_from_value(&copied);
+        let identical = serialized.as_ref().is_ok_and(|value| value == &saved);
+        drop(serialized);
+        drop(copied);
+        drop(restored);
+        drop(saved);
+        assert!(admitted.is_ok());
+        assert_eq!(depth, 20_000);
+        assert!(none);
+        assert!(same_runtime);
+        assert!(identical);
+    }).unwrap().join().unwrap();
+}
+
+#[cfg(test)]
+#[test]
+fn rd694_failed_save_cleans_completed_siblings_and_pending_map_keys() {
+    std::thread::Builder::new().stack_size(128 * 1024).spawn(|| {
+        for map in [false, true] {
+            let mut deep = Value::None;
+            for _ in 0..20_000 { deep = Value::List(vec![deep]); }
+            let value = if map {
+                Value::Map(BTreeMap::from([("index".into(), MapEntry {
+                    key: deep, value: Value::View(ddonirang_lang::runtime::ViewValue::ResultTable),
+                })]))
+            } else {
+                Value::List(vec![deep, Value::View(ddonirang_lang::runtime::ViewValue::ResultTable)])
+            };
+            let rejected = resource_value_from_value(&value).err().map(|error| error.to_string());
+            drop(value);
+            assert_eq!(rejected.as_deref(), Some("보기값은 세계 자원에 대입할 수 없습니다"));
+        }
+        let value = Value::Map(BTreeMap::from([("index".into(), MapEntry {
+            key: Value::View(ddonirang_lang::runtime::ViewValue::ResultTable),
+            value: Value::TimePolicy(ddonirang_lang::runtime::BogaeTimePolicy::Common),
+        })]));
+        assert_eq!(resource_value_from_value(&value).err().map(|error| error.to_string()).as_deref(),
+            Some("보기값은 세계 자원에 대입할 수 없습니다"));
+    }).unwrap().join().unwrap();
+}
+
+#[cfg(test)]
+#[test]
+fn rd694_malformed_state_machine_does_not_clone_deep_rejected_members() {
+    std::thread::Builder::new().stack_size(128 * 1024).spawn(|| {
+        for field in ["states", "checks", "transitions"] {
+            let mut entries = BTreeMap::new();
+            for (name, value) in [
+                ("__ddn_kind", ResourceValue::String(STATE_MACHINE_RESOURCE_KIND.into())),
+                ("states", ResourceValue::List(vec![ResourceValue::String("ready".into())])),
+                ("initial", ResourceValue::String("ready".into())),
+                ("checks", ResourceValue::List(vec![])),
+                ("transitions", ResourceValue::List(vec![])),
+            ] {
+                entries.insert(name.into(), ResourceMapEntry { key: ResourceValue::String(name.into()), value });
+            }
+            let valid = resource_map_to_state_machine(&entries).is_some();
+            let mut deep = ResourceValue::None;
+            for _ in 0..20_000 { deep = ResourceValue::List(vec![deep]); }
+            entries.get_mut(field).unwrap().value = ResourceValue::List(vec![deep]);
+            let rejected = resource_map_to_state_machine(&entries).is_none();
+            let saved = ResourceValue::Map(entries);
+            let restored = value_from_resource_value(&saved);
+            let map = matches!(&restored, Value::Map(_));
+            drop(restored);
+            drop(saved);
+            assert!(valid && rejected && map);
+        }
+    }).unwrap().join().unwrap();
 }
 
 #[cfg(test)]
@@ -19390,6 +21342,10 @@ fn escape_canon_string(input: &str) -> String {
 
 fn value_canon(value: &Value) -> String {
     match value {
+        Value::FrozenSubjectViewV1(value) => format!("transient-subject-view:{:?}",value.canonical_body()),
+        Value::Rational(value) => format!("나눔수{{{}/{}}}", value.ratio().numer(), value.ratio().denom()),
+        Value::SumBranch {..} => map_key_canon(value),
+        Value::Tuple(_) => map_key_canon(value),
         Value::Tensor(_) => map_key_canon(value),
         Value::None => "없음".to_string(),
         Value::Bool(true) => "참".to_string(),
@@ -19403,6 +21359,11 @@ fn value_canon(value: &Value) -> String {
             format!("{}@{}", unit.value.canonical_decimal_text(), suffix)
         }
         Value::String(s) => format!("\"{}\"", escape_canon_string(s)),
+        Value::RegisteredAtom(atom) => ResourceValue::RegisteredAtom(atom.clone()).canon_key(),
+        Value::IdentityReference(value) => ResourceValue::IdentityReference(value.clone()).canon_key(),
+        Value::NominalValueV1(value) => ResourceValue::NominalValueV1(value.clone()).canon_key(),
+        Value::SubjectHandleV1(value) => ResourceValue::SubjectHandleV1(value.clone()).canon_key(),
+        Value::Bytes(bytes) => bytes.canonical_literal(),
         Value::View(view) => match view.without_time() { ddonirang_lang::runtime::ViewValue::ResultTable => "<보기값:결과표>", _ => "<보기값:장면>" }.to_string(),
         Value::SceneElement(_) => "<장면요소값>".to_string(),
         Value::Scene(_) => "<장면값>".to_string(),
@@ -19451,7 +21412,7 @@ fn value_canon(value: &Value) -> String {
             out.push('}');
             out
         }
-        Value::Pack(items) => {
+        Value::Pack(items) | Value::Record { fields: items, .. } => {
             if let Some(kind) = numeric_pack_kind(value) {
                 return match kind {
                     NUMERIC_KIND_BIG_INT => {
@@ -22071,6 +24032,24 @@ fn position_to_line_col(source: &str, byte_pos: usize) -> (u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn vc04_read_snapshot_runtime_backstop_walks_deep_values_and_captures(){
+        let table=Arc::new(ddonirang_core::nominal::NominalSlotTableV1::from_slots([1;32],&[],2_000_000,1_000_000).unwrap());
+        let view=Arc::new(ddonirang_lang::runtime::FrozenSubjectViewV1::from_resolved_slots(table,BTreeMap::new()));
+        let program=DdnProgram::from_v25_source("","guard-only.ddn").unwrap();
+        let world=NuriWorld::new();let defaults=HashMap::new();
+        let mut ctx=EvalContext::new(&program,&world,&defaults,None,InputState::new(0,0),0,0,None);
+        let mut nested=Value::FrozenSubjectViewV1(view.clone());
+        for _ in 0..20_000{nested=Value::List(vec![nested]);}
+        let captured=Value::Lambda(LambdaValue{id:0,param:"값".into(),body:Expr::new(0,ddonirang_lang::Span{start:0,end:0},ExprKind::Literal(Literal::Bool(true))),
+            captured:HashMap::from([("보관".into(),Value::FrozenSubjectViewV1(view))])});
+        for value in [nested,captured] {
+            assert!(value.contains_transient_subject_view());
+            let error=ctx.set_source_resource("보관",value,0).unwrap_err();
+            assert!(error.message().contains("E_VC04_READ_SNAPSHOT_ESCAPE"));
+            assert!(ctx.patch_ops.is_empty());assert!(ctx.get_resource("보관").is_none());
+        }
+    }
     use crate::runtime_surface::DEFAULT_UPDATE_NAME;
     use ddonirang_core::platform::DetNuri;
     use ddonirang_core::{Nuri, KEY_A, KEY_D};
@@ -22078,6 +24057,965 @@ mod tests {
     use std::sync::{Mutex, MutexGuard};
 
     const INPUT_KEY_Z: u64 = 1 << 7;
+
+    #[test]
+    fn vc13_tuple_raw_source_preserves_alias_and_static_positions() {
+        let source=r#"검사:참거짓:셈씨 := {
+            값 <- (1, "글", 참). 복사 <- 값.
+            값[0] <- 2.
+            범위값 <- 값[0..2]. 빈값 <- 값[1..1].
+            검사 <- 복사[0] == 1 그리고 값[0] == 2 그리고 범위값[1] == "글" 그리고 빈값 == ().
+        }.
+        결과 <- () 검사."#;
+        let program=DdnProgram::from_v25_source(source,"vc13-tuple.ddn").unwrap();
+        let output=DdnRunner::new(program,DEFAULT_UPDATE_NAME).run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+        assert_eq!(output.resources["결과"],Value::Bool(true));
+    }
+
+    #[test]
+    fn b01_inferred_absence_adopts_source_numeric_owner() {
+        for (kind,initial,expected) in [("바른수","1","2"),("셈수","1.5","2.5"),("나눔수","1/2","3/2")] {
+            let source=format!("계산:{kind}:셈씨 := {{ 값 <- 없음. 값 <- {initial}. 계산 <- 값 + 1. }}. (() 계산) 보여주기.");
+            let program=DdnProgram::from_v25_source(&source,"first-none.ddn").unwrap();
+            let output=DdnRunner::new(program,DEFAULT_UPDATE_NAME)
+                .run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+            assert_eq!(output.display_outputs.iter().map(|row|row.text.as_str()).collect::<Vec<_>>(),vec![expected],"{source}");
+        }
+        let source="계산:바른수:셈씨 := { 값 <- 없음. 값 <- 1. 값 <- 1.5. 계산 <- 값. }. (() 계산) 보여주기.";
+        assert!(DdnProgram::from_v25_source(source,"first-none-conflict.ddn").is_err(),"later canonical kinds must not be retagged");
+    }
+
+    #[test]
+    fn b01_r1_2_host_scene_and_collection_source_bridge() {
+        let source="(매마디)마다 { 프레임수 <- 프레임수 + 1. 프레임수 보여주기. }.";
+        assert!(DdnProgram::from_v25_source(source,"unhosted.ddn").is_err(),"plain source factory must not invent a host");
+        let hosted=|source:&str|DdnProgram::from_supported_source_profile_with_mode(source,"hosted.ddn",ParseMode::Strict,SupportedSourceProfile::V1CoreV25);
+        let mut defaults=HashMap::new();crate::runtime_surface::seed_bogae_defaults(&mut defaults);
+        let mut runner=DdnRunner::new(hosted(source).unwrap(),DEFAULT_UPDATE_NAME);
+        let mut world=DetNuri::new();
+        for tick in 0..2 {
+            let output=runner.run_update(world.world(),&empty_input(),&defaults).unwrap();
+            assert_eq!(output.resources["프레임수"],Value::Fixed64(Fixed64::from_i64(tick+1)));
+            world.apply_patch(&output.patch,tick as u64,&mut ddonirang_core::signals::VecSignalSink::default());
+        }
+        for source in [
+            "채비 { 프레임수:수 := 0. }. 프레임수 <- 프레임수 + 1.5. 프레임수 보여주기.",
+            "(프레임수:수) 더함:수:셈씨 := { 더함 <- 프레임수 + 1.5. }. ((프레임수=0) 더함) 보여주기.",
+        ] {let output=DdnRunner::new(hosted(source).unwrap(),DEFAULT_UPDATE_NAME).run_update(&NuriWorld::new(),&empty_input(),&defaults).unwrap();assert_eq!(output.display_outputs.last().unwrap().text,"1.5");}
+        // The existing runner prepares root 채비 before root statements.
+        // Preserve that source initialization, rather than invent host-first.
+        let prepared="프레임수 보여주기. 채비 { 프레임수:수 := 0. }.";
+        let output=DdnRunner::new(hosted(prepared).unwrap(),DEFAULT_UPDATE_NAME).run_update(&NuriWorld::new(),&empty_input(),&defaults).unwrap();
+        assert_eq!(output.display_outputs[0].text,"0");
+        for bad in ["{ 참 }이면 { 프레임수 <- 0.5. }. 프레임수 보여주기.",
+            "{ 참 }이면 { 채비 { 프레임수:수 := 0.5. }. }. 프레임수 보여주기."] {
+            assert!(hosted(bad).is_err(),"incompatible possible world source must not borrow a host kind: {bad}");
+        }
+        assert!(hosted("값:바른수 := 2147483648. 값 보여주기.").is_err(),"constant overflow must fail before a saturating carrier constructor");
+        let mut maximal=DetNuri::new();
+        let mut patch=Patch::default();patch.ops.push(PatchOp::SetResourceFixed64{tag:"프레임수".into(),value:Fixed64::from_raw_i64(2147483647i64<<32)});
+        maximal.apply_patch(&patch,0,&mut ddonirang_core::signals::VecSignalSink::default());let before=maximal.world().state_hash();
+        assert!(DdnRunner::new(hosted(source).unwrap(),DEFAULT_UPDATE_NAME).run_update(maximal.world(),&empty_input(),&defaults).is_err());assert_eq!(maximal.world().state_hash(),before);
+        let good="그림:장면요소값:셈씨 := { n <- 0. t <- n/10. 그림 <- (중심=차림[t,0],반지름=1) 표준장면.원. }. (() 그림) 보여주기.";
+        DdnRunner::new(hosted(good).unwrap(),DEFAULT_UPDATE_NAME).run_update(&NuriWorld::new(),&empty_input(),&defaults).unwrap();
+        for bad in [
+            "값:나눔수 := 1. ((중심=차림[값,0],반지름=1) 표준장면.원) 보여주기.",
+            "n:바른수 := 1. t <- n/10. ((중심=차림[t,0],반지름=1) 표준장면.원) 보여주기.",
+        ] {assert!(hosted(bad).is_err(),"{bad}");}
+        let good="계산:바른수:셈씨 := { 결과 <- (차림=차림[0],시작=0,끝=0) 토막내기. 결과 <- (결과,1) 추가. 계산 <- 결과[0]+1. }. (() 계산) 보여주기.";
+        let output=DdnRunner::new(hosted(&good).unwrap(),DEFAULT_UPDATE_NAME).run_update(&NuriWorld::new(),&empty_input(),&defaults).unwrap();assert_eq!(output.display_outputs.last().unwrap().text,"2");
+        for bad in [
+            "계산:바른수:셈씨 := { 결과 <- () 차림. 결과 <- (결과,1) 추가. 계산 <- 결과[0]+1. }. (() 계산) 보여주기.",
+            "계산:바른수:셈씨 := { 근사:셈수 := 1. 결과 <- (차림=차림[0],시작=0,끝=0) 토막내기. 결과 <- (결과,근사) 추가. 계산 <- 결과[0]+1. }. (() 계산) 보여주기.",
+        ] {assert!(hosted(bad).is_err(),"independent source T required: {bad}");}
+    }
+
+    #[test]
+    fn b01_r1_2_scene_preserves_issued_kinds_and_all_uses() {
+        let hosted=|source:&str|DdnProgram::from_supported_source_profile_with_mode(source,"scene-profile.ddn",ParseMode::Strict,SupportedSourceProfile::V1CoreV25);
+        let mut defaults=HashMap::new();crate::runtime_surface::seed_bogae_defaults(&mut defaults);
+        let good="값:바른수 := 2147483647. ((반지름=1,중심=차림[값,0]) 표준장면.원) 보여주기.";
+        let program=hosted(good).unwrap();
+        assert!(program.numeric_constraint_plan.as_ref().unwrap().bindings.values().any(|kind|kind==&TypeRef::Named("바른수".into())));
+        DdnRunner::new(program,DEFAULT_UPDATE_NAME).run_update(&NuriWorld::new(),&empty_input(),&defaults).unwrap();
+        for bad in [
+            "값:큰바른수 := 1. ((중심=차림[값,0],반지름=1) 표준장면.원) 보여주기.",
+            "값 <- 1@m. ((중심=차림[값,0],반지름=1) 표준장면.원) 보여주기.",
+            "값:나눔수 := 0.5. 점들 <- 차림[차림[값,0]]. 점들 <- (점들,차림[0,값]) 추가. 번호:바른수 := 1. ((중심=점들[번호],반지름=1) 표준장면.원) 보여주기.",
+            "값 <- 1@m. 점들 <- 차림[차림[값,0]]. 점들 <- (점들,차림[0,값]) 추가. 번호:바른수 := 1. ((중심=점들[번호],반지름=1) 표준장면.원) 보여주기.",
+            "그림:장면요소값:셈씨 := { 번호 <- 0. 자료 <- 차림[1]. 자료[번호] 보여주기. x <- 번호+0. 그림 <- (중심=차림[x,0],반지름=1) 표준장면.원. }. (() 그림) 보여주기.",
+        ] {
+            let error=hosted(bad).err().expect("unsupported typed kinds or conflicting source uses must reject");
+            assert!(error.contains("E_TYPE_MISMATCH"),"{bad}: {error}");
+        }
+        let mixed_pair="정수:바른수 := 1. 근사:셈수 := 1.5. 점들 <- 차림[차림[정수,근사]]. 점들 <- (점들,차림[근사,정수]) 추가. 번호:바른수 := 1. ((중심=점들[번호],반지름=1) 표준장면.원) 보여주기.";
+        DdnRunner::new(hosted(mixed_pair).unwrap(),DEFAULT_UPDATE_NAME).run_update(&NuriWorld::new(),&empty_input(),&defaults).unwrap();
+    }
+
+    #[test]
+    fn b01_r1_2_collection_seed_loop_role_order_and_bounds() {
+        let hosted=|source:&str|DdnProgram::from_supported_source_profile_with_mode(source,"collection-profile.ddn",ParseMode::Strict,SupportedSourceProfile::V1CoreV25);
+        let good="계산:바른수:셈씨 := { 값 <- (끝=0,차림=차림[0],시작=0) 토막내기. 번호 <- 0. { 번호 < 3 }인 동안 { 값 <- (요소=번호,차림=값) 추가. 번호 <- 번호+1. }. 계산 <- 값[2]. }. (() 계산) 보여주기.";
+        let output=DdnRunner::new(hosted(good).unwrap(),DEFAULT_UPDATE_NAME).run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+        assert_eq!(output.display_outputs.last().unwrap().text,"2");
+        for range in ["시작=0,끝=3","시작=2,끝=1"] {
+            let source=format!("9 보여주기. ((차림=차림[1,2],{range}) 토막내기) 보여주기.");
+            let world=NuriWorld::new();let before=world.state_hash();
+            let error=DdnRunner::new(hosted(&source).unwrap(),DEFAULT_UPDATE_NAME).run_update(&world,&empty_input(),&HashMap::new()).err().expect("slice must not clip or publish");
+            assert!(error.contains("E_SELECTION_BOUNDS"),"{error}");assert_eq!(world.state_hash(),before);
+        }
+        let bad="계산:바른수:셈씨 := { 값 <- (차림=차림[0],시작=0,끝=0) 토막내기. 근사:셈수 := 1. { 참 }이면 { 값 <- (값,근사) 추가. }. 계산 <- 값[0]. }. (() 계산) 보여주기.";
+        assert!(hosted(bad).is_err(),"all possible incoming element owners must match, not just the initial seed");
+    }
+
+    #[test]
+    fn b01_r1_2_append_all_incoming_kinds_not_only_initial_list() {
+        let source="계산:참거짓:셈씨 := { 근사:셈수 := 1. 값 <- 차림[1]. 값 <- (값,근사) 추가. 위치:바른수 := 1. 계산 <- 값[위치] == 1. }. (() 계산) 보여주기.";
+        let world=NuriWorld::new();let before=world.state_hash();
+        let result=DdnProgram::from_supported_source_profile_with_mode(source,"append-owner.ddn",ParseMode::Strict,SupportedSourceProfile::V1CoreV25)
+            .and_then(|program|DdnRunner::new(program,DEFAULT_UPDATE_NAME).run_update(&world,&empty_input(),&HashMap::new()));
+        assert!(result.is_err(),"a typed 셈수 append must not inherit the initial 바른수 list's owner at a dynamic selection");
+        assert_eq!(world.state_hash(),before);
+    }
+
+    #[test]
+    fn b01_r1_2_collection_flow_survives_alias_branch_and_cached_call() {
+        for source in [
+            "계산:참거짓:셈씨 := { 근사:셈수 := 1. 값 <- 차림[1]. 별칭 <- 값. { 참 }이면 { 값 <- (값,근사) 추가. }. 위치:바른수 := 0. 계산 <- 별칭[위치] == 1. }. (() 계산) 보여주기.",
+            "(자료:차림, 위치:바른수) 검사:참거짓:셈씨 := { 검사 <- 자료[위치] == 1. }. 근사:셈수 := 1. 처음 <- 차림[1]. (처음,0) 검사 보여주기. 다음 <- (처음,근사) 추가. (다음,1) 검사 보여주기.",
+            "계산:참거짓:셈씨 := { 근사:셈수 := 1. 값 <- 차림[1]. 위치:바른수 := 0. 앞 <- 값[위치]. 값 <- (값,근사) 추가. 계산 <- 앞 == 1. }. (() 계산) 보여주기.",
+        ] {
+            let world=NuriWorld::new();let before=world.state_hash();
+            let result=DdnProgram::from_v25_source(source,"all-incoming.ddn")
+                .and_then(|program|DdnRunner::new(program,DEFAULT_UPDATE_NAME).run_update(&world,&empty_input(),&HashMap::new()));
+            assert!(result.is_err(),"all independent incoming kinds must survive cached reads: {source}");
+            assert_eq!(world.state_hash(),before);
+        }
+        // A collection need not issue homogeneous T merely to be displayed.
+        let source="계산:차림:셈씨 := { 값 <- 차림[1]. 근사:셈수 := 1.5. 값 <- (값,근사) 추가. 계산 <- 값. }. (() 계산) 보여주기.";
+        let program=DdnProgram::from_v25_source(source,"heterogeneous-display.ddn").unwrap();
+        DdnRunner::new(program,DEFAULT_UPDATE_NAME).run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+        let source="계산:참거짓:셈씨 := { 값 <- 차림[1]. 근사:셈수 := 1. (값,근사) 추가. 위치:바른수 := 0. 계산 <- 값[위치] == 1. }. (() 계산) 보여주기.";
+        let program=DdnProgram::from_v25_source(source,"discarded-append.ddn").unwrap();
+        let output=DdnRunner::new(program,DEFAULT_UPDATE_NAME).run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+        assert_eq!(output.display_outputs.last().unwrap().text,"참","a discarded pure append is not a binding write");
+        let source="계산:글:셈씨 := { 값 <- 차림[\"가\"]. 값 <- (값,\"나\") 추가. 위치:바른수 := 1. 계산 <- 값[위치]+\"!\". }. (() 계산) 보여주기.";
+        let program=DdnProgram::from_v25_source(source,"text-collection.ddn").unwrap();
+        let output=DdnRunner::new(program,DEFAULT_UPDATE_NAME).run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+        assert_eq!(output.display_outputs.last().unwrap().text,"나!");
+    }
+
+    #[test]
+    fn b01_required_labs_admit_unmodified_authored_modules() {
+        // Exact repository raw modules also compared byte-for-byte with R44
+        // by the release CLI3/WASM gate. No test-only source transformation.
+        for (entry,project,raw,root) in [
+            ("alpha3_double_pendulum_lab.ddn","alpha3_double_pendulum_lab.project.ddn",
+             include_str!("../../solutions/seamgrim_ui_mvp/samples/alpha3_double_pendulum_lab.ddn"),
+             include_str!("../../solutions/seamgrim_ui_mvp/samples/alpha3_double_pendulum_lab.project.ddn")),
+            ("alpha4_lrl_lab.ddn","alpha4_lrl_lab.project.ddn",
+             include_str!("../../solutions/seamgrim_ui_mvp/samples/alpha4_lrl_lab.ddn"),
+             include_str!("../../solutions/seamgrim_ui_mvp/samples/alpha4_lrl_lab.project.ddn")),
+        ] {
+            let request=serde_json::json!({"source_profile":"v1-core-v25","module_name":"",
+                "source_snapshot":{"root_path":project,"entry_path":entry,"files":[
+                    {"path":project,"text":root},{"path":entry,"text":raw},
+                    {"path":"alpha4_drawing_common.ddn","text":include_str!("../../solutions/seamgrim_ui_mvp/samples/alpha4_drawing_common.ddn")}]}});
+            let authored=crate::authored_project::operate("create",&request.to_string()).unwrap();
+            let owned=crate::project_revision_envelope_supply::admit_fresh_authored_project(authored.as_bytes()).unwrap();
+            let program=DdnProgram::from_saved_v25_project_with_mode(owned.sources().clone(),ParseMode::Strict,default_age_target())
+                .unwrap_or_else(|error|panic!("{entry}: {error}"));
+            let mut runner=DdnRunner::new(program,owned.sources().entry_declaration().name());
+            runner.configure_project_entry(owned.sources().entry_declaration().name()).unwrap();
+            let mut defaults=HashMap::new();crate::runtime_surface::seed_bogae_defaults(&mut defaults);
+            let mut world=DetNuri::new();
+            for tick in 0..40 {
+                let output=runner.run_update(world.world(),&empty_input(),&defaults).unwrap_or_else(|error|panic!("{entry} tick{tick}: {error}"));
+                world.apply_patch(&output.patch,tick,&mut ddonirang_core::signals::VecSignalSink::default());
+            }
+        }
+    }
+
+    #[test]
+    fn b01_tetris_integer_exception_keeps_wrong_kind_rejection() {
+        // Owner's narrow source exception does not widen the numeric language.
+        let raw=include_str!("../../solutions/seamgrim_ui_mvp/samples/alpha2_logical_tetris.ddn");
+        for wrong in ["가로값:셈수 := 1.","가로값:나눔수 := 0.5.","가로값 := 0.5."] {
+            let source=format!("{raw}\n{wrong} ((칸들=차림[차림[0,0]],가로=가로값,세로=0) 칸옮김) 보여주기.");
+            let error=DdnProgram::from_supported_source_profile_with_mode(&source,"tetris-wrong-kind.ddn",ParseMode::Strict,SupportedSourceProfile::V1CoreV25)
+                .err().expect("real Tetris integer pin must reject wrong-kind/fraction");
+            assert!(error.contains("E_TYPE_MISMATCH"),"{error}");
+        }
+    }
+
+    #[test]
+    fn b01_literal_tuple_source_defaults_and_canon_roundtrip() {
+        use ddonirang_core::platform::RecordFieldType as R;
+        let source = "정수묶음 <- (1,\"글\",참). 소수묶음 <- (1.0,\"글\",참). 합묶음 <- (1+2,0.1+0.2). 복사 <- 정수묶음[0..2]. 정수묶음[0] <- 2. 정수묶음[0] 보여주기.";
+        for source in [source.to_owned(), ddonirang_lang::parse_v25_and_normalize(
+            source, "b01.ddn", ddonirang_lang::NormalizationLevel::N1).unwrap()] {
+            let program = DdnProgram::from_v25_source(&source, "b01.ddn").unwrap();
+            let output = DdnRunner::new(program, DEFAULT_UPDATE_NAME)
+                .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).unwrap();
+            let mut world = DetNuri::new();
+            world.apply_patch(&output.patch, 0, &mut ddonirang_core::signals::VecSignalSink::default());
+            for (name, kinds) in [("정수묶음", vec!["바른수","글","참거짓"]),
+                ("소수묶음",vec!["셈수","글","참거짓"]), ("합묶음",vec!["바른수","셈수"]), ("복사",vec!["바른수","글"])] {
+                let Some(ResourceValue::Tuple { ref element_types, .. }) = world.world().get_resource_value(name) else { panic!("{name}"); };
+                assert_eq!(*element_types, kinds.into_iter().map(|name| R::Named { name:name.into() }).collect::<Vec<_>>());
+            }
+        }
+    }
+
+    #[test]
+    fn n1_rational_integral_arithmetic_keeps_issued_owner() {
+        let source="채비 { 값:나눔수 := 0. 합:나눔수 := 값+0. 곱:나눔수 := 값*5. 차:나눔수 := 값-값. }. (h:나눔수) 통과:나눔수:셈씨 := { 통과 <- h. }. 결과 <- (h=10*값-5*값*값) 통과.";
+        let output=DdnRunner::new(DdnProgram::from_v25_source(source,"rational-integral-owner.ddn").unwrap(),DEFAULT_UPDATE_NAME)
+            .run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+        for name in ["값","합","곱","차","결과"] {
+            assert!(matches!(&output.resources[name],Value::Rational(_)),"{name}: {:?}",output.resources[name]);
+            let exact=exact_numeric_from_value(&output.resources[name]).unwrap().unwrap();
+            assert_eq!(exact.value,BigRational::from_integer(BigInt::from(0)));
+        }
+    }
+
+    #[test]
+    fn b01_exact_expected_decimal_uses_original_digits_and_retains_rational_owner() {
+        let source = "채비 { 합:나눔수 := 0.1+0.2. 자리:나눔수 := 0.10000000001. 정수몫:나눔수 := 4/2. }. 합 보여주기. 자리 보여주기. 정수몫 보여주기.";
+        let output = DdnRunner::new(DdnProgram::from_v25_source(source,"b01-exact.ddn").unwrap(), DEFAULT_UPDATE_NAME)
+            .run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+        for (name, numerator, denominator) in [("합","3","10"),("자리","10000000001","100000000000"),("정수몫","2","1")] {
+            let value=&output.resources[name];
+            assert_eq!(numeric_pack_kind(value),Some(NUMERIC_KIND_RATIONAL));
+            let exact=exact_numeric_from_value(value).unwrap().unwrap();
+            assert_eq!(exact.value.numer().to_string(),numerator);
+            assert_eq!(exact.value.denom().to_string(),denominator);
+        }
+        let bad="근사:셈수 := 0.1. 정확:나눔수 := 근사.";
+        let world=NuriWorld::new(); let before=world.state_hash();
+        let error=DdnProgram::from_v25_source(bad,"b01-no-retag.ddn")
+            .and_then(|program|DdnRunner::new(program,DEFAULT_UPDATE_NAME)
+                .run_update(&world,&empty_input(),&HashMap::new()).map_err(|error|error.to_string()))
+            .err().expect("a canonical approximate value must not become rational");
+        assert!(error.contains("E_TYPE_MISMATCH"),"{error}");
+        assert_eq!(world.state_hash(),before);
+    }
+
+    #[test]
+    fn b01_typed_numeric_comparisons_reject_cross_kind_without_publication() {
+        for op in ["==", "!=", "<", "<=", ">", ">="] {
+            for (left, right) in [("정확", "근사"), ("근사", "정확"), ("정수", "근사")] {
+                let source = format!("채비 {{ 정확:나눔수 := 1.0. 근사:셈수 := 1.0. 정수:바른수 := 1. }}. 9 보여주기. ({left} {op} {right}) 보여주기.");
+                let world = NuriWorld::new(); let before = world.state_hash();
+                // N1 can prove this contradiction at source admission. Keep
+                // the same explicit cross-kind rejection and no-publication
+                // invariant, without requiring an invalid VM to be created.
+                let diagnostic = DdnProgram::from_v25_source(&source, "typed-compare.ddn")
+                    .and_then(|program|DdnRunner::new(program, DEFAULT_UPDATE_NAME)
+                        .run_update(&world,&empty_input(),&HashMap::new()).map_err(|error|error.to_string()))
+                    .err().expect(&source);
+                assert!(diagnostic.contains("E_NUMERIC_COMPARISON_TYPE_MISMATCH"), "{source}: {diagnostic}");
+                assert!(diagnostic.contains("자동 변환"), "{diagnostic}");
+                assert_eq!(world.state_hash(), before);
+            }
+        }
+    }
+
+    #[test]
+    fn b01_typed_numeric_comparisons_keep_parameter_result_and_tuple_owners() {
+        for source in [
+            "(왼값:나눔수,오른값:셈수) 비교:참거짓:셈씨 := { 비교 <- 왼값 == 오른값. }. 정확:나눔수 := 0.5. 근사:셈수 := 0.5. ((왼값=정확,오른값=근사) 비교) 보여주기.",
+            "(원값:나눔수) 정확값:나눔수:셈씨 := { 정확값 <- 원값. }. 정확:나눔수 := 0.5. 근사:셈수 := 0.5. (((원값=정확) 정확값) == 근사) 보여주기.",
+            "정수:바른수 := 1. 근사:셈수 := 1.0. 묶음 <- (정수,근사). (묶음[0] == 묶음[1]) 보여주기.",
+            "근사:셈수 := 0.5. (((1,2) 나눔수) == 근사) 보여주기.",
+            "(((2,1) 나눔수) == ((\"2\") 큰바른수)) 보여주기.",
+        ] {
+            let diagnostic=DdnProgram::from_v25_source(source,"compare-owner.ddn")
+                .and_then(|program|DdnRunner::new(program,DEFAULT_UPDATE_NAME)
+                    .run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).map_err(|error|error.to_string()))
+                .err().expect(source);
+            assert!(diagnostic.contains("E_NUMERIC_COMPARISON_TYPE_MISMATCH"), "{source}: {diagnostic}");
+        }
+    }
+
+    #[test]
+    fn b01_typed_numeric_negation_preserves_comparison_owner_and_canon() {
+        for op in ["==", "!=", "<", "<=", ">", ">="] {
+            for (left,right) in [("(-정확)","(-근사)"),("정확","(-근사)"),("(-정확)","근사"),("(-(-정확))","근사")] {
+                let source=format!("정확:나눔수 := 0.5. 근사:셈수 := 0.5. 9 보여주기. ({left} {op} {right}) 보여주기.");
+                let canon=ddonirang_lang::parse_v25_and_normalize(&source,"negative-owner.ddn",ddonirang_lang::NormalizationLevel::N1).unwrap();
+                assert_eq!(ddonirang_lang::parse_v25_and_normalize(&canon,"negative-owner.ddn",ddonirang_lang::NormalizationLevel::N1).unwrap(),canon);
+                for text in [&source,&canon] {
+                    let error=DdnProgram::from_v25_source(text,"negative-owner.ddn")
+                        .and_then(|program|DdnRunner::new(program,DEFAULT_UPDATE_NAME)
+                            .run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).map_err(|error|error.to_string()))
+                        .err().expect(text);
+                    assert!(error.contains("E_NUMERIC_COMPARISON_TYPE_MISMATCH"),"{text}: {error}");
+                }
+            }
+        }
+        for source in [
+            "정확:나눔수 := 0.5. 근사:셈수 := 0.5. 복사 := 근사. (정확 == (-복사)) 보여주기.",
+            "정확:나눔수 := 0.5. 근사:셈수 := 0.5. 복사 <- 근사. (정확 == (-복사)) 보여주기.",
+        ] {
+            let error=DdnProgram::from_v25_source(source,"alias-owner.ddn")
+                .and_then(|program|DdnRunner::new(program,DEFAULT_UPDATE_NAME)
+                    .run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).map_err(|error|error.to_string()))
+                .err().expect(source);
+            assert!(error.contains("E_NUMERIC_COMPARISON_TYPE_MISMATCH"),"{source}: {error}");
+        }
+        for source in [
+            "왼값:셈수 := 0.5. 오른값:셈수 := 0.5. ((-왼값) == (-오른값)) 보여주기.",
+            "왼값:나눔수 := 0.5. 오른값:나눔수 := 0.5. ((-왼값) == (-오른값)) 보여주기.",
+            "원본:나눔수 := 1. 음수:나눔수 := -원본. 복사 := -원본. (음수 == 복사) 보여주기.",
+            "((-1) == (-1.0)) 보여주기. ((-(1/2)) == (-0.5)) 보여주기.",
+        ] {
+            DdnRunner::new(DdnProgram::from_v25_source(source,"negative-controls.ddn").unwrap(),DEFAULT_UPDATE_NAME)
+                .run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+        }
+    }
+
+    #[test]
+    fn b01_static_plan_bag_transports_independent_source_kind_and_seeded_loops() {
+        for (source,expected) in [
+            ("가방 <- (0,차림[2]) 무작위가방.만들기. 뽑음 <- (가방) 무작위가방.꺼내기. (뽑음.값+1) 보여주기.",serde_json::json!(["3"])),
+            ("가방 <- (0,차림[2]) 무작위가방.만들기. 미리 <- (가방,1) 무작위가방.미리보기. (미리[0]+1) 보여주기.",serde_json::json!(["3"])),
+            ("가방 <- (0,차림[0]) 무작위가방.만들기. 별칭 <- 가방. 자료 <- 차림[7]. 반복수 <- 0. { 반복수 < 3 }인 동안 { 뽑음 <- (별칭) 무작위가방.꺼내기. 별칭 <- 뽑음.가방. 자료[뽑음.값] 보여주기. 반복수 <- 반복수+1. }.",serde_json::json!(["7","7","7"])),
+            ("가방 <- (0,차림[\"가\"]) 무작위가방.만들기. 뽑음 <- (가방) 무작위가방.꺼내기. (뽑음.값+\"나\") 보여주기. (뽑음.값==\"가\") 보여주기. (뽑음.값==1) 보여주기.",serde_json::json!(["가나","참","거짓"])),
+            ("가방 <- (0,차림[참]) 무작위가방.만들기. 뽑음 <- (가방) 무작위가방.꺼내기. (뽑음.값==참) 보여주기.",serde_json::json!(["참"])),
+        ] {
+            let result=crate::runtime_surface::run_summary_from_supported_source_profile(source,"bag-source-kind.ddn",Some(1),Some("v1-core-v25"))
+                .unwrap_or_else(|error|panic!("{source}: {error}"));
+            assert_eq!(result["output_display"]["texts"],expected,"{source}");
+        }
+    }
+
+    #[test]
+    fn b01_static_plan_bag_never_infers_candidates_from_consumer_or_fake_fields() {
+        for source in [
+            "정수:바른수 := 1. 근사:셈수 := 1. 가방 <- (0,차림[정수,근사]) 무작위가방.만들기. 뽑음 <- (가방) 무작위가방.꺼내기. (뽑음.값+1) 보여주기.",
+            "가방 <- (0,차림[1]) 무작위가방.만들기. 뽑음 <- (가방) 무작위가방.꺼내기. 결과:셈수 := 뽑음.값.",
+            "가방 <- (0,차림[1]) 무작위가방.만들기. { 거짓 }이면 { 가방 <- (0,차림[0.5]) 무작위가방.만들기. }. 뽑음 <- (가방) 무작위가방.꺼내기. (뽑음.값+1) 보여주기.",
+            "채비 { 가방:무작위가방. }. 뽑음 <- (가방) 무작위가방.꺼내기. (뽑음.값+1) 보여주기.",
+            "뽑음 <- (값:1,가방:없음). (뽑음.값+1) 보여주기.",
+            "가방 <- (0,차림[1]) 무작위가방.만들기. 뽑음 <- (가방) 무작위가방.꺼내기. 근사:셈수 := 1. (뽑음.값==근사) 보여주기.",
+        ] {
+            assert!(DdnProgram::from_v25_source(source,"bag-no-forged-kind.ddn").is_err(),"{source}");
+        }
+        // General legacy operation is not banned just because these candidates
+        // cannot supply one numeric element type to a later consumer.
+        let source="정수:바른수 := 1. 근사:셈수 := 1. 가방 <- (0,차림[정수,근사]) 무작위가방.만들기. 가방 보여주기.";
+        crate::runtime_surface::run_summary_from_supported_source_profile(source,"bag-general-legacy.ddn",Some(1),Some("v1-core-v25")).unwrap();
+    }
+
+    #[test]
+    fn b01_static_plan_selection_uses_all_source_candidates_without_consumer_retyping() {
+        for (source,expected) in [
+            ("자료 <- 차림[1,2]. 위치 <- 1. (자료[위치]+1) 보여주기.",vec!["3"]),
+            ("판 <- 차림[차림[1,2],차림[3,4]]. 행 <- 1. 열 <- 0. (판[행][열]+1) 보여주기.",vec!["4"]),
+            ("자료 <- 차림[1,2,3]. 처음 <- 1. 끝 <- 3. 조각 <- 자료[처음..끝]. 위치 <- 0. (조각[위치]+1) 보여주기.",vec!["3"]),
+            ("자료 <- 차림[차림[1,2],차림[3,4]]. 위치 <- 0. 선택 <- 자료[위치]. 선택 <- 자료[위치]. (선택[1]+1) 보여주기.",vec!["3"]),
+            ("(자료:(바른수)차림) 늘림:(바른수)차림:셈씨 := { 결과 <- (자료,3) 추가. 늘림 <- 결과. }. 값 <- (자료=차림[1]) 늘림. 위치 <- 1. (값[위치]+1) 보여주기.",vec!["4"]),
+        ] {
+            let result=crate::runtime_surface::run_summary_from_supported_source_profile(source,"n1-selection-source.ddn",Some(1),Some("v1-core-v25")).unwrap_or_else(|error|panic!("{source}: {error}"));
+            assert_eq!(result["output_display"]["texts"],serde_json::json!(expected),"{source}");
+        }
+        let mixed="자료 <- 차림[1,0.5]. 위치 <- 0. 값:셈수 := 자료[위치].";
+        assert!(DdnProgram::from_v25_source(mixed,"n1-no-consumer-retag.ddn").is_err(),"an expected result must not retype the source candidates");
+        let mixed_nested="자료 <- 차림[차림[1,2],차림[0.5,1.5]]. 위치 <- 0. 선택 <- 자료[위치]. 선택 <- 자료[위치].";
+        assert!(DdnProgram::from_v25_source(mixed_nested,"n1-no-nested-consumer-retag.ddn").is_err());
+    }
+
+    #[test]
+    fn b01_static_plan_registered_unit_owner_keeps_dimensioned_overloads() {
+        for (source,expected) in [
+            ("면적 <- 2@m * 3@m. 면적 보여주기.",vec!["6@m^2"]),
+            ("각 <- 0@rad. (각) sin 보여주기.",vec!["0"]),
+            ("면적 <- 4@m * 4@m. (면적) sqrt 보여주기.",vec!["4@m"]),
+            ("비율 <- 1@m / 1@m. 비율 보여주기.",vec!["1"]),
+        ] {
+            let result=crate::runtime_surface::run_summary_from_supported_source_profile(source,"n1-unit-owner.ddn",Some(1),Some("v1-core-v25")).unwrap_or_else(|error|panic!("{source}: {error}"));
+            assert_eq!(result["output_display"]["texts"],serde_json::json!(expected),"{source}");
+        }
+        for source in ["(1@m) sin 보여주기.","(1@m) sqrt 보여주기.","값:나눔수 := (0@rad) sin."] {
+            assert!(crate::runtime_surface::run_summary_from_supported_source_profile(source,"n1-unit-wrong.ddn",Some(1),Some("v1-core-v25")).is_err(),"{source}");
+        }
+    }
+
+    #[test]
+    fn b01_static_plan_common_frontdoor_issues_before_execution() {
+        for (source, expected) in [
+            ("값:나눔수 := 0.1+0.2. (값 == (3/10)) 보여주기.", vec!["참"]),
+            ("분자값 <- 3. 분모값 <- 10. (분자값/분모값) 보여주기.", vec!["3/10"]),
+            ("시간 <- 0. 간격 <- 0.02. 시간 <- 시간+간격. 시간 보여주기.", vec!["0.02"]),
+        ] {
+            let program = DdnProgram::from_v25_source(source,"numeric-frontdoor.ddn").unwrap();
+            assert!(program.numeric_constraint_plan.is_some());
+            let summary = crate::runtime_surface::run_summary_from_supported_source_profile(source,"numeric-frontdoor.ddn",Some(1),Some("v1-core-v25")).unwrap();
+            assert_eq!(summary["output_display"]["texts"],serde_json::json!(expected),"{source}");
+        }
+    }
+
+    #[test]
+    fn b01_static_plan_declared_su_and_scalar_math_share_owner() {
+        for (source,expected) in [
+            ("값:수 := 0.1. 값 보여주기.",vec!["0.1"]),
+            ("값:수 := 1. 값 보여주기.",vec!["1"]),
+            ("(0) sin 보여주기. (0) cos 보여주기. (4) sqrt 보여주기.",vec!["0","1","2"]),
+            ("(값:나눔수) sin:나눔수:셈씨 := { sin <- 값. }. 정확:나눔수 := 0.1. (정확) sin 보여주기.",vec!["1/10"]),
+            ("(값:나눔수) 제곱근:나눔수:셈씨 := { 제곱근 <- 값. }. 정확:나눔수 := 0.1. (정확) 제곱근 보여주기.",vec!["1/10"]),
+        ] {
+            let summary=crate::runtime_surface::run_summary_from_supported_source_profile(source,"scalar-owner.ddn",Some(1),Some("v1-core-v25"))
+                .unwrap_or_else(|error|panic!("{source}: {error}"));
+            assert_eq!(summary["output_display"]["texts"],serde_json::json!(expected),"{source}");
+        }
+        for source in [
+            "값:나눔수 := 0.1. 99 보여주기. (값) sin 보여주기.",
+            "값:바른수 := 4. 99 보여주기. (값) sqrt 보여주기.",
+            "(0,1) cos 보여주기.",
+        ] {
+            let error=DdnProgram::from_v25_source(source,"scalar-rejected.ddn").err().expect(source);
+            assert!(error.to_string().contains("E_TYPE_MISMATCH"),"{source}: {error}");
+        }
+        let domain="(-1) sqrt 보여주기.";
+        let program=DdnProgram::from_v25_source(domain,"scalar-domain.ddn").unwrap();
+        let error=DdnRunner::new(program,DEFAULT_UPDATE_NAME).run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).err().unwrap();
+        assert!(error.to_string().contains("음수의 제곱근"),"{error}");
+    }
+
+    #[test]
+    fn b01_static_plan_coarse_collection_uses_source_call_and_return_positions() {
+        for (source,expected) in [
+            ("(자료:차림) 첫합:수:셈씨 := { 첫합 <- 자료[0]+자료[1]. }. ((차림[0.5,1])) 첫합 보여주기.","1.5"),
+            ("(자료:차림) 전달:차림:셈씨 := { 전달 <- 차림[자료[0],자료[1]]. }. (자료:차림) 계산:수:셈씨 := { 중간 := (자료) 전달. 계산 <- 중간[0]+중간[1]. }. ((차림[0.5,1])) 계산 보여주기.","1.5"),
+        ] {
+            let summary=crate::runtime_surface::run_summary_from_supported_source_profile(source,"collection-call-owner.ddn",Some(1),Some("v1-core-v25"))
+                .unwrap_or_else(|error|panic!("{source}: {error}"));
+            assert_eq!(summary["output_display"]["texts"],serde_json::json!([expected]));
+        }
+        let source="(자료:차림) 계산:수:셈씨 := { 계산 <- 자료[0]+자료[1]. }. 정수값:바른수 := 1. ((차림[0.5,정수값])) 계산 보여주기.";
+        assert!(DdnProgram::from_v25_source(source,"collection-issued-conflict.ddn").is_err());
+        let wrong="(값:수~의) 두배:수:셈씨 := { 두배 <- 값*2. }. 실행:움직씨 := { 99 보여주기. \"가\"의 두배 보여주기. }. () 실행하기.";
+        let error=DdnProgram::from_v25_source(wrong,"course-08A-static.ddn").err().unwrap();
+        assert!(error.contains("E_RUNTIME_TYPE_MISMATCH"),"{error}");
+        assert!(error.contains("실행 전 원문"),"{error}");
+    }
+
+    #[test]
+    fn b01_static_plan_atan2_result_requires_independent_scalar_owners() {
+        use crate::numeric_constraint_plan::NumericKind;
+        for (source,expected) in [
+            ("(0.0,1.0) atan2 보여주기.","0"),
+            ("(1.0,0.0) atan2 보여주기.","1.570796"),
+            ("(0.0,-1.0) atan2 보여주기.","3.141593"),
+            ("(0.0,0.0) atan2 보여주기.","0"),
+        ] {
+            let program=DdnProgram::from_v25_source(source,"atan2-positive.ddn").unwrap();
+            let Stmt::Show{expr,..}=&program.program.root_stmts[0] else {panic!("show");};
+            let plan=program.numeric_constraint_plan.as_ref().unwrap();
+            assert_eq!(plan.expressions.get(&expr.id),Some(&TypeRef::Named("셈수".into())));
+            assert!(plan.literals.values().all(|kind|*kind==NumericKind::Approximate));
+            let summary=crate::runtime_surface::run_summary_from_supported_source_profile(source,"atan2-positive.ddn",Some(1),Some("v1-core-v25")).unwrap();
+            assert_eq!(summary["output_display"]["texts"],serde_json::json!([expected]));
+        }
+        for source in [
+            "(0,1) atan2 보여주기.",
+            "값:바른수 := 1. (값,값) atan2 보여주기.",
+            "값:나눔수 := 0.5. (값,값) atan2 보여주기.",
+            "(1.0@rad,1.0@rad) atan2 보여주기.",
+        ] {
+            let program=DdnProgram::from_v25_source(source,"atan2-no-supplier.ddn").unwrap();
+            let expr=program.program.root_stmts.iter().find_map(|statement|match statement {Stmt::Show{expr,..}=>Some(expr),_=>None}).unwrap();
+            let plan=program.numeric_constraint_plan.as_ref().unwrap();
+            assert!(plan.expressions.get(&expr.id).is_none(),"no atan2 result supplier: {source}");
+            if source=="(0,1) atan2 보여주기." {assert!(plan.literals.values().all(|kind|*kind==NumericKind::Integer));}
+        }
+        let shadow="(y:나눔수,x:나눔수) atan2:나눔수:셈씨 := { atan2 <- y+x. }. (0.1,0.2) atan2 보여주기.";
+        let summary=crate::runtime_surface::run_summary_from_supported_source_profile(shadow,"atan2-user.ddn",Some(1),Some("v1-core-v25")).unwrap();
+        assert_eq!(summary["output_display"]["texts"],serde_json::json!(["3/10"]));
+        for source in ["99 보여주기. ((0,1) atan2)+0.1 보여주기.","99 보여주기. (0.0) atan2 보여주기."] {
+            assert!(DdnProgram::from_v25_source(source,"atan2-atomic-reject.ddn").is_err(),"{source}");
+        }
+        assert!(DdnProgram::from_v25_source("값 <- 0. 값 <- (값,값) atan2. 값 보여주기.","atan2-self-certification.ddn").is_err(),"atan2 output must not certify integer-default pins");
+    }
+
+    #[test]
+    fn b01_static_plan_tuple_world_uses_same_position_owners() {
+        let source="묶음값 <- (1,0.5,참). 묶음값[1] 보여주기.";
+        let program=DdnProgram::from_v25_source(source,"numeric-tuple.ddn").unwrap();
+        let runner=DdnRunner::new(program,DEFAULT_UPDATE_NAME);
+        let expected=runner.tuple_type_plan.expected("묶음값").expect("same static positional supplier");
+        assert_eq!(expected,&ddonirang_core::platform::RecordFieldType::Tuple{items:["바른수","셈수","참거짓"].into_iter()
+            .map(|name|ddonirang_core::platform::RecordFieldType::Named{name:name.into()}).collect()});
+        let summary=crate::runtime_surface::run_summary_from_supported_source_profile(source,"numeric-tuple.ddn",Some(1),Some("v1-core-v25")).unwrap();
+        assert_eq!(summary["output_display"]["texts"],serde_json::json!(["0.5"]));
+        let rejected="원값:바른수 := 1. 묶음값 <- (원값,참). 묶음값[0] <- 0.5.";
+        assert!(DdnProgram::from_v25_source(rejected,"numeric-tuple-wrong.ddn").is_err());
+    }
+
+    #[test]
+    fn b01_static_plan_rational_tuple_uses_approved_genuine_carrier() {
+        let local="묶음값 := (1,1/3,참). 묶음값[1] 보여주기.";
+        let summary=crate::runtime_surface::run_summary_from_supported_source_profile(local,"numeric-tuple-local.ddn",Some(1),Some("v1-core-v25")).unwrap();
+        assert_eq!(summary["output_display"]["texts"],serde_json::json!(["1/3"]));
+        // S tag10 now supplies the numeric owner, not a Map/Pack shape.
+        let stored="묶음값 <- (1,1/3,참). 묶음값[1] 보여주기.";
+        let summary=crate::runtime_surface::run_summary_from_supported_source_profile(stored,"numeric-tuple-storage.ddn",Some(1),Some("v1-core-v25")).unwrap();
+        assert_eq!(summary["output_display"]["texts"],serde_json::json!(["1/3"]));
+        let numeric=make_rational_pack_from_big_rational(&BigRational::new(1.into(),3.into()));
+        let kind=ddonirang_core::platform::RecordFieldType::Named{name:"나눔수".into()};
+        assert!(matches!(resource_value_from_typed_value(&numeric,&kind).unwrap(),ResourceValue::RationalV1(_)));
+        assert!(resource_value_from_value(&numeric).is_err(),"no source-less persistence");
+        let fake=make_numeric_pack(NUMERIC_KIND_RATIONAL,BTreeMap::new());
+        assert_eq!(numeric_pack_kind(&fake),None);
+        assert!(resource_value_from_typed_value(&fake,&kind).is_err(),"shape is not a numeric owner");
+    }
+
+    #[test]
+    fn b01_static_plan_chaebi_and_hook_share_authored_global_owner() {
+        let source="채비 { 시간 := 0. 간격 := 0.02. }. (매마디)마다 { 시간 <- 시간+간격. 시간 보여주기. }.";
+        let summary=crate::runtime_surface::run_summary_from_supported_source_profile(source,"numeric-chaebi.ddn",Some(1),Some("v1-core-v25")).unwrap();
+        assert_eq!(summary["output_display"]["texts"],serde_json::json!(["0.02"]));
+    }
+
+    #[test]
+    fn b01_static_plan_declared_field_and_element_execute_through_frontdoor() {
+        for (source, expected) in [
+            ("(가로:셈수, 세로:나눔수) 좌표:묶음씨 := {}. (점:좌표) 계산:셈수:셈씨 := { 계산 <- 점.가로 + 1. }. (점=(가로=0.5,세로=1/3) 좌표) 계산 보여주기.", "1.5"),
+            ("(값들:(셈수)차림, 번호:바른수) 계산:셈수:셈씨 := { 계산 <- 값들[번호] + 1. }. (값들=차림[0.5,1.5],번호=1) 계산 보여주기.", "2.5"),
+        ] {
+            let summary=crate::runtime_surface::run_summary_from_supported_source_profile(source,"numeric-owned-fields.ddn",Some(1),Some("v1-core-v25")).unwrap();
+            assert_eq!(summary["output_display"]["texts"],serde_json::json!([expected]),"{source}");
+        }
+    }
+
+    #[test]
+    fn b01_static_plan_conflict_is_admission_failure_not_partial_output() {
+        let source = "(입력값:셈수) 근사값:셈수:셈씨 := { 근사값 <- 입력값. }. (입력값:나눔수) 정확값:나눔수:셈씨 := { 정확값 <- 입력값. }. 변수 <- 1. 9 보여주기. (변수) 근사값 보여주기. (변수) 정확값 보여주기.";
+        let error = DdnProgram::from_v25_source(source,"numeric-conflict.ddn").err().expect("conflict before runner exists");
+        assert!(error.contains("서로 다른 씨"),"{error}");
+        assert!(crate::runtime_surface::run_summary_from_supported_source_profile(source,"numeric-conflict.ddn",Some(1),Some("v1-core-v25")).is_err());
+    }
+
+    #[test]
+    fn b01_original_direct_comparison_uses_static_rational_expectation() {
+        let mut positives = vec![("값:나눔수 := 0.1 + 0.2.\n(값 == (3/10)) 보여주기.\n".to_string(),vec!["참"])];
+        for op in ["==", "!=", "<", "<=", ">", ">="] {
+            for (left,right) in [("값","(3/10)"),("(3/10)","값"),("(-값)","(-(3/10))")] {
+                positives.push((format!("값:나눔수 := 0.1+0.2. 9 보여주기. ({left} {op} {right}) 보여주기."),
+                    vec!["9",if matches!(op,"=="|"<="|">="){"참"}else{"거짓"}]));
+            }
+        }
+        for source in [
+            "값:나눔수 := 0.1+0.2. 복사 <- 3/10. (값 == 복사) 보여주기.",
+            "값:나눔수 := 0.1+0.2. ((값,참) == (3/10,참)) 보여주기.",
+            "값:나눔수 := 0.1+0.2. (차림[값] == 차림[3/10]) 보여주기.",
+            "(((3,10) 나눔수) == (3/10)) 보여주기.",
+        ] {
+            // The approved N1 integer-division/default supplier now issues
+            // these exact owners before evaluation, including nested values.
+            positives.push((source.to_string(),vec!["참"]));
+        }
+        for source in [
+            "(분자값:수,분모값:수) 몫:수:셈씨 := { 몫 <- 분자값/분모값. }. 값:나눔수 := 0.1+0.2. (값 == (분자값=3,분모값=10) 몫) 보여주기.",
+        ] {
+            let canon=ddonirang_lang::parse_v25_and_normalize(source,"original-direct.ddn",ddonirang_lang::NormalizationLevel::N1)
+                .unwrap_or_else(|error|panic!("{source}: {error}"));
+            for text in [source,canon.as_str()] {
+                let world=NuriWorld::new(); let before=world.state_hash();
+                let error=DdnProgram::from_v25_source(text,"original-direct.ddn")
+                    .and_then(|program|DdnRunner::new(program,DEFAULT_UPDATE_NAME)
+                        .run_update(&world,&empty_input(),&HashMap::new()).map_err(|error|error.to_string()))
+                    .err().expect(text);
+                assert!(error.contains("E_NUMERIC_COMPARISON_TYPE_MISMATCH"),"{text}: {error}");
+                assert!(error.contains("자동 변환"),"{error}");
+                assert_eq!(world.state_hash(),before);
+            }
+        }
+        for source in [
+            "값:나눔수 := 0.1+0.2. (값 == ((3/10)+0)) 보여주기.",
+            "값:나눔수 := 0.1+0.2. (값 == (0.1+0.2)) 보여주기.",
+            "값:나눔수 := 1. (값 == (2/2)) 보여주기.",
+            "값:나눔수 := 0.1+0.2. 비교값:나눔수 := 3/10. (값 == 비교값) 보여주기.",
+            "값:나눔수 := 0.1+0.2. (값 == ((3,10) 나눔수)) 보여주기.",
+            "값:나눔수 := 0.5. (값 == 0.5) 보여주기.",
+        ] {
+            positives.push((source.to_string(),vec!["참"]));
+        }
+        // A separate uncontextualized integer division now has N1's rational
+        // default; preserve its exact representation instead of Fixed64 text.
+        positives.push(("((3/10) == 0.3) 보여주기. (3/10) 보여주기.".into(),vec!["참","3/10"]));
+        for (source,expected) in positives {
+            let canon=ddonirang_lang::parse_v25_and_normalize(&source,"original-positive.ddn",ddonirang_lang::NormalizationLevel::N1).unwrap();
+            for text in [&source,&canon] {
+                let summary=crate::runtime_surface::run_summary_from_supported_source_profile(text,"original-positive.ddn",Some(1),Some("v1-core-v25")).unwrap();
+                assert_eq!(summary["output_display"]["texts"],serde_json::json!(expected),"{text}");
+            }
+        }
+    }
+
+    #[test]
+    fn b01_typed_numeric_comparison_preserves_same_kind_and_pending_literals() {
+        for source in [
+            "왼값:나눔수 := 0.1. 오른값:나눔수 := 0.1. (왼값 == 오른값) 보여주기.",
+            "왼값:셈수 := 1.0. 오른값:셈수 := 1.0. (왼값 == 오른값) 보여주기.",
+            "(1 == 1.0) 보여주기. ((1/2) == 0.5) 보여주기.",
+        ] {
+            let program = DdnProgram::from_v25_source(source, "compare-compatible.ddn").unwrap();
+            DdnRunner::new(program, DEFAULT_UPDATE_NAME)
+                .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).unwrap();
+        }
+    }
+
+    #[test]
+    fn b01_pending_literal_mixing_preserves_existing_scalar_execution() {
+        let source="채비 { 실수:셈수 := 1. }. 혼합 <- 1+0.2. 실수 보여주기. 혼합 보여주기.";
+        let output=DdnRunner::new(DdnProgram::from_v25_source(source,"pending-mixed.ddn").unwrap(),DEFAULT_UPDATE_NAME)
+            .run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+        assert_eq!(output.resources["실수"],Value::Fixed64(Fixed64::from_i64(1)));
+        assert_eq!(output.resources["혼합"],Value::Fixed64(Fixed64::from_i64(1)+Fixed64::parse_decimal_exact("0.2").unwrap()));
+    }
+
+    #[test]
+    fn vc13_tuple_declared_callable_results_propagate_without_literal_defaults() {
+        let source = r#"
+            (원값:바른수) 정수전달:바른수:셈씨 := { 정수전달 <- 원값. }.
+            (원값:셈수) 실수전달:셈수:셈씨 := { 실수전달 <- 원값. }.
+            정수:바른수 := 7. 실수:셈수 := 7. 글값:글 := "가".
+            정수묶음 <- ((원값=정수) 정수전달,글값).
+            소수묶음 <- ((원값=실수) 실수전달,글값).
+            복사묶음 <- 정수묶음[0..2].
+            정수묶음[0] <- (원값=정수) 정수전달.
+            정수묶음[0] 보여주기.
+        "#;
+        let program = DdnProgram::from_v25_source(source, "tuple-declared-call.ddn").unwrap();
+        let output = DdnRunner::new(program, DEFAULT_UPDATE_NAME)
+            .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).unwrap();
+        let mut world = DetNuri::new();
+        world.apply_patch(&output.patch, 0, &mut ddonirang_core::signals::VecSignalSink::default());
+        let a = world.world().get_resource_value("정수묶음").unwrap();
+        let b = world.world().get_resource_value("소수묶음").unwrap();
+        let (ResourceValue::Tuple { element_types: a_types, items: a_items }, ResourceValue::Tuple { element_types: b_types, items: b_items }) = (&a, &b) else { panic!("typed call Tuple"); };
+        assert_eq!(a_items, b_items);
+        assert_ne!(a_types, b_types);
+        assert_eq!(a_types[0], ddonirang_core::platform::RecordFieldType::Named { name: "바른수".into() });
+        assert_eq!(b_types[0], ddonirang_core::platform::RecordFieldType::Named { name: "셈수".into() });
+        let bad = source.replace("정수묶음[0] <- (원값=정수) 정수전달", "정수묶음[0] <- (원값=실수) 실수전달");
+        let before = world.world().state_hash();
+        let error=DdnProgram::from_v25_source(&bad, "tuple-wrong-call.ddn")
+            .and_then(|program|DdnRunner::new(program, DEFAULT_UPDATE_NAME)
+                .run_update(world.world(), &empty_input(), &HashMap::new()).map_err(|error|error.to_string()))
+            .err().expect("known incompatible callable result must not be published");
+        assert!(error.contains("E_TUPLE_REPLACEMENT"),"{error}");
+        assert_eq!(world.world().state_hash(), before);
+        // Owner-approved literal source defaults now supply the ordered
+        // child identities; the earlier no-supplier expectation is obsolete.
+        let program = DdnProgram::from_v25_source("값 <- (1,\"글\",참). 값[0] 보여주기.", "b01-open.ddn").unwrap();
+        let plan = crate::tuple_saved_type_plan::TupleSavedTypePlan::compile(
+            &program.program, Some(DEFAULT_UPDATE_NAME), true,
+            &program.top_level_decl_names, &program.record_schemas, program.numeric_constraint_plan.as_deref(),&program.nominal_type_ids());
+        assert_eq!(plan.expected("값"), Some(&ddonirang_core::platform::RecordFieldType::Tuple {
+            items: ["바른수", "글", "참거짓"].into_iter().map(|name|
+                ddonirang_core::platform::RecordFieldType::Named { name: name.into() }).collect(),
+        }));
+    }
+
+    #[test]
+    fn vc13_tuple_source_declared_types_reach_world_without_shape_inference() {
+        // A separately authored runnable product example, not a lowering of
+        // the design fixture (whose standalone `가` is NAME-LINT-01).
+        let source = "채비 { 정수:바른수 := 7. 실수:셈수 := 7. 글값:글 := \"가\". 논값:참거짓 := 참. 정수묶음 := (정수,글값,논값). 소수묶음 := (실수,글값,논값). 빈묶음 := (). 중첩묶음 := (정수묶음,소수묶음). 범위묶음 := 정수묶음[0..2]. 선택묶음 := (정수묶음[1],논값). }. 정수묶음 <- (정수,글값,논값).";
+        let program = DdnProgram::from_v25_source(source, "tuple-source.ddn").unwrap();
+        let plan = crate::tuple_saved_type_plan::TupleSavedTypePlan::compile(&program.program, Some(DEFAULT_UPDATE_NAME), true, &program.top_level_decl_names, &program.record_schemas, program.numeric_constraint_plan.as_deref(),&program.nominal_type_ids());
+        assert!(plan.expected("정수묶음").is_some(), "{plan:#?}; functions={:?}; declarations={:?}", program.functions.keys(), program.top_level_decl_names);
+        let mut runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME);
+        let output = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).unwrap();
+        let mut world = DetNuri::new();
+        world.apply_patch(&output.patch, 0, &mut ddonirang_core::signals::VecSignalSink::default());
+        let a = world.world().get_resource_value("정수묶음").unwrap();
+        let b = world.world().get_resource_value("소수묶음").unwrap();
+        let (ResourceValue::Tuple { element_types: a_types, items: a_items }, ResourceValue::Tuple { element_types: b_types, items: b_items }) = (&a, &b) else { panic!("typed tuples"); };
+        assert_eq!(a_items, b_items);
+        assert_ne!(a_types, b_types);
+        let mut a_bytes = Vec::new(); a.encode_canon(&mut a_bytes);
+        let mut b_bytes = Vec::new(); b.encode_canon(&mut b_bytes);
+        assert_ne!(a_bytes, b_bytes);
+        for name in ["빈묶음", "중첩묶음", "범위묶음", "선택묶음"] { assert!(matches!(world.world().get_resource_value(name), Some(ResourceValue::Tuple { .. })), "{name}"); }
+    }
+
+    #[test]
+    fn vc13_tuple_saved_project_restore_requires_same_source_type_and_is_atomic() {
+        use crate::authored_project::{ProjectArtifact, SourceSnapshot, SourceFile};
+        let root = "(글판=\"v25\", 모듬=차림[(이름=앱, 머리=\"app/main.ddn\", 원문=\"app/main.ddn\")], 시작=(모듈=앱, 정의=실행)) 얽음.\n";
+        let body = "정수:바른수 := 7. 실수:셈수 := 7. 글값:글 := \"가\". 논값:참거짓 := 참. 정수묶음 := (정수,글값,논값). 소수묶음 := (실수,글값,논값). 실행:움직씨 := { 정수묶음[0] <- 정수. 정수묶음[1] 보여주기. }.\n";
+        let artifact = ProjectArtifact::create("v1-core-v25".into(), SourceSnapshot {
+            root_path: Some("root.ddn".into()), entry_path: "app/main.ddn".into(), files: vec![
+                SourceFile { path: "root.ddn".into(), text: root.into() },
+                SourceFile { path: "app/main.ddn".into(), text: body.into() },
+            ],
+        }, String::new()).unwrap();
+        let saved = artifact.save().unwrap();
+        let owned = crate::project_revision_envelope_supply::admit_fresh_authored_project(saved.as_bytes()).unwrap();
+        let make_runner = || {
+            let program = DdnProgram::from_saved_v25_project_with_mode(owned.sources().clone(), ParseMode::Strict, AgeTarget::Age3).unwrap();
+            let mut runner = DdnRunner::new(program, "실행");
+            runner.configure_project_entry("실행").unwrap(); runner
+        };
+        let mut runner = make_runner();
+        let output = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).unwrap();
+        let mut world = DetNuri::new();
+        world.apply_patch(&output.patch, 0, &mut ddonirang_core::signals::VecSignalSink::default());
+        let snapshot = crate::runtime_surface::runtime_state_snapshot(&world, Vec::new(), 1)["resources"].clone();
+        let raw = crate::unit_wire::serialize_resource_snapshot_json(&snapshot);
+        let parsed = crate::unit_wire::parse_snapshot_json(&raw).unwrap();
+        // No source owner is explicit rejection, even for valid bytes/hashes.
+        let mut restored = NuriWorld::new();
+        restored.set_resource_value("보존".into(), ResourceValue::Bool(true));
+        let before = restored.state_hash();
+        assert!(crate::unit_wire::restore_world_resources_snapshot(&mut restored, &parsed).is_err());
+        assert_eq!(restored.state_hash(), before);
+        // A fresh compiler re-resolves the saved closure and exact entry.
+        let mut reopened = make_runner();
+        let plan = reopened.saved_tuple_restore_plan().unwrap();
+        crate::unit_wire::restore_world_resources_with_tuple_plan(&mut restored, &parsed, Some(&plan)).unwrap();
+        assert_eq!(restored.state_hash(), world.world().state_hash());
+        let baseline = runner.run_update(world.world(), &empty_input(), &HashMap::new()).unwrap();
+        let resumed = reopened.run_update(&restored, &empty_input(), &HashMap::new()).unwrap();
+        assert_eq!(baseline.patch.ops, resumed.patch.ops);
+        // Valid foreign bytes + recomputed length/hash are not type custody:
+        // same raw values, declared element0 differs (바른수 versus 셈수).
+        let mut forged = snapshot.clone();
+        forged["value_det"]["정수묶음"] = snapshot["value_det"]["소수묶음"].clone();
+        let before = restored.state_hash();
+        assert!(crate::unit_wire::restore_world_resources_with_tuple_plan(&mut restored, &forged, Some(&plan)).is_err());
+        assert_eq!(restored.state_hash(), before);
+    }
+
+    #[test]
+    fn vc13_tuple_missing_or_conflicting_source_evidence_rejects_without_a_patch() {
+        let changed = DdnProgram::from_v25_source("채비 { 처음값:바른수 := 0. 바꿀값:바른수 := 8. 상태묶음 := (처음값,). }. 상태묶음[0] <- 바꿀값.", "tuple-change.ddn").unwrap();
+        let changed = DdnRunner::new(changed, DEFAULT_UPDATE_NAME).run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).unwrap();
+        let last = changed.patch.ops.iter().rev().find_map(|op| match op {
+            PatchOp::SetResourceValue { tag, value: ResourceValue::Tuple { items, .. } } if tag == "상태묶음" => Some(items), _ => None,
+        }).unwrap();
+        assert_eq!(last, &vec![ResourceValue::Fixed64(Fixed64::from_i64(8))]);
+        for (source,code) in [
+            // The literal case now has an approved source supplier. A sealed
+            // builtin result still cannot borrow an ordinary declaration's
+            // type, so retain the missing-evidence negative on that boundary.
+            ("묶음값 <- ((4) abs, \"가\").","E_TUPLE_PERSISTENCE_UNBOUND"),
+            ("채비 { 원정수:바른수 := 7. 원수:셈수 := 7. 글값:글 := \"가\". 묶음값 := (원정수,글값). }. 묶음값 <- (원수,글값).","E_TYPE_MISMATCH"),
+        ] {
+            let world = NuriWorld::new(); let before = world.state_hash();
+            let error=DdnProgram::from_v25_source(source, "tuple-unsupported.ddn")
+                .and_then(|program|DdnRunner::new(program,DEFAULT_UPDATE_NAME)
+                    .run_update(&world,&empty_input(),&HashMap::new()).map_err(|error|error.to_string()))
+                .err().expect("unsupported or conflicting owner must reject");
+            assert!(error.contains(code), "{error}");
+            assert_eq!(world.state_hash(), before);
+        }
+        // Existing Named 수 is not a forbidden alias. Source provenance, not
+        // the limited reference Python's whitelist, owns the declared type.
+        let program = DdnProgram::from_v25_source("채비 { 입력수:수 := 7. 묶음값 := (입력수,). }.", "tuple-su.ddn").unwrap();
+        let output = DdnRunner::new(program, DEFAULT_UPDATE_NAME).run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).unwrap();
+        assert!(output.patch.ops.iter().any(|op| matches!(op, PatchOp::SetResourceValue { tag, value: ResourceValue::Tuple { element_types, .. } }
+            if tag == "묶음값" && element_types == &vec![ddonirang_core::platform::RecordFieldType::Named { name: "셈수".into() }])));
+    }
+
+    #[test]
+    fn vc13_tuple_constant_arithmetic_selection_preserves_positions_and_alias() {
+        // RD-352 requires compile-time static positions, not literal-only
+        // positions. This uses the unchanged raw source frontdoor.
+        let source = r#"검사:참거짓:셈씨 := {
+            값 <- (1, "글", 참). 이전 <- 값.
+            값[(1 + 0)] <- "바뀜".
+            검사 <- 값[(2 / 2)] == "바뀜"
+                그리고 이전[(1.5 - 0.5)] == "글"
+                그리고 값[(0.5 * 4)] == 참.
+        }. 결과 <- () 검사."#;
+        let analysis = crate::source_analysis::analyze_source(crate::source_analysis::SourceAnalysisRequest {
+            source_text: source.into(), path: "tuple-constant-expression.ddn".into(),
+            analysis_generation: 0, source_profile_identity: V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY.into(),
+        });
+        assert!(analysis.diagnostics.is_empty(), "{:?}", analysis.diagnostics);
+        let program = DdnProgram::from_v25_source(source, "tuple-constant-expression.ddn").unwrap();
+        let world = NuriWorld::new();
+        let output = DdnRunner::new(program, DEFAULT_UPDATE_NAME)
+            .run_update(&world, &empty_input(), &HashMap::new()).unwrap();
+        assert_eq!(output.resources["결과"], Value::Bool(true));
+        let saved_source = "채비 { 정수:바른수 := 7. 글값:글 := \"가\". 위치값 := (정수,글값). 선택값 := (위치값[(1 - 1)],글값). }. 위치값[(2 / 2)] <- 글값.";
+        let program = DdnProgram::from_v25_source(saved_source, "tuple-static-source-type.ddn").unwrap();
+        let output = DdnRunner::new(program, DEFAULT_UPDATE_NAME)
+            .run_update(&world, &empty_input(), &HashMap::new()).unwrap();
+        assert!(output.patch.ops.iter().any(|op| matches!(op,
+            PatchOp::SetResourceValue { tag, value:ResourceValue::Tuple { element_types, .. } }
+                if tag=="선택값" && element_types==&vec![
+                    ddonirang_core::platform::RecordFieldType::Named { name:"바른수".into() },
+                    ddonirang_core::platform::RecordFieldType::Named { name:"글".into() },
+                ])));
+    }
+
+    #[test]
+    fn vc13_tuple_rejects_dynamic_wrong_type_and_unbound_persistence() {
+        for (body,code) in [
+            ("위치 <- 0. 값 <- (1, \"글\"). 검사 <- 값[위치].","E_CHECK_TUPLE_SELECTION"),
+            ("값 <- (1, \"글\"). 값[0] <- \"잘못된씨\". 검사 <- 1.","E_TUPLE_REPLACEMENT"),
+            ("값 <- (1, \"글\"). 값[0..2] <- (2, 참). 검사 <- 1.","E_TUPLE_REPLACEMENT"),
+            ("값 <- (1, \"글\"). 검사 <- 값[2].","E_CHECK_TUPLE_SELECTION"),
+        ] {
+            let source=format!("검사:수:셈씨 := {{ {body} }}. 결과 <- () 검사.");
+            let world=NuriWorld::new();let before=world.state_hash();
+            let error=DdnProgram::from_v25_source(&source,"vc13-error.ddn").and_then(|program|
+                DdnRunner::new(program,DEFAULT_UPDATE_NAME).run_update(&world,&empty_input(),&HashMap::new()))
+                .err().expect("invalid selection must fail before output publication");
+            assert!(error.contains(code),"{body}: {error}");
+            assert_eq!(world.state_hash(),before);
+        }
+        let value=Value::Tuple(vec![Value::Bool(true)]);
+        assert!(resource_value_from_value(&value).err().unwrap().to_string().contains("E_TUPLE_PERSISTENCE_UNBOUND"));
+    }
+
+    #[test]
+    fn beta1_text_bool_resources_use_typed_committed_values() {
+        let program=DdnProgram::from_v25_source("글값 <- \"참\". 참값 <- 참. 거짓값 <- 거짓.","글참거짓.ddn").unwrap();
+        let mut runner=DdnRunner::new(program,DEFAULT_UPDATE_NAME);
+        let output=runner.run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+        assert!(output.patch.ops.iter().all(|op| !matches!(op,PatchOp::SetResourceJson {..})));
+        let mut world=DetNuri::new();
+        world.apply_patch(&output.patch,0,&mut ddonirang_core::signals::VecSignalSink::default());
+        assert!(world.world().resource_json_entries().is_empty());
+        assert_eq!(world.world().get_resource_value("글값"),Some(ResourceValue::String("참".into())));
+        assert_eq!(world.world().get_resource_value("참값"),Some(ResourceValue::Bool(true)));
+        assert_eq!(world.world().get_resource_value("거짓값"),Some(ResourceValue::Bool(false)));
+        let copy=DdnProgram::from_v25_source("글복사 <- 글값. 참복사 <- 참값.","복사.ddn").unwrap();
+        let output=DdnRunner::new(copy,DEFAULT_UPDATE_NAME).run_update(world.world(),&empty_input(),&HashMap::new()).unwrap();
+        assert_eq!(output.resources["글복사"],Value::String("참".into()));
+        assert_eq!(output.resources["참복사"],Value::Bool(true));
+    }
+
+    #[test]
+    fn beta1_typed_resource_admission_rejects_legacy_and_cross_lane_without_change() {
+        let mut legacy=NuriWorld::new();legacy.set_resource_json("글값".into(),"참".into());
+        let mut duplicate=NuriWorld::new();duplicate.set_resource_fixed64("글값".into(),Fixed64::from_i64(1));
+        duplicate.set_resource_value("글값".into(),ResourceValue::String("참".into()));
+        for world in [legacy,duplicate] {
+            let before=format!("{world:?}");
+            let program=DdnProgram::from_v25_source("복사 <- 글값.","거부.ddn").unwrap();
+            let mut runner=DdnRunner::new(program,DEFAULT_UPDATE_NAME);
+            assert!(runner.run_update(&world,&empty_input(),&HashMap::new()).err().unwrap().contains("E_RESOURCE_SNAPSHOT_INVALID"));
+            assert_eq!(format!("{world:?}"),before);
+        }
+        let program=DdnProgram::from_v25_source("같은값 <- 1. 같은값 <- 참.","이중통로.ddn").unwrap();
+        assert!(DdnRunner::new(program,DEFAULT_UPDATE_NAME).run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).is_err());
+    }
+
+    #[test]
+    fn beta1_typed_bool_restore_rejects_text_substitution_for_declared_binding() {
+        let program=DdnProgram::from_source("채비 { 고정:참거짓 <- 거짓. }. 고정 보여주기.","형결속.ddn").unwrap();
+        let runner=DdnRunner::new(program,"매틱");
+        let mut world=NuriWorld::new();world.set_resource_value("고정".into(),ResourceValue::String("참".into()));
+        let before=format!("{world:?}");
+        assert!(runner.validate_persisted_records(&world).is_err());
+        assert_eq!(format!("{world:?}"),before);
+        world.set_resource_value("고정".into(),ResourceValue::Bool(true));
+        runner.validate_persisted_records(&world).unwrap();
+    }
+
+    #[test]
+    fn beta1_reference_admitted_world_tuple_survives_actual_source_copy_and_patch(){
+        let saved=ResourceValue::IdentityReference(ddonirang_core::platform::IdentityReferenceValueV1{
+            profile_version:1,target_type_identity:vec![0x11,0],owner_space_identity:vec![2;32],target_identity:vec![3;32],generation:0,
+        }.into());
+        let runtime=value_from_resource_value(&saved);assert_eq!(resource_value_from_value(&runtime).unwrap(),saved);
+        let mut world=NuriWorld::new();world.set_resource_value("원래".into(),saved.clone());
+        let program=DdnProgram::from_v25_source("복사 <- 원래.","참조값.ddn").unwrap();
+        let mut runner=DdnRunner::new(program,DEFAULT_UPDATE_NAME);
+        let output=runner.run_update(&world,&empty_input(),&HashMap::new()).unwrap();
+        assert_eq!(output.resources["복사"],runtime);
+        assert!(output.patch.ops.iter().any(|op|matches!(op,PatchOp::SetResourceValue{tag,value} if tag=="복사"&&value==&saved)));
+        assert_eq!(world.get_resource_value("원래"),Some(saved));
+    }
+
+    #[test]
+    fn beta1_atom_admitted_world_value_survives_actual_source_copy_and_patch() {
+        let (_,contract)=crate::registered_atom_contract::RecordedAtomContract::record(b"owner",&[vec![1]]).unwrap();
+        let saved=ResourceValue::RegisteredAtom(contract.admitted_value(b"owner",&[1]).unwrap().into());
+        let runtime=value_from_resource_value(&saved);
+        assert_eq!(resource_value_from_value(&runtime).unwrap(),saved);
+        let mut world=NuriWorld::new();world.set_resource_value("원래".into(),saved.clone());
+        let program=DdnProgram::from_v25_source("복사 <- 원래.","등록값.ddn").unwrap();
+        let mut runner=DdnRunner::new(program,DEFAULT_UPDATE_NAME);
+        let output=runner.run_update(&world,&empty_input(),&HashMap::new()).unwrap();
+        assert_eq!(output.resources["복사"],runtime);
+        assert!(output.patch.ops.iter().any(|op| matches!(op,PatchOp::SetResourceValue {tag,value} if tag=="복사" && value==&saved)));
+        assert_eq!(world.get_resource_value("원래"),Some(saved));
+    }
+
+    #[test]
+    fn vc04_atom_semantic_equality_is_consistent_inside_containers() {
+        let (_, first) = crate::registered_atom_contract::RecordedAtomContract::record(
+            b"owner", &[vec![1]],
+        ).unwrap();
+        let (_, extended) = crate::registered_atom_contract::RecordedAtomContract::record(
+            b"owner", &[vec![1], vec![2]],
+        ).unwrap();
+        let left = ResourceValue::RegisteredAtom(first.admitted_value(b"owner", &[1]).unwrap().into());
+        let right = ResourceValue::RegisteredAtom(extended.admitted_value(b"owner", &[1]).unwrap().into());
+        // 저장 근거는 다르지만, 등록 owner와 원자의 의미 정체는 같다.
+        assert_ne!(left, right);
+        let mut world = NuriWorld::new();
+        world.set_resource_value("원래".into(), left.clone());
+        world.set_resource_value("다른출처".into(), right.clone());
+        let before = world.state_hash();
+        let source = "직접 <- 원래 == 다른출처. 목록 <- 차림[원래] == 차림[다른출처]. 묶음 <- (원래,) == (다른출처,).";
+        let program = DdnProgram::from_v25_source(source, "등록원자비교.ddn").unwrap();
+        let output = DdnRunner::new(program, DEFAULT_UPDATE_NAME)
+            .run_update(&world, &empty_input(), &HashMap::new()).unwrap();
+        for name in ["직접", "목록", "묶음"] {
+            assert_eq!(output.resources[name], Value::Bool(true), "{name}");
+        }
+        let left_value = value_from_resource_value(&left);
+        let right_value = value_from_resource_value(&right);
+        assert_eq!(left_value, right_value, "공유 Value 의미 비교");
+        assert!(values_equal(
+            &Value::Tuple(vec![left_value.clone()]),
+            &Value::Tuple(vec![right_value.clone()]),
+        ), "Tuple 보조 비교도 같은 원자 정체를 사용해야 한다");
+        assert_eq!(Value::List(vec![left_value]), Value::List(vec![right_value]));
+        let different_atom = value_from_resource_value(&ResourceValue::RegisteredAtom(
+            extended.admitted_value(b"owner", &[2]).unwrap().into(),
+        ));
+        let (_, other_owner) = crate::registered_atom_contract::RecordedAtomContract::record(
+            b"other-owner", &[vec![1]],
+        ).unwrap();
+        let different_owner = value_from_resource_value(&ResourceValue::RegisteredAtom(
+            other_owner.admitted_value(b"other-owner", &[1]).unwrap().into(),
+        ));
+        for other in [different_atom, different_owner] {
+            let original = value_from_resource_value(&left);
+            assert!(!values_equal(&original, &other));
+            assert_ne!(original.clone(), other.clone());
+            assert!(!values_equal(&Value::Tuple(vec![original]), &Value::Tuple(vec![other])));
+        }
+        assert_eq!(world.get_resource_value("원래"), Some(left));
+        assert_eq!(world.get_resource_value("다른출처"), Some(right));
+        assert_eq!(world.state_hash(), before);
+    }
+
+    #[test]
+    fn beta1_bytes_explicit_nfc_provenance_uses_the_same_byte_owner() {
+        let source="보존 <- (글=\"가\") UTF8바이트열로. (바이트열=보존) UTF8NFC글로 보여주기.";
+        let program=DdnProgram::from_v25_source(source,"바이트열.ddn").unwrap();
+        let mut runner=DdnRunner::new(program,DEFAULT_UPDATE_NAME);
+        let output=runner.run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+        let bytes=ddonirang_core::bytes::ByteSequence::encode_utf8_exact("가");
+        assert!(matches!(output.resources.get("보존"),Some(Value::Bytes(value)) if value==&bytes));
+        assert_eq!(output.explicit_nfc_provenance.len(),1);
+        let provenance=&output.explicit_nfc_provenance[0].1;
+        assert_eq!(provenance.unicode_version,(17,0,0));
+        assert_eq!(provenance.source_bytes_storage_sha256,bytes.storage_sha256());
+        assert_eq!(provenance.decoded_text,"가");
+    }
 
     #[test]
     fn alpha3_tensor_named_source_roundtrip_and_distinct_identity() {
@@ -22177,11 +25115,13 @@ mod tests {
             "판[:] <- 9.",
             "판[:] <- (차림=차림[1],원소씨=셈수,모양=(1,)) 텐서로.",
         ] {
-            let program = DdnProgram::from_v25_source(&format!("{prefix}{invalid}"),"bad-tensor.ddn").unwrap();
-            let mut runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME);
             let world = NuriWorld::new();
             let before = format!("{world:?}");
-            assert!(runner.run_update(&world,&empty_input(),&HashMap::new()).is_err(), "must reject: {invalid}");
+            // Known numeric conflicts are rejected before VM construction;
+            // shape/bounds failures still exercise the runtime owner below.
+            let outcome=DdnProgram::from_v25_source(&format!("{prefix}{invalid}"),"bad-tensor.ddn")
+                .and_then(|program|DdnRunner::new(program,DEFAULT_UPDATE_NAME).run_update(&world,&empty_input(),&HashMap::new()));
+            assert!(outcome.is_err(), "must reject: {invalid}");
             assert_eq!(format!("{world:?}"),before);
         }
     }
@@ -22359,11 +25299,11 @@ mod tests {
         let old_deep = original.clone();
         let old_shared = shared.clone();
         assert!(Arc::ptr_eq(shared.0.get("output_log").unwrap(), old_shared.0.get("output_log").unwrap()));
-        let mut old_list = match original.remove("output_log").unwrap() {
-            Value::List(items) => items, _ => panic!("list"),
+        let mut old_list = match &mut original.remove("output_log").unwrap() {
+            Value::List(items) => std::mem::take(items), _ => panic!("list"),
         };
-        let mut new_list = match shared.remove("output_log").unwrap() {
-            Value::List(items) => items, _ => panic!("list"),
+        let mut new_list = match &mut shared.remove("output_log").unwrap() {
+            Value::List(items) => std::mem::take(items), _ => panic!("list"),
         };
         old_list.push(Value::String("next".into()));
         new_list.push(Value::String("next".into()));
@@ -23210,6 +26150,273 @@ mod tests {
     }
 
     #[test]
+    fn vc13_sum_original_negative_frontdoor_contracts(){
+        for (name,source,code) in [("vc08_duplicate.ddn",r#"매마디:움직씨 := {
+선택:고름씨 := { $예. $예. }.
+}
+"#,"E_SUM"),
+("vc08_unknown.ddn",r#"매마디:움직씨 := {
+선택:고름씨 := { $예. $수(값:수). }.
+값 <- 선택.$미지.
+}
+"#,"E_SUM_BRANCH_UNKNOWN"),
+("vc08_match_duplicate.ddn",r#"매마디:움직씨 := {
+선택:고름씨 := { $예. $수(값:수). }.
+값 <- 선택.$예. 값에 따라 { 선택.$예이면 { }. 선택.$예이면 { }. 아니면 { }. }.
+}
+"#,"E_SUM_MATCH_BRANCH_DUPLICATE"),
+("vc08_nonexhaustive.ddn",r#"매마디:움직씨 := {
+선택:고름씨 := { $예. $수(값:수). }.
+값 <- 선택.$예. 값에 따라 { 선택.$예이면 { }. }.
+}
+"#,"E_SUM_MATCH_EXHAUSTIVE_REQUIRED"),
+("vc08_duplicate_default.ddn",r#"매마디:움직씨 := {
+선택:고름씨 := { $예. $수(값:수). }.
+값 <- 선택.$예. 값에 따라 { 선택.$예이면 { }. 아니면 { }. 아니면 { }. }.
+}
+"#,"E_SUM_MATCH"),
+("vc08_nontrailing.ddn",r#"매마디:움직씨 := {
+선택:고름씨 := { $예. $수(값:수). }.
+값 <- 선택.$예. 값에 따라 { 아니면 { }. 선택.$예이면 { }. }.
+}
+"#,"E_SUM_MATCH"),
+("vc08_nonsum.ddn",r#"매마디:움직씨 := {
+선택:고름씨 := { $예. $수(값:수). }.
+값 <- 3. 값에 따라 { 선택.$예이면 { }. 아니면 { }. }.
+}
+"#,"E_SUM_MATCH_SUBJECT_TYPE"),
+("vc08_crossowner.ddn",r#"매마디:움직씨 := {
+첫째:고름씨 := { $예. }. 둘째:고름씨 := { $예. }. 값 <- 첫째.$예. 값에 따라 { 둘째.$예이면 { "금지" 보여주기. }. 아니면 { "금지" 보여주기. }. }.
+}
+"#,"E_SUM_MATCH_OWNER_MISMATCH"),
+("vc08_payload_type.ddn",r#"매마디:움직씨 := {
+선택:고름씨 := { $예. $수(값:수). }.
+값 <- 선택.$수(값="글").
+}
+"#,"E_RUNTIME_TYPE_MISMATCH"),
+("vc08_bare.ddn",r#"매마디:움직씨 := {
+선택:고름씨 := { $예. $수(값:수). }.
+값 <- $예.
+}
+"#,"E_SUM_BRANCH_OWNER_REQUIRED"),
+("vc08_split.ddn",r#"매마디:움직씨 := {
+선택:고름씨 := { $예. $수(값:수). }.
+값 <- 선택.$ 예.
+}
+"#,"$")]{
+            let error=crate::runtime_surface::run_summary_from_supported_source_profile(source,name,Some(1),Some("v1-core-v25")).err().expect("original invalid owned category must reject without a summary");
+            assert!(error.to_string().contains(code),"{name}: expected {code}: {error}");
+        }
+    }
+
+    #[test]
+    fn vc13_sum_payload_and_match_failures_preserve_the_world(){
+        let source=r#"매마디:움직씨 := {
+선택:고름씨 := { $수(받은값:수). }.
+진행 <- 1. "게시 금지" 보여주기.
+값 <- 선택.$수(받은값=3).
+값에 따라 { 선택.$수(받은값)이면 { 목록 <- 차림[1]. 위치 <- 2. (목록[위치]) 보여주기. }. }.
+}"#;
+        let program=DdnProgram::from_v25_source(source,"sum-atomic.ddn").unwrap();
+        let mut runner=DdnRunner::new(program,DEFAULT_UPDATE_NAME);
+        let world=NuriWorld::new();let before=format!("{world:?}");
+        let error=runner.run_update(&world,&empty_input(),&HashMap::new()).err().expect("late match failure must return no successful update");
+        assert!(error.contains("CHARIM_INDEX_OUT_OF_RANGE"),"{error:?}");
+        assert_eq!(format!("{world:?}"),before);
+        assert!(crate::runtime_surface::run_summary_from_supported_source_profile(source,"sum-atomic.ddn",Some(1),Some("v1-core-v25")).is_err());
+    }
+
+    #[test]
+    fn vc13_sum_is_not_product_or_numeric_selection(){
+        // RD-348/357: OwnedBranchIdentity is not a field or ordinal slot.
+        for access in ["값.값", "값[0]"] {
+            let source=format!("매마디:움직씨 := {{ 선택:고름씨 := {{ $수(값:수). }}. 값 <- 선택.$수(값=3). ({access}) 보여주기. }}");
+            assert!(crate::runtime_surface::run_summary_from_supported_source_profile(&source,"sum-role.ddn",Some(1),Some("v1-core-v25")).is_err(),"branch payload must not be decomposed through {access}");
+        }
+    }
+
+    #[test]
+    fn vc13_sum_pattern_binder_restores_its_lexical_value_and_type(){
+        let cases:serde_json::Value=serde_json::from_str(include_str!("../../tests/fixtures/vc13_sum_pattern_scope_cases.json")).unwrap();
+        for case in cases.as_array().unwrap() {
+            let source=case["source"].as_str().unwrap();
+            let result=crate::runtime_surface::run_summary_from_supported_source_profile(source,"sum-binder.ddn",Some(1),Some("v1-core-v25"));
+            if let Some(code)=case["code"].as_str() {
+                let error=result.err().unwrap_or_else(||panic!("{}: invalid payload pattern/type must reject",case["id"]));
+                assert!(error.contains(code),"{}: {error}",case["id"]);
+            } else {
+                let summary=result.expect("a scoped pattern binder must not acquire a world write or leak its type");
+                assert_eq!(summary["output_display"]["texts"],case["texts"],"{}",case["id"]);
+            }
+        }
+    }
+
+    #[test]
+    fn vc13_sum_deep_payload_uses_existing_heap_owners(){
+        std::thread::Builder::new().stack_size(128*1024).spawn(||{
+            let mut value=Value::Bool(true);
+            for _ in 0..20000 {value=Value::SumBranch{owner:"선택".into(),branch:"다음".into(),payload:BTreeMap::from([("값".into(),value)])};}
+            let copy=value.clone();assert!(value==copy);
+            let key=map_key_canon(&copy);assert!(key.starts_with("선택.$다음(값="));
+            let display=value_to_display_text(&copy);assert!(display.starts_with("선택.$다음("));
+            assert!(display.contains("참"));drop(copy);drop(value);
+        }).unwrap().join().unwrap();
+    }
+
+    #[test]
+    fn vc13_sum_value_generation_and_current_match_execute_shared_frontdoor(){
+        for (source,expected) in [(r#"매마디:움직씨 := {
+선택:고름씨 := { $예. $수(값:수). }.
+값 <- 선택.$수(값=3). 값 보여주기.
+}
+"#,vec!["선택.$수(3)"]),(r#"매마디:움직씨 := {
+선택:고름씨 := { $예. $수(내용:수). }.
+값 <- 선택.$수(내용=3). 값에 따라 { 선택.$예이면 { "예" 보여주기. }. 선택.$수(내용)이면 { 내용 보여주기. }. }.
+}
+"#,vec!["3"]),(r#"매마디:움직씨 := {
+선택:고름씨 := { $예. $수(값:수). }.
+값 <- 선택.$수(값=3). 값에 따라 { 선택.$예이면 { "예" 보여주기. }. 아니면 { "기본" 보여주기. }. }.
+}
+"#,vec!["기본"])]{
+            let summary=crate::runtime_surface::run_summary_from_supported_source_profile(source,"sum-category.ddn",Some(1),Some("v1-core-v25")).expect("approved owned branch source executes");
+            assert_eq!(summary["output_display"]["texts"],serde_json::json!(expected));
+        }
+    }
+    #[test]
+    fn beta1_target_owned_selection_map_read_and_persistent_nested_update() {
+        // RD-353/355: strict selection, immutable replacement, retained alias.
+        let source = "자료 <- (\"행\", 차림[2, 3]) 짝맞춤. 이전 <- 자료. 자료[\"행\"][1] <- 7. (이전[\"행\"][1]) 보여주기. (자료[\"행\"][1]) 보여주기.";
+        let summary = crate::runtime_surface::run_summary_from_supported_source_profile(
+            source, "map-selection.ddn", Some(1), Some("v1-core-v25"),
+        ).expect("typed map selection runs through the product frontdoor");
+        assert_eq!(summary["output_display"]["texts"], serde_json::json!(["3", "7"]));
+    }
+
+    #[test]
+    fn beta1_list_range_runtime_bounds_are_half_open_and_replacement_is_persistent() {
+        let source = "자료 <- 차림[10,20,30,40]. 처음 <- 1. 끝 <- 3. 이전 <- 자료. 조각 <- 자료[처음..끝]. 자료[처음..끝] <- 차림[7,8]. 조각 보여주기. 이전 보여주기. 자료 보여주기. (자료[4..4]) 보여주기. 자료[4..4] <- 자료[0..0]. 자료 보여주기.";
+        let summary=crate::runtime_surface::run_summary_from_supported_source_profile(
+            source,"list-range.ddn",Some(1),Some("v1-core-v25"),
+        ).expect("runtime list bounds and exact replacement through product frontdoor");
+        assert_eq!(summary["output_display"]["texts"],serde_json::json!([
+            "차림[20, 30]","차림[10, 20, 30, 40]","차림[10, 7, 8, 40]","차림[]","차림[10, 7, 8, 40]",
+        ]));
+    }
+
+    #[test]
+    fn beta1_list_range_rejects_overflow_reversed_and_size_changing_replacement() {
+        for (operation,code) in [
+            ("(자료[1..5]) 보여주기.","E_SELECTION_RANGE_BOUNDS"),
+            ("처음 <- 3. 끝 <- 1. (자료[처음..끝]) 보여주기.","E_SELECTION_RANGE_BOUNDS"),
+            ("자료[1..3] <- 차림[7].","E_SELECTION_RANGE_REPLACEMENT"),
+            ("자료[1..3] <- 차림[7,8,9].","E_SELECTION_RANGE_REPLACEMENT"),
+            ("자료[1..3] <- 7.","E_SELECTION_RANGE_REPLACEMENT"),
+            ("자료[4..4] <- 차림[7].","E_SELECTION_RANGE_REPLACEMENT"),
+        ] {
+            let source=format!("자료 <- 차림[10,20,30,40]. {operation}");
+            let error=crate::runtime_surface::run_summary_from_supported_source_profile(
+                &source,"list-range-invalid.ddn",Some(1),Some("v1-core-v25"),
+            ).err().expect("invalid range must reject without publishing a summary");
+            assert!(error.to_string().contains(code),"{operation}: {error}");
+        }
+    }
+
+    #[test]
+    fn beta1_list_range_nested_root_rebuild_keeps_alias_and_tensor_static_contract() {
+        let source="자료 <- (\"행\",차림[10,20,30]) 짝맞춤. 이전 <- 자료. 처음 <- 1. 끝 <- 3. 자료[\"행\"][처음..끝] <- 차림[7,8]. (이전[\"행\"]) 보여주기. (자료[\"행\"]) 보여주기.";
+        let summary=crate::runtime_surface::run_summary_from_supported_source_profile(
+            source,"nested-range.ddn",Some(1),Some("v1-core-v25"),
+        ).unwrap();
+        assert_eq!(summary["output_display"]["texts"],serde_json::json!(["차림[10, 20, 30]","차림[10, 7, 8]"]));
+        let tensor="판 <- (차림=차림[10,20,30],원소씨=셈수,모양=(3,)) 텐서로. 처음 <- 0. 끝 <- 2. (판[처음..끝]) 보여주기.";
+        let error=crate::runtime_surface::run_summary_from_supported_source_profile(
+            tensor,"tensor-dynamic-range.ddn",Some(1),Some("v1-core-v25"),
+        ).err().expect("runtime list allowance cannot relax RD388 Tensor bounds");
+        assert!(error.to_string().contains("E_TENSOR_STATIC_RANGE"),"{error}");
+    }
+
+    #[test]
+    fn beta1_target_owned_selection_rejects_missing_without_insertion() {
+        for operation in ["(자료[\"없음\"]) 보여주기.", "자료[\"없음\"] <- 7.",
+            "자료[\"행\"][\"없음\"] <- 7."] {
+            let source = format!("자료 <- (\"행\", (\"칸\", 2) 짝맞춤) 짝맞춤. {operation}");
+            let program = DdnProgram::from_v25_source(&source, "map-missing.ddn").unwrap();
+            let mut runner = DdnRunner::new(program, "매마디");
+            let before = NuriWorld::new();
+            let error = runner.run_update(&before, &empty_input(), &HashMap::new())
+                .err().expect("missing key cannot insert or return None");
+            assert!(error.to_string().contains("E_SELECTION_KEY_MISSING"), "{error}");
+        }
+    }
+
+    #[test]
+    fn beta1_target_owned_selection_does_not_change_optional_map_provider() {
+        let source = "자료 <- (\"칸\", 2) 짝맞춤. (((자료, \"없음\") 짝맞춤.값) 없는가) 보여주기. 자료 <- (자료, \"새칸\", 7) 짝맞춤.바꾼값. (자료[\"새칸\"]) 보여주기.";
+        let summary = crate::runtime_surface::run_summary_from_supported_source_profile(
+            source, "map-provider.ddn", Some(1), Some("v1-core-v25"),
+        ).expect("explicit existing provider remains independent of strict selection");
+        assert_eq!(summary["output_display"]["texts"], serde_json::json!(["참", "7"]));
+    }
+
+    #[test]
+    fn beta1_target_owned_selection_text_does_not_fallback_to_codepoints() {
+        assert_eq!(unicode_segmentation::UNICODE_VERSION, (17, 0, 0));
+        assert_eq!(unicode_normalization::UNICODE_VERSION, (17, 0, 0));
+        for (text, expected) in [
+            ("👨‍👩‍👧‍👦끝", "👨‍👩‍👧‍👦"),
+            ("👍🏽끝", "👍🏽"),
+            ("🇰🇷끝", "🇰🇷"),
+            ("e\u{301}끝", "e\u{301}"), // 글 값의 결합문자 bytes를 바꾸지 않는다.
+            ("가끝", "가"),
+        ] {
+            let source = format!("글값 <- \"{text}\". 위치 <- 0. (글값[위치]) 보여주기. (글값[1]) 보여주기.");
+            let summary = crate::runtime_surface::run_summary_from_supported_source_profile(
+                &source, "text-selection.ddn", Some(1), Some("v1-core-v25"),
+            ).expect("글 선택은 확장 글자 경계를 사용해야 한다");
+            assert_eq!(summary["output_display"]["texts"], serde_json::json!([expected, "끝"]));
+        }
+    }
+
+    #[test]
+    fn beta1_target_owned_selection_text_rejects_invalid_positions() {
+        for source in [
+            "글값 <- \"👨‍👩‍👧‍👦\". (글값[1]) 보여주기.",
+            "글값 <- \"\". (글값[0]) 보여주기.",
+            "글값 <- \"가\". 위치 <- -1. (글값[위치]) 보여주기.",
+            "글값 <- \"가\". 위치 <- 0.5. (글값[위치]) 보여주기.",
+        ] {
+            let error = crate::runtime_surface::run_summary_from_supported_source_profile(
+                source, "text-selection-bad.ddn", Some(1), Some("v1-core-v25"),
+            ).err().expect("범위 밖이나 정수가 아닌 위치는 거부해야 한다");
+            assert!(error.to_string().contains("E_SELECTION_TEXT_"), "{error}");
+        }
+    }
+
+    #[test]
+    fn beta1_text_selection_replacement_preserves_graphemes_and_immutable_alias() {
+        for value in ["👨‍👩‍👧‍👦", "👍🏽", "🇰🇷", "e\u{301}"] {
+            let source=format!("원본 <- \"앞가끝\". 글값 <- 원본. 글값[1] <- \"{value}\". 원본 보여주기. 글값 보여주기. (글값[1]) 보여주기.");
+            let summary=crate::runtime_surface::run_summary_from_supported_source_profile(
+                &source,"text-replacement.ddn",Some(1),Some("v1-core-v25")).unwrap();
+            assert_eq!(summary["output_display"]["texts"],serde_json::json!(["앞가끝",format!("앞{value}끝"),value]));
+        }
+    }
+
+    #[test]
+    fn beta1_text_selection_replacement_rejects_insert_delete_and_neighbour_merge() {
+        for (source,code) in [
+            ("글값 <- \"앞가끝\". 글값[1] <- \"\".","E_SELECTION_TEXT_REPLACEMENT"),
+            ("글값 <- \"앞가끝\". 글값[1] <- \"두글\".","E_SELECTION_TEXT_REPLACEMENT"),
+            ("글값 <- \"앞가끝\". 글값[3] <- \"나\".","E_SELECTION_TEXT_BOUNDS"),
+            ("글값 <- \"ab\". 글값[1] <- \"\u{301}\".","E_SELECTION_TEXT_REPLACEMENT"),
+        ] {
+            let error=crate::runtime_surface::run_summary_from_supported_source_profile(
+                source,"text-replacement-bad.ddn",Some(1),Some("v1-core-v25")).err().expect("replacement must reject");
+            assert!(error.to_string().contains(code),"{error}");
+        }
+    }
+
+    #[test]
     fn alpha2_nested_selection_rejects_every_missing_level() {
         for indices in ["[2][0]", "[0][2]", "[-1][0]", "[0][-1]"] {
             let source = format!("판 <- 차림[차림[0, 0], 차림[0, 0]]. 판{indices} <- 7.");
@@ -23322,9 +26529,7 @@ mod tests {
         assert!(!contains_unresolved_bogae_relation(&value, &mut meter).unwrap());
         assert_eq!(meter.receipt().counters.collection_tensor_element_visits, 4097);
         // 검사뿐 아니라 시험 값 폐기도 Rust 재귀를 사용하지 않는다.
-        while let Value::List(mut items) = value {
-            value = items.pop().unwrap();
-        }
+        drop(value);
     }
 
     #[test]
@@ -23423,19 +26628,16 @@ mod tests {
     #[test]
     fn pg_cli_text_and_number_addition_fails_typed_before_output_publication() {
         let source = "점수 <- 7.\n\"점수: \" + 점수 보여주기.\n";
-        let program = DdnProgram::from_v25_source(source, "pg_cli_text_number_addition.ddn")
-            .expect("the current source must reach the runtime type boundary");
-        let mut runner = DdnRunner::new(program, "매마디");
         let world = NuriWorld::new();
-        let error = match runner.run_update(&world, &empty_input(), &HashMap::new()) {
-            Ok(_) => panic!("implicit text-number addition must fail closed"),
-            Err(error) => error,
-        };
-
-        assert!(
-            error.to_string().contains("E_RUNTIME_TYPE_MISMATCH"),
-            "{error}"
-        );
+        let before=world.state_hash();
+        // Known operand kinds now fail at source admission, before creating
+        // a VM; do not demand that invalid code reach runtime dispatch.
+        let error=DdnProgram::from_v25_source(source,"pg_cli_text_number_addition.ddn")
+            .and_then(|program|DdnRunner::new(program,"매마디")
+                .run_update(&world,&empty_input(),&HashMap::new()).map_err(|error|error.to_string()))
+            .err().expect("implicit text-number addition must fail closed");
+        assert!(error.contains("E_CHECK_TYPE_MISMATCH"),"{error}");
+        assert_eq!(world.state_hash(),before);
         assert!(world.get_resource_value("output_log").is_none());
         assert!(world.get_resource_value("점수").is_none());
     }
@@ -24489,7 +27691,7 @@ mod tests {
 매틱:움직씨 := { (철수)의 ((값=3) 첫알림) ~> 관제탑. }.
 "#;
         let run = |text: &str| {
-            let program = DdnProgram::from_v25_source(text, "알림씨_받는자리.ddn").unwrap();
+            let program = DdnProgram::from_v25_source(text, "알림씨_받는자리.ddn")?;
             DdnRunner::new(program, "매틱").run_update(
                 &NuriWorld::new(), &empty_input(), &HashMap::new())
         };
@@ -24508,6 +27710,7 @@ mod tests {
     fn a3_rd445_authored_providers_share_snapshot_and_fail_on_conflict() {
         // A3-P4 provisional header placement; actual V25 product parse/run.
         let source=r#"
+채비 { 합계:수 := 2. 관찰값:수 := 0. 수신값:수 := 0. }.
 (값:수) 첫알림:알림씨 := { 없음. }.
 관제탑:임자 := {
   (받은:첫알림) 첫반응:움직씨 {첫알림을 받으면} := { 합계 <- 합계 + 받은.값. }.
@@ -25364,7 +28567,7 @@ mod tests {
             .values()
             .find(|entry| matches!(&entry.key, RuntimeValue::String(k) if k == "points"))
             .map(|entry| entry.value.clone());
-        let Some(RuntimeValue::List(poly_points)) = polyline_points else {
+        let Some(RuntimeValue::List(poly_points)) = &polyline_points else {
             panic!("꺾은선 points must be list");
         };
         assert_eq!(poly_points.len(), 3);
@@ -26482,7 +29685,7 @@ mod tests {
         let solved =
             eval_linear_inequality_solve(&[conditions, Value::String("x".to_string())], &work_cost)
                 .expect("solve");
-        let Value::Pack(output) = solved else {
+        let Value::Pack(output) = &solved else {
             panic!("solution must be pack");
         };
         match output.get("상태") {
@@ -26517,7 +29720,7 @@ mod tests {
         let solved =
             eval_linear_inequality_solve(&[conditions, Value::String("x".to_string())], &work_cost)
                 .expect("solve");
-        let Value::Pack(output) = solved else {
+        let Value::Pack(output) = &solved else {
             panic!("solution must be pack");
         };
         match output.get("상태") {
@@ -29527,7 +32730,7 @@ mod tests {
         let injected_relation_list =
             eval_endpoint_boundary_value_relation_list(&[formula_set.clone(), value_list.clone()])
                 .expect("value relation list");
-        let RuntimeValue::List(injected_relations) = injected_relation_list else {
+        let RuntimeValue::List(injected_relations) = &injected_relation_list else {
             panic!("값관계들 must be a list");
         };
         assert_eq!(injected_relations.len(), 1);
@@ -29549,7 +32752,7 @@ mod tests {
 
         let injected_set =
             eval_endpoint_boundary_value_injection(&[formula_set, value_list]).expect("inject");
-        let RuntimeValue::Pack(set) = injected_set else {
+        let RuntimeValue::Pack(set) = &injected_set else {
             panic!("주입묶음 must be a pack");
         };
         assert_eq!(
@@ -29605,7 +32808,7 @@ mod tests {
         let relations = expect_equation_relations(&[relations_value]).expect("relations");
         let solve = eval_relation_solve_result(&relations).expect("solve");
         let remapped = eval_endpoint_solve_result_remap(&[injected_set, solve]).expect("remap");
-        let RuntimeValue::Pack(remap) = remapped else {
+        let RuntimeValue::Pack(remap) = &remapped else {
             panic!("원복 must be a pack");
         };
         assert_eq!(
@@ -29699,7 +32902,7 @@ mod tests {
         let relation = output.resources.get("이음관계").expect("이음관계").clone();
         let values = endpoint_boundary_test_values(&[("전지.양극.전압", 5)]);
         let remapped = eval_endpoint_explicit_solve(&[relation, values]).expect("explicit solve");
-        let RuntimeValue::Pack(remap) = remapped else {
+        let RuntimeValue::Pack(remap) = &remapped else {
             panic!("원복 must be a pack");
         };
         assert_eq!(
@@ -29741,7 +32944,7 @@ mod tests {
         let relation = output.resources.get("이음관계").expect("이음관계").clone();
         let values = endpoint_boundary_test_values(&[("전지.양극.전류", 5)]);
         let remapped = eval_endpoint_explicit_solve(&[relation, values]).expect("explicit solve");
-        let RuntimeValue::Pack(remap) = remapped else {
+        let RuntimeValue::Pack(remap) = &remapped else {
             panic!("원복 must be a pack");
         };
         let Some(RuntimeValue::List(values)) = remap.get("값들") else {
@@ -29777,7 +32980,7 @@ mod tests {
         let flat = output.resources.get("정규").expect("정규").clone();
         let values = endpoint_boundary_test_values(&[("전지.양극.전압", 5)]);
         let remapped = eval_endpoint_explicit_solve(&[flat, values]).expect("explicit solve");
-        let RuntimeValue::Pack(remap) = remapped else {
+        let RuntimeValue::Pack(remap) = &remapped else {
             panic!("원복 must be a pack");
         };
         assert_eq!(
@@ -29859,7 +33062,7 @@ mod tests {
         let injected_relation_list =
             eval_endpoint_boundary_value_relation_list(&[formula_set.clone(), value_list.clone()])
                 .expect("value relation list");
-        let RuntimeValue::List(injected_relations) = injected_relation_list else {
+        let RuntimeValue::List(injected_relations) = &injected_relation_list else {
             panic!("값관계들 must be a list");
         };
         let RuntimeValue::Pack(relation) = &injected_relations[0] else {
@@ -29872,7 +33075,7 @@ mod tests {
 
         let injected_set =
             eval_endpoint_boundary_value_injection(&[formula_set, value_list]).expect("inject");
-        let RuntimeValue::Pack(set) = injected_set else {
+        let RuntimeValue::Pack(set) = &injected_set else {
             panic!("주입묶음 must be a pack");
         };
         let Some(RuntimeValue::List(injected)) = set.get("주입값들") else {
@@ -29912,7 +33115,7 @@ mod tests {
         let relation = output.resources.get("이음관계").expect("이음관계").clone();
         let values = endpoint_boundary_test_values_unit(&[("전지.양극.전류", 5, UnitDim::KRW)]);
         let remapped = eval_endpoint_explicit_solve(&[relation, values]).expect("explicit solve");
-        let RuntimeValue::Pack(remap) = remapped else {
+        let RuntimeValue::Pack(remap) = &remapped else {
             panic!("원복 must be a pack");
         };
         let Some(RuntimeValue::List(values)) = remap.get("값들") else {
@@ -29997,7 +33200,7 @@ mod tests {
         )]);
         let checked =
             eval_endpoint_boundary_range_check(&[remap.clone(), pass]).expect("range check");
-        let RuntimeValue::Pack(check) = checked else {
+        let RuntimeValue::Pack(check) = &checked else {
             panic!("check must be a pack");
         };
         assert_eq!(
@@ -30016,7 +33219,7 @@ mod tests {
             Some(RuntimeValue::Fixed64(Fixed64::from_i64(4))),
         )]);
         let checked = eval_endpoint_boundary_range_check(&[remap, fail]).expect("range check");
-        let RuntimeValue::Pack(check) = checked else {
+        let RuntimeValue::Pack(check) = &checked else {
             panic!("check must be a pack");
         };
         assert_eq!(
@@ -30061,7 +33264,7 @@ mod tests {
         let checked =
             eval_endpoint_explicit_solve_range_check(&[relation.clone(), values.clone(), ranges])
                 .expect("explicit solve range");
-        let RuntimeValue::Pack(check) = checked else {
+        let RuntimeValue::Pack(check) = &checked else {
             panic!("check must be a pack");
         };
         assert_eq!(
@@ -30086,7 +33289,7 @@ mod tests {
         )]);
         let checked =
             eval_endpoint_explicit_solve_range_check(&[relation, values, ranges]).expect("fail");
-        let RuntimeValue::Pack(check) = checked else {
+        let RuntimeValue::Pack(check) = &checked else {
             panic!("check must be a pack");
         };
         assert_eq!(
@@ -30135,7 +33338,7 @@ mod tests {
             ranges,
         ])
         .expect("missing value check");
-        let RuntimeValue::Pack(check) = checked else {
+        let RuntimeValue::Pack(check) = &checked else {
             panic!("check must be a pack");
         };
         assert_eq!(
@@ -30209,7 +33412,7 @@ mod tests {
                 .expect("report");
         let rows =
             eval_endpoint_solve_range_report_rows(&[relation, values, ranges]).expect("rows");
-        let RuntimeValue::Pack(report) = report else {
+        let RuntimeValue::Pack(report) = &report else {
             panic!("report must be a pack");
         };
         assert_eq!(
@@ -30228,7 +33431,7 @@ mod tests {
         let Some(RuntimeValue::List(report_rows)) = report.get("행들") else {
             panic!("행들 must be a list");
         };
-        let RuntimeValue::List(row_list) = rows else {
+        let RuntimeValue::List(row_list) = &rows else {
             panic!("rows must be a list");
         };
         assert_eq!(report_rows.len(), 2);
@@ -30278,7 +33481,7 @@ mod tests {
         let report =
             eval_endpoint_solve_range_report(&[relation, RuntimeValue::List(vec![]), ranges])
                 .expect("report");
-        let RuntimeValue::Pack(report) = report else {
+        let RuntimeValue::Pack(report) = &report else {
             panic!("report must be a pack");
         };
         assert_eq!(
@@ -30357,10 +33560,10 @@ mod tests {
         let text = eval_endpoint_solve_range_text_report(&[report]).expect("text");
         let direct = eval_endpoint_explicit_solve_range_text_report(&[relation, values, ranges])
             .expect("direct text");
-        let RuntimeValue::String(text) = text else {
+        let RuntimeValue::String(text) = &text else {
             panic!("text report must be a string");
         };
-        let RuntimeValue::String(direct) = direct else {
+        let RuntimeValue::String(direct) = &direct else {
             panic!("direct text report must be a string");
         };
         assert_eq!(text, direct);
@@ -30506,7 +33709,7 @@ mod tests {
         assert_eq!(suite_pack.get("통과개수"), Some(&fixed_value(2)));
         assert_eq!(suite_pack.get("실패개수"), Some(&fixed_value(2)));
         let text = eval_endpoint_solve_range_case_suite_text(&[suite]).expect("suite text");
-        let RuntimeValue::String(text) = text else {
+        let RuntimeValue::String(text) = &text else {
             panic!("suite text must be a string");
         };
         assert!(text.starts_with("이름\t기대\t실제\t통과"));
@@ -30628,10 +33831,10 @@ mod tests {
             eval_endpoint_solve_range_case_suite_detail_text(&[suite]).expect("detail text");
         let direct =
             eval_endpoint_solve_range_case_suite_run_detail_text(&[cases]).expect("direct detail");
-        let RuntimeValue::String(detail) = detail else {
+        let RuntimeValue::String(detail) = &detail else {
             panic!("detail must be a string");
         };
-        let RuntimeValue::String(direct) = direct else {
+        let RuntimeValue::String(direct) = &direct else {
             panic!("direct detail must be a string");
         };
         assert_eq!(detail, direct);
@@ -30725,7 +33928,7 @@ mod tests {
         );
         let summary =
             eval_endpoint_solve_range_case_suite_summary(&[suite]).expect("suite summary");
-        let RuntimeValue::Pack(summary_pack) = summary else {
+        let RuntimeValue::Pack(summary_pack) = &summary else {
             panic!("summary must be a pack");
         };
         assert_eq!(
@@ -30849,7 +34052,7 @@ mod tests {
 
         let check = eval_endpoint_solve_range_case_suite_check(&[RuntimeValue::Pack(summary)])
             .expect("suite check");
-        let RuntimeValue::Pack(check_pack) = check else {
+        let RuntimeValue::Pack(check_pack) = &check else {
             panic!("check must be a pack");
         };
         assert_eq!(
@@ -30919,7 +34122,7 @@ mod tests {
             Some(RuntimeValue::Fixed64(Fixed64::from_i64(10))),
         )]);
         let checked = eval_endpoint_boundary_range_check(&[remap, range]).expect("range check");
-        let RuntimeValue::Pack(check) = checked else {
+        let RuntimeValue::Pack(check) = &checked else {
             panic!("check must be a pack");
         };
         assert_eq!(
@@ -30960,7 +34163,7 @@ mod tests {
         )]);
         let checked =
             eval_endpoint_boundary_range_check(&[remap.clone(), pass]).expect("range check");
-        let RuntimeValue::Pack(check) = checked else {
+        let RuntimeValue::Pack(check) = &checked else {
             panic!("check must be a pack");
         };
         assert_eq!(
@@ -32359,7 +35562,7 @@ mod tests {
         let script = r#"
 매틱:움직씨 = {
     n <- ("680564733841876926926749214863536422912", "2") 나눔수.
-    기대 <- ("340282366920938463463374607431768211456") 큰바른수.
+    기대 <- ("340282366920938463463374607431768211456", "1") 나눔수.
     같음 <- n == 기대.
     요약 <- (같음=같음) 글무늬{"{같음}"}.
 }
@@ -33057,7 +36260,7 @@ mod tests {
     b <- ("9999999999999999999") 큰바른수.
     r1 <- (1, 3) 나눔수.
     r2 <- (2, 5) 나눔수.
-    같음 <- (2, 1) 나눔수 == ("2") 큰바른수.
+    같음 <- (2, 1) 나눔수 == (4, 2) 나눔수.
     큼 <- a > b.
     작음 <- r1 < r2.
     요약 <- (같음=같음, 큼=큼, 작음=작음) 글무늬{"{같음}|{큼}|{작음}"}.

@@ -504,6 +504,16 @@ fn walk_stmt(
 ) {
     use ddonirang_lang::Stmt;
     match statement {
+        Stmt::SumDefinition { .. } => {}
+        Stmt::SumMatch { subject, arms, default_body, .. } => {
+            walk_expr(subject, caller_identity, tokens, calls);
+            for arm in arms {
+                walk_body(&arm.body, caller_identity, tokens, calls);
+            }
+            if let Some(body) = default_body {
+                walk_body(body, caller_identity, tokens, calls);
+            }
+        }
         Stmt::DeclBlock { items, .. } => {
             for item in items {
                 if let Some(value) = &item.value {
@@ -636,6 +646,11 @@ fn walk_expr(
 ) {
     use ddonirang_lang::ExprKind;
     match &expression.kind {
+        ExprKind::SumBranchValue { payload, .. } => {
+            for payload in payload {
+                walk_expr(&payload.value, caller_identity, tokens, calls);
+            }
+        }
         ExprKind::Tensor(value) => walk_expr(value.input(), caller_identity, tokens, calls),
         ExprKind::MultiAxisSelection(value) => { for child in value.children() { walk_expr(child, caller_identity, tokens, calls); } }
         ExprKind::Call { args, func } => {
@@ -650,7 +665,12 @@ fn walk_expr(
                 walk_expr(&arg.expr, caller_identity, tokens, calls);
             }
         }
-        ExprKind::CollectionConstructor { elements } => {
+        ExprKind::ProductConstruction { fields, .. } => {
+            for field in fields {
+                walk_expr(&field.expr, caller_identity, tokens, calls);
+            }
+        }
+        ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
             for element in elements {
                 walk_expr(element, caller_identity, tokens, calls);
             }
@@ -822,12 +842,16 @@ fn seed_kind_surface(kind: &SeedKind) -> &str {
         SeedKind::Heureumssi => "흐름씨",
         SeedKind::Ieumssi => "이음씨",
         SeedKind::Semssi => "셈씨",
+        SeedKind::Product => "묶음씨",
+        SeedKind::Schema(ddonirang_lang::ast::SchemaCategory::Subject) => "임자",
+        SeedKind::Schema(ddonirang_lang::ast::SchemaCategory::NominalValue) => "이름씨",
         SeedKind::Named(name) => name.as_str(),
     }
 }
 
 pub(crate) fn type_surface(type_ref: &TypeRef) -> String {
     match type_ref {
+        TypeRef::Tuple(items) => format!("({})", items.iter().map(type_surface).collect::<Vec<_>>().join(", ")),
         TypeRef::Tensor { element, shape } => {
             let mut axes = shape.iter().map(u64::to_string).collect::<Vec<_>>().join(", ");
             if shape.len() == 1 { axes.push(','); }

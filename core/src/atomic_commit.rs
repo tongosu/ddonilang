@@ -213,6 +213,7 @@ impl PatchCandidate {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LogicalPatchKey {
+    SubjectWorld,
     Component { entity: EntityId, tag: String },
     Resource { tag: String },
 }
@@ -220,6 +221,7 @@ pub enum LogicalPatchKey {
 impl LogicalPatchKey {
     pub fn canonical_name(&self) -> String {
         match self {
+            Self::SubjectWorld => "subject-world".to_string(),
             Self::Component { entity, tag } => {
                 format!("component/{}/{}", entity.0, normalize_nfc_text(tag))
             }
@@ -289,6 +291,10 @@ pub fn analyze_patch_effects(patch: &Patch) -> PatchEffects {
                 let tag = normalize_nfc_text(tag);
                 writes.insert(LogicalPatchKey::Resource { tag: tag.clone() });
                 resource_writes.insert((tag, ResourceStorageKind::Value));
+            }
+            PatchOp::SetSubjectWorld { .. } => {
+                reads.insert(LogicalPatchKey::SubjectWorld);
+                writes.insert(LogicalPatchKey::SubjectWorld);
             }
             PatchOp::DivAssignResourceFixed64 { tag, .. } => {
                 let tag = normalize_nfc_text(tag);
@@ -685,6 +691,13 @@ fn stage_batch(
                         surviving_resource_writes.push((tag, ResourceStorageKind::Value));
                     }
                 }
+                PatchOp::SetSubjectWorld { value } => {
+                    evaluation_world.set_subject_world(value.clone());
+                    if !discard_candidate_effects {
+                        world.set_subject_world(value.clone());
+                        surviving_writes.push((candidate_index,LogicalPatchKey::SubjectWorld));
+                    }
+                }
                 PatchOp::DivAssignResourceFixed64 {
                     tag,
                     rhs,
@@ -1001,7 +1014,9 @@ fn commit_patch_candidates_atomically_inner(
 
     if ordered
         .iter()
-        .any(|candidate| candidate.madi != madi || candidate.canonical_origin().is_none())
+        .any(|candidate| candidate.madi != madi || candidate.canonical_origin().is_none()
+            || world.validate_typed_resource_lanes().is_err()
+            || candidate.patch.ops.iter().any(|op|matches!(op,PatchOp::SetResourceJson {..})))
     {
         return commit_execution(rejected_receipt(
             attempt,

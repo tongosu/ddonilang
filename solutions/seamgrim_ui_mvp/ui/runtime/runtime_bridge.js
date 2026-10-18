@@ -13,6 +13,7 @@ export const RUNTIME_BRIDGE_V1_OPERATIONS = Object.freeze([
   "manipulationValueRaw",
   "bindLogicalSource",
   "replayLogicalInput",
+  "recordFiniteInput",
   "sourceAnalysis",
   "sharedCompletion",
   "runSummaryWithSourceProfile",
@@ -68,6 +69,8 @@ class RuntimeSessionV1 {
   exportSavedProjectArtifact(parentHex, revisionHex) {
     return this.#adapterSession.exportSavedProjectArtifact(parentHex, revisionHex);
   }
+  hasNativeSource() { return this.#adapterSession.hasNativeSource?.() === true; }
+  saveNativeCheckpoint(authoredText) { return this.#adapterSession.saveNativeCheckpoint(authoredText); }
 
   close() { return this.#adapterSession.close(); }
 
@@ -93,13 +96,20 @@ export class WasmRuntimeAdapter {
     return this.createWasmVmImpl(options);
   }
 
-  async createLogicalSession({ sourceText, bindingJson }) {
-    if (typeof sourceText !== "string" || typeof bindingJson !== "string") {
+  async createLogicalSession({ sourceText, bindingJson, authoredProjectJson = null, savedCheckpoint = null }) {
+    if (typeof bindingJson !== "string" ||
+        (authoredProjectJson === null ? typeof sourceText !== "string" : typeof authoredProjectJson !== "string")) {
       throw new Error("E_LOGICAL_INPUT_BINDING: 원문과 명시 입력 결속이 필요합니다.");
     }
     const module = await this.ensureProjectModule();
-    const Constructor = requireExport(module, "DdnLogicalInputVm", "E_LOGICAL_INPUT_RUNTIME_MISSING: 새 논리 입력 실행기가 필요합니다.");
-    const vm = new Constructor(sourceText, bindingJson);
+    requireExport(module, "DdnLogicalInputVm", "E_LOGICAL_INPUT_RUNTIME_MISSING: 새 논리 입력 실행기가 필요합니다.");
+    const Constructor = module.DdnLogicalInputVm;
+    const vm = savedCheckpoint !== null ? requireExport(Constructor, "from_saved_project_checkpoint",
+      "E_PROJECT_RUNTIME_LOGICAL: 논리 입력 저장 복원 실행기가 필요합니다.")(
+        savedCheckpoint.artifact_text, new Uint8Array(savedCheckpoint.checkpoint_bytes),
+        new Uint8Array(savedCheckpoint.parent_bytes), new Uint8Array(savedCheckpoint.revision_bytes), bindingJson) :
+      authoredProjectJson === null ? new Constructor(sourceText, bindingJson) :
+      requireExport(Constructor, "from_authored_project", "E_PROJECT_RUNTIME_LOGICAL: 프로젝트 논리 실행기가 필요합니다.")(authoredProjectJson, bindingJson);
     if (typeof vm.view_json !== 'function') {
       vm.free();
       throw new Error('E_LOGICAL_INPUT_VIEW_UNSUPPORTED: 실행기의 그림 투영 계약이 없습니다.');
@@ -110,18 +120,27 @@ export class WasmRuntimeAdapter {
         result.view_meta = JSON.parse(vm.view_json());
         return result;
       },
-      summary: () => JSON.parse(vm.summary_json()),
+      summary: ({includeView=false}={}) => {
+        const result=JSON.parse(vm.summary_json());
+        if(includeView) result.view_meta=JSON.parse(vm.view_json());
+        return result;
+      },
       seal: () => JSON.parse(vm.seal_json()),
+      stopRecording: () => JSON.parse(requireExport(vm,'stop_recording_v3_json','E_INPUT_V3_UNSUPPORTED: 통합 기록 실행기가 필요합니다.').call(vm)),
+      exportSavedProjectArtifact: (parent, revision) =>
+        requireExport(vm, "export_saved_project", "E_PROJECT_RUNTIME_LOGICAL: 프로젝트 저장 기능이 필요합니다.").call(vm, parent, revision),
+      exportProjectCheckpoint: (parent, revision) =>
+        requireExport(vm, "export_project_checkpoint", "E_PROJECT_RUNTIME_LOGICAL: 입력 이력 저장 기능이 필요합니다.").call(vm, parent, revision),
       abort: message => vm.abort_input(String(message)),
       close: () => vm.free(),
     };
   }
 
-  async bindLogicalSource({ sourceText, bindingJson }) {
+  async bindLogicalSource({ sourceText, bindingJson, authoredProjectJson = null }) {
     const module = await this.ensureProjectModule();
     const Constructor = module.DdnLogicalInputVm;
-    const bind = requireExport(Constructor, "bind_source_json", "E_LOGICAL_INPUT_BIND_SOURCE_UNSUPPORTED: 새 원문 결속 기능이 필요합니다.");
-    return bind(sourceText, bindingJson);
+    const bind = requireExport(Constructor, authoredProjectJson === null ? "bind_source_json" : "bind_authored_project_json", "E_LOGICAL_INPUT_BIND_SOURCE_UNSUPPORTED: 새 원문 결속 기능이 필요합니다.");
+    return bind(authoredProjectJson === null ? sourceText : authoredProjectJson, bindingJson);
   }
 
   async createManipulationSession({sourceText,bindingJson}) {
@@ -129,7 +148,9 @@ export class WasmRuntimeAdapter {
     const Constructor=requireExport(module,'DdnManipulationVm','E_MANIPULATION_RUNTIME_MISSING: 조작 입력 실행기가 필요합니다.');
     const vm=new Constructor(sourceText,bindingJson);
     return {step:snapshot=>{const result=JSON.parse(vm.step_json(JSON.stringify(snapshot)));result.view_meta=JSON.parse(vm.view_json());return result;},
-      summary:()=>JSON.parse(vm.summary_json()),seal:()=>JSON.parse(vm.seal_json()),abort:message=>vm.abort_input(String(message)),close:()=>vm.free()};
+      summary:()=>JSON.parse(vm.summary_json()),seal:()=>JSON.parse(vm.seal_json()),
+      stopRecording:()=>JSON.parse(requireExport(vm,'stop_recording_v3_json','E_INPUT_V3_UNSUPPORTED: 통합 기록 실행기가 필요합니다.').call(vm)),
+      abort:message=>vm.abort_input(String(message)),close:()=>vm.free()};
   }
   async bindManipulationSource({sourceText,bindingJson}) {
     const module=await this.ensureProjectModule();
@@ -141,13 +162,28 @@ export class WasmRuntimeAdapter {
   }
   async replayManipulationInput({sourceText,tapeBytes,bindingJson}) {
     const module=await this.ensureProjectModule();
-    return JSON.parse(requireExport(module,'manipulation_input_replay')(sourceText,new Uint8Array(tapeBytes),bindingJson));
+    return JSON.parse(requireExport(module,'manipulation_input_replay_v3')(sourceText,new Uint8Array(tapeBytes),bindingJson));
   }
 
-  async replayLogicalInput({ sourceText, tapeBytes, bindingJson }) {
+  async recordFiniteInput({sourceText,requestJson,bindingJson,authoredProjectJson=null,manipulation=false}) {
+    if(typeof requestJson!=='string'||typeof bindingJson!=='string')throw new Error('E_INPUT_TAPE_V3: 입력 요청과 독립적인 현재 입력 계약이 필요합니다.');
+    if(manipulation&&authoredProjectJson!==null)throw new Error('E_MANIPULATION_PROJECT_UNSUPPORTED: 여러 파일 조작 입력은 지원하지 않습니다.');
+    const module=await this.ensureProjectModule();
+    const name=manipulation?'manipulation_input_record_v3':authoredProjectJson===null?'logical_input_record_v3':'authored_logical_input_record_v3';
+    // Pass the original JSON text to Rust. Do not reparse large integers or
+    // promote a live accepted prefix to a newly invented finite request.
+    const record=JSON.parse(requireExport(module,name)(authoredProjectJson??sourceText,requestJson));
+    const options={sourceText,tapeBytes:record.tape_bytes,bindingJson,authoredProjectJson};
+    // The file's own binding is not its admission authority. Re-admit against
+    // the separately selected current project/source and input contract.
+    const summary=await (manipulation?this.replayManipulationInput(options):this.replayLogicalInput(options));
+    return {tape_bytes:record.tape_bytes,summary};
+  }
+
+  async replayLogicalInput({ sourceText, tapeBytes, bindingJson, authoredProjectJson = null }) {
     const module = await this.ensureProjectModule();
-    const replay = requireExport(module, "logical_input_replay");
-    return JSON.parse(replay(sourceText, new Uint8Array(tapeBytes), bindingJson));
+    const replay = requireExport(module, authoredProjectJson === null ? "logical_input_replay_v3" : "authored_logical_input_replay_v3");
+    return JSON.parse(replay(authoredProjectJson === null ? sourceText : authoredProjectJson, new Uint8Array(tapeBytes), bindingJson));
   }
 
   async ensureProjectModule() {
@@ -360,6 +396,7 @@ export class RuntimeBridgeV1 {
   bindLogicalSource(options) { return this.#adapter.bindLogicalSource(options); }
   manipulationValueRaw(text) { return this.#adapter.manipulationValueRaw(text); }
   replayLogicalInput(request) { return this.#adapter.replayLogicalInput(request); }
+  recordFiniteInput(request) { return this.#adapter.recordFiniteInput(request); }
 
   cancelExecution(reason) { this.#adapter.cancelExecution?.(reason); }
 

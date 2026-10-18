@@ -53,6 +53,12 @@ fn collect_optional_body(
 
 fn collect_stmt(stmt: &Stmt, source: &str, out: &mut Vec<HistoricalAsyncMigrationEvidence>) {
     match stmt {
+        Stmt::SumDefinition { .. } => {}
+        Stmt::SumMatch { subject, arms, default_body, .. } => {
+            collect_expr(subject, source, out);
+            for arm in arms { collect_body(&arm.body, source, out); }
+            collect_optional_body(default_body.as_ref(), source, out);
+        }
         Stmt::Send {
             transfer,
             span,
@@ -183,16 +189,19 @@ fn collect_stmt(stmt: &Stmt, source: &str, out: &mut Vec<HistoricalAsyncMigratio
 
 fn collect_expr(expr: &Expr, source: &str, out: &mut Vec<HistoricalAsyncMigrationEvidence>) {
     match &expr.kind {
+        ExprKind::SumBranchValue { payload, .. } => {
+            for payload in payload { collect_expr(&payload.value, source, out); }
+        }
         ExprKind::Tensor(value) => collect_expr(value.input(), source, out),
         ExprKind::MultiAxisSelection(value) => { for child in value.children() { collect_expr(child, source, out); } }
         ExprKind::FieldAccess { target, .. } => collect_expr(target, source, out),
         ExprKind::SeedLiteral { body, .. } => collect_expr(body, source, out),
-        ExprKind::Call { args, .. } => {
+        ExprKind::Call { args, .. } | ExprKind::ProductConstruction { fields: args, .. } => {
             for arg in args {
                 collect_expr(&arg.expr, source, out);
             }
         }
-        ExprKind::CollectionConstructor { elements } => {
+        ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
             for element in elements {
                 collect_expr(element, source, out);
             }

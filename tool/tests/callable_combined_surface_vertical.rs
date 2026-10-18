@@ -93,7 +93,7 @@ fn all_official_clis_preserve_canon_reparse() {
             String::from_utf8_lossy(&first.stderr)
         );
         let canonical = String::from_utf8(first.stdout.clone()).unwrap();
-        assert!(canonical.contains("돕다{도우}:수:셈씨"));
+        assert!(canonical.contains("돕다{도우}:셈수:셈씨"));
         let canonical_path = scratch.source("canonical.ddn", &canonical);
         let second = run(
             binary,

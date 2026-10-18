@@ -220,8 +220,9 @@ fn token_type(
                 Some(9)
             }
         }
-        TokenKind::Variable(_) | TokenKind::Nuance(_) => Some(2),
+        TokenKind::Variable(_) | TokenKind::Nuance(_) | TokenKind::BranchRole(_) => Some(2),
         TokenKind::StringLit(_) => Some(5),
+        TokenKind::BytesLit(_) => Some(5),
         TokenKind::Integer(_) | TokenKind::Float(_) => Some(6),
         TokenKind::Atom(_) => Some(8),
         TokenKind::Pragma(_) => Some(4),

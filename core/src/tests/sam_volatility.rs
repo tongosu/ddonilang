@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use crate::{
     platform::{
         Bogae, DetNuri, InMemoryGeoul, InputSnapshot, InputSource, Iyagi, Nuri, NuriWorld, Origin,
-        Patch, PatchOp, Sam, SeulgiIntent, SeulgiPacket,
+        Patch, PatchOp, ResourceValue, Sam, SeulgiIntent, SeulgiPacket,
     },
     signals::VecSignalSink,
     EngineLoop, Fixed64, TickId, KEY_W,
@@ -60,15 +60,15 @@ impl Iyagi for InputScopeIyagi {
 
     fn run_update(&mut self, world: &NuriWorld, input: &InputSnapshot) -> Patch {
         let mut ops = Vec::new();
-        ops.push(PatchOp::SetResourceJson {
+        ops.push(PatchOp::SetResourceValue {
             tag: "current_key".to_string(),
-            json: input.last_key_name.clone(),
+            value: ResourceValue::String(input.last_key_name.clone()),
         });
 
-        if !input.last_key_name.is_empty() && world.get_resource_json("copied_key").is_none() {
-            ops.push(PatchOp::SetResourceJson {
+        if !input.last_key_name.is_empty() && world.get_resource_value("copied_key").is_none() {
+            ops.push(PatchOp::SetResourceValue {
                 tag: "copied_key".to_string(),
-                json: input.last_key_name.clone(),
+                value: ResourceValue::String(input.last_key_name.clone()),
             });
         }
 
@@ -129,17 +129,15 @@ fn sam_input_is_tick_scoped_and_requires_copy() {
         loop_
             .nuri
             .world()
-            .get_resource_json("current_key")
-            .as_deref(),
-        Some("w")
+            .get_resource_value("current_key"),
+        Some(ResourceValue::String("w".into()))
     );
     assert_eq!(
         loop_
             .nuri
             .world()
-            .get_resource_json("copied_key")
-            .as_deref(),
-        Some("w")
+            .get_resource_value("copied_key"),
+        Some(ResourceValue::String("w".into()))
     );
 
     let frame2 = loop_.tick_once(2, &mut sink);
@@ -148,16 +146,14 @@ fn sam_input_is_tick_scoped_and_requires_copy() {
         loop_
             .nuri
             .world()
-            .get_resource_json("current_key")
-            .as_deref(),
-        Some("")
+            .get_resource_value("current_key"),
+        Some(ResourceValue::String(String::new()))
     );
     assert_eq!(
         loop_
             .nuri
             .world()
-            .get_resource_json("copied_key")
-            .as_deref(),
-        Some("w")
+            .get_resource_value("copied_key"),
+        Some(ResourceValue::String("w".into()))
     );
 }

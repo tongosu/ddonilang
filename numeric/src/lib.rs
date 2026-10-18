@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
+pub mod saved_rational;
+
 pub const FACTOR_JOB_SCHEMA: &str = "ddn.numeric.factor_job.v1";
 pub const FACTOR_RESULT_SCHEMA: &str = "ddn.numeric.factor_result.v1";
 

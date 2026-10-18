@@ -2265,6 +2265,16 @@ impl<'a> DefinitionCollector<'a> {
         let scope_id = scope_id.to_string();
         for stmt in stmts {
             match stmt {
+                Stmt::SumDefinition { .. } => {}
+                Stmt::SumMatch { subject, arms, default_body, .. } => {
+                    self.collect_expr(subject, &scope_id, false);
+                    for arm in arms {
+                        self.collect_body(&arm.body, &scope_id, true);
+                    }
+                    if let Some(body) = default_body {
+                        self.collect_body(body, &scope_id, true);
+                    }
+                }
                 Stmt::DeclBlock { items, .. } => {
                     for item in items {
                         if let Some(value) = &item.value {
@@ -2537,6 +2547,19 @@ impl<'a> DefinitionCollector<'a> {
 
     fn collect_expr(&mut self, expr: &Expr, scope_id: &str, write: bool) {
         match &expr.kind {
+            ExprKind::SumBranchValue { payload, .. } => {
+                for payload in payload {
+                    self.collect_expr(&payload.value, scope_id, false);
+                }
+            }
+            ExprKind::ProductConstruction { owner, fields, .. } => {
+                for field in fields {
+                    self.collect_expr(&field.expr, scope_id, false);
+                }
+                if let Some(span) = self.qualified_name_span(owner, expr.span) {
+                    self.record_occurrence(owner, scope_id, span, false);
+                }
+            }
             ExprKind::Tensor(value) => self.collect_expr(value.input(), scope_id, false),
             ExprKind::MultiAxisSelection(value) => {
                 self.collect_expr(&value.target, scope_id, write && value.writable);
@@ -2577,7 +2600,7 @@ impl<'a> DefinitionCollector<'a> {
                     self.record_occurrence(func, scope_id, span, false);
                 }
             }
-            ExprKind::CollectionConstructor { elements } => {
+            ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
                 for element in elements {
                     self.collect_expr(element, scope_id, false);
                 }
@@ -2916,6 +2939,7 @@ fn line_column_utf16(source: &str, byte_offset: usize) -> Option<(usize, usize)>
 
 fn type_ref_label(type_ref: &TypeRef) -> String {
     match type_ref {
+        TypeRef::Tuple(items) => format!("({})", items.iter().map(type_ref_label).collect::<Vec<_>>().join(", ")),
         TypeRef::Tensor { element, shape } => {
             let mut axes = shape.iter().map(u64::to_string).collect::<Vec<_>>().join(", ");
             if shape.len() == 1 { axes.push(','); }
@@ -2983,7 +3007,7 @@ fn seed_kind_label(kind: &SeedKind) -> &'static str {
         SeedKind::Sam => "sample_seed",
         SeedKind::Heureumssi => "flow_seed",
         SeedKind::Ieumssi => "link_seed",
-        SeedKind::Named(_) => "named_seed",
+        SeedKind::Named(_) | SeedKind::Product | SeedKind::Schema(_) => "named_seed",
     }
 }
 

@@ -148,9 +148,13 @@ AI가 내놓은 제안과 프로그램의 규칙으로 확정한 뜻을 구분�
 Rust가 설치되어 있다면 소스의 빌드를 확인할 수 있습니다.
 
 ```sh
-cargo check --locked
+cargo check --locked --workspace --no-default-features
 ```
 
 읽기 어색한 코드나 예상과 다른 결과가 있다면 [Issues](https://github.com/tongosu/ddonilang/issues)에 짧은 코드와 기대한 결과를 남겨 주세요.
 
 영문 이름은 **Ddonilang**입니다. 소스의 이용 조건은 [LICENSE](LICENSE)를 확인해 주세요. 외부 라이브러리에는 각각의 이용 조건이 적용됩니다.
+
+## 베타1 개발 소식
+
+여러 파일 작품의 저장·재열기·이어 실행을 다듬은 [베타1 검토 후보 소스와 사용법](publish/releases/beta1-candidate.md)을 공개했습니다. 직접 사용 확인과 동결은 별도이며, 알려진 제한도 함께 적었습니다. 기존 알파 체험판은 그대로 유지합니다.

@@ -8,7 +8,7 @@
 // - N3: 완전 정본 (빌드/증명)
 
 use crate::ast::*;
-use std::collections::HashMap;
+use std::collections::{BTreeMap,BTreeSet,HashMap};
 
 /// 정규화 레벨
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,6 +30,9 @@ pub struct Normalizer {
     output: String,
     call_signatures: HashMap<String, Vec<ParamPin>>,
     source_epoch: SourceEpoch,
+    registered_sum_pins:Option<BTreeMap<NodeId,[u8;32]>>,
+    registered_sum_seen:BTreeSet<NodeId>,
+    registered_sum_failure:Option<(Span,&'static str)>,
 }
 
 impl Normalizer {
@@ -40,13 +43,27 @@ impl Normalizer {
             output: String::new(),
             call_signatures: HashMap::new(),
             source_epoch: SourceEpoch::PreV25,
+            registered_sum_pins:None,
+            registered_sum_seen:BTreeSet::new(),
+            registered_sum_failure:None,
         }
     }
 
     /// 프로그램 정본화
     pub fn normalize_program(&mut self, program: &CanonProgram) -> String {
+        self.registered_sum_seen.clear();self.registered_sum_failure=None;
         self.source_epoch = program.source_epoch;
         self.call_signatures = collect_call_signatures(program);
+        // Sum schemas are declarations, not executable statements (RD-349).
+        // Emit root schemas before callables that construct their branches.
+        if program.source_epoch == SourceEpoch::V25 {
+            for statement in &program.root_stmts {
+                if matches!(statement,Stmt::SumDefinition {..}) {
+                    self.normalize_stmt(statement);
+                    self.write("\n\n");
+                }
+            }
+        }
         // A3-P3: parser relocation is execution plumbing, not an authored
         // change of scope. Preserve top-level setup in saved V25 source.
         if program.source_epoch == SourceEpoch::V25 {
@@ -83,6 +100,7 @@ impl Normalizer {
             self.write("\n\n");
         }
         for stmt in &program.root_stmts {
+            if program.source_epoch == SourceEpoch::V25 && matches!(stmt,Stmt::SumDefinition {..}) {continue;}
             self.normalize_stmt(stmt);
             self.write("\n\n");
         }
@@ -126,6 +144,19 @@ impl Normalizer {
                     return;
                 }
             }
+            return;
+        }
+        if let SeedKind::Schema(category) = seed.seed_kind {
+            self.write(&seed.canonical_name);
+            self.write(match category { SchemaCategory::Subject => ":임자 := {", SchemaCategory::NominalValue => ":이름씨 := {" });
+            for slot in &seed.params {
+                self.write(" ");
+                self.write(&slot.pin_name);
+                self.write(":");
+                self.normalize_type(&slot.type_ref);
+                self.write(".");
+            }
+            self.write(" }.");
             return;
         }
         // 매개변수
@@ -182,6 +213,9 @@ impl Normalizer {
                 }
             }
             self.normalize_body(body);
+            if seed.seed_kind == SeedKind::Product && self.source_epoch == SourceEpoch::V25 {
+                self.write(".");
+            }
         }
     }
 
@@ -213,6 +247,9 @@ impl Normalizer {
             SeedKind::Heureumssi => "흐름씨",
             SeedKind::Ieumssi => "이음씨",
             SeedKind::Semssi => "셈씨",
+            SeedKind::Product => "묶음씨",
+            SeedKind::Schema(SchemaCategory::Subject) => "임자",
+            SeedKind::Schema(SchemaCategory::NominalValue) => "이름씨",
             SeedKind::Named(name) => name,
         };
         self.write(s);
@@ -220,6 +257,14 @@ impl Normalizer {
 
     fn normalize_type(&mut self, type_ref: &TypeRef) {
         match type_ref {
+            TypeRef::Tuple(items) => {
+                self.write("(");
+                for (index, item) in items.iter().enumerate() {
+                    if index > 0 { self.write(", "); }
+                    self.normalize_type(item);
+                }
+                self.write(")");
+            }
             TypeRef::Tensor { element, shape } => {
                 self.write("(원소씨=");
                 self.normalize_type(element);
@@ -245,7 +290,9 @@ impl Normalizer {
             }
             TypeRef::Function { params, result } => {
                 if params.len() == 1 {
+                    if matches!(&params[0], TypeRef::Tuple(_)) { self.write("("); }
                     self.normalize_function_type_component(&params[0]);
+                    if matches!(&params[0], TypeRef::Tuple(_)) { self.write(")"); }
                 } else {
                     self.write("(");
                     for (idx, param) in params.iter().enumerate() {
@@ -290,6 +337,88 @@ impl Normalizer {
 
     fn normalize_stmt(&mut self, stmt: &Stmt) {
         match stmt {
+            Stmt::SumDefinition { name, branches, .. } => {
+                self.write(name);
+                self.write(":고름씨 := {\n");
+                self.indent += 1;
+                for branch in branches {
+                    self.write_indent();
+                    self.write("$");
+                    self.write(&branch.name);
+                    if !branch.payload.is_empty() {
+                        self.write("(");
+                        for (index,payload) in branch.payload.iter().enumerate() {
+                        if index>0 {self.write(", ");}
+                        self.write(&payload.binder);
+                        self.write(":");
+                        self.normalize_type(&payload.type_ref);
+                        }
+                        self.write(")");
+                    }
+                    self.write(".\n");
+                }
+                self.indent -= 1;
+                self.write_indent();
+                self.write("}");
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::SumMatch { subject, arms, default_body, .. } => {
+                self.normalize_expr(subject);
+                self.write("에 따라 {\n");
+                self.indent += 1;
+                for arm in arms {
+                    self.write_indent();
+                    if let Some(kind)=&arm.applied_owner {self.normalize_type(kind);} else {self.write(&arm.owner);}
+                    self.write(".$");
+                    self.write(&arm.branch);
+                    if !arm.binder.is_empty() {
+                        self.write("(");
+                        // Fixed owner+branch pin identity is independent of
+                        // schema/source ordinals and of local binder NodeId.
+                        let mut binders:Vec<_>=arm.binder.iter().collect();
+                        if let Some(order)=&self.registered_sum_pins {
+                            let mut selected=BTreeSet::new();
+                            for binder in &binders {
+                                let Some(raw)=order.get(&binder.id) else {
+                                    self.registered_sum_failure.get_or_insert((binder.span,"E_SUM_PIN_IDENTITY_REQUIRED"));return;
+                                };
+                                if *raw==[0;32]||!selected.insert(*raw) {
+                                    self.registered_sum_failure.get_or_insert((binder.span,"E_SUM_PIN_IDENTITY_DUPLICATE"));return;
+                                }
+                                self.registered_sum_seen.insert(binder.id);
+                            }
+                            binders.sort_by_key(|binder|order[&binder.id]);
+                        } else if binders.iter().any(|binder|binder.registered_pin_identity.is_some()) {
+                            let mut seen=BTreeSet::new();
+                            for binder in &binders {
+                                let Some(raw)=binder.registered_pin_identity.filter(|raw|*raw!=[0;32]) else {
+                                    self.registered_sum_failure.get_or_insert((binder.span,"E_SUM_PIN_IDENTITY_REQUIRED"));return;
+                                };
+                                if !seen.insert(raw) {self.registered_sum_failure.get_or_insert((binder.span,"E_SUM_PIN_IDENTITY_DUPLICATE"));return;}
+                            }
+                            binders.sort_by_key(|binder|binder.registered_pin_identity);
+                        } else {binders.sort_by(|a,b|a.pin.cmp(&b.pin));}
+                        for (index,binder) in binders.iter().enumerate() {
+                            if index>0 {self.write(", ");}
+                            self.write(&binder.pin);
+                        }
+                        self.write(")");
+                    }
+                    self.write("이면 ");
+                    self.normalize_body(&arm.body);
+                    self.write(".\n");
+                }
+                if let Some(body) = default_body {
+                    self.write_indent();
+                    self.write("아니면 ");
+                    self.normalize_body(body);
+                    self.write(".\n");
+                }
+                self.indent -= 1;
+                self.write_indent();
+                self.write("}");
+                self.write_stmt_terminator(stmt);
+            }
             Stmt::DeclBlock { items, .. } => {
                 self.write("채비 ");
                 self.write("{\n");
@@ -706,15 +835,62 @@ impl Normalizer {
         self.normalize_expr(expr);
     }
 
+    fn normalize_selection_index(&mut self, expr: &Expr) {
+        if let ExprKind::Call { args, func } = &expr.kind {
+            if func == "표준.범위" && args.len() == 3 {
+                self.write("(");
+                self.normalize_expr(&args[0].expr);
+                self.write(")..(");
+                self.normalize_expr(&args[1].expr);
+                self.write(")");
+                return;
+            }
+        }
+        self.normalize_expr(expr);
+    }
+
     fn normalize_expr(&mut self, expr: &Expr) {
+        if let Some(operand) = expr.source_negated_operand() {
+            self.write("(-(");
+            self.normalize_expr(operand);
+            self.write("))");
+            return;
+        }
         match &expr.kind {
+            ExprKind::SumBranchValue { owner, applied_owner, branch, payload } => {
+                if let Some(kind)=applied_owner {self.normalize_type(kind);} else {self.write(owner);}
+                self.write(".$");
+                self.write(branch);
+                if !payload.is_empty() {
+                    self.write("(");
+                    // Keep source evaluation order of argument expressions.
+                    for (index,payload) in payload.iter().enumerate() {
+                    if index>0 {self.write(", ");}
+                    self.write(&payload.pin);
+                    self.write("=");
+                    self.normalize_expr(&payload.value);
+                    }
+                    self.write(")");
+                }
+            }
+            ExprKind::ProductConstruction { owner, category, fields, .. } => {
+                self.write("(");
+                for (index, field) in fields.iter().enumerate() {
+                    if index > 0 { self.write(", "); }
+                    self.write(field.resolved_pin.as_deref().expect("admitted product field"));
+                    self.write("=");
+                    self.normalize_expr(&field.expr);
+                }
+                self.write(if category.is_some(){")인 "}else{") "});
+                self.write(owner);
+            }
             ExprKind::MultiAxisSelection(value) => {
                 self.normalize_expr(&value.target);
                 self.write("[");
                 for (i, selector) in value.selectors.iter().enumerate() {
                     if i > 0 { self.write(", "); }
                     match selector {
-                        TensorAxisSelector::Index(e) => self.normalize_expr(e),
+                        TensorAxisSelector::Index(e) => self.normalize_selection_index(e),
                         TensorAxisSelector::Range {start,end} => self.write(&format!("{start}..{end}")),
                         TensorAxisSelector::Full => self.write(":"),
                     }
@@ -741,7 +917,13 @@ impl Normalizer {
                     self.write(") 차림으로");
                 }
             },
-            ExprKind::Literal(lit) => self.normalize_literal(lit),
+            ExprKind::Literal(lit) => {
+                if let Some(source) = expr.numeric_literal_source.as_ref().filter(|s| s.is_decimal()) {
+                    // The exact decimal digits and the decimal category must
+                    // survive canon/reparse; Fixed64 text cannot supply them.
+                    self.write(source.raw());
+                } else { self.normalize_literal(lit); }
+            },
             ExprKind::Var(name) => self.write(name),
             ExprKind::FieldAccess { target, field, .. } => {
                 self.normalize_expr(target);
@@ -783,7 +965,7 @@ impl Normalizer {
             ExprKind::SelectionPlace { target, index } => {
                 self.normalize_selection_target(target);
                 self.write("[");
-                self.normalize_expr(index);
+                self.normalize_selection_index(index);
                 self.write("]");
             }
             ExprKind::Infix { left, op, right } => {
@@ -840,6 +1022,15 @@ impl Normalizer {
                     self.write(": ");
                     self.normalize_expr(value);
                 }
+                self.write(")");
+            }
+            ExprKind::TupleConstructor { elements } => {
+                self.write("(");
+                for (index, element) in elements.iter().enumerate() {
+                    if index > 0 { self.write(", "); }
+                    self.normalize_expr(element);
+                }
+                if elements.len() == 1 { self.write(","); }
                 self.write(")");
             }
             ExprKind::Assertion(assertion) => {
@@ -1080,6 +1271,7 @@ impl Normalizer {
                 }
                 self.write("}");
             }
+            Literal::Bytes(bytes) => self.write(&bytes.canonical_literal()),
             Literal::String(s) => {
                 self.write("\"");
                 self.write(&escape_string_literal(s));
@@ -1226,6 +1418,7 @@ impl Normalizer {
 
     fn write_stmt_terminator(&mut self, stmt: &Stmt) {
         let mood = match stmt {
+            Stmt::SumDefinition { mood, .. } | Stmt::SumMatch { mood, .. } => mood,
             Stmt::DeclBlock { mood, .. } => mood,
             Stmt::Definition { mood, .. } => mood,
             Stmt::Mutate { mood, .. } => mood,
@@ -1283,6 +1476,48 @@ pub fn normalize(program: &CanonProgram, level: NormalizationLevel) -> String {
     normalizer.normalize_program(program)
 }
 
+/// Formatting projection only. The shared product registration owner must
+/// verify source/module/branch/pin/binder correspondence before supplying
+/// this compilation-local NodeId cache. This API issues no registration,
+/// TypeIdentity, runtime capability, saved artifact or PESI authority.
+/// Missing/duplicate/unused bindings discard the whole candidate string;
+/// a registered path never falls back to spelling order.
+pub fn normalize_with_registered_sum_pin_order(program:&CanonProgram,level:NormalizationLevel,
+    order:&BTreeMap<NodeId,[u8;32]>)->Result<String,String> {
+    let mut normalizer=Normalizer::new(level);
+    normalizer.registered_sum_pins=Some(order.clone());
+    let output=normalizer.normalize_program(program);
+    if let Some((span,code))=normalizer.registered_sum_failure {
+        return Err(format!("{code}: 등록 받는자리 정체와 pattern이 다릅니다 @{}..{}",span.start,span.end));
+    }
+    if normalizer.registered_sum_seen.len()!=order.len() {
+        return Err("E_SUM_PIN_IDENTITY_UNUSED: 원문에 없는 받는자리 대응이 있습니다".into());
+    }
+    Ok(output)
+}
+
+/// Same formatter for a source-owned declaration fragment. The registration
+/// owner supplies only the selected pins present in this fragment; this is a
+/// projection, not a constructor for a verified catalog or effect capability.
+pub enum RegisteredCanonFragment<'a> {Definition(&'a SeedDef),Statement(&'a Stmt),Expression(&'a Expr)}
+pub fn normalize_registered_fragment(program:&CanonProgram,fragment:RegisteredCanonFragment<'_>,
+    order:&BTreeMap<NodeId,[u8;32]>)->Result<String,String> {
+    let mut formatter=Normalizer::new(NormalizationLevel::N1);
+    formatter.source_epoch=program.source_epoch;
+    formatter.call_signatures=collect_call_signatures(program);
+    formatter.registered_sum_pins=Some(order.clone());
+    match fragment {
+        RegisteredCanonFragment::Definition(seed)=>formatter.normalize_seed_def(seed),
+        RegisteredCanonFragment::Statement(statement)=>formatter.normalize_stmt(statement),
+        RegisteredCanonFragment::Expression(expression)=>formatter.normalize_expr(expression),
+    }
+    if let Some((span,code))=formatter.registered_sum_failure {
+        return Err(format!("{code}: 원문 조각의 등록 받는자리 대응이 다릅니다 @{}..{}",span.start,span.end));
+    }
+    if formatter.registered_sum_seen.len()!=order.len() {return Err("E_SUM_PIN_IDENTITY_UNUSED: 원문 조각 밖의 대응입니다".into());}
+    Ok(formatter.output)
+}
+
 /// Stable source-order-free expression material for semantic identities.
 /// Spans and NodeIds are deliberately absent from Normalizer output.
 pub fn normalize_expression_identity(expr: &Expr) -> String {
@@ -1316,6 +1551,46 @@ mod tests {
     use super::*;
     use crate::lexer::Lexer;
     use crate::parser::Parser;
+
+    #[test]
+    fn vc04_tuple_type_preserves_function_parameter_arity() {
+        let parse = |source: &str| {
+            let tokens=Lexer::new(source).tokenize().unwrap();
+            Parser::new_v25_with_mode(tokens,crate::ParseMode::Strict).parse_program(source.into(),"tuple.ddn".into()).unwrap()
+        };
+        for (source, expected) in [
+            ("(값:((바른수, 글)) --> 참거짓) 틀:묶음씨 := {}.","((바른수, 글)) --> 참거짓"),
+            ("(값:(바른수, 글) --> 참거짓) 틀:묶음씨 := {}.","(바른수, 글) --> 참거짓"),
+            ("(값:(바른수, 글)) 틀:묶음씨 := {}.","(바른수, 글)"),
+            ("(값:(바른수, 글)짝맞춤) 틀:묶음씨 := {}.","(바른수, 글) 짝맞춤"),
+        ] {
+            let before=parse(source);
+            let canon=normalize(&before,NormalizationLevel::N1);
+            assert!(canon.contains(expected),"{canon}");
+            let after=parse(&canon);
+            assert_eq!(normalize(&after,NormalizationLevel::N1),canon);
+            // Compare declaration-owned types, not merely stable output text.
+            let TopLevelItem::SeedDef(before)=&before.items[0];
+            let TopLevelItem::SeedDef(after)=&after.items[0];
+            assert_eq!(before.params.len(),1);
+            assert_eq!(before.params.iter().map(|pin|&pin.type_ref).collect::<Vec<_>>(),
+                after.params.iter().map(|pin|&pin.type_ref).collect::<Vec<_>>());
+        }
+        for source in ["(값:()) 틀:묶음씨 := {}.","(값:(글)) 틀:묶음씨 := {}.","(값:(글,)) 틀:묶음씨 := {}."] {
+            let tokens=Lexer::new(source).tokenize().unwrap();
+            assert!(Parser::new_v25_with_mode(tokens,crate::ParseMode::Strict).parse_program(source.into(),"bad-tuple.ddn".into()).is_err());
+        }
+    }
+
+    #[test]
+    fn vc13_tuple_constructor_canon_preserves_position_and_category() {
+        for source in ["값 <- (1, \"글\", 참).", "값 <- (1,).", "값 <- ()."] {
+            let canon=parse_and_normalize(source,NormalizationLevel::N1);
+            assert_eq!(parse_and_normalize(&canon,NormalizationLevel::N1),canon);
+            assert!(canon.contains('('));
+            assert!(!canon.contains("차림["));
+        }
+    }
 
     #[test]
     fn fixed64_literal_canonical_decimal_preserves_bits_including_min() {
@@ -1393,7 +1668,9 @@ mod tests {
             crate::parse_v25_and_normalize(source, "v25_single_return.ddn", NormalizationLevel::N1)
                 .expect("V25 source must normalize");
 
-        assert_eq!(normalized.trim(), "(x:수) 증가:셈씨 := x + 1");
+        // Owner M-A/R4: a V25 declaration's 수 is the canonical 셈수 owner.
+        // Keep the authored input and roundtrip check, not the old alias output.
+        assert_eq!(normalized.trim(), "(x:셈수) 증가:셈씨 := x + 1");
         assert!(!normalized.contains("되돌림"));
         assert!(!normalized.contains("돌려줘"));
 

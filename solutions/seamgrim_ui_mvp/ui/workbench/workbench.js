@@ -1,5 +1,5 @@
 import { createRuntimeBridgeV1 } from "../runtime/runtime_bridge.js";
-import { installLogicalInputPanel } from "./logical_input_panel.js";
+import { installLogicalInputPanel, committedLogicalSpace2d } from "./logical_input_panel.js";
 import { installAuthoredProjectPanel } from "./authored_project_panel.js";
 import { readDdnSourceFile } from './source_file.js';
 import { loadRuntimeProject, commitRuntimeProject, newRuntimeRevisionHex, runtimeStorageRecord } from './persistence/runtime_project_store.js';
@@ -1559,7 +1559,7 @@ function renderProjects() {
     button.setAttribute("role", "option");
     button.setAttribute("aria-selected", project.id === state.projectId ? "true" : "false");
     button.setAttribute("data-testid", `project-card-${project.id}`);
-    button.innerHTML = `<strong>${escapeHtml(project.title)}</strong><span>${escapeHtml(project.kind)} · ${escapeHtml(project.tags.join(", "))}</span><span>${escapeHtml(project.lessonDisposition || "알파1 실행")}</span>`;
+    button.innerHTML = `<strong>${escapeHtml(project.title)}</strong><span>${escapeHtml(project.kind)} · ${escapeHtml(project.tags.join(", "))}</span><span>${escapeHtml(project.lessonDisposition || (project.logicalInput ? "키보드로 실행" : "실행 작품"))}</span>`;
     button.addEventListener("click", () => selectProject(project.id));
     els.projectList.appendChild(button);
   });
@@ -1601,7 +1601,7 @@ function renderFileTabs(project) {
 
 function renderFileDrawer(project) {
   const manyFiles = project.files.length > 1;
-  els.fileDrawer.classList.toggle("hidden", !manyFiles);
+  els.fileDrawer.classList.remove("hidden"); // File commands stay available even for a single file.
   els.fileCount.textContent = `${project.files.length}`;
   els.fileList.innerHTML = "";
   const filter = String(state.fileFilter ?? "").trim().toLowerCase();
@@ -1784,12 +1784,15 @@ function selectCompletion(index = state.completionSelectedIndex) {
 async function requestCompletion() {
   const file = activeFile();
   const source = els.sourceEditor?.value ?? "";
-  if (!file?.path?.endsWith(".ddn") || els.sourceEditor?.readOnly) {
+  if (!file?.path?.endsWith(".ddn") || els.sourceEditor?.readOnly
+      || document.activeElement !== els.sourceEditor) {
     closeCompletionPopup();
     return;
   }
   const generation = ++state.completionGeneration;
   const version = state.completionDocumentVersion;
+  const projectId = state.projectId;
+  const filePath = file.path;
   const cursor = els.sourceEditor.selectionStart ?? source.length;
   const result = await runtimeBridge.sharedCompletion({
     schema: "ddonilang.completion.v1-candidate",
@@ -1802,6 +1805,9 @@ async function requestCompletion() {
   }).catch(() => null);
   if (
     generation !== state.completionGeneration
+    || projectId !== state.projectId
+    || filePath !== state.activeFilePath
+    || document.activeElement !== els.sourceEditor
     || version !== state.completionDocumentVersion
     || source !== els.sourceEditor.value
     || !result
@@ -3278,6 +3284,17 @@ function resizeCanvasToDisplaySize(canvas) {
   return { width, height };
 }
 
+function setPrimaryAspect(wasmState) {
+  const values = wasmState?.resources?.fixed64;
+  const width = Number(values?.보개_그림판_가로), height = Number(values?.보개_그림판_세로);
+  const explicit = Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
+  const ratio = explicit ? width / height : 4 / 3, wrap = els.canvas.parentElement;
+  wrap.style.setProperty('--primary-aspect', String(ratio));
+  wrap.dataset.aspectSource = explicit ? 'authored-dimensions' : 'product-default-4:3';
+  const available = Math.max(120, Math.min(innerHeight, wrap.closest('.bogae-panel').getBoundingClientRect().bottom) - wrap.getBoundingClientRect().top - 12);
+  wrap.style.maxWidth = `${Math.floor(available * ratio)}px`;
+}
+
 function drawProjectRunEvidence(ctx, width, height, evidence, semanticPayload) {
   const margin = Math.max(28, Math.min(width, height) * 0.09);
   ctx.fillStyle = "#eef5ed";
@@ -3339,13 +3356,18 @@ function buildCommittedCanonicalViewHistory(run, activeFrame, family) {
 
 function drawPreview() {
   const logical = currentLogicalPresentation();
+  setPrimaryAspect(logical?.value ?? activeFrame()?.wasm_state);
   if (logical?.value) {
     // Display the committed Rust response, not a synthetic ordinary run/frame.
     const canvas = els.canvas, ctx = canvas.getContext('2d', { willReadFrequently:true });
     const {width,height} = resizeCanvasToDisplaySize(canvas);
     ctx.clearRect(0,0,width,height);
     ctx.fillStyle='#f8fbf7'; ctx.fillRect(0,0,width,height);
-    const model = renderAuthoredBogae(ctx,width,height,logical.value,authoredCompositionHost);
+    const explicitSpace=committedLogicalSpace2d(logical.value);
+    const model = logical.value.bogae_projection
+      ? renderAuthoredBogae(ctx,width,height,logical.value,authoredCompositionHost)
+      : explicitSpace && renderSpace2dCanvas2d({canvas,space2d:explicitSpace,yAxisDown:true,pad:0,showViewMetrics:false})
+        ? {data_source:'committed_logical_drawlist',status:'ready',draw_list:explicitSpace.drawlist} : null;
     canvas.dataset.renderSource = model?.data_source ?? '';
     canvas.dataset.committedStateHash = logical.value.state_hash ?? logical.value.frame?.state_hash ?? '';
     canvas.dataset.authoredBogaeDigest = model?.authored_digest ?? '';
@@ -3552,6 +3574,7 @@ function drawPreview() {
 
 function renderMode() {
   els.layout.dataset.mode = state.mode;
+  document.querySelector('.app-frame').dataset.experimentMode = String(state.mode === 'bogae-full');
   document.querySelectorAll("button[data-mode]").forEach((button) => {
     button.classList.toggle("active", button.dataset.mode === state.mode);
     button.setAttribute("aria-selected", button.dataset.mode === state.mode ? "true" : "false");
@@ -3643,6 +3666,7 @@ function initialDragPoint(event, view) {
     ymin+((height+(ymax-ymin)*scale)/2-py)/scale];
 }
 els.canvas.addEventListener('pointerdown',event=>{
+  if(event.button!==0)return; // Middle-button navigation never edits initial conditions.
   const lab=currentProject().course?.lab_id ?? currentProject().id;
   if(!['alpha3_double_pendulum_lab','alpha4_lrl_lab'].includes(lab) || els.sourceEditor.readOnly) return;
   const view=activeFrame()?.wasm_state?.bogae_projection?.candidates?.[0]?.artifact?.view;
@@ -3735,13 +3759,25 @@ function renderViewPolicy(project) {
     document.querySelector('[data-testid="example-guide"]').textContent="원문 보개짜임 선언대로 표시합니다.";
     return;
   }
+  if (logical) {
+    for (const button of [els.viewPrimary,els.viewSide,els.viewOverlay,els.viewMagnifier]) button.hidden=true;
+    els.viewRoleSummary.hidden=true;
+    els.bogaeSourceAccess.hidden=true;
+    document.querySelector('[data-testid="side-view-close"]').hidden=true;
+    document.querySelector('[data-testid="spatial-trail"]').hidden=true;
+    document.querySelector('[data-testid="example-guide"]').textContent='';
+    return;
+  }
   const guides = {
     line: "정적인 직선은 한 번 계산합니다. a와 b를 고쳐 다시 실행하고 기울기와 절편을 비교해 보세요.",
     grid: "가로 10칸·세로 20칸입니다. 0.5초 재생으로 아래로 떨어져 바닥에 고정되는 모습을 관찰하세요. 일시정지 후 한 마디씩 진행하고 방향키로 움직일 수 있습니다. 완성된 테트리스 제품은 아닙니다.",
     pendulum: "일시정지하고 겹을 켜면 수직 기준선과 현재 각도가 나타납니다. 곁에서는 같은 마디의 각도·각속도·에너지 기록을 비교합니다.",
     projectile: "지나온 자리는 실행이 확정된 위치를 화면에서 연결한 기록이며 예측 궤도가 아닙니다. 겹은 현재 속도 벡터, 곁은 위치와 속도 기록입니다.",
   };
-  document.querySelector('[data-testid="example-guide"]').textContent = guides[project.primaryView] ?? "";
+  // The fallback renderer kind is not an authored lesson identity. Imported
+  // and newly created projects must not inherit the built-in linear guide.
+  document.querySelector('[data-testid="example-guide"]').textContent = project.viewGrade === "output-only"
+    ? "" : (guides[project.primaryView] ?? "");
   document.querySelector('[data-testid="spatial-trail"]').hidden = project.primaryView !== "projectile";
   const committedFrame = activeFrame();
   state.viewWorkspace = reconcileViewWorkspace(state.viewWorkspace, project,
@@ -3955,7 +3991,8 @@ function renderRunMetadata(project) {
       : lifecycleText;
     els.runHash.textContent = frameHash === "-" ? `source_hash: ${sourceHash}` : `state_hash: ${frameHash}`;
   }
-  els.currentMadi.textContent = `마디: ${frame?.madi ?? "-"}`;
+  const logicalCommitted = currentLogicalPresentation()?.value;
+  els.currentMadi.textContent = `마디: ${logicalCommitted?.frame?.input?.madi ?? logicalCommitted?.madi_count ?? frame?.madi ?? "-"}`;
   els.runLineage.textContent = runEvidence
     ? `project-run: ${runEvidence.frontdoor} · lineage ${String(runEvidence.run_lineage?.lineage_hash ?? "").slice(0, 24)} · revision ${runEvidence.run_lineage?.created_revision || "-"}`
     : run
@@ -4081,6 +4118,7 @@ function renderAll() {
 }
 
 async function selectProject(projectId, { preserveServerSession = false } = {}) {
+  closeCompletionPopup();
   runtimeBridge.cancelExecution("프로젝트를 바꿔 이전 실행을 중지했습니다.");
   hostStopNotice = "";
   const project = allProjects().find((item) => item.id === projectId) ?? PROJECTS[0];
@@ -4092,7 +4130,7 @@ async function selectProject(projectId, { preserveServerSession = false } = {}) 
   state.runtimeBusy = true;
   renderAll();
   try {
-    if (logicalPanel?.logicalExecution.status().started) await logicalPanel.logicalExecution.command('stop');
+    if (logicalPanel) await logicalPanel.logicalExecution.resetForProject();
     if (inFlightStep) await inFlightStep.catch(() => false);
     try {
       await finalizeRunRecord(supersededRun, "stopped");
@@ -4185,6 +4223,7 @@ async function createOneFileDdnProject() {
 }
 
 function selectFile(path) {
+  closeCompletionPopup();
   state.activeFilePath = path;
   renderAll();
 }
@@ -4192,7 +4231,11 @@ function selectFile(path) {
 document.querySelectorAll("[data-global-entry]").forEach((button) => {
   button.addEventListener("click", () => {
     state.globalEntry = button.dataset.globalEntry;
-    if (state.globalEntry === "first-steps") setProjectRailOpen(true);
+    if (["first-steps", "official-collection"].includes(state.globalEntry)) {
+      state.projectFilter = "";
+      els.projectSearch.value = "";
+      setProjectRailOpen(true);
+    }
     renderGlobalNav();
     renderProjects();
     if (state.globalEntry === "my-work") {
@@ -4456,6 +4499,12 @@ els.sourceEditor.addEventListener("input", (event) => {
     const generation = state.completionGeneration;
     setTimeout(() => { if (generation === state.completionGeneration) requestCompletion(); }, 120);
   }
+});
+
+els.sourceEditor.addEventListener("blur", (event) => {
+  // A completion button keeps its pending click. Other controls and project
+  // changes invalidate the request as well as the already displayed menu.
+  if (!els.completionPopup?.contains(event.relatedTarget)) closeCompletionPopup();
 });
 
 els.sourceEditor.addEventListener("keydown", (event) => {
@@ -5282,7 +5331,14 @@ async function startRun({ branchFrom = null } = {}) {
       if (!committedState?.input_receipt) {
         throw new Error("E_INPUT_RECEIPT_REQUIRED: 실제 계산의 입력 영수증이 필요합니다");
       }
-      const sharedRunSummary = await runtimeBridge.runSummaryWithSourceProfile({
+      // A freshly issued temporary source identity is not shared with a
+      // second independent VM. Consume Rust's same-invocation receipt, with
+      // the unchanged source/input/state binding checks below.
+      const temporarySummary = committedState.temporary_committed_summary;
+      if (temporarySummary && temporarySummary.binding_scope !== "temporary_same_vm_first_committed_frame") {
+        throw new Error("E_WORKBENCH_RUN_RECEIPT_BINDING_REQUIRED");
+      }
+      const sharedRunSummary = temporarySummary ?? await runtimeBridge.runSummaryWithSourceProfile({
         sourceText: source,
         sourcePath: localProjectEntryPath(project),
         requestedTicks: 1,
@@ -6585,6 +6641,34 @@ function completePersistenceOperation(generation, phase, outcome) {
 async function saveProjectSnapshot() {
   const persistenceGeneration = beginPersistenceOperation();
   const snapshot = buildProjectSnapshot();
+  const sourceSession=state.capabilitySession??readWorkbenchCapabilitySession();
+  if(!(state.serverProject.projectId&&sourceSession?.role!=="edit")) {
+    try {
+      if(state.wasm?.hasNativeSource?.()) {
+        if(state.runtimeBusy||state.livePump?.in_flight||state.runtimeStatus==='running')
+          throw new Error('E_NATIVE_SOURCE_PAUSE_REQUIRED: 일시정지한 뒤 저장하세요.');
+        const authored=authoredProjectPanel.getRunProjectArtifact();
+        const saved=await state.wasm.saveNativeCheckpoint(authored);
+        if(saved?.kind!=='native_world_saved')throw new Error('E_NATIVE_SOURCE_SAVE_READBACK');
+        state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'native_world',server_saved:false,
+          local_saved:true,user_label:'현재 세계를 Native에 저장하고 다시 확인했습니다.',snapshot};
+        completePersistenceOperation(persistenceGeneration,'saved','native_world');renderAll();return saved;
+      }
+      const sourceSaved=await authoredProjectPanel.saveIfRegisteredSource();
+      if(sourceSaved) {
+        state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'source_only',server_saved:false,
+          local_saved:true,user_label:sourceSaved.message,snapshot};
+        completePersistenceOperation(persistenceGeneration,'saved','source_only');renderAll();return sourceSaved;
+      }
+    }catch(error) {
+      // Never turn a Rust/source/CAS failure into the old local fallback's
+      // success. Existing source, VM, run records and saved head stay intact.
+      state.persistenceStatus={...(state.persistenceStatus??{}),last_error:`원문 저장 실패: ${String(error?.message??error)}`};
+      els.saveStatus.textContent=describePersistenceStatus(state.persistenceStatus);
+      pushDiagnostic('E_SOURCE_SAVE_FAILED',String(error?.message??error),'error');
+      completePersistenceOperation(persistenceGeneration,'error','source_only');throw error;
+    }
+  }
   let artifact = null;
   try {
     artifact = await buildServerProjectArtifact();
@@ -6647,6 +6731,14 @@ async function saveProjectSnapshot() {
 }
 
 async function reopenProjectSnapshot() {
+  try {
+    const source=await authoredProjectPanel.reopenIfRegisteredSource(currentProject().authoredArtifact?.authored_identity?.logical_dependency_id??'');
+    if(source){state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'source_only',server_saved:false,local_saved:true,user_label:source.message};els.saveStatus.textContent=source.message;return source;}
+  }catch(error) {
+    pushDiagnostic('E_SOURCE_REOPEN_FAILED',String(error?.message??error),'error');
+    state.persistenceStatus={...(state.persistenceStatus??{}),last_error:`원문 재열기 실패: ${String(error?.message??error)}`};
+    els.saveStatus.textContent=describePersistenceStatus(state.persistenceStatus);throw error;
+  }
   if (state.capabilitySession?.project_id || state.serverProject.projectId) {
     try {
       const serverPayload = await openProjectFromServerSession();
@@ -6752,8 +6844,17 @@ function openProgressiveDialog(dialog) {
 document.querySelector("[data-testid='project-storage-open']")?.addEventListener("click", () => openProgressiveDialog(els.projectStorageDrawer));
 
 document.querySelector("[data-testid='authored-project-open']")?.addEventListener("click", () => openProgressiveDialog(document.querySelector('[data-testid="authored-project-drawer"]')));
-document.querySelector('[data-authored-close]')?.addEventListener('click',()=>document.querySelector('[data-testid="authored-project-drawer"]').close());
+document.querySelector('[data-authored-close]')?.addEventListener('click',()=>{
+  const dialog=document.querySelector('[data-testid="authored-project-drawer"]');
+  if(logicalPanel?.logicalExecution.status().started)logicalPanel.logicalExecution.closeViewDialog(dialog);
+  else dialog.close();
+});
 function captureRuntimeStorageContext(artifactText,{allowCold=false}={}) {
+  // The ordinary VM can remain paused behind a logical presentation. Never
+  // save/reopen that stale VM while claiming it is the visible logical run.
+  // Logical durable continuation needs its own admitted input/checkpoint owner.
+  if(logicalPanel?.logicalExecution.status().started)
+    throw new Error('E_PROJECT_RUNTIME_LOGICAL_CHECKPOINT_REQUIRED: 논리 입력 실행의 저장·이어 실행 경로가 아직 연결되지 않았습니다. 일반 실행 상태로 대신 저장하거나 복원하지 않습니다.');
   const run=activeRun(),vm=state.wasm;
   const cold=allowCold && !run && !vm && state.executionLifecycle.status==='idle';
   if(!cold && (!run || !vm || !run.project_runtime_artifact_text || run.project_runtime_artifact_text!==artifactText))
@@ -6767,7 +6868,7 @@ function captureRuntimeStorageContext(artifactText,{allowCold=false}={}) {
   const token=JSON.stringify([state.projectId,run?.run_id,state.cursorIndex,run?.frames.length,frame?.madi,frame?.state_hash]);
   const unchanged=()=>{
     const current=activeRun(),currentFrame=activeFrame();
-    if(state.wasm!==vm || state.executionLifecycle.generation!==generation || !(cold?state.executionLifecycle.status==='idle':['paused','done'].includes(state.executionLifecycle.status))
+    if(logicalPanel?.logicalExecution.status().started || state.wasm!==vm || state.executionLifecycle.generation!==generation || !(cold?state.executionLifecycle.status==='idle':['paused','done'].includes(state.executionLifecycle.status))
       || state.livePump.inFlight || hostStepInFlight || authoredProjectPanel.getRunProjectArtifact()!==artifactText
       || JSON.stringify([state.projectId,current?.run_id,state.cursorIndex,current?.frames.length,currentFrame?.madi,currentFrame?.state_hash])!==token)
       throw new Error('E_PROJECT_RUNTIME_CHANGED: 저장·재열기 중 원문이나 실행이 바뀌었습니다. 결과를 게시하지 않습니다.');
@@ -6783,6 +6884,25 @@ async function restoredRuntimeCandidate(context,record) {
   catch(error){await candidate.close();throw error;}
 }
 async function saveCurrentRuntimeProject(artifactText) {
+  if(logicalPanel?.logicalExecution.status().started) {
+    const context=await logicalPanel.logicalExecution.captureStorageContext();
+    const projectId=JSON.parse(artifactText).authored_identity.logical_dependency_id;
+    const unchanged=()=>{context.unchanged();if(authoredProjectPanel.getRunProjectArtifact()!==artifactText)
+      throw new Error('E_PROJECT_RUNTIME_CHANGED: 저장 중 작품 원문이 바뀌었습니다.');};
+    unchanged();const prior=await loadRuntimeProject(projectId);unchanged();
+    const parent=prior?.revision_hex??'',revision=newRuntimeRevisionHex();
+    const bytes=hex=>Uint8Array.from(hex.match(/../g)??[],pair=>parseInt(pair,16));
+    const exported=await context.export(bytes(parent),bytes(revision));unchanged();
+    const record=runtimeStorageRecord(projectId,parent,revision,exported.artifact,exported.checkpoint);
+    const checked=await logicalPanel.logicalExecution.prepareStoredCheckpoint(record);
+    try {
+      const current=await context.summary();unchanged();
+      if(checked.summary.state_hash!==current.state_hash||checked.summary.madi_count!==current.madi_count)
+        throw new Error('E_PROJECT_RUNTIME_SAVE_HASH: 논리 입력 복원 검산이 현재 실행과 다릅니다.');
+      await commitRuntimeProject(record);unchanged();
+      return '논리 입력 이력과 실행 상태를 함께 저장하고 다시 읽었습니다. Native 내구성 영수증은 아닙니다.';
+    }finally{await checked.close();}
+  }
   const context=captureRuntimeStorageContext(artifactText);
   const prior=await loadRuntimeProject(context.projectId);context.unchanged();
   const parent=prior?.revision_hex??'',revision=newRuntimeRevisionHex();
@@ -6797,6 +6917,24 @@ async function saveCurrentRuntimeProject(artifactText) {
   }finally{await checked.candidate.close();}
 }
 async function reopenCurrentRuntimeProject(artifactText) {
+  if(logicalPanel?.logicalExecution.ownsCurrentSource()) {
+    const projectId=JSON.parse(artifactText).authored_identity.logical_dependency_id;
+    const record=await loadRuntimeProject(projectId);
+    if(authoredProjectPanel.getRunProjectArtifact()!==artifactText)
+      throw new Error('E_PROJECT_RUNTIME_CHANGED: 다시 여는 중 작품이 바뀌었습니다.');
+    if(record?.checkpoint_bytes) {
+      if(JSON.parse(record.artifact_text).project_snapshot?.authored_project_json_utf8!==artifactText)
+        throw new Error('E_PROJECT_RUNTIME_SOURCE_CHANGED: 저장 실행의 원문과 현재 작품 자료가 다릅니다.');
+      const checked=await logicalPanel.logicalExecution.prepareStoredCheckpoint(record);
+      let published=false;
+      try {
+        if(authoredProjectPanel.getRunProjectArtifact()!==artifactText)
+          throw new Error('E_PROJECT_RUNTIME_CHANGED: 다시 여는 중 작품이 바뀌었습니다.');
+        const cleanup=checked.publish();published=true;await cleanup;
+        return '논리 입력 실행을 복원했습니다. ▶ 또는 한 마디로 다음 마디를 이어갑니다.';
+      }finally{if(!published)await checked.close();}
+    }
+  }
   const context=captureRuntimeStorageContext(artifactText,{allowCold:true});
   const record=await loadRuntimeProject(context.projectId);context.unchanged();
   if(!record)throw new Error('E_PROJECT_RUNTIME_NOT_SAVED: 이 작품의 저장된 실행 상태가 없습니다.');
@@ -6842,10 +6980,27 @@ async function reopenCurrentRuntimeProject(artifactText) {
     return '저장한 실행 상태를 복원했습니다. 연속 실행 작품은 다음 마디를 이어갈 수 있습니다.';
   }finally{if(!published)await checked.candidate.close();}
 }
+async function exportCurrentRuntimeProject(artifactText) {
+  const context=captureRuntimeStorageContext(artifactText);
+  const record=await loadRuntimeProject(context.projectId);context.unchanged();
+  if(!record)throw new Error('E_PROJECT_RUNTIME_NOT_SAVED: 먼저 실행 상태를 저장하세요.');
+  if(JSON.parse(record.artifact_text).project_snapshot?.authored_project_json_utf8!==artifactText)
+    throw new Error('E_PROJECT_RUNTIME_SOURCE_CHANGED: 저장 실행의 원문과 현재 작품 자료가 다릅니다.');
+  const checked=await restoredRuntimeCandidate(context,record);
+  try {
+    const reread=await loadRuntimeProject(context.projectId);context.unchanged();
+    if(!reread || reread.revision_hex!==record.revision_hex || reread.artifact_text!==record.artifact_text)
+      throw new Error('E_PROJECT_RUNTIME_CHANGED: 저장 자료가 바뀌었습니다. 다시 시도하세요.');
+    // Existing RD-686 artifact bytes, not a new recording or a durable receipt.
+    await hostBridge.downloadTextFile({text:record.artifact_text,filename:'작품-실행상태.json',mimeType:'application/json'});
+    return `저장한 실행 상태를 내보냈습니다. 입력 기록·내구성 영수증은 아닙니다. CLI 이어 실행: ddonilang 작품자료 이어실행 작품-실행상태.json --부모 ${record.parent_hex||'처음'} --판 ${record.revision_hex} --마디수 1`;
+  }finally{await checked.candidate.close();}
+}
 const authoredProjectPanel = installAuthoredProjectPanel({
   root:document.querySelector('[data-testid="authored-project-drawer"]'),bridge:runtimeBridge,host:hostBridge,
   saveRuntime:saveCurrentRuntimeProject,
   reopenRuntime:reopenCurrentRuntimeProject,
+  exportRuntime:exportCurrentRuntimeProject,
   capture:()=>({
     selected_project:state.projectId,
     source_profile:workbenchSourceProfile(currentProject()),
@@ -7333,16 +7488,33 @@ window.__SEAMGRIM_APPROVED_WORKBENCH__ = {
   },
   summarizeRunArchiveBoundary,
 };
-logicalPanel = installLogicalInputPanel({ parent: document.body, readSource: () => activeSourceText(),
+logicalPanel = installLogicalInputPanel({ parent: document.querySelector('[data-testid="logical-record-content"]'), readSource: () => activeSourceText(),
+  readAuthoredProject: () => authoredProjectPanel.getRunProjectArtifact() || null,
+  valueControlsParent: document.querySelector('[data-testid="logical-manipulation-controls"]'),
   onStateChange: renderExecutionControls,
   inputRegion: els.canvas,
-  viewControls: [els.bogaeStage,document.querySelector('[data-testid="authored-view-controls"]')],
+  viewControls: [els.bogaeStage,document.querySelector('[data-testid="authored-view-controls"]'),document.querySelector('[data-testid="logical-record-drawer"]'),document.querySelector('[data-testid="logical-record-open"]'),document.querySelector('[data-testid="project-more-menu"]'),document.querySelector('[data-testid="authored-project-drawer"]')],
   onPresentation: (value,generation) => {
     logicalPresentation = value ? {value,generation,projectId:state.projectId} : null;
     renderViewPolicy(currentProject()); drawPreview(); renderSemanticObservations(currentProject());
+    // Host status notification precedes this committed response. Refresh the
+    // counter after accepting the response, rather than showing the prior tick.
+    renderExecutionControls();
   },
   playbackControls: ['lifecycle-run','lifecycle-step','lifecycle-stop'].map(id => document.querySelector(`[data-testid="${id}"]`)),
   openExample: sourceText => createNativeProject('테트리스 입력 작업', 'single', sourceText) });
+document.querySelector('[data-testid="logical-record-open"]').addEventListener('click', () => {
+  const drawer = document.querySelector('[data-testid="logical-record-drawer"]');
+  logicalPanel.open = true;
+  if (!drawer.open) drawer.show();
+});
+document.querySelector('[data-testid="logical-record-close"]').addEventListener('click', () => {
+  const dialog=document.querySelector('[data-testid="logical-record-drawer"]');
+  if(logicalPanel?.logicalExecution.status().started)logicalPanel.logicalExecution.closeViewDialog(dialog);
+  else dialog.close();
+});
+document.querySelector('[data-testid="project-files-open"]').addEventListener('click', () => openProgressiveDialog(document.querySelector('[data-testid="project-files-dialog"]')));
+document.querySelector('[data-testid="project-files-close"]').addEventListener('click', () => document.querySelector('[data-testid="project-files-dialog"]').close());
 
 document.querySelector('[data-testid="first-steps-input-contract"]').addEventListener('click',async()=>{
   const projectId=state.projectId,row=currentProject().course;

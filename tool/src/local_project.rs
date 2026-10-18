@@ -3283,7 +3283,9 @@ fn build_linked_project_with_options(
                 }
             }
             for statement in &program.root_stmts {
-                if let Stmt::Definition { name, .. } = statement {
+                // RD-346~349: a sum schema is a Definition, not an executable
+                // root statement. Keep it in the same module namespace checks.
+                if let Stmt::Definition { name, .. } | Stmt::SumDefinition { name, .. } = statement {
                     if !names.insert(name.clone()) {
                         return Err(LocalProjectError::with_path("E_PROJECT_DEFINITION_DUPLICATE", path, name));
                     }
@@ -6701,6 +6703,15 @@ fn collect_alias_show_requests_from_body(
 ) -> Result<(), LocalProjectError> {
     for stmt in &body.stmts {
         match stmt {
+            Stmt::SumDefinition { .. } => {}
+            Stmt::SumMatch { arms, default_body, .. } => {
+                for arm in arms {
+                    collect_alias_show_requests_from_body(&arm.body, requests)?;
+                }
+                if let Some(body) = default_body {
+                    collect_alias_show_requests_from_body(body, requests)?;
+                }
+            }
             Stmt::Show { expr, .. } => {
                 if let Some(request) = alias_show_request_from_expr(expr)? {
                     requests.push(request);
@@ -8361,6 +8372,28 @@ mod tests {
             prepared.runtime_execution_envelope["execution_mode_decision"]["authority"],
             "parsed_program"
         );
+    }
+
+    #[test]
+    fn module_sum_schema_is_a_definition_not_top_level_execution() {
+        let mut source = sample_multifile_source();
+        let main = source.files.iter_mut().find(|file| file.path == "app/main.ddn").unwrap();
+        main.utf8_text = "선택:고름씨 := { $수(내용:수). }. 앱:움직씨 := { 자료 := 선택.$수(내용=4). 자료에 따라 { 선택.$수(내용)이면 { 내용 보여주기. }. }. }.".into();
+        let summary = build_project_run_summary(source.clone(), "앱", false, false).unwrap();
+        assert_eq!(summary.runtime_output_log_texts, vec!["4"]);
+        let main = source.files.iter_mut().find(|file| file.path == "app/main.ddn").unwrap();
+        main.utf8_text.push_str(" 선택:고름씨 := { $다른값. }.");
+        // Same-file duplicate schemas are rejected by the existing parser
+        // before the linker's cross-file namespace check is reached.
+        assert_eq!(prepare_authored_execution(source).unwrap_err().code, "E_PROJECT_MODULE_PARSE");
+    }
+
+    #[test]
+    fn module_sum_schema_does_not_allow_ordinary_top_level_execution() {
+        let mut source = sample_multifile_source();
+        let main = source.files.iter_mut().find(|file| file.path == "app/main.ddn").unwrap();
+        main.utf8_text = "선택:고름씨 := { $수(내용:수). }. 4 보여주기. 앱:움직씨 := {}.".into();
+        assert_eq!(prepare_authored_execution(source).unwrap_err().code, "E_PROJECT_TOP_LEVEL_EXECUTION");
     }
 
     #[test]

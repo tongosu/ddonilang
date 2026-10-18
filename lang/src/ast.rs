@@ -85,10 +85,46 @@ pub struct OriginMap {
     pub file_path: String,
     pub source: String,
     pub node_spans: HashMap<NodeId, Span>,
+    /// Compiler-local cache rebuilt from verified registration rows. NodeId
+    /// locates a binder; it never issues the registered ParamPinIdentity.
+    pub registered_sum_pin_order:Option<std::collections::BTreeMap<NodeId,[u8;32]>>,
     /// Exact definition candidates admitted by the authored registered
     /// surface. This is private compilation provenance, not a public identity.
     pub registered_call_candidates: HashMap<NodeId, Vec<NodeId>>,
+    /// Compilation-local exact RD-656 conversion binding; not a saved wire.
+    pub bytes_calls: HashMap<NodeId, crate::bytes::BytesConversion>,
+    /// Source occurrences owned by actual atom-value AST nodes. A lexer hash
+    /// token used as a tag/type/profile/selector is not automatically a value.
+    /// Compilation provenance only; this is not registration admission.
+    pub atom_value_occurrences: HashMap<NodeId, AtomValueOccurrence>,
+    /// M02 accepted definition/pin binding. Command-only, with no result type.
+    pub retirement_commands: HashMap<NodeId, RetirementCommandBinding>,
+    /// R1.1 accepted postfix receiver, compilation-local only.
+    pub subject_reference_calls: HashMap<NodeId, SubjectReferenceCallBinding>,
+    /// Approved B1 definition/pin admission. Compilation provenance only;
+    /// this is not an input event or a persisted authority.
+    pub manipulation_phase_calls: HashMap<NodeId, ManipulationPhaseCallBinding>,
 }
+
+#[derive(Debug,Clone,PartialEq,Eq)]
+pub struct ManipulationPhaseCallBinding {pub definition:&'static str,pub ordinal_pin:&'static str}
+
+#[derive(Debug,Clone,PartialEq,Eq)]
+pub struct SubjectReferenceCallBinding {pub definition:&'static str,pub receiver_pin:&'static str}
+
+#[derive(Debug,Clone,PartialEq,Eq)]
+pub struct RetirementCommandBinding {pub definition:&'static str,pub target_pin:&'static str}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AtomValueOccurrence {
+    pub span: Span,
+    pub label: String,
+    pub role:AtomValueRole,
+}
+/// Compilation provenance only. Standard policy roles are supplied after
+/// resolving the actual standard callable and its owned parameter position.
+#[derive(Debug,Clone,PartialEq,Eq)]
+pub enum AtomValueRole {LocalValue,StandardBogaeSide{selector:&'static str}}
 
 #[derive(Debug, Clone)]
 pub enum TopLevelItem {
@@ -137,6 +173,9 @@ impl SeedDef {
     /// call tails. Once an explicit set is authored, that set is closed:
     /// neither the preferred spelling nor an alternate gains a hidden tail.
     pub fn callable_surface_names(&self) -> Vec<String> {
+        if matches!(self.seed_kind, SeedKind::Schema(_)) {
+            return Vec::new();
+        }
         const CALL_TAILS: [&str; 4] = ["기", "고", "면", "면서"];
         let mut surfaces = vec![self.canonical_name.clone()];
         if self.alternate_forms.is_empty() {
@@ -159,7 +198,24 @@ pub enum SeedKind {
     Heureumssi,
     Ieumssi,
     Semssi,
+    /// RD-346/350: schema-only structural Product definition, not a callable.
+    Product,
+    /// VC04 exact R4: resolved declaration category, never inferred from a
+    /// user-visible TypeRef spelling or from a callable body.
+    Schema(SchemaCategory),
     Named(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SchemaCategory {
+    Subject,
+    NominalValue,
+}
+
+impl SeedKind {
+    pub fn is_schema(&self) -> bool {
+        matches!(self, Self::Product | Self::Schema(_))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -175,6 +231,8 @@ pub struct ParamPin {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeRef {
+    /// Approved positional Tuple source type; existing type03 identity.
+    Tuple(Vec<TypeRef>),
     /// RD-386·510: 씨 정체에는 원소씨와 정적인 순서 있는 모양이 들어간다.
     Tensor { element: Box<TypeRef>, shape: Vec<u64> },
     Named(String),
@@ -194,6 +252,51 @@ pub struct Body {
     pub id: NodeId,
     pub span: Span,
     pub stmts: Vec<Stmt>,
+}
+
+/// RD-347/348: a schema branch is not a field or a runtime statement.
+#[derive(Debug, Clone)]
+pub struct SumBranchDecl {
+    pub id: NodeId,
+    pub span: Span,
+    pub name: String,
+    pub payload: Vec<SumBranchPayload>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SumBranchPayload {
+    pub binder: String,
+    pub binder_span: Span,
+    pub type_ref: TypeRef,
+}
+
+/// A pattern selects an owned pin, but creates a separate arm-local binder.
+/// The node identity is not the branch's ParamPinIdentity or source ordinal.
+#[derive(Debug, Clone)]
+pub struct SumPatternBinder {
+    pub id: NodeId,
+    pub span: Span,
+    pub pin: String,
+    /// Checked compiler projection only; not a serialized source/value tag.
+    pub registered_pin_identity:Option<[u8;32]>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SumPayloadArgument {
+    pub pin: String,
+    pub span: Span,
+    pub value: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub struct SumMatchArm {
+    pub id: NodeId,
+    pub span: Span,
+    pub owner: String,
+    pub applied_owner: Option<TypeRef>,
+    pub branch: String,
+    pub binder: Vec<SumPatternBinder>,
+    pub body: Body,
 }
 
 /// `(<이름>: <식>, ...) 보임.`이 선언한 공개 관찰 필드.
@@ -230,6 +333,21 @@ pub struct ReactionRegistration {
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
+    SumDefinition {
+        id: NodeId,
+        span: Span,
+        mood: Mood,
+        name: String,
+        branches: Vec<SumBranchDecl>,
+    },
+    SumMatch {
+        id: NodeId,
+        span: Span,
+        mood: Mood,
+        subject: Expr,
+        arms: Vec<SumMatchArm>,
+        default_body: Option<Body>,
+    },
     DeclBlock {
         id: NodeId,
         span: Span,
@@ -462,6 +580,33 @@ pub struct Expr {
     pub id: NodeId,
     pub span: Span,
     pub kind: ExprKind,
+    /// Compilation-local source evidence, not a runtime value or saved type.
+    /// In particular `1` and `1.0` must not be distinguished by Fixed64 bits.
+    pub numeric_literal_source: Option<NumericLiteralSource>,
+    pub(crate) source_unary_minus: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NumericLiteralSource {
+    raw: String,
+    decimal: bool,
+}
+
+impl NumericLiteralSource {
+    /// Only the numeric token producer calls this constructor. An evaluated
+    /// value must never be converted back into literal source evidence.
+    pub(crate) fn from_token(raw: &str, decimal: bool) -> Self {
+        Self { raw: raw.to_owned(), decimal }
+    }
+
+    pub fn raw(&self) -> &str { &self.raw }
+    pub fn is_decimal(&self) -> bool { self.decimal }
+
+    /// Owner-approved expectation-free literal policy. Expected rational
+    /// admission and operator resolution are separate compilation steps.
+    pub fn default_type(&self) -> TypeRef {
+        TypeRef::Named(if self.decimal { "셈수" } else { "바른수" }.into())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -486,9 +631,30 @@ pub enum ExprKind {
         args: Vec<ArgBinding>,
         func: String,
     },
+    /// RD-348/357: exact owned branch, not field access or indexed selection.
+    SumBranchValue {
+        owner: String,
+        applied_owner: Option<TypeRef>,
+        branch: String,
+        payload: Vec<SumPayloadArgument>,
+    },
+    /// RD-601 reuses the named-pin shell but preserves construction as a
+    /// distinct typed category. The schema owner is resolved before execution.
+    ProductConstruction {
+        owner: String,
+        definition: NodeId,
+        /// None is the existing structural Product. VC04's actual parsed
+        /// schema category must survive canon; spelling is not authority.
+        category: Option<SchemaCategory>,
+        fields: Vec<ArgBinding>,
+    },
     /// `차림[...]` is a source-level collection constructor, not a call or
     /// postfix selection.  Its elements retain their authored order.
     CollectionConstructor {
+        elements: Vec<Expr>,
+    },
+    /// RD-090: positional pack, distinct from homogeneous collections and records.
+    TupleConstructor {
         elements: Vec<Expr>,
     },
     /// An indexed writable place. This is only valid as `Stmt::Mutate`'s
@@ -669,6 +835,7 @@ pub enum Literal {
     Int(i64),
     Fixed64(Fixed64),
     String(String),
+    Bytes(ddonirang_core::bytes::ByteSequence),
     Bool(bool),
     Atom(String),
     Regex(RegexLiteral),
@@ -755,6 +922,15 @@ pub struct Modifier {
 
 impl Expr {
     pub fn new(id: NodeId, span: Span, kind: ExprKind) -> Self {
-        Self { id, span, kind }
+        Self { id, span, kind, numeric_literal_source: None, source_unary_minus: false }
+    }
+
+    /// Parser-owned negation evidence; synthetic zero is not a source literal.
+    pub fn source_negated_operand(&self) -> Option<&Expr> {
+        if !self.source_unary_minus { return None; }
+        match &self.kind {
+            ExprKind::Infix { op, right, .. } if op == "-" => Some(right),
+            _ => None,
+        }
     }
 }

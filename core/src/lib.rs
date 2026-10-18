@@ -1,5 +1,6 @@
 pub mod alrim;
 pub mod atomic_commit;
+pub mod bytes;
 pub mod capability;
 pub mod commit_canon;
 pub mod engine;
@@ -8,6 +9,7 @@ pub mod fixed64;
 pub mod gogae3;
 pub mod input;
 pub mod nurigym;
+pub mod nominal;
 pub mod platform;
 pub mod realms;
 pub mod resource;
@@ -16,6 +18,8 @@ pub mod seulgi;
 pub mod signals;
 pub mod units;
 pub mod warp;
+
+pub use ddonirang_numeric::saved_rational;
 
 pub use alrim::{
     AlrimHandler, AlrimLogEntry, AlrimLogger, AlrimLoop, VecAlrimLogger, ALRIM_MAX_PASSES,

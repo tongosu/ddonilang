@@ -53,6 +53,7 @@ pub mod scan_workflow;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod intent_workflow;
 pub mod input_tape;
+pub mod input_tape_v3;
 pub mod logical_input_tape;
 pub mod manipulation_input;
 pub mod input_receipt;
@@ -128,6 +129,10 @@ pub(crate) mod source_snapshot_admission;
 pub(crate) mod saved_definition_identity;
 pub(crate) mod snapshot_v2_durable_transaction;
 pub(crate) mod snapshot_v2_host_bridge;
+pub(crate) mod registered_atom_contract;
+pub(crate) mod subject_reference_owner;
+pub(crate) mod tuple_saved_type_plan;
+pub(crate) mod numeric_constraint_plan;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod patch_workflow;
 pub mod runtime_surface;

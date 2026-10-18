@@ -117,6 +117,8 @@ pub fn canonicalize_type_alias(name: &str) -> &str {
 
 pub fn string_function_sigs() -> Vec<FunctionSig> {
     vec![
+        FunctionSig { name: "UTF8바이트열로", params: &["글"], ret: "바이트열" },
+        FunctionSig { name: "UTF8NFC글로", params: &["바이트열"], ret: "글" },
         FunctionSig {
             name: "길이",
             params: &["글"],
@@ -1548,7 +1550,8 @@ pub fn view_function_sigs() -> Vec<FunctionSig> {
 pub fn logical_input_function_sigs() -> Vec<FunctionSig> {
     vec![FunctionSig { name: "입력사상.사건들", params: &[], ret: "(묶음)차림" },
         // A3-P4 PROVISIONAL explicit source-owned logical delivery bridge.
-        FunctionSig {name:"입력사상.알림결속",params:&["채널","알림씨","받는이"],ret:"없음"}]
+        FunctionSig {name:"입력사상.알림결속",params:&["채널","알림씨","받는이"],ret:"없음"},
+        FunctionSig {name:"조작단계",params:&["순서"],ret:"글"}]
 }
 
 pub fn minimal_stdlib_sigs() -> Vec<FunctionSig> {

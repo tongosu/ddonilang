@@ -558,6 +558,8 @@ impl WorkCostMeter {
 /// 갱신하지 않으면 컴파일되지 않는다.
 pub fn stmt_registry_key(stmt: &Stmt) -> &'static str {
     match stmt {
+        Stmt::SumDefinition { .. } => "stmt.sum_definition",
+        Stmt::SumMatch { .. } => "stmt.sum_match",
         Stmt::DeclBlock { .. } => "stmt.decl_block",
         Stmt::Definition { .. } => "stmt.definition",
         Stmt::Mutate { .. } => "stmt.mutate",
@@ -591,6 +593,7 @@ pub fn stmt_registry_key(stmt: &Stmt) -> &'static str {
 
 pub fn expr_registry_key(expr: &ExprKind) -> &'static str {
     match expr {
+        ExprKind::SumBranchValue { .. } => "expr.sum_branch_value",
         ExprKind::Tensor(_) => "expr.tensor",
         ExprKind::MultiAxisSelection(_) => "expr.tensor_selection",
         ExprKind::Literal(_) => "expr.literal",
@@ -598,7 +601,7 @@ pub fn expr_registry_key(expr: &ExprKind) -> &'static str {
         ExprKind::FieldAccess { .. } => "expr.field_access",
         ExprKind::SeedLiteral { .. } => "expr.seed_literal",
         ExprKind::Call { .. } => "expr.call",
-        ExprKind::CollectionConstructor { .. } => "expr.collection_constructor",
+        ExprKind::CollectionConstructor { .. } | ExprKind::TupleConstructor { .. } => "expr.collection_constructor",
         ExprKind::SelectionPlace { .. } => "expr.selection_place",
         ExprKind::Infix { .. } => "expr.infix",
         ExprKind::Suffix { .. } => "expr.suffix",
@@ -606,7 +609,7 @@ pub fn expr_registry_key(expr: &ExprKind) -> &'static str {
         ExprKind::Eval { .. } => "expr.eval",
         ExprKind::Pipe { .. } => "expr.pipe",
         ExprKind::FlowValue => "expr.flow_value",
-        ExprKind::Pack { .. } => "expr.pack",
+        ExprKind::Pack { .. } | ExprKind::ProductConstruction { .. } => "expr.pack",
         ExprKind::Assertion(_) => "expr.assertion",
         ExprKind::StateMachine(_) => "expr.state_machine",
         ExprKind::Formula(_) => "expr.formula",
@@ -622,6 +625,7 @@ pub fn literal_registry_key(literal: &Literal) -> &'static str {
         Literal::Int(_) => "literal.int",
         Literal::Fixed64(_) => "literal.fixed64",
         Literal::String(_) => "literal.string",
+        Literal::Bytes(_) => "literal.bytes",
         Literal::Bool(_) => "literal.bool",
         Literal::Atom(_) => "literal.atom",
         Literal::Regex(_) => "literal.regex",
@@ -732,6 +736,11 @@ pub fn connection_mode_registry_key(mode: &ConnectionMode) -> &'static str {
 pub const STDLIB_SIGNATURE_ROW_COUNT_V1: usize = 256;
 pub const STDLIB_SIGNATURE_ROW_COUNT_ALPHA2: usize = 268;
 pub const STDLIB_SIGNATURE_ROW_COUNT_ALPHA3: usize = 272;
+// RD-656: exactly two reviewed UTF-8 callables, without rewriting Alpha seals.
+pub const STDLIB_SIGNATURE_ROW_COUNT_BETA1: usize = 275;
+pub const STDLIB_BASE_ROW_COUNT_BETA1: usize = 258;
+pub const STDLIB_BASE_LEDGER_SHA256_BETA1: &str =
+    "233e69e2dcbe0843bda12edb08db87186770ea108df37722a61763ebad8d986c";
 // A3-TIME-P1: RD-136 typed time constructors plus optional time pins.
 // Keep the Alpha2 and closed V1 seals as historical boundaries.
 pub const VIEW_SIGNATURE_LEDGER_SHA256_ALPHA3: &str =
@@ -741,6 +750,9 @@ pub const LOGICAL_INPUT_SIGNATURE_LEDGER_SHA256_ALPHA2: &str =
 // A3-P4 provisional explicit channel-to-alert binding; no Alpha2 seal change.
 pub const LOGICAL_INPUT_SIGNATURE_LEDGER_SHA256_ALPHA3: &str =
     "dacd6eafea5a2cb8de4256176855c57a300e7946c39efe8f34bbaa06560e43d9";
+// Approved B1 phase query; historical Alpha2/Alpha3 seals stay unchanged.
+pub const LOGICAL_INPUT_SIGNATURE_LEDGER_SHA256_BETA1: &str =
+    "da88bfbd4ee9c29ed425e4e4d124fa66640e9f9fdfe39da4b885de9af17e3a5a";
 // 기존 V1 봉인을 유지한 채 RD-123/RD-520 생성자를 별도로 봉인한다.
 pub const VIEW_SIGNATURE_LEDGER_SHA256_ALPHA2: &str =
     "3b59752370ca506e9517deacb8fa106c057f639d2cde1af675df40de5f2b25e3";
@@ -887,13 +899,13 @@ fn verify_stdlib_registry_totality_uncached() -> Result<(), WorkCostFailure> {
     let view_count = view_rows.len();
     let actual_hash = hex::encode(Sha256::digest(signature_ledger_rows(base_rows).as_bytes()));
     let view_hash = hex::encode(Sha256::digest(signature_ledger_rows(view_rows).as_bytes()));
-    if signatures.len() != STDLIB_SIGNATURE_ROW_COUNT_ALPHA3
-        || base_count != STDLIB_SIGNATURE_ROW_COUNT_V1
+    if signatures.len() != STDLIB_SIGNATURE_ROW_COUNT_BETA1
+        || base_count != STDLIB_BASE_ROW_COUNT_BETA1
         || view_count != 14
-        || actual_hash != STDLIB_SIGNATURE_LEDGER_SHA256_V1
+        || actual_hash != STDLIB_BASE_LEDGER_SHA256_BETA1
         || view_hash != VIEW_SIGNATURE_LEDGER_SHA256_ALPHA3
-        || logical_count != 2
-        || logical_hash != LOGICAL_INPUT_SIGNATURE_LEDGER_SHA256_ALPHA3
+        || logical_count != 3
+        || logical_hash != LOGICAL_INPUT_SIGNATURE_LEDGER_SHA256_BETA1
     {
         return Err(WorkCostMeter::default().failure(
             E_WORK_COST_REGISTRY_MISSING_CANDIDATE,
@@ -904,7 +916,7 @@ fn verify_stdlib_registry_totality_uncached() -> Result<(), WorkCostFailure> {
                 view_hash
             ),
             signatures.len() as u64,
-            Some(STDLIB_SIGNATURE_ROW_COUNT_ALPHA3 as u64),
+            Some(STDLIB_SIGNATURE_ROW_COUNT_BETA1 as u64),
         ));
     }
     Ok(())
@@ -1303,16 +1315,17 @@ mod tests {
         verify_stdlib_registry_totality().unwrap();
         assert_eq!(
             ddonirang_lang::stdlib::minimal_stdlib_sigs().len(),
-            STDLIB_SIGNATURE_ROW_COUNT_ALPHA3
+            STDLIB_SIGNATURE_ROW_COUNT_BETA1
         );
         assert_eq!(
             hex::encode(Sha256::digest(signature_ledger_rows(stdlib_signature_rows()
                 .into_iter().filter(|(group, _)| !matches!(*group, "view_function_sigs" | "logical_input_function_sigs")).collect()).as_bytes())),
-            STDLIB_SIGNATURE_LEDGER_SHA256_V1
+            STDLIB_BASE_LEDGER_SHA256_BETA1
         );
         // RD-520 composition and Owner-approved Alpha2 event query; V1 unchanged.
         // RD-520 adds 겹 and 곁 to the existing registry; the V1 base seal stays fixed.
-        assert_eq!(registered_stdlib_names().unwrap().len(), 267);
+        // Approved B1 조작단계 adds one distinct callable; base/Alpha seals stay fixed.
+        assert_eq!(registered_stdlib_names().unwrap().len(), 270);
         for sig in ddonirang_lang::stdlib::minimal_stdlib_sigs() {
             let canonical = ddonirang_lang::stdlib::canonicalize_stdlib_alias(sig.name);
             assert!(
@@ -1362,7 +1375,7 @@ mod tests {
     #[test]
     fn every_stdlib_overload_row_has_an_exact_cost_ledger_entry() {
         let ledger = builtin_work_cost_ledger().expect("sealed stdlib ledger");
-        assert_eq!(ledger.len(), STDLIB_SIGNATURE_ROW_COUNT_ALPHA3);
+        assert_eq!(ledger.len(), STDLIB_SIGNATURE_ROW_COUNT_BETA1);
         assert!(ledger.iter().all(|row| !row.group.is_empty()));
         assert!(ledger.iter().all(|row| !row.name.is_empty()));
         assert!(ledger.iter().all(|row| !row.canonical_name.is_empty()));
@@ -1378,7 +1391,7 @@ mod tests {
                 )
             })
             .collect::<BTreeSet<_>>();
-        assert_eq!(identities.len(), STDLIB_SIGNATURE_ROW_COUNT_ALPHA3);
+        assert_eq!(identities.len(), STDLIB_SIGNATURE_ROW_COUNT_BETA1);
     }
 
     #[test]

@@ -85,6 +85,7 @@ export function migrateApprovedLocalSnapshot(snapshot = {}) {
 }
 
 export function describePersistenceStatus(status = null) {
+  if(status?.last_error)return `${status.last_error} · 기존 저장본은 유지합니다.`;
   if (!status) {
     return "저장 전";
   }

@@ -15,26 +15,123 @@ pub const STRICT_SOURCE_PROFILE_IDENTITY: &str = "strict";
 pub const REPAIR_PROPOSAL_SCHEMA: &str = "ddn.source_analysis_repair_proposal.candidate.v1";
 pub const REMOVE_SETUP_COLON_FIX_ID: &str = "FIX_SOURCE_REMOVE_SETUP_COLON";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum StaticType {
     Number,
     Text,
+    Bytes,
     Bool,
-    Collection,
+    Collection(Box<StaticType>),
+    Tuple(Vec<StaticType>),
     None,
     Unknown,
 }
 
 impl StaticType {
-    fn label(self) -> &'static str {
+    fn label(&self) -> &'static str {
         match self {
             Self::Number => "수",
             Self::Text => "글",
+            Self::Bytes => "바이트열",
             Self::Bool => "참거짓",
-            Self::Collection => "차림",
+            Self::Collection(_) => "차림",
+            Self::Tuple(_) => "위치형 값꾸러미",
             Self::None => "없음",
             Self::Unknown => "알수없음",
         }
+    }
+}
+
+// Unknown is an unresolved static component, not permission to erase an
+// already known element type. Compare each known component without requiring
+// an empty or dynamically produced collection to invent an element type.
+fn static_types_compatible(left: &StaticType, right: &StaticType) -> bool {
+    if let (StaticType::Tuple(a),StaticType::Tuple(b))=(left,right) {
+        return a.len()==b.len() && a.iter().zip(b).all(|(a,b)|static_types_compatible(a,b));
+    }
+    let mut pair = (left, right);
+    loop {
+        match pair {
+            (StaticType::Unknown, _) | (_, StaticType::Unknown) => return true,
+            (StaticType::Collection(a), StaticType::Collection(b)) => pair = (a, b),
+            (a, b) => return a == b,
+        }
+    }
+}
+
+fn is_range_expression(expr: &Expr) -> bool {
+    matches!(&expr.kind, ExprKind::Call { func, .. } if func == "표준.범위")
+}
+
+pub(crate) fn static_tuple_index(expr:&Expr)->Option<usize> {
+    // Keep existing literal admission and use only closed arithmetic trees
+    // for the additional compile-time case. No names, calls, world values or
+    // input reads are evaluated here. Runtime arithmetic owns every operation.
+    match &expr.kind {
+        ExprKind::Literal(Literal::Int(n))=>return usize::try_from(*n).ok(),
+        ExprKind::Literal(Literal::Fixed64(n)) if n.raw_i64()>=0 && n.frac_part()==0
+            =>return usize::try_from(n.int_part()).ok(),
+        ExprKind::Infix { .. }=>{},
+        _=>return None,
+    }
+    use ddonirang_core::fixed64::Fixed64;
+    enum Job<'a> { Evaluate(&'a Expr), Apply(&'a str) }
+    let mut pending=vec![Job::Evaluate(expr)];
+    let mut values=Vec::<Fixed64>::new();
+    while let Some(job)=pending.pop() {
+        match job {
+            Job::Evaluate(expr)=>match &expr.kind {
+                ExprKind::Literal(Literal::Int(n))=>values.push(Fixed64::from_i64(*n)),
+                ExprKind::Literal(Literal::Fixed64(n))=>values.push(*n),
+                ExprKind::Infix { left,op,right } if matches!(op.as_str(),"+"|"-"|"*"|"/")=>{
+                    pending.push(Job::Apply(op));
+                    pending.push(Job::Evaluate(right));
+                    pending.push(Job::Evaluate(left));
+                },
+                _=>return None,
+            },
+            Job::Apply(op)=>{
+                let right=values.pop()?;
+                let left=values.pop()?;
+                let value=match op {
+                    "+"=>left.checked_add(right),
+                    "-"=>left.checked_sub(right),
+                    "*"=>left.checked_mul(right),
+                    "/"=>left.try_div(right),
+                    _=>return None,
+                }.ok()?;
+                values.push(value);
+            },
+        }
+    }
+    let value=values.pop()?;
+    if !values.is_empty() || value.raw_i64()<0 || value.frac_part()!=0 { return None; }
+    usize::try_from(value.int_part()).ok()
+}
+
+fn tuple_selection_type(items:&[StaticType],selectors:&[ddonirang_lang::TensorAxisSelector],location:&Expr)->Result<StaticType,StaticDiagnostic> {
+    let failure=||static_error("E_CHECK_TUPLE_SELECTION","위치형 값꾸러미는 범위 안의 정적 위치 또는 반열림 범위로 골라야 합니다",location);
+    match selectors {
+        [ddonirang_lang::TensorAxisSelector::Index(index)]=>{
+            let index=static_tuple_index(index).ok_or_else(failure)?;
+            items.get(index).cloned().ok_or_else(failure)
+        }
+        [ddonirang_lang::TensorAxisSelector::Range{start,end}]=>{
+            let start=usize::try_from(*start).map_err(|_|failure())?;
+            let end=usize::try_from(*end).map_err(|_|failure())?;
+            if start>end||end>items.len(){return Err(failure());}
+            Ok(StaticType::Tuple(items[start..end].to_vec()))
+        }
+        _=>Err(failure()),
+    }
+}
+
+fn is_scalar_selection(expr: &Expr) -> bool {
+    match &expr.kind {
+        ExprKind::SelectionPlace { index, .. } => !is_range_expression(index),
+        ExprKind::MultiAxisSelection(selection) => matches!(selection.selectors.as_slice(),
+            [ddonirang_lang::TensorAxisSelector::Index(index)] if !is_range_expression(index)),
+        _ => false,
     }
 }
 
@@ -51,11 +148,13 @@ fn type_ref_kind(type_ref: &TypeRef) -> StaticType {
         TypeRef::Named(name) => match name.as_str() {
             "수" | "셈수" | "바른수" | "큰바른수" | "나눔수" => StaticType::Number,
             "글" | "이름씨" => StaticType::Text,
+            "바이트열" => StaticType::Bytes,
             "참거짓" | "논" => StaticType::Bool,
             "없음" => StaticType::None,
             _ => StaticType::Unknown,
         },
-        TypeRef::Applied { name, .. } if name == "차림" => StaticType::Collection,
+        TypeRef::Applied { name, args } if name == "차림" => StaticType::Collection(Box::new(
+            args.first().map(type_ref_kind).unwrap_or(StaticType::Unknown))),
         _ => StaticType::Unknown,
     }
 }
@@ -71,7 +170,7 @@ fn static_error(code: &'static str, message: impl Into<String>, expr: &Expr) -> 
 
 fn check_logical_operand(
     operator: &str,
-    kind: StaticType,
+    kind: &StaticType,
     expr: &Expr,
 ) -> Result<(), StaticDiagnostic> {
     if matches!(kind, StaticType::Bool | StaticType::Unknown) {
@@ -87,6 +186,32 @@ fn check_logical_operand(
     ))
 }
 
+fn check_known_collection_members(
+    value: &Expr,
+    expected: &StaticType,
+    symbols: &BTreeMap<String, StaticType>,
+    call_results: &BTreeMap<String, StaticType>,
+) -> Result<(), StaticDiagnostic> {
+    let mut pending = vec![(value, expected)];
+    while let Some((value, expected)) = pending.pop() {
+        if let (ExprKind::CollectionConstructor { elements }, StaticType::Collection(element)) = (&value.kind, expected) {
+            // Preserve authored order and report the first proven mismatch.
+            // Unresolved members do not hide a later known incompatible value.
+            for member in elements.iter().rev() {
+                pending.push((member, element));
+            }
+        } else {
+            let actual = infer_expr(value, symbols, call_results, false)?;
+            if !static_types_compatible(expected, &actual) {
+                return Err(static_error("E_CHECK_TYPE_MISMATCH",
+                    format!("차림 원소의 씨가 맞지 않습니다: 기대 {}, 실제 {}",
+                        expected.label(), actual.label()), value));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn infer_expr(
     expr: &Expr,
     symbols: &BTreeMap<String, StaticType>,
@@ -94,11 +219,16 @@ fn infer_expr(
     unknown_names_allowed: bool,
 ) -> Result<StaticType, StaticDiagnostic> {
     match &expr.kind {
+        ExprKind::SumBranchValue {payload,..} => {
+            for value in payload {infer_expr(&value.value,symbols,call_results,unknown_names_allowed)?;}
+            Ok(StaticType::Unknown)
+        }
         ExprKind::Literal(value) => Ok(match value {
             Literal::Int(_) | Literal::Fixed64(_) => StaticType::Number,
             Literal::String(_) | Literal::Atom(_) => StaticType::Text,
             Literal::Bool(_) => StaticType::Bool,
             Literal::None => StaticType::None,
+            Literal::Bytes(_) => StaticType::Bytes,
             Literal::Regex(_) | Literal::Resource(_) => StaticType::Unknown,
         }),
         ExprKind::Var(name) => match name.as_str() {
@@ -106,7 +236,7 @@ fn infer_expr(
             "없음" => Ok(StaticType::None),
             _ => symbols
                 .get(name)
-                .copied()
+                .cloned()
                 .map(|kind| if unknown_names_allowed && kind == StaticType::None { StaticType::Unknown } else { kind })
                 .or_else(|| unknown_names_allowed.then_some(StaticType::Unknown))
                 .ok_or_else(|| {
@@ -122,8 +252,8 @@ fn infer_expr(
             let right_type = infer_expr(right, symbols, call_results, unknown_names_allowed)?;
             if matches!(op.as_str(), "그리고" | "또는" | "&&" | "||") {
                 // 실행의 단락 평가와 달리 정적 검사는 양쪽 식을 모두 검사한다.
-                check_logical_operand(op, left_type, left)?;
-                check_logical_operand(op, right_type, right)?;
+                check_logical_operand(op, &left_type, left)?;
+                check_logical_operand(op, &right_type, right)?;
                 return Ok(StaticType::Bool);
             }
             if matches!(op.as_str(), "==" | "!=" | "<" | "<=" | ">" | ">=") {
@@ -150,6 +280,35 @@ fn infer_expr(
             }
             Ok(StaticType::Unknown)
         }
+        ExprKind::MultiAxisSelection(selection) => {
+            let target_type = infer_expr(&selection.target, symbols, call_results, unknown_names_allowed)?;
+            if let StaticType::Tuple(items)=&target_type {
+                return tuple_selection_type(items,&selection.selectors,expr);
+            }
+            for selector in &selection.selectors {
+                if let ddonirang_lang::TensorAxisSelector::Index(index) = selector {
+                    let index_type = infer_expr(index, symbols, call_results, unknown_names_allowed)?;
+                    if matches!(target_type, StaticType::Collection(_) | StaticType::Text)
+                        && index_type != StaticType::Number && index_type != StaticType::Unknown {
+                        return Err(static_error("E_CHECK_TYPE_MISMATCH",
+                            format!("차림 위치는 수여야 합니다: {}", index_type.label()), index));
+                    }
+                }
+            }
+            // RD-352/354: scalar List selection returns its element type;
+            // half-open ranges retain the List type. Tensor and unknown target
+            // contracts remain owned by their existing common-runtime checks.
+            match (target_type, selection.selectors.as_slice()) {
+                (StaticType::Text, [ddonirang_lang::TensorAxisSelector::Index(_)]) => Ok(StaticType::Text),
+                (StaticType::Collection(element), [ddonirang_lang::TensorAxisSelector::Index(index)]) => {
+                    if is_range_expression(index) {
+                        Ok(StaticType::Collection(element))
+                    } else { Ok(*element) }
+                }
+                (collection @ StaticType::Collection(_), [ddonirang_lang::TensorAxisSelector::Range { .. }]) => Ok(collection),
+                _ => Ok(StaticType::Unknown),
+            }
+        }
         ExprKind::Call { args, func } => {
             for (index,arg) in args.iter().enumerate() {
                 // RD-520: the recipe pin refers to an authored named callable,
@@ -164,7 +323,7 @@ fn infer_expr(
                 }
                 let kind = infer_expr(&arg.expr, symbols, call_results, unknown_names_allowed)?;
                 if matches!(func.as_str(), "그리고" | "또는") {
-                    check_logical_operand(func, kind, &arg.expr)?;
+                    check_logical_operand(func, &kind, &arg.expr)?;
                 }
             }
             if matches!(func.as_str(), "그리고" | "또는") {
@@ -172,26 +331,53 @@ fn infer_expr(
             }
             Ok(call_results
                 .get(func)
-                .copied()
+                .cloned()
                 .unwrap_or(StaticType::Unknown))
         }
+        ExprKind::TupleConstructor { elements } => {
+            Ok(StaticType::Tuple(elements.iter().map(|element|
+                infer_expr(element,symbols,call_results,unknown_names_allowed)).collect::<Result<Vec<_>,_>>()?))
+        }
         ExprKind::CollectionConstructor { elements } => {
+            let mut element_type = None;
             for element in elements {
-                infer_expr(element, symbols, call_results, unknown_names_allowed)?;
+                let actual = infer_expr(element, symbols, call_results, unknown_names_allowed)?;
+                element_type = Some(match element_type {
+                    None => actual,
+                    Some(previous) if previous == actual => previous,
+                    // Do not manufacture a heterogeneous positional Tuple from
+                    // a List constructor. Its unsupported type inference stays
+                    // conservative and its value contract stays runtime-owned.
+                    Some(_) => StaticType::Unknown,
+                });
             }
-            Ok(StaticType::Collection)
+            Ok(StaticType::Collection(Box::new(element_type.unwrap_or(StaticType::Unknown))))
         }
         ExprKind::SelectionPlace { target, index } => {
-            infer_expr(target, symbols, call_results, unknown_names_allowed)?;
+            let target_type = infer_expr(target, symbols, call_results, unknown_names_allowed)?;
+            if let StaticType::Tuple(items)=&target_type {
+                return tuple_selection_type(items,&[ddonirang_lang::TensorAxisSelector::Index(Box::new((**index).clone()))],expr);
+            }
             let index_type = infer_expr(index, symbols, call_results, unknown_names_allowed)?;
-            if index_type != StaticType::Number && index_type != StaticType::Unknown {
+            // RD-351/353: only a known positional target requires a numeric
+            // selector. Map keys are owned by the target, not by list syntax.
+            // Unknown target typing is checked by the common runtime; it is
+            // not permission to insert a missing key or default a failed read.
+            if matches!(target_type, StaticType::Collection(_) | StaticType::Text)
+                && index_type != StaticType::Number && index_type != StaticType::Unknown {
                 return Err(static_error(
                     "E_CHECK_TYPE_MISMATCH",
                     format!("차림 위치는 수여야 합니다: {}", index_type.label()),
                     index,
                 ));
             }
-            Ok(StaticType::Unknown)
+            // RD-354: a single grapheme remains Text, not an unknown scalar.
+            Ok(match target_type {
+                StaticType::Text => StaticType::Text,
+                StaticType::Collection(element) if is_range_expression(index) => StaticType::Collection(element),
+                StaticType::Collection(element) => *element,
+                _ => StaticType::Unknown,
+            })
         }
         ExprKind::FieldAccess { target, .. } => {
             infer_expr(target, symbols, call_results, unknown_names_allowed)?;
@@ -260,6 +446,16 @@ fn validate_root_statements(
 ) -> Result<(), StaticDiagnostic> {
     for statement in statements {
         match statement {
+            Stmt::SumDefinition {..} => {},
+            Stmt::SumMatch {subject,arms,default_body,..} => {
+                infer_expr(subject,symbols,call_results,unknown_names_allowed)?;
+                for arm in arms {
+                    let mut scoped=symbols.clone();
+                    for binder in &arm.binder {scoped.insert(binder.pin.clone(),StaticType::Unknown);}
+                    validate_root_statements(&arm.body.stmts,&mut scoped,call_results,unknown_names_allowed)?;
+                }
+                if let Some(body)=default_body {validate_root_statements(&body.stmts,&mut symbols.clone(),call_results,unknown_names_allowed)?;}
+            }
             Stmt::Definition {
                 name,
                 type_ref,
@@ -268,12 +464,15 @@ fn validate_root_statements(
             } => {
                 let actual = infer_expr(value, symbols, call_results, unknown_names_allowed)?;
                 let expected = type_ref_kind(type_ref);
+                if !unknown_names_allowed && matches!(expected, StaticType::Collection(_)) {
+                    check_known_collection_members(value, &expected, symbols, call_results)?;
+                }
                 // Existing callable-body declared-type diagnostics are emitted
                 // by the runtime with pin/expected/actual fields. Keep that
                 // contract; this conservative body pass adds logical checking.
                 if !unknown_names_allowed && expected != StaticType::Unknown
                     && actual != StaticType::Unknown
-                    && expected != actual
+                    && !static_types_compatible(&expected, &actual)
                 {
                     return Err(static_error(
                         "E_CHECK_TYPE_MISMATCH",
@@ -297,14 +496,17 @@ fn validate_root_statements(
             Stmt::Mutate { target, value, .. } => {
                 let actual = infer_expr(value, symbols, call_results, unknown_names_allowed)?;
                 if let ExprKind::Var(name) = &target.kind {
-                    if let Some(previous) = symbols.get(name).copied() {
+                    if let Some(previous) = symbols.get(name).cloned() {
+                        if !unknown_names_allowed && matches!(previous, StaticType::Collection(_)) {
+                            check_known_collection_members(value, &previous, symbols, call_results)?;
+                        }
                         // 첫 없음의 후속 씨 고정 정책은 이 변경에서 결정하지 않는다.
                         if unknown_names_allowed && previous == StaticType::None {
                             continue;
                         }
                         if previous != StaticType::Unknown
                             && actual != StaticType::Unknown
-                            && previous != actual
+                            && !static_types_compatible(&previous, &actual)
                         {
                             return Err(static_error(
                                 "E_CHECK_TYPE_MISMATCH",
@@ -323,7 +525,19 @@ fn validate_root_statements(
                     }
                     symbols.insert(name.clone(), actual);
                 } else {
-                    infer_expr(target, symbols, call_results, unknown_names_allowed)?;
+                    let expected = infer_expr(target, symbols, call_results, unknown_names_allowed)?;
+                    if !unknown_names_allowed && is_scalar_selection(target)
+                        && matches!(expected, StaticType::Collection(_)) {
+                        check_known_collection_members(value, &expected, symbols, call_results)?;
+                    }
+                    // Preserve the admitted runtime range-replacement family:
+                    // size, target and selector failures are checked together.
+                    if (is_scalar_selection(target) || matches!(expected,StaticType::Tuple(_)))
+                        && !static_types_compatible(&expected, &actual) {
+                        return Err(static_error("E_CHECK_TYPE_MISMATCH",
+                            format!("선택 위치의 교체 형식이 맞지 않습니다: 기대 {}, 실제 {}",
+                                expected.label(), actual.label()), value));
+                    }
                 }
             }
             Stmt::ResultFlow {
@@ -331,8 +545,18 @@ fn validate_root_statements(
                 destination,
                 ..
             } => {
-                infer_expr(producer, symbols, call_results, unknown_names_allowed)?;
-                infer_expr(destination, symbols, call_results, unknown_names_allowed)?;
+                let actual = infer_expr(producer, symbols, call_results, unknown_names_allowed)?;
+                let expected = infer_expr(destination, symbols, call_results, unknown_names_allowed)?;
+                if !unknown_names_allowed && is_scalar_selection(destination)
+                    && matches!(expected, StaticType::Collection(_)) {
+                    check_known_collection_members(producer, &expected, symbols, call_results)?;
+                }
+                if is_scalar_selection(destination)
+                    && !static_types_compatible(&expected, &actual) {
+                    return Err(static_error("E_CHECK_TYPE_MISMATCH",
+                        format!("선택 결과 자리의 형식이 맞지 않습니다: 기대 {}, 실제 {}",
+                            expected.label(), actual.label()), producer));
+                }
             }
             Stmt::Expr { expr, .. }
             | Stmt::Show { expr, .. }
@@ -671,6 +895,19 @@ pub(crate) fn validate_program_for_execution(program: &CanonProgram) -> Result<(
         .map_err(|error| format!("{}: {}", error.code, error.message))
 }
 
+/// A rejected numeric projection must not mask a more precise existing
+/// source-category diagnostic. This never retries or admits execution.
+pub(crate) fn existing_static_rejection(program:&CanonProgram)->Option<String> {
+    let error=validate_minimal_root_program(program).err()?;
+    let source=&program.origin.source;
+    let prefix=source.get(..error.start)?;
+    let line=prefix.bytes().filter(|byte|*byte==b'\n').count()+1;
+    let line_start=prefix.rfind('\n').map_or(0,|offset|offset+1);
+    let column=prefix[line_start..].chars().count()+1;
+    let line_end=source[line_start..].find('\n').map_or(source.len(),|offset|line_start+offset);
+    Some(format!("{}: {} ({}:{})\n{}\n{}^",error.code,error.message,line,column,&source[line_start..line_end]," ".repeat(column-1)))
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct SourceAnalysisRequest {
     pub source_text: String,
@@ -921,7 +1158,7 @@ fn byte_offset_for_line_column(source: &str, target_line: usize, target_column: 
     source.len()
 }
 
-fn formatted_error_span(source: &str, message: &str) -> SourceAnalysisSpan {
+pub(crate) fn formatted_error_span(source: &str, message: &str) -> SourceAnalysisSpan {
     let mut start = 0usize;
     if let Some(location_end) = message.find(")\n") {
         if let Some(location_start) = message[..location_end].rfind('(') {
@@ -1050,6 +1287,139 @@ pub fn source_analysis_snapshot_json(request_json: &str) -> Result<String, Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn vc13_tuple_static_selection_has_position_specific_types() {
+        for source in [
+            "묶음 := (1,\"가\",참). 결과 := 묶음[0] + 2.",
+            "묶음 := (1,\"가\",참). 결과 := 묶음[1..2][0] + \"나\".",
+            "묶음 := (1,\"가\"). 묶음[0..2] <- (2,\"나\").",
+        ] {
+            let snapshot=analyze_source(request(source,0,V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+            assert_eq!(snapshot.outcome,"ACCEPTED","{source}: {:?}",snapshot.diagnostics);
+        }
+        for source in [
+            "묶음 := (1,\"가\"). 위치 := 0. 결과 := 묶음[위치].",
+            "묶음 := (1,\"가\"). 결과 := 묶음[2].",
+            "묶음 := (1,\"가\"). 결과 := 묶음[1] * 2.",
+            "묶음 := (1,\"가\"). 묶음[0..2] <- (2,참).",
+        ] {
+            let snapshot=analyze_source(request(source,0,V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+            assert_eq!(snapshot.outcome,"REJECTED","{source}: {:?}",snapshot.diagnostics);
+        }
+    }
+
+    #[test]
+    fn vc13_tuple_constant_arithmetic_rejects_dynamic_or_failed_numbers() {
+        for expression in ["1 + 0", "2 / 2", "1.5 - 0.5", "0.5 * 2"] {
+            let source=format!("묶음 := (1,\"가\"). 결과 := 묶음[({expression})] + \"나\".");
+            let snapshot=analyze_source(request(&source,0,V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+            assert_eq!(snapshot.outcome,"ACCEPTED","{source}: {:?}",snapshot.diagnostics);
+        }
+        for expression in ["위치 + 0", "3 / 2", "1 - 2", "4 / 2", "2 / 0", "2147483647 + 1"] {
+            let source=format!("위치 := 1. 묶음 := (1,\"가\"). 결과 := 묶음[({expression})].");
+            let snapshot=analyze_source(request(&source,0,V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+            assert_eq!(snapshot.outcome,"REJECTED","{source}: {:?}",snapshot.diagnostics);
+            assert_eq!(snapshot.diagnostics[0].code,"E_CHECK_TUPLE_SELECTION","{source}");
+            assert!(snapshot.diagnostics[0].span.start>0,"selection diagnostic must not point to the document start");
+        }
+    }
+
+    #[test]
+    fn declared_collection_does_not_hide_known_mixed_members_as_unknown() {
+        for source in [
+            "목록:(수)차림 := 차림[1,\"가\"].",
+            "목록:(수)차림 := 차림[1,2]. 목록 <- 차림[3,\"가\"].",
+            "목록:((수)차림)차림 := 차림[차림[1,\"가\"]].",
+            "목록:((수)차림)차림 := 차림[차림[1,2]]. 목록[0] <- 차림[3,\"가\"].",
+        ] {
+            let snapshot = analyze_source(request(source, 0, V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+            assert_eq!(snapshot.outcome, "REJECTED", "{source}: {:?}", snapshot.diagnostics);
+            assert_eq!(snapshot.diagnostics[0].code, "E_CHECK_TYPE_MISMATCH");
+        }
+        for source in [
+            "목록:(수)차림 := 차림[1,2]. 목록 <- 차림[3,4].",
+            "목록:((수)차림)차림 := 차림[차림[1,2]]. 목록[0] <- 차림[3,4].",
+        ] {
+            let snapshot = analyze_source(request(source, 0, V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+            assert_eq!(snapshot.outcome, "ACCEPTED", "{source}: {:?}", snapshot.diagnostics);
+        }
+    }
+
+    #[test]
+    fn homogeneous_collection_selection_preserves_element_type() {
+        for source in [
+            "목록:(수)차림 := 차림[1,2]. 결과 := 목록[0] + \"가\".",
+            "목록 := 차림[\"가\",\"나\"]. 결과 := 목록[0] * 2.",
+            "목록 := 차림[차림[\"가\"]]. 결과 := 목록[0][0] * 2.",
+            "(목록:(수)차림) 계산:수:셈씨 := { 계산 <- 목록[0] + \"가\". }.",
+            "목록:(수)차림 := 차림[\"가\"].",
+            "목록:(수)차림 := 차림[1,2]. 목록[0] <- \"가\".",
+            "목록:(수)차림 := 차림[1,2]. \"가\" -> 목록[0].",
+            "목록 := 차림[1,2]. 부분 := 목록[0..1]. 결과 := 부분[0] + \"가\".",
+        ] {
+            let snapshot = analyze_source(request(source, 0, V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+            assert_eq!(snapshot.outcome, "REJECTED", "{source}: {:?}", snapshot.diagnostics);
+            assert_eq!(snapshot.diagnostics[0].code, "E_CHECK_TYPE_MISMATCH");
+        }
+        for source in [
+            "목록:(수)차림 := 차림[1,2]. 결과 := 목록[0] + 3.",
+            "목록:(수)차림 := () 차림.",
+            "목록 := 차림[차림[\"가\"]]. 결과 := 목록[0][0] + \"나\".",
+            "목록 := 차림[1,2]. 부분 := 목록[0..1]. 결과 := 부분[0] + 3.",
+            "목록:(수)차림 := 차림[1,2]. 목록[0] <- 3. 4 -> 목록[1].",
+        ] {
+            let snapshot = analyze_source(request(source, 0, V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+            assert_eq!(snapshot.outcome, "ACCEPTED", "{source}: {:?}", snapshot.diagnostics);
+        }
+    }
+
+    #[test]
+    fn vc04_b01_range_preserves_live_homogeneous_element_owner() {
+        for source in [
+            "목록 := 차림[1,2]. 부분 := 목록[0..1]. 결과 := 부분[0] + 3. 결과 보여주기.",
+            "목록 := 차림[1,2,3]. 별칭 := 목록. 부분 := 별칭[1..3]. 다시 := 부분[0..1]. 결과 := 다시[0] + 3. 결과 보여주기.",
+            "목록 := 차림[차림[1,2],차림[3,4]]. 부분 := 목록[1..2]. 결과 := 부분[0][0] + 3. 결과 보여주기.",
+            "목록 := 차림[\"가\",\"나\"]. 부분 := 목록[1..2]. 결과 := 부분[0] + \"다\". 결과 보여주기.",
+            "목록 := 차림[1,2]. 부분 := 목록[0..1]. 결과 := 부분[0] + 0.2. 결과 보여주기.",
+            "목록 := 차림[1,2]. 부분 := 목록[0..1]. 결과:나눔수 := 부분[0] + 1/3. 결과 보여주기.",
+            "목록 := 차림[1,2]. 부분 := 목록[0..1]. (부분[0] + 0.2) 보여주기.",
+            "목록 := 차림[1,2]. 부분 := 목록[0..2]. 결과 := 부분[1] + 3. 결과 보여주기.",
+            "목록 := 차림[10,20,30,40]. 부분 := 목록[1..4]. 결과 := 부분[2] + 3. 결과 보여주기.",
+        ] {
+            let snapshot=analyze_source(request(source,0,V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+            assert_eq!(snapshot.outcome,"ACCEPTED","{source}: {:?}",snapshot.diagnostics);
+        }
+        for source in [
+            "목록 := 차림[1,2]. 부분 := 목록[0..1]. 결과 := 부분[0] + \"가\".",
+            "목록 := 차림[1,\"가\"]. 부분 := 목록[1..2]. 결과 := 부분[0] + 3.",
+            "목록 := 차림[1,2]. 부분 := 목록[0..1]. 목록 <- 차림[\"가\",\"나\"]. 결과 := 부분[0] + 3.",
+            "목록 := 차림[]. 부분 := 목록[0..0]. 결과 := 부분[0] + 3.",
+            "가방 <- (0,차림[1]) 무작위가방.만들기. 미리 <- (가방,1) 무작위가방.미리보기. 부분 := 미리[0..1]. 결과:셈수 := 부분[0].",
+        ] {
+            let snapshot=analyze_source(request(source,0,V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+            assert_eq!(snapshot.outcome,"REJECTED","{source}: {:?}",snapshot.diagnostics);
+        }
+    }
+
+    #[test]
+    fn text_grapheme_selection_preserves_known_result_type() {
+        for source in [
+            "글 := \"👨‍👩‍👧‍👦가\". 결과 := 글[0] + 1.",
+            "글 := \"가\". 결과 := 글[0] 그리고 참.",
+        ] {
+            let snapshot = analyze_source(request(source, 0, V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+            assert_eq!(snapshot.outcome, "REJECTED", "{source}: {:?}", snapshot.diagnostics);
+            assert_eq!(snapshot.diagnostics[0].code, "E_CHECK_TYPE_MISMATCH");
+        }
+        for source in [
+            "글 := \"👨‍👩‍👧‍👦가\". 결과 := 글[0] + \"나\".",
+            "계산:움직씨 := { 결과 := 외부값[0]. }",
+        ] {
+            let snapshot = analyze_source(request(source, 0, V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+            assert_eq!(snapshot.outcome, "ACCEPTED", "{source}: {:?}", snapshot.diagnostics);
+        }
+    }
 
     fn request(source: &str, generation: u64, profile: &str) -> SourceAnalysisRequest {
         SourceAnalysisRequest {

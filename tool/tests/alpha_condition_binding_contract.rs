@@ -80,7 +80,10 @@ fn owner_approved_wo02_inferred_type_rebinding_is_rejected() {
 fn explicit_collection_element_type_is_checked_when_replacing_an_element() {
     for source in placements("판:(수)차림 := 차림[0]. \"가\" -> 판[0]. 판 보여주기.") {
         let error = run(&source).expect_err("원소 교체도 명시한 차림 원소 형식을 지켜야 합니다");
-        assert!(error.contains("E_RUNTIME_TYPE_MISMATCH"), "{source}: {error}");
+        // RD-352/355: statically known selection result-place types are
+        // checked before execution, including this authored hook body.
+        assert!(error.contains("E_CHECK_TYPE_MISMATCH"), "{source}: {error}");
+        assert!(!error.contains("output_log_texts"), "{source}: {error}");
     }
     for source in placements("판:(수)차림 := 차림[0]. 2 -> 판[0]. 판[0] 보여주기.") {
         let summary = run(&source).unwrap_or_else(|error| panic!("{source}: {error}"));

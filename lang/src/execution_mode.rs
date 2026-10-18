@@ -81,6 +81,12 @@ fn scan_optional_body(body: Option<&Body>, counts: &mut LiveHookCounts) {
 
 fn scan_stmt(stmt: &Stmt, counts: &mut LiveHookCounts) {
     match stmt {
+        Stmt::SumDefinition { .. } => {}
+        Stmt::SumMatch { subject, arms, default_body, .. } => {
+            scan_expr(subject, counts);
+            for arm in arms { scan_body(&arm.body, counts); }
+            scan_optional_body(default_body.as_ref(), counts);
+        }
         Stmt::DeclBlock { items, .. } => {
             for item in items {
                 if let Some(value) = &item.value {
@@ -208,16 +214,19 @@ fn scan_stmt(stmt: &Stmt, counts: &mut LiveHookCounts) {
 
 fn scan_expr(expr: &Expr, counts: &mut LiveHookCounts) {
     match &expr.kind {
+        ExprKind::SumBranchValue { payload, .. } => {
+            for payload in payload { scan_expr(&payload.value, counts); }
+        }
         ExprKind::Tensor(value) => scan_expr(value.input(), counts),
         ExprKind::MultiAxisSelection(value) => { for child in value.children() { scan_expr(child, counts); } }
         ExprKind::FieldAccess { target, .. } => scan_expr(target, counts),
         ExprKind::SeedLiteral { body, .. } => scan_expr(body, counts),
-        ExprKind::Call { args, .. } => {
+        ExprKind::Call { args, .. } | ExprKind::ProductConstruction { fields: args, .. } => {
             for arg in args {
                 scan_expr(&arg.expr, counts);
             }
         }
-        ExprKind::CollectionConstructor { elements } => {
+        ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
             for element in elements {
                 scan_expr(element, counts);
             }

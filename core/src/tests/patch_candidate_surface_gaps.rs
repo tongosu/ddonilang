@@ -231,7 +231,7 @@ fn component_set_remove_conflict_is_arrival_order_dependent_current_gap() {
 }
 
 #[test]
-fn same_resource_name_can_exist_in_multiple_storage_kinds_current_gap() {
+fn legacy_and_cross_lane_patch_is_rejected_without_publication() {
     let mut nuri = DetNuri::new();
     let patch = Patch {
         ops: vec![
@@ -248,19 +248,11 @@ fn same_resource_name_can_exist_in_multiple_storage_kinds_current_gap() {
     };
     let mut sink = VecSignalSink::default();
 
+    let before=nuri.state_hash();
     nuri.apply_patch(&patch, 8, &mut sink);
 
-    assert_eq!(
-        nuri.world().get_resource_json("same-name").as_deref(),
-        Some("json-value")
-    );
-    assert_eq!(
-        nuri.world()
-            .get_resource_fixed64("same-name")
-            .expect("same-name fixed64")
-            .int_part(),
-        7
-    );
-    assert!(sink.signals.is_empty());
-    assert!(sink.diag_events.is_empty());
+    assert_eq!(nuri.world().get_resource_json("same-name"),None);
+    assert_eq!(nuri.world().get_resource_fixed64("same-name"),None);
+    assert_eq!(nuri.state_hash(),before);
+    assert!(sink.diag_events.iter().any(|event|event.fault_id=="PATCH_SCHEMA"));
 }

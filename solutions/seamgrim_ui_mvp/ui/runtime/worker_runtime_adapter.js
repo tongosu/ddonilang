@@ -1,4 +1,4 @@
-const SESSION_METHODS = ["updateLogic", "reset", "getStateJson", "step", "setParam", "exportSavedProjectArtifact", "close"];
+const SESSION_METHODS = ["updateLogic", "reset", "getStateJson", "step", "setParam", "exportSavedProjectArtifact", "saveNativeCheckpoint", "close"];
 const ADAPTER_METHODS = [
   "authoredProjectOperation",
   "bindLogicalSource",
@@ -6,6 +6,7 @@ const ADAPTER_METHODS = [
   "runSummaryWithSourceProfile", "planGajiExtraction", "projectSourceSha256",
   "exportInputTapeV1", "runSummaryWithTapeV1",
   "replayLogicalInput",
+  "recordFiniteInput",
   "bindManipulationSource", "replayManipulationInput",
   "manipulationValueRaw",
   "buildLocalGajiArtifact", "planGajiLifecycle", "projectGraph", "projectSymbols",
@@ -86,6 +87,7 @@ export class WorkerRuntimeAdapter {
     const session = {
       getExecutionModeDecision: () => metadata.executionModeDecision,
       getConfiguredMadi: () => metadata.configuredMadi,
+      hasNativeSource: () => metadata.nativeSourceBound === true,
     };
     for (const operation of SESSION_METHODS) {
       session[operation] = async (...args) => {
@@ -100,7 +102,7 @@ export class WorkerRuntimeAdapter {
   async createLogicalSession(options, operationName = "createLogicalSession") {
     const generation = this.generation;
     const created = await this.request(operationName, [options], null, generation);
-    const operations = { step:"logicalStep", summary:"logicalSummary", seal:"logicalSeal", abort:"logicalAbort", close:"logicalClose" };
+    const operations = { step:"logicalStep", summary:"logicalSummary", seal:"logicalSeal", stopRecording:"logicalStopRecordingV3", abort:"logicalAbort", close:"logicalClose", exportSavedProjectArtifact:"logicalExportSavedProjectArtifact", exportProjectCheckpoint:"logicalExportProjectCheckpoint" };
     return Object.fromEntries(Object.entries(operations).map(([method, operation]) => [method,
       (...args) => this.request(operation, args, created.sessionId, generation),
     ]));

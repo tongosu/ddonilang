@@ -3,6 +3,26 @@ use ddonirang_lang::{
     NormalizationLevel, SourceEpoch, Stmt, TopLevelItem,
 };
 
+#[test]
+fn rd090_pack_mixed_shape_never_discards_positional_values() {
+    for source in [
+        "값 <- (1, 이름: \"가람\").",
+        "값 <- (이름: \"가람\", 1).",
+        "값 <- (1, 이름: \"가람\") 보여주기.",
+        "값 <- (먼저=1, 이름: \"가람\").",
+    ] {
+        let error = parse_v25(source, "혼합.ddn").expect_err("RD090 forbids either mixed direction");
+        assert!(error.message.contains("E_PACK_MIXED_SHAPE"), "{source}: {}", error.message);
+    }
+    for source in [
+        "값 <- (이름: \"가람\", 점수: 10).",
+        "(첫값:수,둘째값:수) 더한값:수:셈씨 := { 더한값 <- 첫값+둘째값. }. (1,2) 더한값.",
+        "(첫값:수,둘째값:수) 더한값:수:셈씨 := { 더한값 <- 첫값+둘째값. }. (첫값=1,둘째값=2) 더한값.",
+    ] {
+        assert!(parse_v25(source, "정상.ddn").is_ok(), "{source}");
+    }
+}
+
 const PUBLIC_SAFE_POSITIVE: &str = r#"검산:움직씨 := {
     합계:수 := 4.
     합계 <- 7.
@@ -88,9 +108,9 @@ fn v25_parse_canon_parse_preserves_categories_and_symbols() {
     let canonical = normalize(&program, NormalizationLevel::N1);
 
     assert!(canonical.contains("검산:움직씨 :="));
-    assert!(canonical.contains("합계:수 := 4."));
+    assert!(canonical.contains("합계:셈수 := 4."));
     assert!(canonical.contains("합계 <- 7."));
-    assert!(!canonical.contains("합계:수 <- 4."));
+    assert!(!canonical.contains("합계:셈수 <- 4."));
     assert_eq!(statement_categories(&canonical), before);
 }
 
@@ -201,5 +221,5 @@ fn v25_root_binding_rebinding_keeps_statement_category_and_canonical_bytes() {
         .expect("canonical root binding reparses");
     assert_eq!(once, twice);
     assert!(once.contains("값 <- 0."));
-    assert!(!once.contains("값:수 :="));
+    assert!(!once.contains("값:셈수 :="));
 }

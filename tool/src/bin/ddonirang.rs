@@ -7,6 +7,11 @@ const SOURCE_PROFILE_FLAG: &str = "--source-profile";
 
 fn usage() -> &'static str {
     "또니랑 V1 명령줄 (정본 실행파일: ddonilang, 또니랑; 호환 별칭: ddonirang)\n\
+일반 run: 등록 파일 없이 실행마다 임시 정체를 새로 만듭니다.\n\
+  이름씨·원자·임자를 쓰면 같은 원문·입력도 실행 간 state_hash가 다를 수 있습니다.\n\
+  결정론: 같은 초기 정체·입력·난수 상태 등 필요한 문맥을 담은 기록 재생 → 같은 결과.\n\
+  입력 Tape 하나만으로 모든 재생 문맥이 보존되지는 않습니다.\n\
+  저장한 작품은 보존된 정체를 그대로 사용합니다. 임시 정체를 저장·내보내는 권한은 생기지 않습니다.\n\
 사용법:\n\
   ddonilang 실행 <파일.ddn> --source-profile <profile> [--마디수 <N>] [--json] [--summary-json <summary.detjson>] [--open deny|record|replay --open-log <transcript.json> --open-resources <manifest.json>]  (technical: run)\n\
   ddonilang 검사 <파일.ddn> --source-profile <profile>  (technical: check)\n\
@@ -14,17 +19,36 @@ fn usage() -> &'static str {
   ddonilang 개발 정본 <파일.ddn> --source-profile <profile>  (technical: canon)\n\
   ddonilang lint <파일.ddn> --source-profile <profile> [--suggest-patch] [--out <ddn.patch.json>]\n\
   ddonilang project-normalize <virtual-project.json>\n\
-  ddonilang project-discover <작품머리.ddn> [--project <작품머리.ddn>] [--virtual <request.json>]\n\
+  ddonilang project-discover <작품머리.ddn> [--project <작품머리.ddn>]\n\
+  ddonilang project-discover --virtual <request.json>\n\
   ddonilang project-graph <virtual-project.json>\n\
   ddonilang project-symbols <virtual-project.json>\n\
   ddonilang project-lock <virtual-project.json> [--frozen]\n\
-  ddonilang project-run <작품머리.ddn> [--project <작품머리.ddn>] [--virtual <request.json>] [--inspect-graph] [--inspect-lock] [--open deny|record|replay --open-log <transcript.json> --open-resources <manifest.json>] [--out <artifact.detjson>]\n\
+  ddonilang project-run <작품머리.ddn> [--project <작품머리.ddn>] [--inspect-graph] [--inspect-lock] [--open deny|record|replay --open-log <transcript.json> --open-resources <manifest.json>] [--out <artifact.detjson>]\n\
+  ddonilang project-run --virtual <virtual-project.json> [--inspect-graph] [--inspect-lock] [--open deny|record|replay --open-log <transcript.json> --open-resources <manifest.json>] [--out <artifact.detjson>]\n\
+  project-discover/project-run의 파일 입력과 --virtual 입력은 함께 쓰지 않습니다.\n\
   ddonilang currentline-run --cell <파일.ddn> --source-profile <profile> [--context-json <context.detjson>] [--context-out <context.detjson>] [--summary-json <summary.detjson>]\n\
-  ddonilang workbench [--no-open]\n\
-  ddonilang 논리입력기록 <파일.ddn> <입력요청.json> <기록파일>  (technical: logical-record)\n\
+  ddonilang workbench [--no-open] [--port PORT]\n\
+  ddonilang 논리입력기록 <파일.ddn> <입력요청.json> <기록파일> [--format=v3]  (technical: logical-record)\n\
+  논리/조작 기록·재생의 기본 운반 형식은 통합 V3 후보입니다. --format=v3를 명시해도 같습니다. 최종 이름 동결은 별도입니다.\n\
+  V3 읽기는 옛 기록을 자동 탐지·변환하지 않습니다. 기대 입력 계약을 별도로 전달해야 합니다.\n\
+  여러 파일 작품은 논리 기록·재생에 --authored를 명시하고 원문 대신 작품 자료 JSON을 전달합니다.\n\
   ddonilang 논리입력재생 <파일.ddn> <기록파일> <입력계약.json>  (technical: logical-replay)\n\
   ddonilang 작품자료 <만들기|열기|복제|갱신|보개등록|이름변경|경로변경> <파일.json>  (technical: authored-project)\n\
   ddonilang 작품자료 실행 <파일.json> [--마디수 N]: 저장된 보개 정체로 실행\n\
+  Native 원문 저장: 작품자료 원문저장 <작품.json> --판 <정체hex> --저장소 <새폴더>\n\
+  Native 첫 실행: 작품자료 첫실행 <원문저장보고.json> --판 <새정체hex> --저장소 <폴더> --마디수 N\n\
+  Native 원문 이어 실행: 작품자료 원문이어실행 <저장.json> --부모 <정체hex> --판 <정체hex> --저장소 <폴더> --허가 <locator> --마디수 N\n\
+  Native 일반 저장: 위 명령 뒤 --마디수 N --저장소 <폴더> --부모 <처음|정체hex> --판 <정체hex> [--저장소-초기화] [--이전-영수증 <영수증.hex>]\n\
+  잠정 저장소 허가: 작품자료 저장소허가 <등록|확인|폐기> <저장.json> --부모 <처음|정체hex> --판 <정체hex> --저장소 <폴더> [--허가 <locator>] (복구 영수증 아님)\n\
+  잠정 Native 복구 기록 저장: 작품자료 내구기록 <작품.json> --마디수 N --판 <정체hex> --저장소 <새폴더> --저장소-초기화 --복구자료 <별도 새폴더> (일반 실행·첫 저장만)\n\
+  잠정 Native 복구 후 이어실행: 작품자료 복구 <저장.json> --판 <정체hex> --저장소 <폴더> --허가 <locator> --요청 <원요청.bin> --토큰 <tokenhex> --마디수 N\n\
+  위 두 잠정 명령의 --마디수 N 대신 --입력 <논리입력요청.json>을 쓰면 기존 논리 입력·고정 씨앗으로 실행합니다. 자동 형식 변환은 하지 않습니다.\n\
+  ddonilang 작품자료 이어실행 <저장.json> --부모 <처음|정체hex> --판 <정체hex> --마디수 N: 저장 상태에서 계속 실행\n\
+  Native 논리 이어실행: 위 명령 뒤 --저장소 <폴더> --거래 <sha256hex> --입력 <논리입력요청.json>\n\
+  Native 일반 이어실행: 위 명령 뒤 --저장소 <폴더> --거래 <sha256hex> --일반 [--저장-판 <정체hex> --이전-영수증 <영수증.hex>]\n\
+  Native 이어 저장: 위 명령 뒤 --저장-판 <정체hex> --이전-영수증 <영수증.hex>: 복원 실행의 계보를 유지해 다음 판에 저장\n\
+  ddonilang 작품자료 논리기록 <작품.json> --입력 <요청.json> --부모 <처음|정체hex> --판 <정체hex> --저장소 <폴더> [--저장소-초기화] [--이전-영수증 <영수증.hex>]: 새 논리 실행을 Native에 저장\n\
   ddonilang 도움  (technical: help)\n\
   ddonilang 판본  (technical: version)\n\n\
 제어입력 옵션 (괄호 안은 영어 호환 별칭):\n\
@@ -55,12 +79,66 @@ enum Command {
     ProjectRun(ProjectRunCommand),
     CurrentlineRun(CurrentlineCommand),
     Workbench(WorkbenchCommand),
-    LogicalRecord { source: PathBuf, request: PathBuf, output: PathBuf },
-    LogicalReplay { source: PathBuf, tape: PathBuf, binding: PathBuf },
-    ManipulationRecord { source: PathBuf, request: PathBuf, output: PathBuf },
-    ManipulationReplay { source: PathBuf, tape: PathBuf, binding: PathBuf },
+    LogicalRecord { source: PathBuf, request: PathBuf, output: PathBuf, v3:bool, authored:bool },
+    LogicalReplay { source: PathBuf, tape: PathBuf, binding: PathBuf, v3:bool, authored:bool },
+    ManipulationRecord { source: PathBuf, request: PathBuf, output: PathBuf, v3:bool },
+    ManipulationReplay { source: PathBuf, tape: PathBuf, binding: PathBuf, v3:bool },
     AuthoredProject { operation: String, input: PathBuf },
-    AuthoredRun { input: PathBuf, madi: Option<u32> },
+    AuthoredRun { input: PathBuf, madi: Option<u32>, native:Option<NativeGeneralSave> },
+    AuthoredResume { input: PathBuf, parent: Vec<u8>, revision: Vec<u8>, madi: u32, native:Option<NativeResume> },
+    AuthoredLogicalRecord(NativeLogicalRecord),
+    NativeRootGrant { operation:String, input:PathBuf, parent:Vec<u8>, revision:Vec<u8>, root:PathBuf, locator:Option<String> },
+    NativeCustodyRecord { input:PathBuf, input_mode:NativeCustodyInput, revision:Vec<u8>, root:PathBuf, recovery:PathBuf },
+    NativeCustodyResume { input:PathBuf, input_mode:NativeCustodyInput, revision:Vec<u8>, root:PathBuf, locator:String, request:PathBuf, token:[u8;33] },
+    NativeSourceSave {input:PathBuf,revision:Vec<u8>,root:PathBuf},
+    NativeSourceRun {input:PathBuf,revision:Vec<u8>,root:PathBuf,madi:u32},
+    NativeSourceResume {input:PathBuf,parent:Vec<u8>,revision:Vec<u8>,root:PathBuf,locator:String,madi:u32},
+}
+
+/// Locator data only. The Native owner must reopen and verify protected
+/// source custody; deserializing this report never constructs a permit.
+#[derive(serde::Serialize,serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NativeSourceLocatorReport {
+    project_identity_hex:String,source_revision_hex:String,source_integrity_hex:String,grant_locator:String,
+}
+
+#[derive(Debug,PartialEq,Eq)]
+enum NativeCustodyInput {General(u32),Logical(PathBuf)}
+
+fn parse_native_custody_input(flag:&str,value:&str)->Result<NativeCustodyInput,String> {
+    match flag {
+        "--입력"=>Ok(NativeCustodyInput::Logical(PathBuf::from(value))),
+        "--마디수"=>{
+            let count=value.parse::<u32>().map_err(|_|"마디 수가 올바르지 않습니다")?;
+            if count==0 {return Err("마디 수는 0일 수 없습니다".into());}
+            Ok(NativeCustodyInput::General(count))
+        },
+        _=>Err("E_NATIVE_CUSTODY_OPTIONS: --마디수 또는 --입력을 명시해야 합니다".into()),
+    }
+}
+
+#[derive(Debug,PartialEq,Eq)]
+struct NativeResume {root:PathBuf,digest:[u8;32],input:Option<PathBuf>,save:Option<NativeResumeSave>}
+
+#[derive(Debug,PartialEq,Eq)]
+struct NativeGeneralSave {root:PathBuf,parent:Vec<u8>,revision:Vec<u8>,initialize:bool,expected_receipt:Option<PathBuf>}
+
+#[derive(Debug,PartialEq,Eq)]
+struct NativeResumeSave {revision:Vec<u8>,receipt:PathBuf}
+
+#[derive(Debug,PartialEq,Eq)]
+struct NativeLogicalRecord {
+    authored:PathBuf,input:PathBuf,root:PathBuf,parent:Vec<u8>,revision:Vec<u8>,
+    initialize:bool,expected_receipt:Option<PathBuf>,
+}
+
+fn parse_storage_identity(text:&str)->Result<Vec<u8>,String> {
+    if text.is_empty()||text.len()>8192||text.len()%2!=0
+        ||!text.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)) {
+        return Err("E_PROJECT_RUNTIME_STORAGE_LINEAGE: 저장 이력 정체가 정본이 아닙니다".into());
+    }
+    hex::decode(text).map_err(|_|"E_PROJECT_RUNTIME_STORAGE_LINEAGE".into())
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -188,6 +266,7 @@ struct CurrentlineCommand {
 #[derive(Debug, PartialEq, Eq)]
 struct WorkbenchCommand {
     no_open: bool,
+    port: u16,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -1064,6 +1143,41 @@ fn command_help_requested(command: &str, rest: &[String]) -> bool {
         )
 }
 
+fn input_transport_args(args:&[String])->Result<(&[String],bool,bool),String> {
+    let split=args.iter().position(|arg|arg.starts_with("--")).unwrap_or(args.len());
+    let mut v3=false;let mut authored=false;
+    for flag in &args[split..] {match flag.as_str() {
+        "--format=v3" if !v3=>v3=true,
+        "--authored" if !authored=>authored=true,
+        _=>return Err("E_CLI_INPUT_FORMAT: 입력 기록 형식·작품 선택을 명시하고 중복 없이 전달하세요".into()),
+    }}
+    // One default transport; never infer V1/V2 from bytes or a file name.
+    // Keep the old codecs for their existing internal semantic suppliers,
+    // not as a second normal CLI reader/writer or a compatibility fallback.
+    Ok((&args[..split],true,authored))
+}
+
+#[cfg(test)]
+mod input_transport_tests {
+    #[test]
+    fn input_transport_format_is_explicit_not_detected_from_file() {
+        for command in ["logical-record","logical-replay","manipulation-record","manipulation-replay"] {
+            let args=vec![command.into(),"raw.ddn".into(),"input.json".into(),"output.bin".into(),"--format=v3".into()];
+            let parsed=super::parse_args(args).unwrap();
+            assert!(matches!(parsed,super::Command::LogicalRecord{v3:true,..}|super::Command::LogicalReplay{v3:true,..}
+                |super::Command::ManipulationRecord{v3:true,..}|super::Command::ManipulationReplay{v3:true,..}));
+            assert!(super::parse_args(vec![command.into(),"raw.ddn".into(),"input.json".into(),"output.bin".into(),"--format=unknown".into()]).is_err());
+        }
+        let parsed=super::parse_args(vec!["logical-replay".into(),"raw.ddn".into(),"V3-named-file.bin".into(),"binding.json".into()]).unwrap();
+        assert!(matches!(parsed,super::Command::LogicalReplay{v3:true,..}));
+        let args=|flags:&[&str]|["logical-record","project.json","input.json","out.bin"].into_iter().chain(flags.iter().copied()).map(str::to_string).collect();
+        assert!(matches!(super::parse_args(args(&["--authored"])).unwrap(),super::Command::LogicalRecord{v3:true,authored:true,..}));
+        assert!(super::parse_args(args(&["--format=v1"])).is_err());
+        assert!(super::parse_args(args(&["--format=v3","--authored","--authored"])).is_err());
+        assert!(matches!(super::parse_args(args(&["--authored","--format=v3"])).unwrap(),super::Command::LogicalRecord{v3:true,authored:true,..}));
+    }
+}
+
 fn parse_args(args: Vec<String>) -> Result<Command, String> {
     let Some((command, rest)) = args.split_first() else {
         return Ok(Command::Help);
@@ -1073,17 +1187,147 @@ fn parse_args(args: Vec<String>) -> Result<Command, String> {
     }
     match command.as_str() {
         "작품자료" | "authored-project" => {
+            if rest.first().map(String::as_str)==Some("원문저장") {
+                if rest.len()!=6||rest[2]!="--판"||rest[4]!="--저장소"{
+                    return Err("작품자료 원문저장 <작품.json> --판 <정체hex> --저장소 <새폴더>".into());
+                }
+                return Ok(Command::NativeSourceSave{input:PathBuf::from(&rest[1]),revision:parse_storage_identity(&rest[3])?,root:PathBuf::from(&rest[5])});
+            }
+            if rest.first().map(String::as_str)==Some("첫실행") {
+                if rest.len()!=8||rest[2]!="--판"||rest[4]!="--저장소"||rest[6]!="--마디수"{
+                    return Err("작품자료 첫실행 <원문저장보고.json> --판 <새정체hex> --저장소 <폴더> --마디수 N".into());
+                }
+                let NativeCustodyInput::General(madi)=parse_native_custody_input(&rest[6],&rest[7])? else{unreachable!()};
+                return Ok(Command::NativeSourceRun{input:PathBuf::from(&rest[1]),revision:parse_storage_identity(&rest[3])?,root:PathBuf::from(&rest[5]),madi});
+            }
+            if rest.first().map(String::as_str)==Some("원문이어실행") {
+                if rest.len()!=12||rest[2]!="--부모"||rest[4]!="--판"||rest[6]!="--저장소"||rest[8]!="--허가"||rest[10]!="--마디수"{
+                    return Err("작품자료 원문이어실행 <저장.json> --부모 <정체hex> --판 <정체hex> --저장소 <폴더> --허가 <locator> --마디수 N".into());
+                }
+                let NativeCustodyInput::General(madi)=parse_native_custody_input(&rest[10],&rest[11])? else{unreachable!()};
+                return Ok(Command::NativeSourceResume{input:PathBuf::from(&rest[1]),parent:parse_storage_identity(&rest[3])?,revision:parse_storage_identity(&rest[5])?,root:PathBuf::from(&rest[7]),locator:rest[9].clone(),madi});
+            }
+            if rest.first().map(String::as_str)==Some("내구기록") {
+                if rest.len()!=11 || rest[4]!="--판" || rest[6]!="--저장소" || rest[8]!="--저장소-초기화" || rest[9]!="--복구자료" {
+                    return Err("작품자료 내구기록 <작품.json> --마디수 N --판 <정체hex> --저장소 <새폴더> --저장소-초기화 --복구자료 <별도 새폴더>".into());
+                }
+                let input_mode=parse_native_custody_input(&rest[2],&rest[3])?;
+                return Ok(Command::NativeCustodyRecord{input:PathBuf::from(&rest[1]),input_mode,
+                    revision:parse_storage_identity(&rest[5])?,root:PathBuf::from(&rest[7]),recovery:PathBuf::from(&rest[10])});
+            }
+            if rest.first().map(String::as_str)==Some("복구") {
+                if rest.len()!=14 || rest[2]!="--판" || rest[4]!="--저장소" || rest[6]!="--허가"
+                    || rest[8]!="--요청" || rest[10]!="--토큰" {
+                    return Err("작품자료 복구 <저장.json> --판 <정체hex> --저장소 <폴더> --허가 <locator> --요청 <원요청.bin> --토큰 <tokenhex> --마디수 N".into());
+                }
+                if rest[11].len()!=66 || !rest[11].bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)) {
+                    return Err("E_NATIVE_CUSTODY_TOKEN: 토큰은 정본 33-byte 소문자 hex여야 합니다".into());
+                }
+                let token:[u8;33]=hex::decode(&rest[11]).map_err(|_|"E_NATIVE_CUSTODY_TOKEN")?.try_into().map_err(|_|"E_NATIVE_CUSTODY_TOKEN")?;
+                let input_mode=parse_native_custody_input(&rest[12],&rest[13])?;
+                if token[0]!=1 {return Err("E_NATIVE_CUSTODY_OPTIONS: 토큰 형식이 올바르지 않습니다".into());}
+                return Ok(Command::NativeCustodyResume{input:PathBuf::from(&rest[1]),input_mode,
+                    revision:parse_storage_identity(&rest[3])?,root:PathBuf::from(&rest[5]),locator:rest[7].clone(),
+                    request:PathBuf::from(&rest[9]),token});
+            }
+            if rest.first().map(String::as_str)==Some("저장소허가") {
+                let valid = matches!(rest.len(),9|11) && rest[3]=="--부모" && rest[5]=="--판" && rest[7]=="--저장소";
+                if !valid { return Err("작품자료 저장소허가 <등록|확인|폐기> <저장.json> --부모 <처음|정체hex> --판 <정체hex> --저장소 <폴더> [--허가 <locator>]".into()); }
+                let operation=rest[1].clone();
+                let locator=match (operation.as_str(),rest.len()) {
+                    ("등록",9)=>None,
+                    ("확인"|"폐기",11) if rest[9]=="--허가"=>Some(rest[10].clone()),
+                    _=>return Err("E_NATIVE_ROOT_GRANT_OPTIONS: 등록은 새 허가를 발급하며, 확인·폐기는 기존 --허가를 명시해야 합니다".into()),
+                };
+                let parent=if rest[4]=="처음"{Vec::new()}else{parse_storage_identity(&rest[4])?};
+                return Ok(Command::NativeRootGrant {operation,input:PathBuf::from(&rest[2]),parent,
+                    revision:parse_storage_identity(&rest[6])?,root:PathBuf::from(&rest[8]),locator});
+            }
+            if rest.first().map(String::as_str)==Some("논리기록") {
+                if rest.len()<10||rest[2]!="--입력"||rest[4]!="--부모"||rest[6]!="--판"||rest[8]!="--저장소" {
+                    return Err("작품자료 논리기록 <작품.json> --입력 <요청.json> --부모 <처음|정체hex> --판 <정체hex> --저장소 <폴더>".into());
+                }
+                let parent=if rest[5]=="처음"{Vec::new()}else{parse_storage_identity(&rest[5])?};
+                let revision=parse_storage_identity(&rest[7])?;
+                let mut initialize=false;let mut expected_receipt=None;let mut index=10;
+                while index<rest.len() {
+                    match rest[index].as_str() {
+                        "--저장소-초기화" if !initialize=>{initialize=true;index+=1;},
+                        "--이전-영수증" if expected_receipt.is_none()&&index+1<rest.len()=>{
+                            expected_receipt=Some(PathBuf::from(&rest[index+1]));index+=2;
+                        },
+                        _=>return Err("Native 저장 옵션이 빠졌거나 중복되거나 지원되지 않습니다".into()),
+                    }
+                }
+                return Ok(Command::AuthoredLogicalRecord(NativeLogicalRecord {
+                    authored:PathBuf::from(&rest[1]),input:PathBuf::from(&rest[3]),root:PathBuf::from(&rest[9]),
+                    parent,revision,initialize,expected_receipt,
+                }));
+            }
+            if matches!(rest.first().map(String::as_str),Some("이어실행"|"resume")) {
+                if !matches!(rest.len(),8|13|14|17|18)||rest[2]!="--부모"||rest[4]!="--판"||rest[6]!="--마디수" {
+                    return Err("작품자료 이어실행 <저장.json> --부모 <처음|정체hex> --판 <정체hex> --마디수 N".into());
+                }
+                let identity=parse_storage_identity;
+                let parent=if rest[3]=="처음"{Vec::new()}else{identity(&rest[3])?};
+                let revision=identity(&rest[5])?;
+                let madi=rest[7].parse::<u32>().map_err(|_|"마디 수는 음수가 아닌 정수여야 합니다")?;
+                let native=if matches!(rest.len(),13|17) {
+                    if rest[8]!="--저장소" || rest[10]!="--거래" || rest[12]!="--일반" {
+                        return Err("Native 일반 이어실행: --저장소 <폴더> --거래 <sha256hex> --일반".into());
+                    }
+                    let digest=identity(&rest[11])?.try_into().map_err(|_|"거래 해시는 32바이트여야 합니다")?;
+                    let save=if rest.len()==17 {
+                        if rest[13]!="--저장-판" || rest[15]!="--이전-영수증" {
+                            return Err("Native 일반 이어 저장: --저장-판 <정체hex> --이전-영수증 <영수증.hex>".into());
+                        }
+                        Some(NativeResumeSave {revision:identity(&rest[14])?,receipt:PathBuf::from(&rest[16])})
+                    }else{None};
+                    Some(NativeResume {root:PathBuf::from(&rest[9]),digest,input:None,save})
+                }else if rest.len()>=14 {
+                    if rest[8]!="--저장소"||rest[10]!="--거래"||rest[12]!="--입력" {
+                        return Err("Native 이어실행: --저장소 <폴더> --거래 <sha256hex> --입력 <논리입력요청.json>".into());
+                    }
+                    let digest=identity(&rest[11])?.try_into().map_err(|_|"거래 해시는 32바이트여야 합니다")?;
+                    let save=if rest.len()==18 {
+                        if rest[14]!="--저장-판" || rest[16]!="--이전-영수증" {
+                            return Err("Native 이어 저장: --저장-판 <정체hex> --이전-영수증 <영수증.hex>".into());
+                        }
+                        Some(NativeResumeSave {revision:identity(&rest[15])?,receipt:PathBuf::from(&rest[17])})
+                    }else{None};
+                    Some(NativeResume {root:PathBuf::from(&rest[9]),digest,input:Some(PathBuf::from(&rest[13])),save})
+                }else{None};
+                return Ok(Command::AuthoredResume{input:PathBuf::from(&rest[1]),parent,revision,madi,native});
+            }
             if matches!(rest.first().map(String::as_str), Some("실행" | "run")) {
                 let madi = match rest.len() {
                     2 => None,
-                    4 if rest[2] == "--마디수" => {
+                    4.. if rest[2] == "--마디수" => {
                         let value = rest[3].parse::<u32>().map_err(|_| "마디 수는 양의 정수여야 합니다")?;
                         if value == 0 { return Err("마디 수는 0일 수 없습니다".into()); }
                         Some(value)
                     }
                     _ => return Err("작품자료 실행 <파일.json> [--마디수 N]".into()),
                 };
-                return Ok(Command::AuthoredRun { input: PathBuf::from(&rest[1]), madi });
+                let native=if rest.len()>4 {
+                    if rest.len()<10 || rest[4]!="--저장소" || rest[6]!="--부모" || rest[8]!="--판" {
+                        return Err("Native 일반 저장: --마디수 N --저장소 <폴더> --부모 <처음|정체hex> --판 <정체hex>".into());
+                    }
+                    let parent=if rest[7]=="처음" {Vec::new()}else{parse_storage_identity(&rest[7])?};
+                    let revision=parse_storage_identity(&rest[9])?;
+                    let mut initialize=false;let mut expected_receipt=None;let mut index=10;
+                    while index<rest.len() {
+                        match rest[index].as_str() {
+                            "--저장소-초기화" if !initialize=>{initialize=true;index+=1;},
+                            "--이전-영수증" if expected_receipt.is_none() && index+1<rest.len()=>{
+                                expected_receipt=Some(PathBuf::from(&rest[index+1]));index+=2;
+                            },
+                            _=>return Err("Native 일반 저장 옵션이 빠졌거나 중복되거나 지원되지 않습니다".into()),
+                        }
+                    }
+                    Some(NativeGeneralSave {root:PathBuf::from(&rest[5]),parent,revision,initialize,expected_receipt})
+                }else{None};
+                return Ok(Command::AuthoredRun { input: PathBuf::from(&rest[1]), madi, native });
             }
             if rest.len() != 2 { return Err("작품자료 <만들기|열기|복제|갱신|보개등록|이름변경|경로변경> <파일.json>".into()); }
             let operation = match rest[0].as_str() {
@@ -1099,24 +1343,30 @@ fn parse_args(args: Vec<String>) -> Result<Command, String> {
             Ok(Command::AuthoredProject { operation: operation.into(), input: PathBuf::from(&rest[1]) })
         }
         "manipulation-record" | "조작입력기록" => {
+            let (rest,v3,authored)=input_transport_args(rest)?;
+            if authored{return Err("E_MANIPULATION_PROJECT_UNSUPPORTED: 여러 파일 조작 입력은 지원하지 않습니다".into());}
             if rest.len()!=3 || rest.iter().any(|value|value.starts_with("--")) { return Err("E_CLI_MANIPULATION_ARGUMENTS: 원문·입력요청·출력기록 경로가 필요합니다".into()); }
-            Ok(Command::ManipulationRecord {source:PathBuf::from(&rest[0]),request:PathBuf::from(&rest[1]),output:PathBuf::from(&rest[2])})
+            Ok(Command::ManipulationRecord {source:PathBuf::from(&rest[0]),request:PathBuf::from(&rest[1]),output:PathBuf::from(&rest[2]),v3})
         }
         "manipulation-replay" | "조작입력재생" => {
+            let (rest,v3,authored)=input_transport_args(rest)?;
+            if authored{return Err("E_MANIPULATION_PROJECT_UNSUPPORTED: 여러 파일 조작 입력은 지원하지 않습니다".into());}
             if rest.len()!=3 || rest.iter().any(|value|value.starts_with("--")) { return Err("E_CLI_MANIPULATION_ARGUMENTS: 원문·기록·입력계약 경로가 필요합니다".into()); }
-            Ok(Command::ManipulationReplay {source:PathBuf::from(&rest[0]),tape:PathBuf::from(&rest[1]),binding:PathBuf::from(&rest[2])})
+            Ok(Command::ManipulationReplay {source:PathBuf::from(&rest[0]),tape:PathBuf::from(&rest[1]),binding:PathBuf::from(&rest[2]),v3})
         }
         "logical-record" | "논리입력기록" => {
+            let (rest,v3,authored)=input_transport_args(rest)?;
             if rest.len() != 3 || rest.iter().any(|value| value.starts_with("--")) {
                 return Err("E_CLI_LOGICAL_ARGUMENTS: 원문·입력요청·출력기록 경로가 필요합니다".into());
             }
-            Ok(Command::LogicalRecord { source: PathBuf::from(&rest[0]), request: PathBuf::from(&rest[1]), output: PathBuf::from(&rest[2]) })
+            Ok(Command::LogicalRecord { source: PathBuf::from(&rest[0]), request: PathBuf::from(&rest[1]), output: PathBuf::from(&rest[2]),v3,authored })
         }
         "logical-replay" | "논리입력재생" => {
+            let (rest,v3,authored)=input_transport_args(rest)?;
             if rest.len() != 3 || rest.iter().any(|value| value.starts_with("--")) {
                 return Err("E_CLI_LOGICAL_ARGUMENTS: 원문·기록·입력계약 경로가 필요합니다".into());
             }
-            Ok(Command::LogicalReplay { source: PathBuf::from(&rest[0]), tape: PathBuf::from(&rest[1]), binding: PathBuf::from(&rest[2]) })
+            Ok(Command::LogicalReplay { source: PathBuf::from(&rest[0]), tape: PathBuf::from(&rest[1]), binding: PathBuf::from(&rest[2]),v3,authored })
         }
         "help" | "도움" | "--help" | "--도움" | "-h" => {
             if rest.is_empty() {
@@ -1184,12 +1434,22 @@ fn parse_args(args: Vec<String>) -> Result<Command, String> {
 }
 
 fn parse_workbench_command(args: &[String]) -> Result<WorkbenchCommand, String> {
-    match args {
-        [] => Ok(WorkbenchCommand { no_open: false }),
-        [flag] if flag == "--no-open" => Ok(WorkbenchCommand { no_open: true }),
-        [flag] if flag.starts_with("--") => Err(format!("E_CLI_OPTION_UNKNOWN {flag}\n{}", usage())),
-        [value, ..] => Err(format!("E_CLI_POSITIONAL_UNEXPECTED value={value}\n{}", usage())),
+    let mut result = WorkbenchCommand { no_open: false, port: 8787 };
+    let mut args = args.iter();
+    let mut port_seen = false;
+    while let Some(flag) = args.next() {
+        match flag.as_str() {
+            "--no-open" if !result.no_open => result.no_open = true,
+            "--port" if !port_seen => {
+                result.port = args.next().and_then(|port| port.parse::<u16>().ok())
+                    .filter(|port| *port != 8790)
+                    .ok_or_else(|| "E_WORKBENCH_PORT_INVALID: 0~65535 중 8790을 제외한 포트가 필요합니다".to_string())?;
+                port_seen = true;
+            }
+            _ => return Err(format!("E_CLI_OPTION_UNKNOWN {flag}\n{}", usage())),
+        }
     }
+    Ok(result)
 }
 
 fn read_source(command: &SourceCommand) -> Result<String, ExecutionError> {
@@ -1207,8 +1467,8 @@ fn read_source(command: &SourceCommand) -> Result<String, ExecutionError> {
     })
 }
 
-fn pretty_json(value: &ddonirang_tool::serde_json::Value) -> Result<String, ExecutionError> {
-    ddonirang_tool::serde_json::to_string_pretty(value)
+fn pretty_json(value: &ddonirang_tool::runtime_surface::RuntimeJsonOutput) -> Result<String, ExecutionError> {
+    value.pretty_text()
         .map(|text| format!("{text}\n"))
         .map_err(|error| ExecutionError::runtime(format!("E_CLI_JSON_SERIALIZE {error}")))
 }
@@ -1296,6 +1556,7 @@ fn execute_control_input(command: &SourceCommand, source: &str) -> Result<(Strin
         ).map_err(ExecutionError::runtime)?;
         (summary, None)
     };
+    let summary = ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(summary);
     let summary_json = pretty_json(&summary)?;
     let stdout = if command.json_stdout { summary_json.clone() } else { human_run_output(&summary)? };
     let mut payloads = Vec::new();
@@ -1311,17 +1572,212 @@ fn execute_control_input(command: &SourceCommand, source: &str) -> Result<(Strin
 
 fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
     match command {
-        Command::AuthoredRun { input, madi } => {
+        Command::NativeSourceSave{input,revision,root}=>{
+            #[cfg(not(windows))]
+            {let _=(input,revision,root);Err(ExecutionError::runtime("E_SOURCE_FIRST_USE_UNSUPPORTED: 보호된 Native 원문 실행은 이 환경에서 지원하지 않습니다"))}
+            #[cfg(windows)]
+            {
+                let authored=String::from_utf8(read_logical_input(&input)?)
+                    .map_err(|_|ExecutionError::input("E_SOURCE_UTF8_INVALID: 작품자료는 UTF-8이어야 합니다"))?;
+                let saved=ddonirang_tool::runtime_surface::save_initial_authored_source_native(&authored,&revision,&root)
+                    .map_err(ExecutionError::runtime)?;
+                let report=NativeSourceLocatorReport{project_identity_hex:hex::encode(saved.project_identity),
+                    source_revision_hex:hex::encode(saved.revision_identity),source_integrity_hex:hex::encode(saved.revision_integrity),
+                    grant_locator:saved.grant_locator.ok_or_else(||ExecutionError::runtime("E_SOURCE_FIRST_USE_UNSUPPORTED: 실제 Native 허가 위치가 없습니다"))?};
+                Ok((serde_json::to_string(&report).map_err(|error|ExecutionError::runtime(error.to_string()))?+"\n",0))
+            }
+        },
+        Command::NativeSourceRun{input,revision,root,madi}=>{
+            #[cfg(not(windows))]
+            {let _=(input,revision,root,madi);Err(ExecutionError::runtime("E_SOURCE_FIRST_USE_UNSUPPORTED: 보호된 Native 원문 실행은 이 환경에서 지원하지 않습니다"))}
+            #[cfg(windows)]
+            {
+                let report:NativeSourceLocatorReport=serde_json::from_slice(&read_logical_input(&input)?)
+                    .map_err(|_|ExecutionError::input("E_SOURCE_LOCATOR_FIELDS: 원문 저장 보고의 필드가 다릅니다"))?;
+                if report.project_identity_hex.len()!=64||report.source_integrity_hex.len()!=64||report.grant_locator.len()!=64{
+                    return Err(ExecutionError::input("E_SOURCE_LOCATOR_IDENTITY: 정체·허가 위치 길이가 다릅니다"));
+                }
+                let project=parse_storage_identity(&report.project_identity_hex).map_err(ExecutionError::input)?;
+                let parent=parse_storage_identity(&report.source_revision_hex).map_err(ExecutionError::input)?;
+                if parent==revision{return Err(ExecutionError::input("E_SOURCE_REVISION_CONFLICT: 새 세계 판은 원문 판과 달라야 합니다"));}
+                let integrity:[u8;32]=parse_storage_identity(&report.source_integrity_hex).map_err(ExecutionError::input)?
+                    .try_into().map_err(|_|ExecutionError::input("E_SOURCE_LOCATOR_IDENTITY: 원문 무결성 길이가 다릅니다"))?;
+                let session=ddonirang_tool::runtime_surface::begin_first_authored_source_native(&root,&project,&report.grant_locator,&parent,&integrity)
+                    .map_err(ExecutionError::runtime)?;
+                let retained=session.execute(madi,0,None,None).and_then(|run|run.prepare(&revision))
+                    .and_then(|prepared|prepared.write_prepared()).and_then(|prepared|prepared.commit())
+                    .map_err(ExecutionError::runtime)?;
+                Ok((retained.report_json().map_err(ExecutionError::runtime)?+"\n",0))
+            }
+        },
+        Command::NativeSourceResume{input,parent,revision,root,locator,madi}=>{
+            #[cfg(not(windows))]
+            {let _=(input,parent,revision,root,locator,madi);Err(ExecutionError::runtime("E_SOURCE_FIRST_USE_UNSUPPORTED: 보호된 Native 원문 실행은 이 환경에서 지원하지 않습니다"))}
+            #[cfg(windows)]
+            {
+                let artifact=String::from_utf8(read_logical_input(&input)?)
+                    .map_err(|_|ExecutionError::input("E_SOURCE_UTF8_INVALID: 저장 작품은 UTF-8이어야 합니다"))?;
+                let result=ddonirang_tool::runtime_surface::resume_first_saved_source_world_native(&artifact,&parent,&revision,&root,&locator,madi)
+                    .map_err(ExecutionError::runtime)?;
+                Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(result))?,0))
+            }
+        },
+        Command::NativeCustodyRecord{input,input_mode,revision,root,recovery}=>{
+            let authored=String::from_utf8(read_logical_input(&input)?)
+                .map_err(|_|ExecutionError::input("E_SOURCE_UTF8_INVALID: 작품 자료가 UTF-8이 아닙니다"))?;
+            let saved=match input_mode {
+                NativeCustodyInput::General(madi)=>ddonirang_tool::runtime_surface::record_authored_general_project_custody_native(
+                    &authored,madi,0,&revision,&root,Some(&recovery)),
+                NativeCustodyInput::Logical(path)=>{
+                    let request:ddonirang_tool::logical_input_tape::LogicalRecordRequest=serde_json::from_slice(&read_logical_input(&path)?)
+                        .map_err(|_|ExecutionError::input("E_LOGICAL_INPUT_REQUEST: 논리 입력 요청이 올바르지 않습니다"))?;
+                    ddonirang_tool::runtime_surface::record_authored_logical_project_custody_native(&authored,&request,&revision,&root,Some(&recovery))
+                },
+            }.map_err(ExecutionError::runtime)?;
+            let checkpoint=saved.checkpoint;
+            let report=serde_json::json!({"summary":checkpoint.summary,"saved_artifact_json_utf8":checkpoint.saved_artifact,
+                "committed_receipt_hex":hex::encode(checkpoint.committed_receipt),"transaction_digest_sha256":hex::encode(checkpoint.transaction_digest),
+                "grant_locator":saved.grant_locator,"recovery_request_hex":hex::encode(saved.recovery_request),
+                "recovery_token_hex":hex::encode(saved.recovery_token),"scope":"native-initial-custody-private"});
+            Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(report))?+"\n",0))
+        }
+        Command::NativeCustodyResume{input,input_mode,revision,root,locator,request,token}=>{
+            let artifact=String::from_utf8(read_logical_input(&input)?)
+                .map_err(|_|ExecutionError::input("E_SOURCE_UTF8_INVALID: 저장 자료가 UTF-8이 아닙니다"))?;
+            let raw=read_native_recovery_request(&request)?;
+            let summary=match input_mode {
+                NativeCustodyInput::General(madi)=>ddonirang_tool::runtime_surface::resume_saved_general_project_custody_native(
+                    &artifact,&revision,&root,&locator,&raw,&token,madi),
+                NativeCustodyInput::Logical(path)=>{
+                    let input:ddonirang_tool::logical_input_tape::LogicalRecordRequest=serde_json::from_slice(&read_logical_input(&path)?)
+                        .map_err(|_|ExecutionError::input("E_LOGICAL_INPUT_REQUEST: 논리 입력 요청이 올바르지 않습니다"))?;
+                    ddonirang_tool::runtime_surface::resume_saved_logical_project_custody_native(&artifact,&revision,&root,&locator,&raw,&token,&input)
+                },
+            }.map_err(ExecutionError::runtime)?;
+            Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(summary))?+"\n",0))
+        }
+        Command::NativeRootGrant {operation,input,parent,revision,root,locator}=>{
+            use ddonirang_tool::runtime_surface::NativeRootGrantOperation;
+            let artifact=String::from_utf8(read_logical_input(&input)?)
+                .map_err(|_|ExecutionError::input("E_SOURCE_UTF8_INVALID: 저장 작품이 UTF-8이 아닙니다"))?;
+            let operation=match operation.as_str() {
+                "등록"=>NativeRootGrantOperation::Register,
+                "확인"=>NativeRootGrantOperation::Check(locator.as_deref().ok_or_else(||ExecutionError::input("--허가가 필요합니다"))?),
+                "폐기"=>NativeRootGrantOperation::Revoke(locator.as_deref().ok_or_else(||ExecutionError::input("--허가가 필요합니다"))?),
+                _=>return Err(ExecutionError::input("지원되지 않는 저장소 허가 조작")),
+            };
+            let result=ddonirang_tool::runtime_surface::manage_saved_root_grant_native(&artifact,&parent,&revision,&root,operation)
+                .map_err(ExecutionError::runtime)?;
+            Ok((format!("{}\n",serde_json::to_string(&result).map_err(|error|ExecutionError::runtime(error.to_string()))?),0))
+        }
+        Command::AuthoredLogicalRecord(options)=>{
+            let authored=String::from_utf8(read_logical_input(&options.authored)?)
+                .map_err(|_|ExecutionError::input("E_SOURCE_UTF8_INVALID: 작품 자료가 UTF-8이 아닙니다"))?;
+            let input=read_logical_input(&options.input)?;
+            let request:ddonirang_tool::logical_input_tape::LogicalRecordRequest=serde_json::from_slice(&input)
+                .map_err(|_|ExecutionError::input("E_LOGICAL_INPUT_REQUEST: 논리 입력 요청이 올바르지 않습니다"))?;
+            let expected=options.expected_receipt.as_ref().map(|path|->Result<Vec<u8>,ExecutionError>{
+                let raw=read_logical_input(path)?;
+                let text=std::str::from_utf8(&raw).map_err(|_|ExecutionError::input("E_PROJECT_RUNTIME_NATIVE: 영수증 hex가 UTF-8이 아닙니다"))?.trim();
+                if text.is_empty()||!text.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)) {
+                    return Err(ExecutionError::input("E_PROJECT_RUNTIME_NATIVE: 영수증 hex가 정본이 아닙니다"));
+                }
+                hex::decode(text).map_err(|_|ExecutionError::input("E_PROJECT_RUNTIME_NATIVE: 영수증 hex 길이가 다릅니다"))
+            }).transpose()?;
+            let saved=ddonirang_tool::runtime_surface::record_authored_logical_project_native(
+                &authored,&request,&options.parent,&options.revision,&options.root,
+                options.initialize,expected.as_deref()).map_err(ExecutionError::runtime)?;
+            // This is an operation report, not an alternate snapshot format.
+            // The artifact and receipt bytes come from their common owners.
+            let report=serde_json::json!({"summary":saved.summary,"saved_artifact_json_utf8":saved.saved_artifact,
+                "committed_receipt_hex":hex::encode(saved.committed_receipt),
+                "transaction_digest_sha256":hex::encode(saved.transaction_digest)});
+            Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(report))?+"\n",0))
+        }
+        Command::AuthoredResume {input,parent,revision,madi,native}=>{
+            let text=String::from_utf8(read_logical_input(&input)?)
+                .map_err(|_|ExecutionError::input("E_SOURCE_UTF8_INVALID: 저장 작품이 UTF-8이 아닙니다"))?;
+            let result=if let Some(native)=native {
+                if let Some(input_path)=native.input {
+                let raw=read_logical_input(&input_path)?;
+                let request:ddonirang_tool::logical_input_tape::LogicalRecordRequest=serde_json::from_slice(&raw)
+                    .map_err(|_|ExecutionError::input("E_LOGICAL_INPUT_REQUEST: 논리 입력 요청이 올바르지 않습니다"))?;
+                if request.snapshots.len()!=usize::try_from(madi).map_err(|_|ExecutionError::input("마디 수 넘침"))? {
+                    return Err(ExecutionError::input("E_LOGICAL_INPUT_REQUEST: 입력 수와 --마디수가 다릅니다"));
+                }
+                if let Some(save)=native.save {
+                    let raw=read_logical_input(&save.receipt)?;
+                    let receipt_text=std::str::from_utf8(&raw).map_err(|_|ExecutionError::input("E_PROJECT_RUNTIME_NATIVE: 영수증 hex가 UTF-8이 아닙니다"))?.trim();
+                    if receipt_text.is_empty()||!receipt_text.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)) {
+                        return Err(ExecutionError::input("E_PROJECT_RUNTIME_NATIVE: 영수증 hex가 정본이 아닙니다"));
+                    }
+                    let receipt=hex::decode(receipt_text).map_err(|_|ExecutionError::input("E_PROJECT_RUNTIME_NATIVE: 영수증 hex가 올바르지 않습니다"))?;
+                    let saved=ddonirang_tool::runtime_surface::resume_and_save_logical_project_native(
+                        &text,&parent,&revision,&native.root,&native.digest,&request,&save.revision,&receipt)
+                        .map_err(ExecutionError::runtime)?;
+                    serde_json::json!({"summary":saved.summary,"saved_artifact_json_utf8":saved.saved_artifact,
+                        "committed_receipt_hex":hex::encode(saved.committed_receipt),
+                        "transaction_digest_sha256":hex::encode(saved.transaction_digest)})
+                } else {
+                    ddonirang_tool::runtime_surface::resume_saved_project_artifact_native(
+                        &text,&parent,&revision,&native.root,&native.digest,&request)
+                        .map_err(ExecutionError::runtime)?
+                }
+                } else {
+                    if let Some(save)=native.save {
+                        let raw=read_logical_input(&save.receipt)?;
+                        let text_receipt=std::str::from_utf8(&raw).map_err(|_|ExecutionError::input("E_PROJECT_RUNTIME_NATIVE: 영수증 hex가 UTF-8이 아닙니다"))?.trim();
+                        if text_receipt.is_empty() || !text_receipt.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)) {
+                            return Err(ExecutionError::input("E_PROJECT_RUNTIME_NATIVE: 영수증 hex가 정본이 아닙니다"));
+                        }
+                        let receipt=hex::decode(text_receipt).map_err(|_|ExecutionError::input("E_PROJECT_RUNTIME_NATIVE: 영수증 hex가 올바르지 않습니다"))?;
+                        let saved=ddonirang_tool::runtime_surface::resume_and_save_general_project_native(
+                            &text,&parent,&revision,&native.root,&native.digest,madi,&save.revision,&receipt)
+                            .map_err(ExecutionError::runtime)?;
+                        serde_json::json!({"summary":saved.summary,"saved_artifact_json_utf8":saved.saved_artifact,
+                            "committed_receipt_hex":hex::encode(saved.committed_receipt),
+                            "transaction_digest_sha256":hex::encode(saved.transaction_digest)})
+                    } else {
+                    ddonirang_tool::runtime_surface::resume_saved_general_project_artifact_native(
+                        &text,&parent,&revision,&native.root,&native.digest,madi)
+                        .map_err(ExecutionError::runtime)?
+                    }
+                }
+            } else {
+                ddonirang_tool::runtime_surface::resume_saved_project_artifact(&text,&parent,&revision,madi)
+                    .map_err(ExecutionError::runtime)?
+            };
+            Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(result))?+"\n",0))
+        }
+        Command::AuthoredRun { input, madi, native } => {
             let text = String::from_utf8(read_logical_input(&input)?)
                 .map_err(|_| ExecutionError::input("E_SOURCE_UTF8_INVALID: 작품자료가 UTF-8이 아닙니다"))?;
             let artifact = ddonirang_tool::authored_project::open(text.as_bytes())
                 .map_err(ExecutionError::input)?;
+            if let Some(native)=native {
+                let receipt=native.expected_receipt.map(|path| {
+                    let raw=read_logical_input(&path)?;
+                    let text=std::str::from_utf8(&raw).map_err(|_|ExecutionError::input("E_PROJECT_RUNTIME_NATIVE: 영수증 hex가 UTF-8이 아닙니다"))?.trim();
+                    if text.is_empty() || !text.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)) {
+                        return Err(ExecutionError::input("E_PROJECT_RUNTIME_NATIVE: 영수증 hex가 정본이 아닙니다"));
+                    }
+                    hex::decode(text).map_err(|_|ExecutionError::input("E_PROJECT_RUNTIME_NATIVE: 영수증 hex가 올바르지 않습니다"))
+                }).transpose()?;
+                let saved=ddonirang_tool::runtime_surface::record_authored_general_project_native(
+                    &text,madi.ok_or_else(||ExecutionError::input("Native 저장에는 --마디수가 필요합니다"))?,0,
+                    &native.parent,&native.revision,&native.root,native.initialize,receipt.as_deref())
+                    .map_err(ExecutionError::runtime)?;
+                let output=serde_json::json!({"summary":saved.summary,"saved_artifact_json_utf8":saved.saved_artifact,
+                    "committed_receipt_hex":hex::encode(saved.committed_receipt),
+                    "transaction_digest_sha256":hex::encode(saved.transaction_digest)});
+                return Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(output))?+"\n",0));
+            }
             let (source, source_path, _) = artifact.execution_source()
                 .map_err(ExecutionError::input)?;
             let summary = ddonirang_tool::runtime_surface::run_summary_with_authored_bogae(
                 &source, &source_path, madi, &artifact.source_profile, &text, None, None,
             ).map_err(ExecutionError::runtime)?;
-            Ok((pretty_json(&summary)? + "\n", 0))
+            Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(summary))? + "\n", 0))
         }
         Command::AuthoredProject { operation, input } => {
             let text = String::from_utf8(read_logical_input(&input)?)
@@ -1330,24 +1786,27 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
                 .map_err(ExecutionError::input)?;
             Ok((result + "\n", 0))
         }
-        Command::ManipulationRecord {source,request,output} => {
+        Command::ManipulationRecord {source,request,output,v3} => {
             if existing_input_output_alias(&source,&output)||existing_input_output_alias(&request,&output) {
                 return Err(ExecutionError::input("E_CLI_OUTPUT_ALIASES_INPUT: 기록으로 입력을 덮어쓸 수 없습니다"));
             }
             ddonirang_tool::artifact_output::preflight_artifact_targets(&[output.as_path()]).map_err(ExecutionError::runtime)?;
             let source=String::from_utf8(read_logical_input(&source)?).map_err(|_|ExecutionError::input("E_SOURCE_UTF8_INVALID: 원문이 UTF-8이 아닙니다"))?;
             let request=ddonirang_tool::serde_json::from_slice(&read_logical_input(&request)?).map_err(|_|ExecutionError::input("E_MANIPULATION_REQUEST_JSON: 입력 요청이 올바르지 않습니다"))?;
-            let (bytes,summary)=ddonirang_tool::manipulation_input::record_source(&source,&request).map_err(ExecutionError::runtime)?;
+            let (bytes,summary)=if v3 {ddonirang_tool::input_tape_v3::record_manipulation(&source,&request)}
+                else {ddonirang_tool::manipulation_input::record_source(&source,&request)}.map_err(ExecutionError::runtime)?;
             ddonirang_tool::artifact_output::write_binary_artifact_atomic(&output,&bytes).map_err(ExecutionError::runtime)?;
-            Ok((pretty_json(&summary)?+"\n",0))
+            Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(summary))?+"\n",0))
         }
-        Command::ManipulationReplay {source,tape,binding} => {
+        Command::ManipulationReplay {source,tape,binding,v3} => {
             let source=String::from_utf8(read_logical_input(&source)?).map_err(|_|ExecutionError::input("E_SOURCE_UTF8_INVALID: 원문이 UTF-8이 아닙니다"))?;
             let binding=ddonirang_tool::serde_json::from_slice(&read_logical_input(&binding)?).map_err(|_|ExecutionError::input("E_MANIPULATION_BINDING_JSON: 입력 계약이 올바르지 않습니다"))?;
-            let summary=ddonirang_tool::manipulation_input::replay_source(&source,&read_logical_input(&tape)?,&binding).map_err(ExecutionError::runtime)?;
-            Ok((pretty_json(&summary)?+"\n",0))
+            let bytes=read_logical_input(&tape)?;
+            let summary=if v3 {ddonirang_tool::input_tape_v3::replay(&source,&bytes,ddonirang_tool::input_tape_v3::ExpectedBinding::Manipulation(&binding))}
+                else {ddonirang_tool::manipulation_input::replay_source(&source,&bytes,&binding)}.map_err(ExecutionError::runtime)?;
+            Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(summary))?+"\n",0))
         }
-        Command::LogicalRecord { source, request, output } => {
+        Command::LogicalRecord { source, request, output, v3, authored } => {
             if existing_input_output_alias(&source, &output) || existing_input_output_alias(&request, &output) {
                 return Err(ExecutionError::input("E_CLI_OUTPUT_ALIASES_INPUT: 기록으로 입력을 덮어쓸 수 없습니다"));
             }
@@ -1357,20 +1816,25 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
             let source = String::from_utf8(source).map_err(|_| ExecutionError::input("E_SOURCE_UTF8_INVALID: 원문이 UTF-8이 아닙니다"))?;
             let request = ddonirang_tool::serde_json::from_slice(&read_logical_input(&request)?)
                 .map_err(|_| ExecutionError::input("E_LOGICAL_INPUT_REQUEST: 입력 요청 필드가 올바르지 않습니다"))?;
-            let (bytes, summary) = ddonirang_tool::logical_input_tape::record_source(&source, &request)
+            let (bytes, summary) = if authored {ddonirang_tool::input_tape_v3::record_authored_logical(&source,&request)}
+                else if v3 {ddonirang_tool::input_tape_v3::record_logical(&source,&request)}
+                else {ddonirang_tool::logical_input_tape::record_source(&source, &request)}
                 .map_err(ExecutionError::runtime)?;
             ddonirang_tool::artifact_output::write_binary_artifact_atomic(&output, &bytes)
                 .map_err(ExecutionError::runtime)?;
-            Ok((pretty_json(&summary)? + "\n", 0))
+            Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(summary))? + "\n", 0))
         }
-        Command::LogicalReplay { source, tape, binding } => {
+        Command::LogicalReplay { source, tape, binding, v3, authored } => {
             let source = String::from_utf8(read_logical_input(&source)?)
                 .map_err(|_| ExecutionError::input("E_SOURCE_UTF8_INVALID: 원문이 UTF-8이 아닙니다"))?;
             let expected = ddonirang_tool::serde_json::from_slice(&read_logical_input(&binding)?)
                 .map_err(|_| ExecutionError::input("E_LOGICAL_INPUT_BINDING: 입력 계약 필드가 올바르지 않습니다"))?;
-            let summary = ddonirang_tool::logical_input_tape::replay_source(&source, &read_logical_input(&tape)?, &expected)
+            let bytes=read_logical_input(&tape)?;
+            let summary = if authored {ddonirang_tool::input_tape_v3::replay_authored_logical(&source,&bytes,&expected)}
+                else if v3 {ddonirang_tool::input_tape_v3::replay(&source,&bytes,ddonirang_tool::input_tape_v3::ExpectedBinding::Logical(&expected))}
+                else {ddonirang_tool::logical_input_tape::replay_source(&source,&bytes,&expected)}
                 .map_err(ExecutionError::runtime)?;
-            Ok((pretty_json(&summary)? + "\n", 0))
+            Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(summary))? + "\n", 0))
         }
         Command::Help => Ok((usage().to_string(), 0)),
         Command::Version => Ok((
@@ -1426,6 +1890,7 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
                 )
             }
             .map_err(ExecutionError::runtime)?;
+            let summary = ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(summary);
             let summary_json = pretty_json(&summary)?;
             let output = if command.json_stdout {
                 summary_json.clone()
@@ -1604,7 +2069,8 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
                         ExecutionError::runtime(error.message)
                     }
                 })?;
-            let summary_text = pretty_json(&currentline.summary)?;
+            let summary = ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(currentline.summary);
+            let summary_text = pretty_json(&summary)?;
             let mut outputs = Vec::new();
             if let Some(path) = command.summary_json {
                 outputs.push((path, summary_text));
@@ -1627,6 +2093,19 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
     }
 }
 
+fn read_workbench_exit(reader: &mut impl io::BufRead) -> io::Result<bool> {
+    let mut line = String::new();
+    loop {
+        // A closed automation pipe is not a user's request to stop the host.
+        if reader.read_line(&mut line)? == 0 { return Ok(false); }
+        // read_line also returns a final partial line at EOF. Whitespace is
+        // an Enter request only when the user actually supplied a newline.
+        if !line.ends_with('\n') { return Ok(false); }
+        if line.trim().is_empty() { return Ok(true); }
+        line.clear();
+    }
+}
+
 fn run_workbench(command: WorkbenchCommand) -> Result<(), ExecutionError> {
     let executable = std::env::current_exe()
         .map_err(|error| ExecutionError::runtime(format!("E_WORKBENCH_EXECUTABLE_PATH {error}")))?;
@@ -1634,9 +2113,10 @@ fn run_workbench(command: WorkbenchCommand) -> Result<(), ExecutionError> {
         .parent()
         .ok_or_else(|| ExecutionError::runtime("E_WORKBENCH_EXECUTABLE_PARENT"))?
         .join("workbench");
-    let host = ddonirang_tool::workbench_host::WorkbenchHost::start(
+    let host = ddonirang_tool::workbench_host::WorkbenchHost::start_on_port(
         &bundle_root,
         &bundle_root.join("asset_manifest.detjson"),
+        command.port,
     )
     .map_err(ExecutionError::runtime)?;
     let mut record = serde_json::json!({
@@ -1664,15 +2144,40 @@ fn run_workbench(command: WorkbenchCommand) -> Result<(), ExecutionError> {
             eprintln!("E_WORKBENCH_BROWSER_OPEN {error}");
         }
     }
-    loop {
-        std::thread::sleep(std::time::Duration::from_secs(1));
+    eprintln!("셈그림 서버를 종료하려면 이 창에서 Enter를 누르세요. 브라우저 창을 닫아도 서버는 계속 실행됩니다.");
+    let (stop_sender, stop_receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        match read_workbench_exit(&mut io::stdin().lock()) {
+            Ok(true) => { let _ = stop_sender.send(()); }
+            Ok(false) => {}
+            Err(error) => eprintln!("E_WORKBENCH_TERMINAL_READ: 종료 입력을 읽지 못했습니다: {error}. Ctrl+C로 종료하세요"),
+        }
+    });
+    if stop_receiver.recv().is_err() {
+        // Detached/non-interactive hosts retain their existing lifetime.
+        loop { std::thread::sleep(std::time::Duration::from_secs(1)); }
     }
+    drop(host); // Stop accepting and join before publishing a clean exit.
+    Ok(())
 }
 
 fn write_stdout(text: &str) -> Result<(), String> {
     io::stdout()
         .write_all(text.as_bytes())
         .map_err(|error| format!("E_CLI_STDOUT_WRITE {error}"))
+}
+
+fn read_native_recovery_request(path:&Path)->Result<Vec<u8>,ExecutionError> {
+    use std::io::Read;
+    const MAX:u64=3_016_737;
+    let file=fs::File::open(path).map_err(|error|ExecutionError::input(format!("E_NATIVE_CUSTODY_READ: {error}")))?;
+    if file.metadata().map_err(|error|ExecutionError::input(error.to_string()))?.len()>MAX {
+        return Err(ExecutionError::input("E_NATIVE_CUSTODY_SIZE: 원요청 크기 한도를 넘었습니다"));
+    }
+    let mut raw=Vec::new();
+    file.take(MAX+1).read_to_end(&mut raw).map_err(|error|ExecutionError::input(error.to_string()))?;
+    if raw.is_empty() || raw.len() as u64>MAX {return Err(ExecutionError::input("E_NATIVE_CUSTODY_SIZE: 원요청 크기가 올바르지 않습니다"));}
+    Ok(raw)
 }
 
 fn read_logical_input(path: &Path) -> Result<Vec<u8>, ExecutionError> {
@@ -1722,6 +2227,136 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn source_first_cli_uses_existing_native_owners_and_strict_arguments(){
+        use super::*;
+        let parse=|args:Vec<&str>|parse_args(args.into_iter().map(str::to_owned).collect());
+        assert_eq!(parse(vec!["작품자료","원문저장","project.json","--판","01","--저장소","store"]).unwrap(),
+            Command::NativeSourceSave{input:PathBuf::from("project.json"),revision:vec![1],root:PathBuf::from("store")});
+        assert_eq!(parse(vec!["작품자료","첫실행","source.json","--판","02","--저장소","store","--마디수","1"]).unwrap(),
+            Command::NativeSourceRun{input:PathBuf::from("source.json"),revision:vec![2],root:PathBuf::from("store"),madi:1});
+        assert_eq!(parse(vec!["작품자료","원문이어실행","saved.json","--부모","01","--판","02","--저장소","store","--허가","locator","--마디수","1"]).unwrap(),
+            Command::NativeSourceResume{input:PathBuf::from("saved.json"),parent:vec![1],revision:vec![2],root:PathBuf::from("store"),locator:"locator".into(),madi:1});
+        for args in [vec!["작품자료","첫실행","source.json","--판","02","--저장소","store","--마디수","0"],
+            vec!["작품자료","원문저장","project.json","--판","01","--저장소","store","--허가","fake"],
+            vec!["작품자료","첫실행","source.json","--판","02","--저장소","store","--허가","fake"]] {
+            assert!(parse(args).is_err());
+        }
+        assert!(serde_json::from_str::<NativeSourceLocatorReport>(r#"{"project_identity_hex":"a","source_revision_hex":"01","source_integrity_hex":"b","grant_locator":"c","permit":true}"#).is_err());
+    }
+    #[test]
+    fn workbench_enter_exit_does_not_treat_eof_as_an_exit_request() {
+        for (bytes, expected) in [
+            (&b""[..], false), (&b"not-a-command\n"[..], false),
+            (&b"not-a-command"[..], false), (&b" "[..], false),
+            (&b"\t"[..], false), (&b"\r"[..], false),
+            (&b"not-a-command\n \t"[..], false),
+            (&b"\n"[..], true), (&b"\r\n"[..], true),
+            (&b" \n"[..], true), (&b"\t\n"[..], true),
+            (&b" \t\r\n"[..], true), (&b"not-a-command\n\n"[..], true),
+        ] {
+            assert_eq!(super::read_workbench_exit(&mut std::io::Cursor::new(bytes)).unwrap(), expected);
+        }
+        assert!(super::read_workbench_exit(&mut std::io::Cursor::new([0xff])).is_err());
+    }
+
+    #[test]
+    fn native_custody_requires_explicit_initialization_request_token_and_bounded_count() {
+        use super::*;
+        let save:Vec<String>=["작품자료","내구기록","authored.json","--마디수","3","--판","09","--저장소","new-store","--저장소-초기화","--복구자료","prepared"]
+            .into_iter().map(str::to_string).collect();
+        assert_eq!(parse_args(save.clone()).unwrap(),Command::NativeCustodyRecord{input:PathBuf::from("authored.json"),input_mode:NativeCustodyInput::General(3),revision:vec![9],root:PathBuf::from("new-store"),recovery:PathBuf::from("prepared")});
+        let mut logical=save.clone();logical[3]="--입력".into();logical[4]="logical.json".into();
+        assert!(matches!(parse_args(logical).unwrap(),Command::NativeCustodyRecord{input_mode:NativeCustodyInput::Logical(_),..}));
+        let mut missing=save.clone();missing.pop();assert!(parse_args(missing).is_err());
+        let mut zero=save;zero[4]="0".into();assert!(parse_args(zero).is_err());
+        let mut token=[0u8;33];token[0]=1;token[1..].fill(9);
+        let recover:Vec<String>=["작품자료","복구","saved.json","--판","09","--저장소","store","--허가","locator",
+            "--요청","request.bin","--토큰",&hex::encode(token),"--마디수","4"].into_iter().map(str::to_string).collect();
+        assert_eq!(parse_args(recover.clone()).unwrap(),Command::NativeCustodyResume{input:PathBuf::from("saved.json"),input_mode:NativeCustodyInput::General(4),revision:vec![9],root:PathBuf::from("store"),
+            locator:"locator".into(),request:PathBuf::from("request.bin"),token});
+        for invalid in ["00".repeat(33),"01".into(),hex::encode(token).to_uppercase()] {
+            // The numeric-only positive fixture has no upper-case variant.
+            if invalid==hex::encode(token) {continue;}
+            let mut changed=recover.clone();changed[12]=invalid;assert!(parse_args(changed).is_err());
+        }
+        let mut extra=recover;extra.push("--저장소-초기화".into());assert!(parse_args(extra).is_err());
+    }
+
+    #[test]
+    fn general_native_uses_existing_project_commands_and_explicit_storage_lineage() {
+        use super::*;
+        let args:Vec<String>=["작품자료","실행","authored.json","--마디수","2","--저장소","store","--부모","처음","--판","09"]
+            .into_iter().map(str::to_string).collect();
+        assert_eq!(parse_args(args.clone()).unwrap(),Command::AuthoredRun {input:PathBuf::from("authored.json"),madi:Some(2),
+            native:Some(NativeGeneralSave {root:PathBuf::from("store"),parent:vec![],revision:vec![9],initialize:false,expected_receipt:None})});
+        for suffix in [vec!["--저장소-초기화","--저장소-초기화"],vec!["--이전-영수증"],vec!["--입력","logical.json"]] {
+            let mut changed=args.clone();changed.extend(suffix.into_iter().map(str::to_string));
+            assert!(parse_args(changed).is_err());
+        }
+        let resume:Vec<String>=["작품자료","이어실행","saved.json","--부모","처음","--판","09","--마디수","2",
+            "--저장소","store","--거래",&"00".repeat(32),"--일반"].into_iter().map(str::to_string).collect();
+        assert_eq!(parse_args(resume.clone()).unwrap(),Command::AuthoredResume {input:PathBuf::from("saved.json"),parent:vec![],revision:vec![9],madi:2,
+            native:Some(NativeResume {root:PathBuf::from("store"),digest:[0;32],input:None,save:None})});
+        let mut resave=resume.clone();resave.extend(["--저장-판","0a","--이전-영수증","receipt.hex"].into_iter().map(str::to_string));
+        assert_eq!(parse_args(resave.clone()).unwrap(),Command::AuthoredResume {input:PathBuf::from("saved.json"),parent:vec![],revision:vec![9],madi:2,
+            native:Some(NativeResume {root:PathBuf::from("store"),digest:[0;32],input:None,
+                save:Some(NativeResumeSave {revision:vec![10],receipt:PathBuf::from("receipt.hex")})})});
+        resave[14]="--입력".into();assert!(parse_args(resave).is_err());
+        assert_eq!(parse_args(["작품자료","실행","authored.json","--마디수","2"].into_iter().map(str::to_string).collect()).unwrap(),
+            Command::AuthoredRun {input:PathBuf::from("authored.json"),madi:Some(2),native:None});
+    }
+    #[test]
+    fn cli_pretty_output_preserves_bytes_and_owns_deep_response_until_drop() {
+        use ddonirang_tool::serde_json::{json, Value};
+        use ddonirang_tool::runtime_surface::RuntimeJsonOutput;
+        for value in [json!(null), json!([]), json!({"a":[true,"한글\n😀"],"b":{}}), json!({"type":"bytes_v1"})] {
+            let expected = ddonirang_tool::serde_json::to_string_pretty(&value).unwrap() + "\n";
+            assert_eq!(super::pretty_json(&RuntimeJsonOutput::new(value)).unwrap(), expected);
+        }
+        std::thread::Builder::new().stack_size(128 * 1024).spawn(|| {
+            let mut root = Value::Bool(true);
+            for _ in 0..512 { root = Value::Array(vec![root]); }
+            let response = RuntimeJsonOutput::new(root);
+            let text = super::pretty_json(&response).unwrap();
+            assert_eq!(text.matches("[\n").count(), 512);
+            assert!(text.ends_with("]\n"));
+            drop(response);
+        }).unwrap().join().unwrap();
+    }
+
+    #[test]
+    fn saved_resume_requires_explicit_canonical_lineage_and_allows_restore_only() {
+        let args=|parent:&str,revision:&str,madi:&str|vec!["작품자료","이어실행","saved.json","--부모",parent,"--판",revision,"--마디수",madi].into_iter().map(str::to_string).collect();
+        assert_eq!(super::parse_args(args("처음","01","0")).unwrap(),super::Command::AuthoredResume{
+            input:std::path::PathBuf::from("saved.json"),parent:vec![],revision:vec![1],madi:0,native:None,
+        });
+        for (parent,revision,madi) in [("", "01","1"),("처음","0","1"),("처음","AB","1"),("처음","01","-1")]{
+            assert!(super::parse_args(args(parent,revision,madi)).is_err());
+        }
+        assert!(super::parse_args(vec!["작품자료".into(),"이어실행".into(),"saved.json".into()]).is_err());
+        let mut native_args=args("처음","01","0");
+        native_args.extend(["--저장소","native-store","--거래",&"00".repeat(32),"--입력","logical.json"].into_iter().map(str::to_string));
+        assert_eq!(super::parse_args(native_args.clone()).unwrap(),super::Command::AuthoredResume{
+            input:std::path::PathBuf::from("saved.json"),parent:vec![],revision:vec![1],madi:0,
+            native:Some(super::NativeResume{root:std::path::PathBuf::from("native-store"),digest:[0;32],input:Some(std::path::PathBuf::from("logical.json")),save:None}),
+        });
+        native_args[11]="00".into();
+        assert!(super::parse_args(native_args).is_err());
+    }
+    #[test]
+    fn native_record_requires_explicit_lineage_and_never_implicitly_initializes(){
+        let args:Vec<String>=["작품자료","논리기록","authored.json","--입력","logical.json","--부모","처음","--판","02","--저장소","store"].into_iter().map(str::to_string).collect();
+        assert_eq!(super::parse_args(args.clone()).unwrap(),super::Command::AuthoredLogicalRecord(super::NativeLogicalRecord{
+            authored:"authored.json".into(),input:"logical.json".into(),root:"store".into(),parent:vec![],revision:vec![2],
+            initialize:false,expected_receipt:None,
+        }));
+        let mut explicit=args.clone();explicit.extend(["--저장소-초기화".into(),"--이전-영수증".into(),"receipt.hex".into()]);
+        assert!(super::parse_args(explicit.clone()).is_ok());explicit.push("--저장소-초기화".into());
+        assert!(super::parse_args(explicit).is_err());
+        let mut missing=args.clone();missing.push("--이전-영수증".into());assert!(super::parse_args(missing).is_err());
+        let mut invalid=args;invalid[8]="AB".into();assert!(super::parse_args(invalid).is_err());
+    }
     use super::*;
     use sha2::{Digest, Sha256};
 
@@ -1982,6 +2617,16 @@ mod tests {
     }
 
     #[test]
+    fn general_run_help_describes_fresh_identity_and_recorded_context(){
+        for command in ["run","실행"] {for flag in ["--help","--도움","-h"] {
+            assert_eq!(parse_args(vec![command.into(),flag.into()]),Ok(Command::Help));
+        }}
+        for expected in ["등록 파일 없이 실행마다 임시 정체", "이름씨·원자·임자", "실행 간 state_hash가 다를 수",
+            "초기 정체·입력·난수 상태", "입력 Tape 하나만으로", "저장한 작품은 보존된 정체", "임시 정체를 저장·내보내는 권한은 생기지"] {
+            assert!(usage().contains(expected),"missing identity boundary: {expected}");
+        }
+    }
+    #[test]
     fn every_existing_candidate_command_accepts_existing_help_flags() {
         for command in [
             "run",
@@ -2056,6 +2701,10 @@ mod tests {
 
     #[test]
     fn project_inspection_commands_bind_shared_inputs_and_fail_closed() {
+        let lines=usage().lines().filter(|line|line.trim_start().starts_with("ddonilang project-discover ")).collect::<Vec<_>>();
+        assert_eq!(lines.len(),2);
+        assert!(lines.iter().any(|line|line.contains("project-discover --virtual <request.json>")));
+        assert!(lines.iter().all(|line|!(line.contains("<작품머리.ddn>")&&line.contains("--virtual"))));
         assert_eq!(
             parse_args(vec![
                 "project-discover".into(),
@@ -2104,6 +2753,10 @@ mod tests {
 
     #[test]
     fn project_run_binds_neutral_identity_inputs_and_rejects_virtual_conflicts() {
+        let lines=usage().lines().filter(|line|line.trim_start().starts_with("ddonilang project-run ")).collect::<Vec<_>>();
+        assert_eq!(lines.len(),2);
+        assert!(lines.iter().any(|line|line.contains("project-run --virtual <virtual-project.json>")));
+        assert!(lines.iter().all(|line|!(line.contains("<작품머리.ddn>")&&line.contains("--virtual"))));
         assert!(parse_args(vec!["project-run".into()]).unwrap_err().starts_with("E_PROJECT_HEAD_REQUIRED"));
         let explicit = parse_args(vec!["project-run".into(), "임의이름.ddn".into()]).unwrap();
         let Command::ProjectRun(explicit) = explicit else { panic!("project run"); };

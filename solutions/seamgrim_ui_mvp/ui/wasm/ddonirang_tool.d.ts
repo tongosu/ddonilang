@@ -12,10 +12,31 @@ export class DdnLogicalInputVm {
      * Host input loss is explicit failure, not a manufactured Release event.
      */
     abort_input(message: string): void;
+    static bind_authored_project_json(authored: string, binding_json: string): string;
     static bind_source_json(source: string, binding_json: string): string;
+    /**
+     * Existing complete-state request bytes, paired with the RD-686 carrier.
+     * IndexedDB confirmation and Native durable receipts remain separate.
+     */
+    export_project_checkpoint(parent: Uint8Array, revision: Uint8Array): Uint8Array;
+    /**
+     * Existing source-bound carrier only; not a committed durable receipt.
+     */
+    export_saved_project(parent: Uint8Array, revision: Uint8Array): string;
+    failed_prefix_v3_json(): string;
+    /**
+     * Explicit project admission preserves modules and the named Start.
+     * No linked-text fallback or durable browser receipt is manufactured.
+     */
+    static from_authored_project(authored: string, binding_json: string): DdnLogicalInputVm;
+    /**
+     * Existing source-bound carrier only; not a committed durable receipt.
+     */
+    static from_saved_project_checkpoint(artifact: string, checkpoint: Uint8Array, parent: Uint8Array, revision: Uint8Array, binding_json: string): DdnLogicalInputVm;
     constructor(source: string, binding_json: string);
     seal_json(): string;
     step_json(snapshot_json: string): string;
+    stop_recording_v3_json(): string;
     summary_json(): string;
     /**
      * Display projection only. The shared accepted world is never mutated.
@@ -31,9 +52,11 @@ export class DdnManipulationVm {
     [Symbol.dispose](): void;
     abort_input(message: string): void;
     static bind_source_json(source: string, binding_json: string): string;
+    failed_prefix_v3_json(): string;
     constructor(source: string, binding_json: string);
     seal_json(): string;
     step_json(snapshot_json: string): string;
+    stop_recording_v3_json(): string;
     summary_json(): string;
     view_json(): string;
 }
@@ -73,6 +96,7 @@ export class DdnWasmVm {
      * executes. Saving does not reread source or allocate replacement ordinals.
      */
     static from_authored_project_json(artifact_json: string): DdnWasmVm;
+    static from_native_project_json(authored: string): DdnWasmVm;
     /**
      * Restores into a separate candidate. The host supplies the revision pair
      * selected from its storage lineage; neither value is taken from the file.
@@ -88,12 +112,14 @@ export class DdnWasmVm {
     get_state_hash(): string;
     get_state_json(): any;
     inject_ai_action(key: string, value_json: string): void;
+    is_native_source_bound(): boolean;
     constructor(source: string);
     static new_with_mode(source: string, mode: string): DdnWasmVm;
     static new_with_source_path(source: string, source_path: string): DdnWasmVm;
     reset(keep_params?: boolean | null): any;
     restore_state(state_json: string): any;
     run_ticks(count: number): any;
+    save_native_source_checkpoint(authored: string): string;
     set_dt_fixed64_v1(dt_high_i32: number, dt_low_u32: number): any;
     set_input_fixed64_v1(keys_pressed: number, last_key_name: string, pointer_x_i32: number, pointer_y_i32: number, dt_high_i32: number, dt_low_u32: number): any;
     set_keys_pressed(keys_pressed: number): void;
@@ -111,19 +137,31 @@ export class DdnWasmVm {
     update_logic_with_source_profile(source: string, source_profile_identity: string): void;
 }
 
+export function authored_logical_input_record_v3(authored: string, request_json: string): string;
+
+export function authored_logical_input_replay_v3(authored: string, tape: Uint8Array, binding_json: string): string;
+
 export function authored_project_operation(operation: string, artifact_json: string): string;
+
+export function logical_input_record(source: string, request_json: string): string;
 
 /**
  * Host snapshot recording and replay use the same Rust executor as Native.
  * These entrypoints do not accept old tape versions or raw device inputs.
  */
-export function logical_input_record(source: string, request_json: string): string;
+export function logical_input_record_v3(source: string, request_json: string): string;
 
 export function logical_input_replay(source: string, tape: Uint8Array, binding_json: string): string;
 
+export function logical_input_replay_v3(source: string, tape: Uint8Array, binding_json: string): string;
+
 export function manipulation_input_record(source: string, request_json: string): string;
 
+export function manipulation_input_record_v3(source: string, request_json: string): string;
+
 export function manipulation_input_replay(source: string, tape: Uint8Array, binding_json: string): string;
+
+export function manipulation_input_replay_v3(source: string, tape: Uint8Array, binding_json: string): string;
 
 export function manipulation_value_raw(text: string): string;
 
@@ -260,6 +298,12 @@ export function wasm_project_symbols_json(source_json: string): string;
 
 export function wasm_publish_local_gotgan_json(request_json: string): string;
 
+/**
+ * Recorded source readback only. No fresh registration/capture, VM, world,
+ * runtime restoration, host first-use authority or publication capability.
+ */
+export function wasm_restore_recorded_source_revision(payload_utf8: string, envelope: Uint8Array, project: Uint8Array, parent: Uint8Array, revision: Uint8Array, integrity: Uint8Array, profile: Uint8Array, pesi: Uint8Array): string;
+
 export function wasm_run_summary_json(source: string, source_path: string, requested_ticks: number): string;
 
 export function wasm_run_summary_with_authored_bogae_json(source: string, source_path: string, requested_ticks: number, source_profile: string, artifact_json: string, receipts_json?: string | null, param_overrides_json?: string | null): string;
@@ -298,19 +342,30 @@ export interface InitOutput {
     readonly __wbg_ddnlogicalinputvm_free: (a: number, b: number) => void;
     readonly __wbg_ddnmanipulationvm_free: (a: number, b: number) => void;
     readonly __wbg_ddnwasmvm_free: (a: number, b: number) => void;
+    readonly authored_logical_input_record_v3: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly authored_logical_input_replay_v3: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly authored_project_operation: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly ddnlogicalinputvm_abort_input: (a: number, b: number, c: number) => void;
+    readonly ddnlogicalinputvm_bind_authored_project_json: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly ddnlogicalinputvm_bind_source_json: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly ddnlogicalinputvm_export_project_checkpoint: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly ddnlogicalinputvm_export_saved_project: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly ddnlogicalinputvm_failed_prefix_v3_json: (a: number, b: number) => void;
+    readonly ddnlogicalinputvm_from_authored_project: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly ddnlogicalinputvm_from_saved_project_checkpoint: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => void;
     readonly ddnlogicalinputvm_new: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly ddnlogicalinputvm_seal_json: (a: number, b: number) => void;
     readonly ddnlogicalinputvm_step_json: (a: number, b: number, c: number, d: number) => void;
+    readonly ddnlogicalinputvm_stop_recording_v3_json: (a: number, b: number) => void;
     readonly ddnlogicalinputvm_summary_json: (a: number, b: number) => void;
     readonly ddnlogicalinputvm_view_json: (a: number, b: number) => void;
     readonly ddnmanipulationvm_abort_input: (a: number, b: number, c: number) => void;
     readonly ddnmanipulationvm_bind_source_json: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly ddnmanipulationvm_failed_prefix_v3_json: (a: number, b: number) => void;
     readonly ddnmanipulationvm_new: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly ddnmanipulationvm_seal_json: (a: number, b: number) => void;
     readonly ddnmanipulationvm_step_json: (a: number, b: number, c: number, d: number) => void;
+    readonly ddnmanipulationvm_stop_recording_v3_json: (a: number, b: number) => void;
     readonly ddnmanipulationvm_summary_json: (a: number, b: number) => void;
     readonly ddnmanipulationvm_view_json: (a: number, b: number) => void;
     readonly ddnwasmvm_add_view_prefix: (a: number, b: number, c: number) => void;
@@ -328,6 +383,7 @@ export interface InitOutput {
     readonly ddnwasmvm_export_saved_project_artifact_json: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly ddnwasmvm_fixed64_from_decimal_v1: (a: number, b: number, c: number, d: number) => void;
     readonly ddnwasmvm_from_authored_project_json: (a: number, b: number, c: number) => void;
+    readonly ddnwasmvm_from_native_project_json: (a: number, b: number, c: number) => void;
     readonly ddnwasmvm_from_saved_project_artifact_json: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly ddnwasmvm_get_build_info: (a: number, b: number) => void;
     readonly ddnwasmvm_get_configured_madi: (a: number) => bigint;
@@ -338,12 +394,14 @@ export interface InitOutput {
     readonly ddnwasmvm_get_state_hash: (a: number, b: number) => void;
     readonly ddnwasmvm_get_state_json: (a: number) => number;
     readonly ddnwasmvm_inject_ai_action: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly ddnwasmvm_is_native_source_bound: (a: number) => number;
     readonly ddnwasmvm_new: (a: number, b: number, c: number) => void;
     readonly ddnwasmvm_new_with_mode: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly ddnwasmvm_new_with_source_path: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly ddnwasmvm_reset: (a: number, b: number, c: number) => void;
     readonly ddnwasmvm_restore_state: (a: number, b: number, c: number, d: number) => void;
     readonly ddnwasmvm_run_ticks: (a: number, b: number, c: number) => void;
+    readonly ddnwasmvm_save_native_source_checkpoint: (a: number, b: number, c: number, d: number) => void;
     readonly ddnwasmvm_set_dt_fixed64_v1: (a: number, b: number, c: number, d: number) => void;
     readonly ddnwasmvm_set_input_fixed64_v1: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly ddnwasmvm_set_keys_pressed: (a: number, b: number) => void;
@@ -360,9 +418,13 @@ export interface InitOutput {
     readonly ddnwasmvm_update_logic_with_source_path: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly ddnwasmvm_update_logic_with_source_profile: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly logical_input_record: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly logical_input_record_v3: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly logical_input_replay: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly logical_input_replay_v3: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly manipulation_input_record: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly manipulation_input_record_v3: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly manipulation_input_replay: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly manipulation_input_replay_v3: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly manipulation_value_raw: (a: number, b: number, c: number) => void;
     readonly wasm_apply_maegim_source_edit: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly wasm_build_info: (a: number) => void;
@@ -413,6 +475,7 @@ export interface InitOutput {
     readonly wasm_project_source_sha256_json: (a: number, b: number, c: number) => void;
     readonly wasm_project_symbols_json: (a: number, b: number, c: number) => void;
     readonly wasm_publish_local_gotgan_json: (a: number, b: number, c: number) => void;
+    readonly wasm_restore_recorded_source_revision: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number) => void;
     readonly wasm_run_summary_json: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly wasm_run_summary_with_authored_bogae_json: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number) => void;
     readonly wasm_run_summary_with_bogae_entry_json: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;

@@ -583,9 +583,9 @@ fn one_resource_name_cannot_cross_storage_kinds_in_atomic_batch() {
         "candidate-a",
         "task-a",
         vec![
-            PatchOp::SetResourceJson {
+            PatchOp::SetResourceValue {
                 tag: "same".to_string(),
-                json: "7".to_string(),
+                value: ResourceValue::String("7".to_string()),
             },
             PatchOp::SetResourceFixed64 {
                 tag: "same".to_string(),
@@ -1293,7 +1293,7 @@ fn faulting_assignment_does_not_create_a_write_conflict() {
 fn faulting_division_does_not_create_a_resource_kind_conflict() {
     let candidate = candidate("faulting", "task-faulting", vec![div_zero("same")]);
     let mut world = NuriWorld::new();
-    world.set_resource_json("same".to_string(), "{}".to_string());
+    world.set_resource_value("same".to_string(), ResourceValue::String("{}".to_string()));
     let before = world.state_hash();
     let mut sink = VecSignalSink::default();
 
@@ -1302,7 +1302,7 @@ fn faulting_division_does_not_create_a_resource_kind_conflict() {
     assert_eq!(receipt.status, AtomicCommitStatus::Committed);
     assert_eq!(receipt.error, None);
     assert_eq!(world.state_hash(), before);
-    assert_eq!(world.get_resource_json("same").as_deref(), Some("{}"));
+    assert_eq!(world.get_resource_value("same"), Some(ResourceValue::String("{}".to_string())));
     assert_eq!(world.get_resource_fixed64("same"), None);
 }
 

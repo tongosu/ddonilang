@@ -8,9 +8,11 @@ pub enum TokenKind {
     Integer(i64),
     Float(String),
     StringLit(String),
+    BytesLit(Vec<u8>),
     Atom(String),
     Variable(String),
     Nuance(String),
+    BranchRole(String),
     Pragma(String),
     AssertionBlock(String),
     TemplateBlock(String),
@@ -419,6 +421,14 @@ impl<'a> Lexer<'a> {
             }
             self.pos = checkpoint;
         }
+        if text == "바이트열" {
+            let checkpoint = self.pos;
+            self.skip_inline_whitespace();
+            if self.peek_char() == Some('{') {
+                return self.read_bytes_literal(start);
+            }
+            self.pos = checkpoint;
+        }
         if text == "수식" {
             let checkpoint = self.pos;
             self.skip_inline_whitespace();
@@ -580,6 +590,41 @@ impl<'a> Lexer<'a> {
             span: Span::new(start, self.pos),
             raw: lexeme,
         })
+    }
+
+    fn read_bytes_literal(&mut self, start: usize) -> Result<Token, LexError> {
+        self.advance();
+        self.skip_whitespace();
+        let mut bytes = Vec::new();
+        if self.peek_char() != Some('}') {
+            loop {
+                let item_start = self.pos;
+                if self.peek_char() != Some('0') || self.peek_ahead(1) != Some('x') {
+                    return Err(LexError::new(item_start, "E_BYTES_LITERAL_INVALID: 0x와 두 자리 16진수가 필요합니다"));
+                }
+                self.advance(); self.advance();
+                let mut byte = 0u8;
+                for _ in 0..2 {
+                    let Some(digit) = self.peek_char().filter(|c| c.is_ascii_hexdigit()) else {
+                        return Err(LexError::new(item_start, "E_BYTES_LITERAL_INVALID: 두 자리 16진수가 필요합니다"));
+                    };
+                    byte = byte * 16 + digit.to_digit(16).unwrap() as u8;
+                    self.advance();
+                }
+                bytes.push(byte);
+                self.skip_whitespace();
+                if self.peek_char() == Some('}') { break; }
+                if self.peek_char() != Some(',') {
+                    return Err(LexError::new(self.pos, "E_BYTES_LITERAL_INVALID: 쉼표 또는 닫는 중괄호가 필요합니다"));
+                }
+                self.advance(); self.skip_whitespace();
+            }
+        }
+        if self.peek_char() != Some('}') {
+            return Err(LexError::new(start, "E_BYTES_LITERAL_INVALID: 바이트열이 닫히지 않았습니다"));
+        }
+        self.advance();
+        Ok(Token { kind: TokenKind::BytesLit(bytes), span: Span::new(start, self.pos), raw: self.source[start..self.pos].into() })
     }
 
     fn read_number(&mut self) -> Result<Token, LexError> {
@@ -809,8 +854,22 @@ impl<'a> Lexer<'a> {
                 "Gate0: '$' 뒤에는 뉘앙스 토큰이 필요합니다",
             ));
         }
+        let branch = self.source[start + 1..self.pos].to_string();
+        if let Some(name) = branch.strip_suffix("이면").filter(|name| !name.is_empty()) {
+            let tail_start = start + 1 + name.len();
+            self.pending = Some(Token {
+                kind: TokenKind::KwMajeumyeon,
+                span: Span::new(tail_start, tail_start + "이면".len()),
+                raw: "이면".to_string(),
+            });
+            return Ok(Token {
+                kind: TokenKind::BranchRole(name.to_string()),
+                span: Span::new(start, tail_start),
+                raw: self.source[start..tail_start].to_string(),
+            });
+        }
         Ok(Token {
-            kind: TokenKind::Nuance(self.source[start + 1..self.pos].to_string()),
+            kind: TokenKind::BranchRole(branch),
             span: Span::new(start, self.pos),
             raw: self.source[start..self.pos].to_string(),
         })
@@ -1240,7 +1299,7 @@ fn keyword_kind_for(canon: &str) -> Option<TokenKind> {
         "셈씨" => Some(TokenKind::KwSemssi),
         "이음씨" => Some(TokenKind::KwIeumssi),
         "흐름씨" => Some(TokenKind::KwHeureumssi),
-        "갈래씨" => Some(TokenKind::KwGallaessi),
+        "갈래씨" | "고름씨" => Some(TokenKind::KwGallaessi),
         "관계씨" | "맞물림씨" => Some(TokenKind::KwRelationssi),
         "샘" => Some(TokenKind::KwSam),
         "그리고" => Some(TokenKind::And),

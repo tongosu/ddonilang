@@ -117,6 +117,18 @@ impl ContentScope<'_> {
             },
             ExprKind::FieldAccess{target,field,..}=>json!({"field":field,"target":self.expr(target)?}),
             ExprKind::SelectionPlace{target,index}=>json!({"selection":self.expr(target)?,"index":self.expr(index)?}),
+            ExprKind::MultiAxisSelection(selection)=>{
+                // RD-388's one authored bracket group is not a chain of
+                // SelectionPlace nodes. Preserve selector order and role in
+                // this existing private authored-content projection.
+                let target=self.expr(&selection.target)?;let mut selectors=Vec::new();
+                for selector in &selection.selectors {selectors.push(match selector {
+                    ddonirang_lang::TensorAxisSelector::Index(index)=>json!({"index":self.expr(index)?}),
+                    ddonirang_lang::TensorAxisSelector::Range{start,end}=>json!({"range":[start,end]}),
+                    ddonirang_lang::TensorAxisSelector::Full=>json!({"full":true}),
+                });}
+                json!({"multi_axis_selection":{"target":target,"selectors":selectors,"writable":selection.writable}})
+            },
             ExprKind::CollectionConstructor{elements}=>json!({"collection":elements.iter().map(|e|self.expr(e)).collect::<Result<Vec<_>,_>>()?}),
             ExprKind::Pack{fields}=>json!({"pack":fields.iter().map(|(name,value)|Ok(json!({"field":name,"value":self.expr(value)?}))).collect::<Result<Vec<_>,String>>()?}),
             ExprKind::Infix{left,op,right}=>json!({"op":op,"left":self.expr(left)?,"right":self.expr(right)?}),
@@ -297,8 +309,12 @@ fn order(expr: &Expr) -> Result<i64, String> {
     }
 }
 fn parse(source: &str, path: &str, composition: &str) -> Result<Parsed, String> {
-    let program = ddonirang_lang::parse_v25(source, path)
+    let mut program = ddonirang_lang::parse_v25(source, path)
         .map_err(|e| fail(&format!("원문 파싱 실패: {}", e.message)))?;
+    // Seal the same admitted definition that the product runner executes.
+    // Source bytes/spans remain original; M-A aliases are not a second ABI.
+    ddonirang_lang::canonicalize(&mut program)
+        .map_err(|e|fail(&format!("원문 정본화 실패: {}",e.message)))?;
     parse_program(&program, source, composition)
 }
 fn parse_program(
@@ -1086,6 +1102,49 @@ impl Activation {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn beta1_common_drawing_labs_register_original_multiaxis_source_content() {
+        for (root,entry,composition,root_text,text) in [
+            ("alpha3_double_pendulum_lab.project.ddn","alpha3_double_pendulum_lab.ddn","진자실험짜임",
+                include_str!("../../solutions/seamgrim_ui_mvp/samples/alpha3_double_pendulum_lab.project.ddn"),
+                include_str!("../../solutions/seamgrim_ui_mvp/samples/alpha3_double_pendulum_lab.ddn")),
+            ("alpha4_lrl_lab.project.ddn","alpha4_lrl_lab.ddn","LRL실험짜임",
+                include_str!("../../solutions/seamgrim_ui_mvp/samples/alpha4_lrl_lab.project.ddn"),
+                include_str!("../../solutions/seamgrim_ui_mvp/samples/alpha4_lrl_lab.ddn")),
+        ] {
+            let request=json!({"source_profile":"v1-core-v25","module_name":"","source_snapshot":{
+                "root_path":root,"entry_path":entry,"files":[{"path":root,"text":root_text},{"path":entry,"text":text},
+                {"path":"alpha4_drawing_common.ddn","text":include_str!("../../solutions/seamgrim_ui_mvp/samples/alpha4_drawing_common.ddn")}]}});
+            let original=authored_project::operate("create",&request.to_string()).unwrap();
+            let project=authored_project::open(original.as_bytes()).unwrap();
+            let registered=project.register_bogae("앱",entry,composition,true).unwrap();
+            let artifact=registered.save().unwrap();let reopened=authored_project::open(artifact.as_bytes()).unwrap();
+            assert_eq!(reopened.save().unwrap(),artifact);
+            assert!(artifact.contains("registration"));
+            assert_eq!(reopened.source_snapshot.files.iter().find(|file|file.path==entry).unwrap().text,text);
+            let execution=crate::runtime_surface::run_authored_general_input_prefix(&artifact,1,7,None,None).unwrap();
+            assert_eq!(execution.summary()["bogae_projection"]["persistent_identity"],true);
+            let relations=execution.summary()["bogae_projection"]["candidates"][0]["artifact"]["relations"].as_array().unwrap();
+            assert_eq!(relations.iter().map(|row|row["kind"].as_str().unwrap()).collect::<Vec<_>>(),vec!["primary","overlay","side","side"]);
+        }
+    }
+
+    #[test]
+    fn beta1_authored_content_multiaxis_keeps_order_bounds_and_writable_role() {
+        let make=|reverse:bool,writable:bool,end:u64| {
+            let mut selectors=vec![ddonirang_lang::TensorAxisSelector::Range{start:0,end},
+                ddonirang_lang::TensorAxisSelector::Full,
+                ddonirang_lang::TensorAxisSelector::Index(Box::new(Expr::new(2,Span::new(0,0),ExprKind::Var("순서".into()))))];
+            if reverse {selectors.reverse();}
+            let expression=Expr::new(3,Span::new(0,0),ExprKind::MultiAxisSelection(ddonirang_lang::MultiAxisSelection{
+                target:Box::new(Expr::new(1,Span::new(0,0),ExprKind::Var("자료".into()))),selectors,writable}));
+            expression_content(&expression,&BTreeSet::from(["자료".into(),"순서".into()])).unwrap()
+        };
+        let original=make(false,false,2);
+        assert_eq!(original.references,BTreeSet::from(["자료".into(),"순서".into()]));
+        for changed in [make(true,false,2),make(false,true,2),make(false,false,3)] {assert_ne!(original.semantic,changed.semantic);}
+    }
+
     fn rename_request(
         project: &ProjectArtifact,
         kind: &str,
@@ -1598,8 +1657,10 @@ mod tests {
         let a = content("x <- 1. y <- 2. (x=x,y=y) 함수.");
         let b = content("x <- 1. y <- 2. (y=x,x=y) 함수.");
         assert_ne!(a, b);
-        let a = content("x <- 1. y <- 2. x.x.");
-        let b = content("x <- 1. y <- 2. x.y.");
+        // RD-203: field access needs a named record target. This identity
+        // test varies real fields, not invalid field access on a number.
+        let a = content("x <- (x:1,y:2). x.x.");
+        let b = content("x <- (x:1,y:2). x.y.");
         assert_ne!(a, b);
         let a = content("x <- 1. y <- 2. (x:x,y:y).");
         let b = content("x <- 1. y <- 2. (y:x,x:y).");

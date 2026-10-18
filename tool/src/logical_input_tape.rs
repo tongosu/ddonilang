@@ -173,7 +173,7 @@ pub fn query(
     )
 }
 
-fn validate(tape: &LogicalTape) -> Result<(), String> {
+pub(crate) fn validate(tape: &LogicalTape) -> Result<(), String> {
     let binding = &tape.binding;
     if [
         &binding.input_schema,
@@ -351,6 +351,8 @@ pub struct LogicalInputSession {
     world: ddonirang_core::platform::DetNuri,
     settled: BTreeMap<String, bool>,
     frames: Vec<LogicalFrame>,
+    // Kept only for successfully committed madi, by the execution producer.
+    core_inputs: Vec<ddonirang_core::InputSnapshot>,
     receipts: Vec<serde_json::Value>,
     failure: Option<String>,
     last_bogae_projection: Option<serde_json::Value>,
@@ -359,7 +361,22 @@ pub struct LogicalInputSession {
     observation_frames: Vec<serde_json::Value>,
 }
 
+impl Drop for LogicalInputSession {
+    fn drop(&mut self) {
+        crate::unit_wire::clear_retained_json_option(&mut self.last_bogae_projection);
+        crate::unit_wire::clear_retained_json_option(&mut self.last_observation_table);
+        crate::unit_wire::clear_retained_json_rows(&mut self.receipts);
+        crate::unit_wire::clear_retained_json_rows(&mut self.observation_frames);
+    }
+}
+
 impl LogicalInputSession {
+    pub(crate) fn accepted_prefix_v3(&self) -> (&LogicalInputBinding, &[LogicalFrame], Option<&str>) {
+        (&self.binding, &self.frames, self.failure.as_deref())
+    }
+    pub(crate) fn replay_v3_frame(&mut self, frame: &LogicalFrame) -> Result<serde_json::Value, String> {
+        self.step_expected(&frame.input, Some(frame))
+    }
     /// Explicit fresh-run source binding, never a replay mismatch fallback.
     /// All caller-supplied contract fields except source_revision remain exact.
     pub fn bind_source_for_fresh_run(source: &str, mut binding: LogicalInputBinding)
@@ -400,7 +417,7 @@ impl LogicalInputSession {
         Ok(Self {
             settled: binding.initial_held.clone(), binding,
             runner: crate::ddn_runtime::DdnRunner::new(program, "매마디").with_bogae_activation(),
-            world, frames: Vec::new(), receipts: Vec::new(), failure: None,
+            world, frames: Vec::new(), core_inputs: Vec::new(), receipts: Vec::new(), failure: None,
             last_bogae_projection: None, last_observation_table: None,
             display_outputs: Vec::new(),
             observation_frames: Vec::new(),
@@ -409,6 +426,54 @@ impl LogicalInputSession {
 
     pub fn step(&mut self, input: &LogicalSnapshot) -> Result<serde_json::Value, String> {
         self.step_expected(input, None)
+    }
+
+    /// Private reconstruction ingress: retain the saved-source runner and its
+    /// explicit Start instead of reparsing linked text as a new single file.
+    /// This currently reuses the existing empty-initial-world logical profile.
+    pub(crate) fn from_saved_runner(
+        owned: &crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
+        binding: LogicalInputBinding, runner: crate::ddn_runtime::DdnRunner,
+    ) -> Result<Self,String> {
+        use ddonirang_core::Nuri;
+        let source = &owned.sources().preparation().source;
+        let running = runner.saved_program_sources().ok_or_else(||error(
+            "E_LOGICAL_INPUT_SAVED_SOURCE", "저장된 프로젝트 실행기가 필요합니다"))?;
+        let supplied = crate::unit_wire::resumable_complete_state::encode_source_capture_supply(owned.sources())
+            .map_err(|_|error("E_LOGICAL_INPUT_SAVED_SOURCE", "저장 원문 공급을 확인할 수 없습니다"))?;
+        crate::unit_wire::resumable_complete_state::check_source_capture_supply(&supplied,running)
+            .map_err(|_|error("E_LOGICAL_INPUT_SAVED_SOURCE", "실행기의 저장 원문이 다릅니다"))?;
+        if runner.configured_saved_start() != Some(owned.sources().entry_declaration().name())
+            || runner.work_cost_receipt().counters != crate::work_cost::WorkCostCounters::default()
+            || runner.internal_provider_registry_len() != 0 {
+            return Err(error("E_LOGICAL_INPUT_REBUILD_BOUNDARY", "초기 저장 시작 실행기만 재구성할 수 있습니다"));
+        }
+        let world = ddonirang_core::platform::DetNuri::new();
+        let empty = LogicalTape {binding:binding.clone(),frames:Vec::new(),termination:Termination::Complete,
+            accepted_madi_count:0,accepted_event_count:0,failure_reason:None};
+        validate(&empty)?;
+        if binding.source_revision != format!("sha256:{}",hex::encode(Sha256::digest(source.as_bytes())))
+            || binding.initial_world != crate::runtime_surface::current_state_hash(world.world()) {
+            return Err(error("E_LOGICAL_INPUT_BINDING_MISMATCH", "저장 원문 또는 초기 세계 결속이 다릅니다"));
+        }
+        Ok(Self {settled:binding.initial_held.clone(),binding,runner:runner.with_bogae_activation(),world,
+            frames:Vec::new(),core_inputs:Vec::new(),receipts:Vec::new(),failure:None,
+            last_bogae_projection:None,display_outputs:Vec::new(),last_observation_table:None,observation_frames:Vec::new()})
+    }
+
+    /// Replay in this private staging session, using the same commit path and
+    /// per-madi input/world comparisons as ordinary sealed tape replay.
+    pub(crate) fn replay_sealed_prefix(&mut self, bytes:&[u8]) -> Result<(),String> {
+        if !self.frames.is_empty() || self.failure.is_some() {
+            return Err(error("E_LOGICAL_INPUT_REBUILD_BOUNDARY", "입력 이력은 초기 실행기에서 한 번만 재구성합니다"));
+        }
+        let tape = admit_replay(bytes,&self.binding)?;
+        for frame in &tape.frames { self.step_expected(&frame.input,Some(frame))?; }
+        Ok(())
+    }
+
+    pub(crate) fn reconstructed_work_cost(&self) -> crate::work_cost::WorkCostReceipt {
+        self.runner.work_cost_receipt()
     }
 
     pub(crate) fn reject_input(&mut self, reason: String) {
@@ -462,8 +527,8 @@ impl LogicalInputSession {
                 "사건과 눌린 상태가 다릅니다",
             ));
         }
-        let (output, receipt) =
-            self.runner.run_update_logical_with_initial_held(self.world.world(), &self.binding, input, &std::collections::HashMap::new(), Some(&self.settled))?;
+        let (output, receipt, core_input) =
+            self.runner.run_update_logical_retaining_input(self.world.world(), &self.binding, input, &std::collections::HashMap::new(), Some(&self.settled))?;
         // Patch publication is delayed until both the runtime and replay hash
         // comparison succeed. No external signal sink is called while staged.
         let mut candidate = ddonirang_core::platform::DetNuri::new();
@@ -509,11 +574,14 @@ impl LogicalInputSession {
         self.display_outputs.extend(output.display_outputs);
         crate::output_display::retain_current(&mut self.display_outputs, &result["resources"]);
         crate::output_display::attach(&mut result, &self.display_outputs);
+        crate::unit_wire::clear_retained_json_option(&mut self.last_bogae_projection);
         self.last_bogae_projection = bogae_projection;
+        crate::unit_wire::clear_retained_json_option(&mut self.last_observation_table);
         self.last_observation_table = Some(table);
         self.world = candidate;
         self.settled = settled;
         self.frames.push(frame);
+        self.core_inputs.push(core_input);
         self.receipts.push(receipt);
         self.observation_frames.push(observation_frame);
         Ok(result)
@@ -540,10 +608,74 @@ impl LogicalInputSession {
         summary
     }
 
-    #[cfg(feature = "wasm")]
     pub(crate) fn committed_world(&self) -> &ddonirang_core::platform::NuriWorld {
         use ddonirang_core::Nuri;
         self.world.world()
+    }
+
+    /// The same existing runtime/resource carrier used by ordinary product
+    /// exports. Continuation authority still comes from the complete-state
+    /// prefix/checkpoint gates, not this display/JSON projection.
+    pub(crate) fn saved_runtime_carrier(&self)->Result<(String,String),String> {
+        let start=self.runner.configured_saved_start().ok_or("E_RESUME_EXECUTION_STATE_UNSUPPORTED")?;
+        let next=self.resume_boundary_next_tick(start)?;
+        let frames=self.observation_frames.iter().map(|row|
+            crate::unit_wire::SnapshotJsonOwner::clone_from_value(row).into_parent_value()).collect();
+        let mut snapshot=crate::runtime_surface::runtime_state_snapshot(&self.world,frames,next);
+        snapshot["scene_history"]=self.runner.scene_history_snapshot();
+        let resources=crate::unit_wire::SnapshotJsonOwner::clone_from_value(&snapshot["resources"]).compact_text();
+        let mut runtime=crate::unit_wire::SnapshotJsonOwner::from_value(self.summary());
+        runtime.value_mut()["schema"]="seamgrim.engine_response.v0".into();
+        runtime.value_mut()["state"]=serde_json::json!({"snapshot_v2":snapshot});
+        Ok((runtime.compact_text(),resources))
+    }
+
+    /// R2 source/prefix reconstruction must preserve continuation state and
+    /// observations, not just the filtered world hash or latest display.
+    /// Both sides are actual runtime owners; transport JSON is not authority.
+    /// This comparison does not admit an RNG mode or a durable checkpoint.
+    pub(crate) fn check_reconstructed_continuation(&self,other:&Self,start:&str)->Result<(),String> {
+        let tick=self.resume_boundary_next_tick(start)?;
+        let same_json=|left:&serde_json::Value,right:&serde_json::Value|
+            crate::unit_wire::SnapshotJsonOwner::clone_from_value(left).equals_json(right);
+        let same_rows=|left:&[serde_json::Value],right:&[serde_json::Value]|
+            left.len()==right.len() && left.iter().zip(right).all(|(a,b)|same_json(a,b));
+        let same_optional=|left:&Option<serde_json::Value>,right:&Option<serde_json::Value>|match (left,right) {
+            (None,None)=>true,(Some(a),Some(b))=>same_json(a,b),_=>false,
+        };
+        if other.resume_boundary_next_tick(start)?!=tick
+            || self.binding!=other.binding || self.settled!=other.settled || self.frames!=other.frames
+            || self.runner.consumed_keys_pressed()!=other.runner.consumed_keys_pressed()
+            || self.reconstructed_work_cost()!=other.reconstructed_work_cost()
+            || self.committed_world().state_hash()!=other.committed_world().state_hash()
+            || self.display_outputs!=other.display_outputs
+            || !same_rows(&self.receipts,&other.receipts)
+            || !same_rows(&self.observation_frames,&other.observation_frames)
+            || !same_optional(&self.last_bogae_projection,&other.last_bogae_projection)
+            || !same_optional(&self.last_observation_table,&other.last_observation_table)
+            || !self.runner.bogae_history_for_resume().same_execution_history(other.runner.bogae_history_for_resume()) {
+            return Err(error("E_RESUME_RECONSTRUCTED_STATE_MISMATCH","재구성한 이어 실행 상태와 원 실행의 입력·관찰·보기 이력이 다릅니다"));
+        }
+        Ok(())
+    }
+
+    /// The bounded complete-state profile resumes only after a committed madi.
+    /// No active call, reaction registration/queue, or internal reaction world
+    /// may be silently dropped by emitting a zero suspended-frame marker.
+    pub(crate) fn resume_boundary_next_tick(&self,expected_start:&str)->Result<u64,String> {
+        let inputs=self.retained_core_inputs()?;
+        let tick=u64::try_from(inputs.len()).map_err(|_|error("E_RESUME_BOUNDARY_LIMIT","마디 수 한도를 넘었습니다"))?;
+        let cost=self.runner.work_cost_receipt();
+        let reaction=self.runner.internal_reaction_runtime();
+        if self.runner.configured_saved_start()!=Some(expected_start)
+            || cost.counters.call_depth_current!=0 || cost.counters.committed_madi!=tick
+            || self.frames.len()!=inputs.len() || self.receipts.len()!=inputs.len()
+            || self.runner.internal_provider_registry_len()!=0
+            || reaction.pending_delivery_count()!=0 || reaction.waiting_delivery_count()!=0
+            || reaction.revision()!=0 || !reaction.world().is_empty() {
+            return Err(error("E_RESUME_EXECUTION_STATE_UNSUPPORTED","완료 마디 이외의 호출·반응·대기 상태는 이어 실행 저장을 지원하지 않습니다"));
+        }
+        Ok(tick)
     }
 
     pub fn seal(&self) -> Result<Vec<u8>, String> {
@@ -558,6 +690,14 @@ impl LogicalInputSession {
             termination: Termination::Complete, accepted_madi_count: self.frames.len() as u64,
             accepted_event_count: count, failure_reason: None,
         })
+    }
+
+    /// Supply an accepted prefix only; an aborted session cannot supply resume evidence.
+    pub(crate) fn retained_core_inputs(&self) -> Result<&[ddonirang_core::InputSnapshot], String> {
+        if self.failure.is_some() {
+            return Err(error("E_LOGICAL_INPUT_SESSION_ABORTED", "중단된 실행은 이어 실행 입력을 제공할 수 없습니다"));
+        }
+        Ok(&self.core_inputs)
     }
 }
 
@@ -585,7 +725,287 @@ pub fn replay_source(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn retained_logical_json_is_released_on_bounded_stack() {
+        // Runner is thread-local (not Send), so construct it on its own normal
+        // stack. The 20,000-deep payload still exceeds recursive drop capacity.
+        std::thread::Builder::new().stack_size(2 * 1024 * 1024).spawn(|| {
+            let source = "(매마디)마다 { 값 <- 1. }.";
+            let mut session = super::LogicalInputSession::new(source, request(source, false).binding).unwrap();
+            let deep = || {
+                let mut value = serde_json::Value::Null;
+                for _ in 0..20_000 { value = serde_json::Value::Array(vec![value]); }
+                value
+            };
+            session.last_bogae_projection = Some(deep());
+            session.last_observation_table = Some(deep());
+            session.observation_frames.push(deep());
+            session.receipts.push(deep());
+            drop(session);
+        }).unwrap().join().unwrap();
+    }
     use super::*;
+
+    #[test]
+    fn saved_named_start_prefix_reconstruction_continues_actual_execution() {
+        use crate::project_revision_envelope_supply::{collect_saved_source_supply,seal_saved_v25_sources,
+            admit_saved_authored_project,CanonicalIdentityBytesV1,SavedSourceBlobV1};
+        use crate::authored_project::{ProjectArtifact,SourceSnapshot,SourceFile};
+        use crate::unit_wire::resumable_complete_state as complete;
+        let root="(글판=\"v25\", 모듬=차림[(이름=앱, 머리=\"app/main.ddn\", 원문=차림[\"app/main.ddn\",\"app/run.ddn\"])], 시작=(모듈=앱, 정의=실행)) 얽음.\n";
+        let body="채비 { 값: 수 := 0. }.\n실행:움직씨 := { (매마디)마다 { 값 <- 값 + 1. 값 보여주기. }. }.\n";
+        let blobs=[SavedSourceBlobV1{path:"root.ddn",role:"root",bytes:root.as_bytes()},
+            SavedSourceBlobV1{path:"app/main.ddn",role:"ddn_source",bytes:b""},
+            SavedSourceBlobV1{path:"app/run.ddn",role:"ddn_source",bytes:body.as_bytes()}];
+        let sources=std::sync::Arc::new(seal_saved_v25_sources(collect_saved_source_supply(
+            "root.ddn","app/main.ddn",&CanonicalIdentityBytesV1::from_owner_bytes(&[9;32]).unwrap(),&blobs,
+        ).unwrap()).unwrap());
+        let artifact=ProjectArtifact::create("v1-core-v25".into(),SourceSnapshot {
+            root_path:Some("root.ddn".into()),entry_path:"app/main.ddn".into(),
+            files:blobs.iter().map(|b|SourceFile{path:b.path.into(),text:std::str::from_utf8(b.bytes).unwrap().into()}).collect(),
+        },String::new()).unwrap();
+        let owned=admit_saved_authored_project(sources.clone(),artifact.save().unwrap().as_bytes()).unwrap();
+        let issued=crate::project_snapshot_identity::current::issue_saved_local_project(&owned).unwrap();
+        let fresh_runner=|| {
+            let p=crate::ddn_runtime::DdnProgram::from_saved_v25_project_with_mode(
+                sources.clone(),ddonirang_lang::ParseMode::Strict,ddonirang_lang::AgeTarget::Age3,
+            ).unwrap();
+            let mut r=crate::ddn_runtime::DdnRunner::new(p,"실행");r.configure_project_entry("실행").unwrap();r
+        };
+        let binding=request(&sources.preparation().source,false).binding;
+        let mut original=LogicalInputSession::from_saved_runner(&owned,binding.clone(),fresh_runner()).unwrap();
+        let snapshots=[LogicalSnapshot{madi:0,events:vec![],held:binding.initial_held.clone()},
+            request(&sources.preparation().source,false).snapshots.remove(0)];
+        original.step(&snapshots[0]).unwrap();
+        let mut second=snapshots[1].clone();second.madi=1;
+        original.step(&second).unwrap();
+        assert_eq!(original.resume_boundary_next_tick("실행").unwrap(),2);
+        assert!(original.resume_boundary_next_tick("다른시작").is_err());
+        // A reaction-owned world is not represented by this bounded position
+        // marker. Reject it rather than losing that state during restoration.
+        let mut unsupported=LogicalInputSession::from_saved_runner(&owned,binding.clone(),fresh_runner()).unwrap();
+        let runner=std::mem::replace(&mut unsupported.runner,fresh_runner());
+        unsupported.runner=runner.with_internal_reaction_runtime(
+            crate::ddn_runtime::InternalTypedReactionRuntime::with_world_and_queue_capacity(
+                BTreeMap::from([("남은상태".into(),"보존필요".into())]),1,
+            ),
+        );
+        let before=unsupported.summary();let before_tape=unsupported.seal().unwrap();
+        assert!(unsupported.resume_boundary_next_tick("실행").unwrap_err()
+            .starts_with("E_RESUME_EXECUTION_STATE_UNSUPPORTED"));
+        assert_eq!(unsupported.summary(),before);assert_eq!(unsupported.seal().unwrap(),before_tape);
+        let mut checkpointed=complete::CheckpointedLogicalRunV1::fresh(
+            &owned,binding.clone(),ddonirang_lang::AgeTarget::Age3,
+        ).unwrap();
+        assert_eq!(checkpointed.checkpoint_predecessor_supply().unwrap(),vec![0]);
+        let fresh_position=checkpointed.execution_position_supply().unwrap();
+        complete::check_execution_position_supply(&fresh_position,0,owned.definition_identity().as_bytes(),
+            owned.definition_identity().as_bytes()).unwrap();
+        let fresh_descriptor=checkpointed.source_rebuild_descriptor_supply().unwrap();
+        let fresh_candidate=complete::rebuild_source_descriptor_candidate(&fresh_descriptor,&owned).unwrap();
+        assert_eq!(fresh_candidate.phase,0);assert_eq!(fresh_candidate.successful_madi_count,0);
+        checkpointed.step(&snapshots[0]).unwrap();checkpointed.step(&second).unwrap();
+        assert_eq!(checkpointed.session().summary(),original.summary());
+        assert_eq!(checkpointed.session().seal().unwrap(),original.seal().unwrap());
+        let live_position=checkpointed.execution_position_supply().unwrap();
+        complete::check_execution_position_supply(&live_position,2,owned.definition_identity().as_bytes(),
+            owned.definition_identity().as_bytes()).unwrap();
+        assert_ne!(fresh_position,live_position);
+        // N>0 accepted madi is still the first durable-save candidate. No
+        // project revision/count/SQL lookup manufactures a predecessor.
+        assert_eq!(checkpointed.checkpoint_predecessor_supply().unwrap(),vec![0]);
+        let live_descriptor=checkpointed.source_rebuild_descriptor_supply().unwrap();
+        let live_candidate=complete::rebuild_source_descriptor_candidate(&live_descriptor,&owned).unwrap();
+        assert_eq!(live_candidate.phase,1);assert_eq!(live_candidate.successful_madi_count,2);
+        assert!(live_candidate.prior_durable_receipts.is_empty());
+        let mut bad=second.clone();bad.madi=99;
+        assert!(checkpointed.step(&bad).is_err());
+        assert!(checkpointed.checkpoint_predecessor_supply().is_err());
+        assert!(checkpointed.source_rebuild_descriptor_supply().is_err());
+        assert!(checkpointed.execution_position_supply().is_err());
+        let mut foreign_binding=binding.clone();foreign_binding.source_revision="foreign".into();
+        assert!(complete::CheckpointedLogicalRunV1::fresh(&owned,foreign_binding,
+            ddonirang_lang::AgeTarget::Age3).is_err());
+        let supplied=complete::encode_processed_input_supply(&original).unwrap();
+        let empty=[0;8];
+        let initial=crate::unit_wire::CompleteStateFrameV1 {pesi:issued.pesi().as_raw(),resources:&empty,
+            parameters:&empty,next_tick:0,subjects:&empty,atom_evidence:&[],subject_custody:&[]}.encode_canonical().unwrap();
+        // Consume the descriptor produced by the actual fresh execution owner,
+        // rather than synthesizing a matching SourceRebuildCandidate in tests.
+        let candidate=|| complete::rebuild_source_descriptor_candidate(&live_descriptor,&owned).unwrap();
+        let mut rebuilt=complete::replay_processed_input_candidate(&supplied,candidate(),&owned,&binding).unwrap();
+        assert_eq!(original.seal().unwrap(),rebuilt.seal().unwrap());
+        assert_eq!(original.summary(),rebuilt.summary());
+        assert_eq!(original.reconstructed_work_cost(),rebuilt.reconstructed_work_cost());
+        original.check_reconstructed_continuation(&rebuilt,"실행").unwrap();
+        // World and tape still match when this hidden keyboard edge state is
+        // wrong. The independent continuation comparison must reject it.
+        let consumed=rebuilt.runner.consumed_keys_pressed();
+        rebuilt.runner.restore_consumed_keys_pressed(consumed^1);
+        assert_eq!(original.committed_world().state_hash(),rebuilt.committed_world().state_hash());
+        assert!(original.check_reconstructed_continuation(&rebuilt,"실행").is_err());
+        rebuilt.runner.restore_consumed_keys_pressed(consumed);
+        original.check_reconstructed_continuation(&rebuilt,"실행").unwrap();
+        // An old observation is not covered by the current world's hash or
+        // latest observation table; preserve the whole prefix, not just its end.
+        let old=rebuilt.observation_frames[0].clone();
+        rebuilt.observation_frames[0]["state_hash"]=serde_json::json!("foreign-history");
+        assert!(original.check_reconstructed_continuation(&rebuilt,"실행").is_err());
+        rebuilt.observation_frames[0]=old;
+        original.check_reconstructed_continuation(&rebuilt,"실행").unwrap();
+        let work=complete::encode_replayed_work_supply(&original).unwrap();
+        complete::check_replayed_work_supply(&work,&rebuilt.reconstructed_work_cost()).unwrap();
+        let mut reset_work=work.clone();reset_work[3..3+15*8].fill(0);
+        assert!(complete::check_replayed_work_supply(&reset_work,&rebuilt.reconstructed_work_cost()).is_err());
+        // Independently encode the known hand-computed counter value2, not a
+        // copy of runtime output. Changed/missing state and next tick reject.
+        let world_bytes=|value:i64,tick:u64| {
+            use ddonirang_core::platform::{ResourceValue as V,ResourceMapEntry};
+            let logs=V::List((0..2).map(|i| {
+                let pairs=[("kind",V::String("output".into())),("line_no",V::Fixed64(ddonirang_core::Fixed64::from_i64(i+1))),
+                    ("text",V::String((i+1).to_string())),("tick",V::Fixed64(ddonirang_core::Fixed64::from_i64(i)))];
+                V::Map(pairs.into_iter().map(|(name,value)| {
+                    let key=V::String(name.into());(key.canon_key(),ResourceMapEntry{key,value})
+                }).collect())
+            }).collect());
+            let values=BTreeMap::from([("output_log",logs),("값",V::Fixed64(ddonirang_core::Fixed64::from_i64(value)))]);
+            let mut rows=(values.len() as u64).to_be_bytes().to_vec();
+            for (name,value) in values {
+                let mut leaf=Vec::new();value.encode_canon(&mut leaf);
+                rows.extend((name.len() as u32).to_be_bytes());rows.extend(name.as_bytes());
+                rows.extend((leaf.len() as u64).to_be_bytes());rows.extend(leaf);
+            }
+            crate::unit_wire::CompleteStateFrameV1 {pesi:issued.pesi().as_raw(),resources:&rows,
+                parameters:&empty,next_tick:tick,subjects:&empty,atom_evidence:&[],subject_custody:&[]}.encode_canonical().unwrap()
+        };
+        let saved_world=world_bytes(2,2);
+        let check_world=|raw:&[u8]| complete::check_replayed_world_candidate(
+            &crate::unit_wire::check_complete_state_frame_v1(raw,issued.pesi().as_raw()).unwrap(),&rebuilt,
+        ).is_ok();
+        assert!(check_world(&saved_world),"{}",rebuilt.summary());assert!(!check_world(&world_bytes(3,2)));
+        assert!(!check_world(&world_bytes(2,3)));
+        let nonempty_initial=world_bytes(2,0);
+        assert!(complete::replay_processed_input_candidate(&supplied,complete::SourceRebuildCandidateV1 {
+            initial_world:crate::unit_wire::check_complete_state_frame_v1(&nonempty_initial,issued.pesi().as_raw()).unwrap(),
+            ..candidate()
+        },&owned,&binding).is_err(),"unsupported initial state must not be cleared");
+        let next=LogicalSnapshot{madi:2,events:vec![LogicalEvent{ordinal:0,channel:"더함".into(),event:EventKind::Release}],
+            held:BTreeMap::from([("더함".into(),false),("곱함".into(),true)])};
+        assert_eq!(original.step(&next).unwrap(),rebuilt.step(&next).unwrap());
+        assert_eq!(original.reconstructed_work_cost(),rebuilt.reconstructed_work_cost());
+        assert_eq!(original.summary(),rebuilt.summary());
+        assert_eq!(original.display_outputs.last().unwrap().text,"3");
+        let mut damaged=supplied.clone();*damaged.last_mut().unwrap()^=1;
+        assert!(complete::replay_processed_input_candidate(&damaged,candidate(),&owned,&binding).is_err());
+        let mut changed=binding.clone();changed.channel_registry.push_str("foreign");
+        assert!(complete::replay_processed_input_candidate(&supplied,candidate(),&owned,&changed).is_err());
+        let before=original.seal().unwrap();
+        assert!(complete::replay_processed_input_candidate(&supplied,complete::SourceRebuildCandidateV1 {
+            successful_madi_count:3,..candidate()
+        },&owned,&binding).is_err());
+        assert_eq!(original.seal().unwrap(),before,"reconstruction failure touched the outgoing execution");
+    }
+
+    #[test]
+    fn saved_scene_prefix_reconstruction_preserves_past_views() {
+        use crate::project_revision_envelope_supply::{collect_saved_source_supply,seal_saved_v25_sources,
+            admit_saved_authored_project,CanonicalIdentityBytesV1,SavedSourceBlobV1};
+        use crate::authored_project::{ProjectArtifact,SourceSnapshot,SourceFile};
+        use crate::unit_wire::resumable_complete_state as complete;
+        let root="(글판=\"v25\", 모듬=차림[(이름=앱, 머리=\"app/main.ddn\", 원문=차림[\"app/main.ddn\"])], 시작=(모듈=앱, 정의=실행)) 얽음.\n";
+        let body="채비 { 값:수 := 0. }. 실행:움직씨 := { (매마디)마다 { 값 <- 값 + 1. (값:값) 보임. }. }. 짜임 := (관계들=차림[(보기=(() 표준보기.결과표)) 표준보개.으뜸]) 표준보개.짜임.";
+        let blobs=[SavedSourceBlobV1{path:"root.ddn",role:"root",bytes:root.as_bytes()},
+            SavedSourceBlobV1{path:"app/main.ddn",role:"ddn_source",bytes:body.as_bytes()}];
+        let sources=std::sync::Arc::new(seal_saved_v25_sources(collect_saved_source_supply(
+            "root.ddn","app/main.ddn",&CanonicalIdentityBytesV1::from_owner_bytes(&[8;32]).unwrap(),&blobs,
+        ).unwrap()).unwrap());
+        let artifact=ProjectArtifact::create("v1-core-v25".into(),SourceSnapshot {
+            root_path:Some("root.ddn".into()),entry_path:"app/main.ddn".into(),
+            files:blobs.iter().map(|b|SourceFile{path:b.path.into(),text:std::str::from_utf8(b.bytes).unwrap().into()}).collect(),
+        },String::new()).unwrap();
+        let owned=admit_saved_authored_project(sources.clone(),artifact.save().unwrap().as_bytes()).unwrap();
+        let binding=request(&sources.preparation().source,false).binding;
+        let mut original=complete::CheckpointedLogicalRunV1::fresh(
+            &owned,binding.clone(),ddonirang_lang::AgeTarget::Age3,
+        ).unwrap();
+        for madi in 0..2 {original.step(&LogicalSnapshot{madi,events:vec![],held:binding.initial_held.clone()}).unwrap();}
+        let session=original.session();
+        let saved=session.runner.scene_history_snapshot();
+        assert_eq!(saved["frames"].as_array().unwrap().len(),2,"actual source must produce nonempty scene history");
+        let prefix=complete::encode_processed_input_supply(session).unwrap();
+        let descriptor=original.source_rebuild_descriptor_supply().unwrap();
+        let candidate=complete::rebuild_source_descriptor_candidate(&descriptor,&owned).unwrap();
+        let mut rebuilt=complete::replay_processed_input_candidate(&prefix,candidate,&owned,&binding).unwrap();
+        session.check_reconstructed_continuation(&rebuilt,"실행").unwrap();
+        let world=rebuilt.committed_world().state_hash();
+        let latest=rebuilt.last_bogae_projection.clone();
+        // A valid, same-sized earlier scene differs while the latest scene,
+        // world, tape and observations stay intact. No bad-digest shortcut.
+        let mut changed=saved.clone();
+        changed["frames"][0]["projection"]["candidates"][0]["artifact"]["view"]["kind"]=serde_json::json!("result_tablX");
+        let frames=&changed["frames"];
+        changed["sha256"]=serde_json::json!(crate::runtime_surface::sha256_hex(
+            format!("ddn.bogae_scene_history.v1\0{frames}").as_bytes()));
+        let history=crate::bogae_time::SceneHistory::from_snapshot(Some(&changed),2).unwrap();
+        rebuilt.runner.restore_scene_history(history);
+        assert_eq!(rebuilt.committed_world().state_hash(),world);
+        assert_eq!(rebuilt.last_bogae_projection,latest);
+        assert!(session.check_reconstructed_continuation(&rebuilt,"실행").is_err());
+        rebuilt.runner.restore_scene_history(crate::bogae_time::SceneHistory::from_snapshot(Some(&saved),2).unwrap());
+        session.check_reconstructed_continuation(&rebuilt,"실행").unwrap();
+        let next=LogicalSnapshot{madi:2,events:vec![],held:binding.initial_held.clone()};
+        assert_eq!(original.step(&next).unwrap(),rebuilt.step(&next).unwrap());
+        original.session().check_reconstructed_continuation(&rebuilt,"실행").unwrap();
+    }
+
+    #[test]
+    fn retained_core_inputs_are_actual_committed_prefix_and_abort_cannot_supply() {
+        let source = "(매마디)마다 { 값 <- 3. }.";
+        let request = request(source, false);
+        let mut session = LogicalInputSession::new(source, request.binding.clone()).unwrap();
+        assert!(session.retained_core_inputs().unwrap().is_empty());
+        let empty_supply = crate::unit_wire::resumable_complete_state::encode_processed_input_supply(&session).unwrap();
+        crate::unit_wire::resumable_complete_state::check_processed_input_supply(&empty_supply, &session).unwrap();
+        for madi in 0..2 {
+            session.step(&LogicalSnapshot {
+                madi, events: vec![], held: request.binding.initial_held.clone(),
+            }).unwrap();
+        }
+        let inputs = session.retained_core_inputs().unwrap();
+        assert_eq!(inputs.len(), 2);
+        for (madi, input) in inputs.iter().enumerate() {
+            assert_eq!(input.tick_id, madi as u64);
+            assert_eq!(input.dt.raw_i64(), request.binding.dt_raw);
+            assert_eq!(input.rng_seed, request.binding.initial_rng);
+            assert_eq!(input.frame_source, ddonirang_core::InputSource::Person);
+            assert_eq!(input.keys_pressed, 0);
+            assert!(input.last_key_name.is_empty());
+            assert_eq!((input.pointer_x_i32, input.pointer_y_i32), (0, 0));
+            assert!(input.ai_injections.is_empty() && input.net_events.is_empty());
+        }
+        let bytes = session.seal().unwrap();
+        let tape = decode(&bytes).unwrap();
+        assert_eq!(tape.frames.len(), inputs.len());
+        let supply = crate::unit_wire::resumable_complete_state::encode_processed_input_supply(&session).unwrap();
+        let check = |bytes: &[u8]| crate::unit_wire::resumable_complete_state::check_processed_input_supply(bytes, &session);
+        check(&supply).unwrap();
+        assert!(check(&empty_supply).is_err(), "earlier prefix must not replace the current prefix");
+        let mut corrupted = supply.clone();
+        *corrupted.last_mut().unwrap() ^= 1;
+        assert!(check(&corrupted).is_err());
+        let mut suffix = supply.clone(); suffix.push(0);
+        assert!(check(&suffix).is_err());
+        assert!(check(&supply[..supply.len()-1]).is_err());
+        let preceding_hash = session.summary()["state_hash"].clone();
+        assert!(session.step(&LogicalSnapshot {
+            madi: 3, events: vec![], held: request.binding.initial_held.clone(),
+        }).unwrap_err().contains("E_LOGICAL_INPUT_ORDER"));
+        assert_eq!(session.core_inputs.len(), 2);
+        assert_eq!(session.summary()["state_hash"], preceding_hash);
+        assert!(session.retained_core_inputs().is_err());
+        assert!(session.seal().is_err());
+        assert!(crate::unit_wire::resumable_complete_state::encode_processed_input_supply(&session).is_err());
+    }
 
     #[test]
     fn a3_rd136_logical_session_preserves_historical_tables_in_record_and_replay() {
@@ -896,8 +1316,10 @@ mod tests {
     }
 
     #[test]
-    fn a3_p4_wrong_alert_pin_discards_the_entire_logical_madi() {
-        // RD-293/RD-445: valid earlier event work cannot survive typed admission failure.
+    fn a3_p4_wrong_alert_pin_rejects_before_the_logical_madi() {
+        // N1/R4 rejects a statically wrong declared pin before a runner or
+        // accepted input prefix exists. Runtime rollback remains separately
+        // exercised by a3_p4_second_reaction_failure_publishes_nothing_and_cannot_seal.
         let source = format!(r#"
 (값:수) 오류알림:알림씨 := {{ 없음. }}.
 오류받는이:임자 := {{
@@ -907,15 +1329,10 @@ mod tests {
             "마디결과 <- 계산값.",
             r#"마디결과 <- 계산값. (철수)의 ((값="틀린씨") 오류알림) ~> 오류받는이."#);
         let input = request(&source, false);
-        let mut session = LogicalInputSession::new(&source, input.binding).unwrap();
-        let before = session.summary();
-        assert!(session.step(&input.snapshots[0]).unwrap_err().contains("E_TYPE_MISMATCH"));
-        let after = session.summary();
-        for key in ["state_hash", "resources", "frames", "input_receipts", "madi_count", "bogae_projection", "public_observation_table_projection"] {
-            assert_eq!(before[key], after[key], "wrong alert pin published {key}");
-        }
-        assert_eq!(after["outcome"], "ABORTED");
-        assert!(session.seal().unwrap_err().contains("SESSION_ABORTED"));
+        let error=LogicalInputSession::new(&source,input.binding).err()
+            .expect("statically wrong payload must not create a logical session");
+        assert!(error.contains("E_RUNTIME_TYPE_MISMATCH"),"{error}");
+        assert!(error.contains("핀=값") && error.contains("셈수") && error.contains("글"),"{error}");
     }
 
     #[test]
@@ -941,7 +1358,8 @@ mod tests {
             중간눌림 <- (조작맵, "곱함") 입력사상.동작.
             읽은사건들 <- () 입력사상.사건들.
         "#);
-        for (reverse, held) in [(false, "거짓"), (true, "참")] {
+        // R1.1 changes only Bool storage/projection, not event-prefix semantics.
+        for (reverse, held) in [(false, false), (true, true)] {
             let input = request(&source, reverse);
             let (bytes, summary) = record_source(&source, &input).unwrap();
             assert_eq!(summary["resources"]["value_json"]["중간눌림"], held);

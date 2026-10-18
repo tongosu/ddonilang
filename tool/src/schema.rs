@@ -117,12 +117,16 @@ fn seed_kind_name(kind: &SeedKind) -> String {
         SeedKind::Ieumssi => "Ieumssi",
         SeedKind::Semssi => "Semssi",
         SeedKind::Named(name) => name,
+        SeedKind::Product => "묶음씨",
+        SeedKind::Schema(ddonirang_lang::ast::SchemaCategory::Subject) => "임자",
+        SeedKind::Schema(ddonirang_lang::ast::SchemaCategory::NominalValue) => "이름씨",
     }
     .to_string()
 }
 
 fn type_ref_name(type_ref: &TypeRef) -> String {
     match type_ref {
+        TypeRef::Tuple(items)=>format!("({})",items.iter().map(type_ref_name).collect::<Vec<_>>().join(", ")),
         TypeRef::Tensor {element,shape} => {
             let mut axes = shape.iter().map(u64::to_string).collect::<Vec<_>>().join(", ");
             if shape.len() == 1 { axes.push(','); }
@@ -156,6 +160,7 @@ fn type_ref_name(type_ref: &TypeRef) -> String {
 
 fn collect_type_names(type_ref: &TypeRef, types: &mut BTreeSet<String>) {
     match type_ref {
+        TypeRef::Tuple(items)=>for item in items {collect_type_names(item,types);},
         TypeRef::Tensor {element,..} => {
             types.insert("텐서씨".into());
             collect_type_names(element,types);

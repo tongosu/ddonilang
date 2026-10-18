@@ -27,7 +27,7 @@ fn explicit_alternate_is_one_definition_identity_and_roundtrips() {
 
     let canonical = parse_v25_and_normalize(SUCCESS, "combined.ddn", NormalizationLevel::N1)
         .expect("canonicalize");
-    assert!(canonical.contains("돕다{도우}:수:셈씨"));
+    assert!(canonical.contains("돕다{도우}:셈수:셈씨"));
     let reparsed =
         parse_v25_and_normalize(&canonical, "combined-canonical.ddn", NormalizationLevel::N1)
             .expect("reparse canonical");

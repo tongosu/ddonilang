@@ -46,13 +46,15 @@ libm = "0.2"
 regex = "1.11"
 getrandom = { version = "0.3", features = ["wasm_js"] }
 unicode-normalization = "0.1"
+# Owner 승인: 공통 CLI/WASM 글 선택의 Unicode grapheme 경계를 고정한다.
+unicode-segmentation = "=1.13.3"
 num-bigint = "0.4"
 num-rational = "0.4"
 num-integer = "0.1"
 num-traits = "0.2"
 wasm-bindgen = { version = "0.2", optional = true }
 js-sys = { version = "0.3", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["console"] }
+web-sys = { version = "0.3", optional = true, features = ["console", "XmlHttpRequest"] }
 
 # 다른 크레이트와의 연결 (경로가 실제 폴더명과 일치해야 함)
 ddonirang-lang = { path = "../lang" }
@@ -64,6 +66,9 @@ ddonirang-symbolic = { path = "../symbolic" }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 crossterm = "0.27"
 zip = "0.6"
+# Owner 2026-10-12: official Cargo download and locked native SQLite dependency.
+# No system SQLite DLL or browser durability claim; transitive versions are locked.
+rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 zip = { version = "0.6", default-features = false, features = ["deflate"] }

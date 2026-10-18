@@ -4,6 +4,7 @@ use crate::ddn_runtime::PublicObservationEvent;
 use serde_json::{json, Map, Value as JsonValue};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+use crate::unit_wire::SnapshotJsonOwner as OwnedJson;
 #[cfg(not(target_arch = "wasm32"))]
 use std::fs;
 #[cfg(not(target_arch = "wasm32"))]
@@ -17,22 +18,14 @@ pub const DEBUG_DIFF_SCHEMA: &str = "seamgrim.ddn_committed_diff.candidate.v1";
 pub const DEBUG_EVIDENCE_SCHEMA: &str = "seamgrim.ddn_debug_evidence.candidate.v1";
 
 fn sha256_json(value: &JsonValue) -> String {
-    let bytes = serde_json::to_vec(&canonical_json(value)).unwrap_or_default();
+    let canonical = crate::unit_wire::SnapshotJsonOwner::canonical_from_value(value);
+    let mut bytes = Vec::new();
+    crate::unit_wire::write_compact_json(&mut bytes, &canonical).expect("JSON Vec writer");
     format!("sha256:{}", hex::encode(Sha256::digest(bytes)))
 }
 
 pub fn canonical_json(value: &JsonValue) -> JsonValue {
-    match value {
-        JsonValue::Object(map) => {
-            let sorted: BTreeMap<String, JsonValue> = map
-                .iter()
-                .map(|(key, value)| (key.clone(), canonical_json(value)))
-                .collect();
-            JsonValue::Object(sorted.into_iter().collect())
-        }
-        JsonValue::Array(items) => JsonValue::Array(items.iter().map(canonical_json).collect()),
-        other => other.clone(),
-    }
+    crate::unit_wire::SnapshotJsonOwner::canonical_from_value(value).into_parent_value()
 }
 
 fn text(value: Option<&JsonValue>) -> String {
@@ -93,9 +86,10 @@ fn canonical_dataset_target(value: &JsonValue) -> Result<JsonValue, String> {
     })))
 }
 
-fn canonical_observation(mut row: JsonValue) -> Result<JsonValue, String> {
+fn canonical_observation(row: JsonValue) -> Result<OwnedJson, String> {
+    let mut row = OwnedJson::from_value(row);
     let obj = row
-        .as_object_mut()
+        .value_mut().as_object_mut()
         .ok_or_else(|| "E_DEBUG_OBSERVATION_BAD_ROW: 공개 관찰은 object여야 합니다".to_string())?;
     if obj.contains_key("observation_id") || obj.contains_key("declaration_index") {
         return Err(
@@ -120,25 +114,37 @@ fn canonical_observation(mut row: JsonValue) -> Result<JsonValue, String> {
         .or_insert_with(|| json!("ddn-canonical"));
     obj.entry("value_text".to_string())
         .or_insert_with(|| json!(""));
-    obj.insert("status".to_string(), json!("present"));
-    if let Some(dataset_target) = obj.get("dataset_target").cloned() {
-        obj.insert(
-            "dataset_target".to_string(),
-            canonical_dataset_target(&dataset_target)?,
-        );
+    if let Some(previous) = obj.insert("status".to_string(), json!("present")) {
+        drop(OwnedJson::from_value(previous));
     }
-    Ok(canonical_json(&row))
+    if let Some(dataset_target) = obj.get("dataset_target") {
+        let canonical = canonical_dataset_target(dataset_target)?;
+        if let Some(previous) = obj.insert("dataset_target".to_string(), canonical) {
+            drop(OwnedJson::from_value(previous));
+        }
+    }
+    Ok(OwnedJson::canonical_from_value(&row))
 }
 
 pub fn canonical_public_observation_events(
     rows: impl IntoIterator<Item = JsonValue>,
 ) -> Result<Vec<JsonValue>, String> {
     let mut out = Vec::new();
-    for row in rows {
-        let canonical = canonical_observation(row)?;
-        out.push(canonical);
+    let mut rows = rows.into_iter();
+    while let Some(row) = rows.next() {
+        match canonical_observation(row) {
+            Ok(canonical) => out.push(canonical),
+            Err(error) => {
+                // 실패 뒤 iterator가 아직 소유한 행도 같은 반복형 해제 경로로 보낸다.
+                // 남은 행을 검증하거나 게시하지 않고 최초 진단을 그대로 반환한다.
+                for remaining in rows {
+                    drop(OwnedJson::from_value(remaining));
+                }
+                return Err(error);
+            }
+        }
     }
-    Ok(out)
+    Ok(out.into_iter().map(OwnedJson::into_parent_value).collect())
 }
 
 pub fn public_observation_events_json(
@@ -192,9 +198,10 @@ fn observation_identity(row: &JsonValue) -> JsonValue {
     })
 }
 
-fn canonical_sparse_status(mut row: JsonValue) -> Result<JsonValue, String> {
+fn canonical_sparse_status(row: JsonValue) -> Result<OwnedJson, String> {
+    let mut row = OwnedJson::from_value(row);
     let obj = row
-        .as_object_mut()
+        .value_mut().as_object_mut()
         .ok_or_else(|| "E_DEBUG_STATUS_BAD_ROW: 희소 표본 상태는 object여야 합니다".to_string())?;
     if obj.contains_key("observation_id") || obj.contains_key("declaration_index") {
         return Err(
@@ -241,13 +248,13 @@ fn canonical_sparse_status(mut row: JsonValue) -> Result<JsonValue, String> {
     obj.entry("unit".to_string()).or_insert_with(|| json!(""));
     obj.entry("format".to_string())
         .or_insert_with(|| json!("ddn-canonical"));
-    Ok(canonical_json(&row))
+    Ok(OwnedJson::canonical_from_value(&row))
 }
 
 fn canonical_frame(
     frame: &JsonValue,
     inherited: &Map<String, JsonValue>,
-) -> Result<JsonValue, String> {
+) -> Result<OwnedJson, String> {
     let obj = frame
         .as_object()
         .ok_or_else(|| "E_DEBUG_FRAME_BAD_ROW: committed frame은 object여야 합니다".to_string())?;
@@ -258,19 +265,19 @@ fn canonical_frame(
         .and_then(JsonValue::as_u64)
         .ok_or_else(|| "E_DEBUG_FRAME_MADI_MISSING: committed_madi가 필요합니다".to_string())?;
     let state_hash = require_text(obj, "state_hash")?;
-    let observations = match obj.get("public_observations") {
-        Some(JsonValue::Array(rows)) => canonical_public_observation_events(rows.iter().cloned())?,
+    let observations = OwnedJson::from_value(JsonValue::Array(match obj.get("public_observations") {
+        Some(JsonValue::Array(rows)) => canonical_public_observation_events(rows.iter().map(|row| OwnedJson::clone_from_value(row).into_parent_value()))?,
         Some(_) => {
             return Err(
                 "E_DEBUG_OBSERVATIONS_BAD_TYPE: public_observations는 array여야 합니다".to_string(),
             )
         }
         None => Vec::new(),
-    };
+    }));
     let sparse_statuses = match obj.get("public_observation_statuses") {
         Some(JsonValue::Array(rows)) => rows
             .iter()
-            .cloned()
+            .map(|row| OwnedJson::clone_from_value(row).into_parent_value())
             .map(canonical_sparse_status)
             .collect::<Result<Vec<_>, _>>()?,
         Some(_) => {
@@ -281,21 +288,26 @@ fn canonical_frame(
         }
         None => Vec::new(),
     };
-    let input = canonical_json(
+    let sparse_statuses = OwnedJson::from_value(JsonValue::Array(sparse_statuses.into_iter().map(OwnedJson::into_parent_value).collect()));
+    let input = OwnedJson::canonical_from_value(
         obj.get("input_snapshot")
             .or_else(|| obj.get("input"))
             .unwrap_or(&JsonValue::Null),
     );
-    let mut result = json!({
+    let mut result = OwnedJson::from_value(json!({
         "committed_madi": madi,
-        "input_snapshot": input,
-        "public_observations": observations,
-        "public_observation_statuses": sparse_statuses,
+        "input_snapshot": null,
+        "public_observations": null,
+        "public_observation_statuses": null,
         "state_hash": state_hash,
-        "checkpoint": obj.get("checkpoint").cloned().unwrap_or(JsonValue::Null),
+        "checkpoint": null,
         "retention": text(obj.get("retention")).to_lowercase(),
-    });
-    let out = result.as_object_mut().expect("frame object");
+    }));
+    result.value_mut()["input_snapshot"] = input.into_parent_value();
+    result.value_mut()["public_observations"] = observations.into_parent_value();
+    result.value_mut()["public_observation_statuses"] = sparse_statuses.into_parent_value();
+    result.value_mut()["checkpoint"] = OwnedJson::clone_from_value(obj.get("checkpoint").unwrap_or(&JsonValue::Null)).into_parent_value();
+    let out = result.value_mut().as_object_mut().expect("frame object");
     for key in [
         "run_id",
         "source_identity",
@@ -313,7 +325,7 @@ fn canonical_frame(
             }),
         );
     }
-    Ok(canonical_json(&result))
+    Ok(OwnedJson::canonical_from_value(&result))
 }
 
 pub fn build_public_observation_trace(input: &JsonValue) -> Result<JsonValue, String> {
@@ -390,15 +402,15 @@ pub fn build_public_observation_trace(input: &JsonValue) -> Result<JsonValue, St
         let present = frame
             .get("public_observations")
             .and_then(JsonValue::as_array)
-            .cloned()
-            .unwrap_or_default();
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
         let sparse = frame
             .get("public_observation_statuses")
             .and_then(JsonValue::as_array)
-            .cloned()
-            .unwrap_or_default();
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
         let frame_has_no_events = present.is_empty() && sparse.is_empty();
-        for cell in present.into_iter().chain(sparse) {
+        for cell in present.iter().chain(sparse) {
             let starts_observation_event = cell
                 .get("starts_observation_event")
                 .and_then(JsonValue::as_bool)
@@ -407,12 +419,7 @@ pub fn build_public_observation_trace(input: &JsonValue) -> Result<JsonValue, St
                         .to_string()
                 })?;
             if starts_observation_event && !cells.is_empty() {
-                samples.push(json!({
-                    "committed_madi": frame.get("committed_madi").cloned().unwrap_or(JsonValue::Null),
-                    "state_hash": text(frame.get("state_hash")),
-                    "cells": cells,
-                }));
-                cells = Vec::new();
+                samples.push(owned_observation_sample(frame, std::mem::take(&mut cells)));
                 sample_identities.clear();
             } else if !starts_observation_event && cells.is_empty() {
                 return Err(
@@ -446,19 +453,19 @@ pub fn build_public_observation_trace(input: &JsonValue) -> Result<JsonValue, St
                 column_index.insert(identity_key.clone(), columns.len());
                 columns.push(column);
             }
-            let mut sample = json!({
+            let mut sample = OwnedJson::from_value(json!({
                 "identity": observation_identity(&cell),
                 "status": text(cell.get("status")),
-            });
+            }));
             if text(cell.get("status")) == "present" {
-                let out = sample.as_object_mut().expect("sample object");
+                let out = sample.value_mut().as_object_mut().expect("sample object");
                 out.insert(
                     "value_canon".to_string(),
-                    cell.get("value_canon").cloned().unwrap_or(JsonValue::Null),
+                    OwnedJson::clone_from_value(cell.get("value_canon").unwrap_or(&JsonValue::Null)).into_parent_value(),
                 );
                 out.insert(
                     "value_text".to_string(),
-                    cell.get("value_text").cloned().unwrap_or(JsonValue::Null),
+                    OwnedJson::clone_from_value(cell.get("value_text").unwrap_or(&JsonValue::Null)).into_parent_value(),
                 );
                 if let Some(dataset_target) = cell.get("dataset_target") {
                     out.insert(
@@ -467,24 +474,20 @@ pub fn build_public_observation_trace(input: &JsonValue) -> Result<JsonValue, St
                     );
                 }
             } else if text(cell.get("status")) == "missing" {
-                sample.as_object_mut().expect("sample object").insert(
+                sample.value_mut().as_object_mut().expect("sample object").insert(
                     "reason".to_string(),
-                    cell.get("reason").cloned().unwrap_or(JsonValue::Null),
+                    OwnedJson::clone_from_value(cell.get("reason").unwrap_or(&JsonValue::Null)).into_parent_value(),
                 );
             }
             cells.push(sample);
             sample_identities.insert(identity_key);
         }
         if !cells.is_empty() || frame_has_no_events {
-            samples.push(json!({
-                "committed_madi": frame.get("committed_madi").cloned().unwrap_or(JsonValue::Null),
-                "state_hash": text(frame.get("state_hash")),
-                "cells": cells,
-            }));
+            samples.push(owned_observation_sample(frame, cells));
         }
     }
 
-    let trace = json!({
+    let mut trace = OwnedJson::from_value(json!({
         "schema": PUBLIC_OBSERVATION_TRACE_SCHEMA,
         "project_id": text(root.get("project_id")),
         "revision_identity": revision_identity,
@@ -492,31 +495,49 @@ pub fn build_public_observation_trace(input: &JsonValue) -> Result<JsonValue, St
         "lock_identity": text(root.get("lock_identity")),
         "run_id": run_id,
         "parent_run_id": text(root.get("parent_run_id")),
-        "branch_madi": root.get("branch_madi").cloned().unwrap_or(JsonValue::Null),
+        "branch_madi": null,
         "branch_state_hash": text(root.get("branch_state_hash")),
         "run_status": run_status,
         "run_failure": run_failure,
-        "retention": root.get("retention").cloned().unwrap_or_else(|| json!({"limit": 2000})),
+        "retention": null,
         "columns": columns,
-        "samples": samples,
-    });
-    let trace = canonical_json(&trace);
+        "samples": null,
+    }));
+    trace.value_mut()["branch_madi"] = OwnedJson::clone_from_value(root.get("branch_madi").unwrap_or(&JsonValue::Null)).into_parent_value();
+    trace.value_mut()["retention"] = root.get("retention").map(|value|
+        OwnedJson::clone_from_value(value).into_parent_value()).unwrap_or_else(|| json!({"limit":2000}));
+    trace.value_mut()["samples"] = JsonValue::Array(samples.into_iter().map(OwnedJson::into_parent_value).collect());
+    let trace = OwnedJson::canonical_from_value(&trace);
     let trace_hash = public_observation_trace_hash(&trace);
-    Ok(json!({
-        "trace": trace,
+    let mut result = OwnedJson::from_value(json!({
+        "trace": null,
         "trace_hash": trace_hash,
-    }))
+    }));
+    result.value_mut()["trace"] = trace.into_parent_value();
+    Ok(result.into_parent_value())
+}
+
+fn owned_observation_sample(frame: &JsonValue, cells: Vec<OwnedJson>) -> OwnedJson {
+    let mut sample = OwnedJson::from_value(json!({
+        "committed_madi": frame.get("committed_madi").cloned().unwrap_or(JsonValue::Null),
+        "state_hash": text(frame.get("state_hash")),
+        "cells": null,
+    }));
+    sample.value_mut()["cells"] = JsonValue::Array(cells.into_iter().map(OwnedJson::into_parent_value).collect());
+    sample
 }
 
 pub fn public_observation_trace_hash(trace: &JsonValue) -> String {
-    let mut projection = trace.clone();
+    let mut projection = crate::unit_wire::SnapshotJsonOwner::clone_from_value(trace);
     if let Some(samples) = projection
-        .get_mut("samples")
+        .value_mut().get_mut("samples")
         .and_then(JsonValue::as_array_mut)
     {
         for sample in samples {
             if let Some(obj) = sample.as_object_mut() {
-                obj.remove("state_hash");
+                if let Some(removed) = obj.remove("state_hash") {
+                    drop(crate::unit_wire::SnapshotJsonOwner::from_value(removed));
+                }
             }
         }
     }
@@ -524,20 +545,26 @@ pub fn public_observation_trace_hash(trace: &JsonValue) -> String {
 }
 
 pub fn public_observation_table_projection_hash(projection: &JsonValue) -> String {
-    let mut hash_input = projection.clone();
-    if let Some(object) = hash_input.as_object_mut() {
-        object.remove("projection_hash");
+    let mut hash_input = crate::unit_wire::SnapshotJsonOwner::clone_from_value(projection);
+    if let Some(object) = hash_input.value_mut().as_object_mut() {
+        if let Some(removed) = object.remove("projection_hash") {
+            drop(crate::unit_wire::SnapshotJsonOwner::from_value(removed));
+        }
     }
     sha256_json(&hash_input)
 }
 
 fn seal_public_observation_table_projection(projection: JsonValue) -> JsonValue {
-    let mut projection = canonical_json(&projection);
+    let input = crate::unit_wire::SnapshotJsonOwner::from_value(projection);
+    let mut projection = crate::unit_wire::SnapshotJsonOwner::canonical_from_value(&input);
     let projection_hash = public_observation_table_projection_hash(&projection);
-    projection
-        .as_object_mut()
+    let previous = projection
+        .value_mut().as_object_mut()
         .expect("public observation table projection")
         .insert("projection_hash".to_string(), json!(projection_hash));
+    if let Some(previous) = previous {
+        drop(crate::unit_wire::SnapshotJsonOwner::from_value(previous));
+    }
     canonical_json(&projection)
 }
 
@@ -550,7 +577,7 @@ pub fn append_public_observation_surface(
     current_projection: &JsonValue,
     delta_input: &JsonValue,
 ) -> Result<(JsonValue, String, JsonValue), String> {
-    let delta_bundle = build_public_observation_trace(delta_input)?;
+    let delta_bundle = OwnedJson::from_value(build_public_observation_trace(delta_input)?);
     let delta_trace = delta_bundle
         .get("trace")
         .ok_or_else(|| "E_PUBLIC_OBSERVATION_DELTA_TRACE_MISSING: trace가 없습니다".to_string())?;
@@ -560,10 +587,10 @@ pub fn append_public_observation_surface(
         })?,
         "run_id",
     )?;
-    let delta_projection = build_public_observation_table_projection(delta_trace, &delta_run_id)?;
+    let delta_projection = OwnedJson::from_value(build_public_observation_table_projection(delta_trace, &delta_run_id)?);
 
-    let mut trace = current_trace.clone();
-    let trace_root = trace.as_object_mut().ok_or_else(|| {
+    let mut trace = OwnedJson::clone_from_value(current_trace);
+    let trace_root = trace.value_mut().as_object_mut().ok_or_else(|| {
         "E_PUBLIC_OBSERVATION_APPEND_TRACE_BAD_INPUT: current trace는 object여야 합니다".to_string()
     })?;
     let delta_trace_root = delta_trace.as_object().expect("validated delta trace");
@@ -587,7 +614,7 @@ pub fn append_public_observation_surface(
             ));
         }
     }
-    if trace_root.get("branch_madi") != delta_trace_root.get("branch_madi") {
+    if !optional_json_equal(trace_root.get("branch_madi"), delta_trace_root.get("branch_madi")) {
         return Err("E_PUBLIC_OBSERVATION_APPEND_IDENTITY_MISMATCH: branch_madi".to_string());
     }
 
@@ -610,7 +637,7 @@ pub fn append_public_observation_surface(
     for column in delta_columns {
         let key = trace_identity_key(column)?.0;
         if let Some(index) = column_index.get(&key).copied() {
-            if columns.get(index) != Some(column) {
+            if !optional_json_equal(columns.get(index), Some(column)) {
                 return Err(format!(
                     "E_DEBUG_OBSERVATION_BINDING_CHANGED: {}",
                     key.replace('\0', " @ ")
@@ -618,7 +645,7 @@ pub fn append_public_observation_surface(
             }
         } else {
             column_index.insert(key, columns.len());
-            columns.push(column.clone());
+            columns.push(OwnedJson::clone_from_value(column).into_parent_value());
         }
     }
     let delta_samples = delta_trace_root
@@ -633,21 +660,22 @@ pub fn append_public_observation_surface(
         .ok_or_else(|| {
             "E_PUBLIC_OBSERVATION_APPEND_SAMPLES_MISSING: current samples가 필요합니다".to_string()
         })?
-        .extend(delta_samples.iter().cloned());
+        .extend(delta_samples.iter().map(|value| OwnedJson::clone_from_value(value).into_parent_value()));
     for key in ["run_id", "run_status", "run_failure", "retention"] {
-        trace_root.insert(
+        let previous = trace_root.insert(
             key.to_string(),
             delta_trace_root
                 .get(key)
-                .cloned()
+                .map(|value| OwnedJson::clone_from_value(value).into_parent_value())
                 .unwrap_or(JsonValue::Null),
         );
+        if let Some(previous) = previous { drop(OwnedJson::from_value(previous)); }
     }
-    let trace = canonical_json(&trace);
+    let trace = OwnedJson::canonical_from_value(&trace);
     let trace_hash = public_observation_trace_hash(&trace);
 
-    let mut projection = current_projection.clone();
-    let projection_root = projection.as_object_mut().ok_or_else(|| {
+    let mut projection = OwnedJson::clone_from_value(current_projection);
+    let projection_root = projection.value_mut().as_object_mut().ok_or_else(|| {
         "E_PUBLIC_OBSERVATION_APPEND_PROJECTION_BAD_INPUT: current projection은 object여야 합니다"
             .to_string()
     })?;
@@ -657,7 +685,7 @@ pub fn append_public_observation_surface(
             text(projection_root.get("schema"))
         ));
     }
-    projection_root.remove("projection_hash");
+    if let Some(previous) = projection_root.remove("projection_hash") { drop(OwnedJson::from_value(previous)); }
     let delta_projection_root = delta_projection
         .as_object()
         .expect("built delta projection object");
@@ -681,8 +709,11 @@ pub fn append_public_observation_surface(
             ));
         }
     }
-    projection_root.insert("run".to_string(), JsonValue::Object(delta_run.clone()));
-    projection_root.insert("source_trace_hash".to_string(), json!(trace_hash));
+    if let Some(previous) = projection_root.insert("run".to_string(),
+        OwnedJson::clone_from_value(&delta_projection["run"]).into_parent_value()) { drop(OwnedJson::from_value(previous)); }
+    if let Some(previous) = projection_root.insert("source_trace_hash".to_string(), json!(trace_hash)) {
+        drop(OwnedJson::from_value(previous));
+    }
 
     let display_event_offset = projection_root
         .get("tables")
@@ -708,7 +739,7 @@ pub fn append_public_observation_surface(
         .into_iter()
         .flatten()
     {
-        let delta_columns = delta_table
+        let _delta_columns = delta_table
             .get("columns")
             .and_then(JsonValue::as_array)
             .ok_or_else(|| {
@@ -716,12 +747,14 @@ pub fn append_public_observation_surface(
                     .to_string()
             })?;
         let table_index = tables.iter().position(|table| {
-            table.get("columns").and_then(JsonValue::as_array) == Some(delta_columns)
+            optional_json_equal(table.get("columns"), delta_table.get("columns"))
         });
         let target_index = if let Some(index) = table_index {
             index
         } else {
-            tables.push(json!({"columns": delta_columns, "rows": []}));
+            let mut table = OwnedJson::from_value(json!({"columns":null,"rows":[]}));
+            table.value_mut()["columns"] = OwnedJson::clone_from_value(&delta_table["columns"]).into_parent_value();
+            tables.push(table.into_parent_value());
             tables.len() - 1
         };
         let target_rows = tables[target_index]
@@ -734,16 +767,16 @@ pub fn append_public_observation_surface(
             .into_iter()
             .flatten()
         {
-            let mut row = delta_row.clone();
+            let mut row = OwnedJson::clone_from_value(delta_row);
             let local_index = row
                 .get("display_event_index")
                 .and_then(JsonValue::as_u64)
                 .ok_or_else(|| "E_PUBLIC_OBSERVATION_APPEND_DISPLAY_INDEX_MISSING".to_string())?;
-            row.as_object_mut().expect("projection row").insert(
+            row.value_mut().as_object_mut().expect("projection row").insert(
                 "display_event_index".to_string(),
                 json!(display_event_offset + local_index as usize),
             );
-            target_rows.push(row);
+            target_rows.push(row.into_parent_value());
         }
     }
     let has_rows = tables.iter().any(|table| {
@@ -752,12 +785,21 @@ pub fn append_public_observation_surface(
             .and_then(JsonValue::as_array)
             .is_some_and(|rows| !rows.is_empty())
     });
-    projection_root.insert(
+    let previous = projection_root.insert(
         "presentation_state".to_string(),
         json!(if has_rows { "ready" } else { "no_opportunity" }),
     );
-    let projection = seal_public_observation_table_projection(projection);
-    Ok((trace, trace_hash, projection))
+    if let Some(previous) = previous { drop(OwnedJson::from_value(previous)); }
+    let projection = OwnedJson::from_value(seal_public_observation_table_projection(projection.into_parent_value()));
+    Ok((trace.into_parent_value(), trace_hash, projection.into_parent_value()))
+}
+
+fn optional_json_equal(left: Option<&JsonValue>, right: Option<&JsonValue>) -> bool {
+    match (left, right) {
+        (Some(left), Some(right)) => OwnedJson::canonical_from_value(left).equals_json(&OwnedJson::canonical_from_value(right)),
+        (None, None) => true,
+        _ => false,
+    }
 }
 
 fn trace_identity_key(row: &JsonValue) -> Result<(String, String, String), String> {
@@ -773,22 +815,22 @@ fn trace_identity_key(row: &JsonValue) -> Result<(String, String, String), Strin
     Ok((format!("{name}\0{source_ref}"), name, source_ref))
 }
 
-fn projected_table_cell(cell: &JsonValue) -> Result<JsonValue, String> {
+fn projected_table_cell(cell: &JsonValue) -> Result<OwnedJson, String> {
     let status = text(cell.get("status"));
-    let mut projected = json!({"status": status});
-    let out = projected.as_object_mut().expect("projected table cell");
+    let mut projected = OwnedJson::from_value(json!({"status": status}));
+    let out = projected.value_mut().as_object_mut().expect("projected table cell");
     match status.as_str() {
         "present" => {
-            let value_canon = cell.get("value_canon").cloned().ok_or_else(|| {
+            let value_canon = cell.get("value_canon").ok_or_else(|| {
                 "E_PUBLIC_OBSERVATION_TABLE_PRESENT_VALUE_MISSING: present cell에는 value_canon이 필요합니다"
                     .to_string()
             })?;
-            let value_text = cell.get("value_text").cloned().ok_or_else(|| {
+            let value_text = cell.get("value_text").ok_or_else(|| {
                 "E_PUBLIC_OBSERVATION_TABLE_PRESENT_TEXT_MISSING: present cell에는 value_text가 필요합니다"
                     .to_string()
             })?;
-            out.insert("value_canon".to_string(), value_canon);
-            out.insert("value_text".to_string(), value_text);
+            out.insert("value_canon".to_string(), OwnedJson::clone_from_value(value_canon).into_parent_value());
+            out.insert("value_text".to_string(), OwnedJson::clone_from_value(value_text).into_parent_value());
             if let Some(dataset_target) = cell.get("dataset_target") {
                 out.insert(
                     "dataset_target".to_string(),
@@ -818,7 +860,7 @@ fn projected_table_cell(cell: &JsonValue) -> Result<JsonValue, String> {
             ))
         }
     }
-    Ok(canonical_json(&projected))
+    Ok(OwnedJson::canonical_from_value(&projected))
 }
 
 /// Projects the authoritative public-observation trace into ordered,
@@ -944,7 +986,7 @@ pub fn build_public_observation_table_projection(
     }
 
     let mut table_index = BTreeMap::new();
-    let mut projected_tables: Vec<JsonValue> = Vec::new();
+    let mut projected_tables: Vec<OwnedJson> = Vec::new();
     let mut display_event_index = 0usize;
     for sample in samples {
         let cells = sample
@@ -994,22 +1036,23 @@ pub fn build_public_observation_table_projection(
         } else {
             let index = projected_tables.len();
             table_index.insert(signature, index);
-            projected_tables.push(json!({
+            projected_tables.push(OwnedJson::from_value(json!({
                 "columns": table_columns,
                 "rows": [],
-            }));
+            })));
             index
         };
-        let row = json!({
+        let mut row = OwnedJson::from_value(json!({
             "display_event_index": display_event_index,
             "committed_madi": committed_madi,
             "state_hash": state_hash,
-            "cells": row_cells,
-        });
-        projected_tables[index]["rows"]
+            "cells": null,
+        }));
+        row.value_mut()["cells"] = JsonValue::Array(row_cells.into_iter().map(OwnedJson::into_parent_value).collect());
+        projected_tables[index].value_mut()["rows"]
             .as_array_mut()
             .expect("projection table rows")
-            .push(row);
+            .push(row.into_parent_value());
         display_event_index += 1;
     }
 
@@ -1018,7 +1061,7 @@ pub fn build_public_observation_table_projection(
     } else {
         "ready"
     };
-    Ok(seal_public_observation_table_projection(json!({
+    let mut result = OwnedJson::from_value(json!({
         "schema": PUBLIC_OBSERVATION_TABLE_PROJECTION_SCHEMA,
         "source_schema": PUBLIC_OBSERVATION_TRACE_SCHEMA,
         "source_trace_hash": source_trace_hash,
@@ -1031,11 +1074,13 @@ pub fn build_public_observation_table_projection(
             "status": run_status,
             "failure": JsonValue::Null,
         },
-        "tables": projected_tables,
-    })))
+        "tables": null,
+    }));
+    result.value_mut()["tables"] = JsonValue::Array(projected_tables.into_iter().map(OwnedJson::into_parent_value).collect());
+    Ok(seal_public_observation_table_projection(result.into_parent_value()))
 }
 
-fn observation_map(frame: &JsonValue) -> BTreeMap<String, JsonValue> {
+fn observation_map(frame: &JsonValue) -> BTreeMap<String, OwnedJson> {
     frame
         .get("public_observations")
         .and_then(JsonValue::as_array)
@@ -1044,7 +1089,7 @@ fn observation_map(frame: &JsonValue) -> BTreeMap<String, JsonValue> {
         .filter_map(|row| {
             observation_identity_key(row)
                 .ok()
-                .map(|identity| (identity, row.clone()))
+                .map(|identity| (identity, OwnedJson::clone_from_value(row)))
         })
         .collect()
 }
@@ -1077,30 +1122,42 @@ pub fn diff_committed_frames(a: &JsonValue, b: &JsonValue) -> Result<JsonValue, 
             _ => "unchanged",
         };
         if kind != "unchanged" {
-            changes.push(json!({
-                "identity": before.or(after).map(observation_identity).unwrap_or(JsonValue::Null),
+            let mut change = OwnedJson::from_value(json!({
+                "identity": before.or(after).map(|row| observation_identity(row)).unwrap_or(JsonValue::Null),
                 "kind": kind,
-                "before": before.cloned().unwrap_or(JsonValue::Null),
-                "after": after.cloned().unwrap_or(JsonValue::Null),
+                "before": null,
+                "after": null,
             }));
+            for (key, row) in [("before", before), ("after", after)] {
+                if let Some(row) = row {
+                    change.value_mut()[key] = row.clone().into_parent_value();
+                }
+            }
+            changes.push(change);
         }
     }
     let same_source = text(a.get("source_identity")) == text(b.get("source_identity"))
         && text(a.get("revision_identity")) == text(b.get("revision_identity"));
-    let diff = json!({
+    let mut diff = OwnedJson::from_value(json!({
         "schema": DEBUG_DIFF_SCHEMA,
         "a_madi": a.get("committed_madi").cloned().unwrap_or(JsonValue::Null),
         "b_madi": b.get("committed_madi").cloned().unwrap_or(JsonValue::Null),
         "same_run": text(a.get("run_id")) == text(b.get("run_id")),
         "same_source_revision": same_source,
-        "input_changed": a.get("input_snapshot") != b.get("input_snapshot"),
-        "input_before": a.get("input_snapshot").cloned().unwrap_or(JsonValue::Null),
-        "input_after": b.get("input_snapshot").cloned().unwrap_or(JsonValue::Null),
+        "input_changed": !optional_json_equal(a.get("input_snapshot"), b.get("input_snapshot")),
+        "input_before": null,
+        "input_after": null,
         "state_hash_changed": text(a.get("state_hash")) != text(b.get("state_hash")),
         "state_hash_before": text(a.get("state_hash")),
         "state_hash_after": text(b.get("state_hash")),
-        "observation_changes": changes,
-    });
+        "observation_changes": null,
+    }));
+    for (key, frame) in [("input_before", &a), ("input_after", &b)] {
+        if let Some(input) = frame.get("input_snapshot") {
+            diff.value_mut()[key] = OwnedJson::clone_from_value(input).into_parent_value();
+        }
+    }
+    diff.value_mut()["observation_changes"] = JsonValue::Array(changes.into_iter().map(OwnedJson::into_parent_value).collect());
     Ok(canonical_json(&diff))
 }
 
@@ -1193,7 +1250,7 @@ fn validate_plan(
 pub struct DebugEvaluator {
     plan: JsonValue,
     plan_hash: String,
-    previous: BTreeMap<String, JsonValue>,
+    previous: BTreeMap<String, OwnedJson>,
 }
 
 impl DebugEvaluator {
@@ -1241,7 +1298,7 @@ impl DebugEvaluator {
                 && condition.get("madi").and_then(JsonValue::as_u64) == Some(madi)
             {
                 reasons.push(
-                    json!({"condition_id": condition_id, "kind": kind, "committed_madi": madi}),
+                    OwnedJson::from_value(json!({"condition_id": condition_id, "kind": kind, "committed_madi": madi})),
                 );
             } else if kind == "observation_changed" {
                 let binding = condition.get("binding").unwrap_or(&JsonValue::Null);
@@ -1261,14 +1318,17 @@ impl DebugEvaluator {
                     }
                     if let Some(before) = before {
                         if text(before.get("value_canon")) != text(now.get("value_canon")) {
-                            reasons.push(json!({
+                            let mut reason = OwnedJson::from_value(json!({
                                 "condition_id": condition_id,
                                 "kind": kind,
                                 "committed_madi": madi,
                                 "identity": observation_identity(now),
-                                "before": before,
-                                "after": now,
+                                "before": null,
+                                "after": null,
                             }));
+                            reason.value_mut()["before"] = before.clone().into_parent_value();
+                            reason.value_mut()["after"] = now.clone().into_parent_value();
+                            reasons.push(reason);
                         }
                     }
                 } else if self.previous.contains_key(&identity) {
@@ -1281,14 +1341,16 @@ impl DebugEvaluator {
             }
         }
         self.previous = current;
-        Ok(canonical_json(&json!({
+        let mut evidence = OwnedJson::from_value(json!({
             "schema": DEBUG_EVIDENCE_SCHEMA,
             "triggered": !reasons.is_empty(),
             "committed_madi": madi,
             "state_hash": text(frame.get("state_hash")),
             "debug_plan_hash": self.plan_hash,
-            "reasons": reasons,
-        })))
+            "reasons": null,
+        }));
+        evidence.value_mut()["reasons"] = JsonValue::Array(reasons.into_iter().map(OwnedJson::into_parent_value).collect());
+        Ok(canonical_json(&evidence))
     }
 }
 
@@ -1302,19 +1364,22 @@ pub fn evaluate_sealed_sequence(input: &JsonValue) -> Result<JsonValue, String> 
     let mut evaluated = Vec::new();
     let mut pauses = Vec::new();
     for frame in frames {
-        let evidence = evaluator.evaluate_frame(frame)?;
+        let evidence = OwnedJson::from_value(evaluator.evaluate_frame(frame)?);
         if evidence.get("triggered").and_then(JsonValue::as_bool) == Some(true) {
             pauses.push(evidence.clone());
         }
         evaluated.push(evidence);
     }
-    Ok(canonical_json(&json!({
+    let mut result = OwnedJson::from_value(json!({
         "schema": "seamgrim.ddn_sealed_debug_replay.candidate.v1",
         "debug_plan_hash": evaluator.plan_hash(),
         "evaluated_prefix_length": frames.len(),
-        "evaluated": evaluated,
-        "pause_sequence": pauses,
-    })))
+        "evaluated": null,
+        "pause_sequence": null,
+    }));
+    result.value_mut()["evaluated"] = JsonValue::Array(evaluated.into_iter().map(OwnedJson::into_parent_value).collect());
+    result.value_mut()["pause_sequence"] = JsonValue::Array(pauses.into_iter().map(OwnedJson::into_parent_value).collect());
+    Ok(canonical_json(&result))
 }
 
 pub fn deterministic_debug_operation(
@@ -1344,12 +1409,12 @@ pub fn run_deterministic_debug_file(
 ) -> Result<Option<String>, String> {
     let input_text = fs::read_to_string(input_path)
         .map_err(|error| format!("E_DEBUG_INPUT_READ: {} ({error})", input_path.display()))?;
-    let input_json: JsonValue = serde_json::from_str(&input_text)
-        .map_err(|error| format!("E_DEBUG_JSON_INVALID: {error}"))?;
-    let value = deterministic_debug_operation(operation, &input_json)?;
-    let output = serde_json::to_string_pretty(&value)
-        .map_err(|error| format!("E_DEBUG_OUTPUT_SERIALIZE: {error}"))?
-        + "\n";
+    let input_json = OwnedJson::from_value(serde_json::from_str(&input_text)
+        .map_err(|error| format!("E_DEBUG_JSON_INVALID: {error}"))?);
+    let value = crate::runtime_surface::RuntimeJsonOutput::new(
+        deterministic_debug_operation(operation, &input_json)?);
+    let output = value.pretty_text()
+        .map_err(|error| format!("E_DEBUG_OUTPUT_SERIALIZE: {error}"))? + "\n";
 
     let Some(out_path) = out_path else {
         return Ok(Some(output));
@@ -1367,6 +1432,154 @@ pub fn run_deterministic_debug_file(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn observation_rejection_cleans_unconsumed_owned_rows() {
+        std::thread::Builder::new().stack_size(128 * 1024).spawn(|| {
+            let mut tail = JsonValue::Bool(true);
+            for _ in 0..20_000 { tail = JsonValue::Array(vec![tail]); }
+            // 앞 행의 실패 뒤 남은 소유 값도 호출 스택에 의존하지 않고 해제해야 한다.
+            let error = canonical_public_observation_events(vec![json!({}), tail]).unwrap_err();
+            assert_eq!(error, "E_DEBUG_REQUIRED_IDENTITY: name가 비어 있습니다");
+        }).unwrap().join().unwrap();
+    }
+
+    #[test]
+    fn observation_trace_deep_staging_preserves_values_and_cleans_late_errors() {
+        std::thread::Builder::new().stack_size(128 * 1024).spawn(|| {
+            let mut deep = JsonValue::Bool(true);
+            for _ in 0..20_000 { deep = JsonValue::Array(vec![deep]); }
+            let deep = OwnedJson::from_value(deep);
+            let mut valid_frame = OwnedJson::from_value(frame(0, "1"));
+            valid_frame.value_mut()["input_snapshot"] = deep.clone().into_parent_value();
+            valid_frame.value_mut()["checkpoint"] = deep.clone().into_parent_value();
+            valid_frame.value_mut()["public_observations"][0]["value_text"] = deep.clone().into_parent_value();
+            let make_root = |frames: Vec<OwnedJson>| {
+                let mut root = OwnedJson::from_value(json!({"run_id":"run-1", "source_identity":"source-1",
+                    "revision_identity":"revision-1", "run_status":"completed", "frames":null, "retention":null}));
+                root.value_mut()["frames"] = JsonValue::Array(frames.into_iter().map(OwnedJson::into_parent_value).collect());
+                root.value_mut()["retention"] = deep.clone().into_parent_value();
+                root
+            };
+            let root = make_root(vec![valid_frame.clone()]);
+            let result = OwnedJson::from_value(build_public_observation_trace(&root).unwrap());
+            assert!(deep.equals_json(&result["trace"]["retention"]));
+            assert!(deep.equals_json(&result["trace"]["samples"][0]["cells"][0]["value_text"]));
+            assert_eq!(result["trace_hash"].as_str(), Some(public_observation_trace_hash(&result["trace"]).as_str()));
+            let projection = OwnedJson::from_value(build_public_observation_table_projection(&result["trace"], "run-1").unwrap());
+            assert!(deep.equals_json(&projection["tables"][0]["rows"][0]["cells"][0]["value_text"]));
+            let mut next_frame = valid_frame.clone();
+            next_frame.value_mut()["committed_madi"] = json!(1);
+            next_frame.value_mut()["state_hash"] = json!("state-1");
+            let mut changed_frame = next_frame.clone();
+            changed_frame.value_mut()["public_observations"][0]["value_canon"] = json!("2");
+            let diff = OwnedJson::from_value(diff_committed_frames(&valid_frame, &changed_frame).unwrap());
+            assert_eq!(diff["input_changed"], json!(false));
+            assert_eq!(diff["observation_changes"][0]["kind"], json!("value_changed"));
+            assert!(deep.equals_json(&diff["observation_changes"][0]["after"]["value_text"]));
+            let mut evaluator = DebugEvaluator::from_plan(&plan(), None).unwrap();
+            let first = OwnedJson::from_value(evaluator.evaluate_frame(&valid_frame).unwrap());
+            assert_eq!(first["triggered"], json!(false));
+            let mut cloned_evaluator = evaluator.clone();
+            let second = OwnedJson::from_value(cloned_evaluator.evaluate_frame(&changed_frame).unwrap());
+            assert_eq!(second["triggered"], json!(true));
+            assert!(deep.equals_json(&second["reasons"][0]["after"]["value_text"]));
+            let mut stale = changed_frame.clone();
+            stale.value_mut()["public_observations"][0]["dtype"] = json!("text");
+            assert!(evaluator.evaluate_frame(&stale).unwrap_err().starts_with("E_DEBUG_OBSERVATION_BINDING_STALE"));
+            let recovered = OwnedJson::from_value(evaluator.evaluate_frame(&changed_frame).unwrap());
+            assert!(second.equals_json(&recovered));
+            evaluator.reset_history();
+            let reset = OwnedJson::from_value(evaluator.evaluate_frame(&changed_frame).unwrap());
+            assert_eq!(reset["triggered"], json!(false));
+            let mut replay_input = make_root(vec![valid_frame.clone(), changed_frame.clone()]);
+            replay_input.value_mut()["plan"] = plan();
+            let replay = OwnedJson::from_value(evaluate_sealed_sequence(&replay_input).unwrap());
+            assert_eq!(replay["pause_sequence"].as_array().unwrap().len(), 1);
+            assert!(second.equals_json(&replay["pause_sequence"][0]));
+            replay_input.value_mut()["frames"].as_array_mut().unwrap().push(stale.into_parent_value());
+            assert!(evaluate_sealed_sequence(&replay_input).is_err());
+            drop(replay); drop(replay_input); drop(reset); drop(recovered); drop(second);
+            drop(first); drop(cloned_evaluator); drop(evaluator); drop(diff); drop(changed_frame);
+            let delta = make_root(vec![next_frame.clone()]);
+            let full = make_root(vec![valid_frame.clone(), next_frame]);
+            let rebuilt = OwnedJson::from_value(build_public_observation_trace(&full).unwrap());
+            let rebuilt_projection = OwnedJson::from_value(build_public_observation_table_projection(&rebuilt["trace"], "run-1").unwrap());
+            let (appended, hash, appended_projection) = append_public_observation_surface(&result["trace"], &projection, &delta).unwrap();
+            let appended = OwnedJson::from_value(appended);
+            let appended_projection = OwnedJson::from_value(appended_projection);
+            assert!(appended.equals_json(&rebuilt["trace"]));
+            assert_eq!(hash.as_str(), rebuilt["trace_hash"].as_str().unwrap());
+            assert!(appended_projection.equals_json(&rebuilt_projection));
+            let mut invalid_projection = projection.clone();
+            invalid_projection.value_mut()["schema"] = json!("invalid");
+            assert!(append_public_observation_surface(&result["trace"], &invalid_projection, &delta).is_err());
+            let mut invalid_table = OwnedJson::clone_from_value(&result["trace"]);
+            let invalid_cell = json!({"identity":{"name":"missing","source_ref":"missing.ddn"},"status":"present","value_canon":"1","value_text":"1"});
+            invalid_table.value_mut()["samples"][0]["cells"].as_array_mut().unwrap().push(invalid_cell);
+            assert!(build_public_observation_table_projection(&invalid_table, "run-1").is_err());
+            let bad = OwnedJson::from_value(json!({"committed_madi":1}));
+            let late_bad = make_root(vec![valid_frame.clone(), bad]);
+            assert_eq!(build_public_observation_trace(&late_bad).unwrap_err(), "E_DEBUG_REQUIRED_IDENTITY: state_hash가 비어 있습니다");
+            let duplicate = make_root(vec![valid_frame.clone(), valid_frame.clone()]);
+            assert_eq!(build_public_observation_trace(&duplicate).unwrap_err(), "E_DEBUG_RUN_MADI_DUPLICATE: committed madi 0");
+            let mut invalid_status = make_root(vec![valid_frame.clone()]);
+            invalid_status.value_mut()["run_status"] = json!("invalid");
+            assert_eq!(build_public_observation_trace(&invalid_status).unwrap_err(), "E_DEBUG_RUN_STATUS_UNSUPPORTED: invalid");
+            let first = OwnedJson::clone_from_value(&valid_frame["public_observations"][0]);
+            assert!(canonical_public_observation_events(vec![first.into_parent_value(), json!({})]).is_err());
+            let mut bad_dataset = OwnedJson::clone_from_value(&valid_frame["public_observations"][0]);
+            bad_dataset.value_mut()["dataset_target"] = deep.clone().into_parent_value();
+            assert!(canonical_observation(bad_dataset.into_parent_value()).is_err());
+            drop(invalid_table); drop(invalid_projection); drop(appended_projection); drop(appended);
+            drop(rebuilt_projection); drop(rebuilt); drop(full); drop(delta); drop(projection);
+            drop(invalid_status); drop(duplicate); drop(late_bad); drop(result); drop(root); drop(valid_frame); drop(deep);
+        }).unwrap().join().unwrap();
+    }
+
+    #[test]
+    fn canonical_observation_hashing_preserves_bytes_and_deep_cleanup() {
+        use super::*;
+        fn old(value: &JsonValue) -> JsonValue {
+            match value {
+                JsonValue::Object(map) => JsonValue::Object(map.iter().map(|(key, value)|
+                    (key.clone(), old(value))).collect::<BTreeMap<_, _>>().into_iter().collect()),
+                JsonValue::Array(items) => JsonValue::Array(items.iter().map(old).collect()),
+                leaf => leaf.clone(),
+            }
+        }
+        for value in [json!(null), json!({"z": [null, 1.25, "한글\n😀"], "a":{"z":[],"a":false}})] {
+            assert_eq!(canonical_json(&value).to_string(), old(&value).to_string());
+            assert_eq!(sha256_json(&value), format!("sha256:{}", hex::encode(Sha256::digest(serde_json::to_vec(&old(&value)).unwrap()))));
+        }
+        std::thread::Builder::new().stack_size(128 * 1024).spawn(|| {
+            use crate::unit_wire::SnapshotJsonOwner;
+            let mut deep = JsonValue::Bool(true);
+            for _ in 0..20_000 { deep = JsonValue::Array(vec![deep]); }
+            let deep = SnapshotJsonOwner::from_value(deep);
+            let leaf_bytes = "[".repeat(20_000) + "true" + &"]".repeat(20_000);
+            let root = SnapshotJsonOwner::from_value(JsonValue::Object([
+                ("z".into(), json!(0)),
+                ("samples".into(), JsonValue::Array(vec![JsonValue::Object([
+                    ("extra".into(), deep.clone().into_parent_value()),
+                    ("state_hash".into(), deep.clone().into_parent_value()),
+                ].into_iter().collect())])),
+            ].into_iter().collect()));
+            let expected_trace_bytes = format!("{{\"samples\":[{{\"extra\":{leaf_bytes}}}],\"z\":0}}");
+            assert_eq!(public_observation_trace_hash(&root), format!("sha256:{}", hex::encode(Sha256::digest(expected_trace_bytes.as_bytes()))));
+            let input = SnapshotJsonOwner::from_value(JsonValue::Object([
+                ("extra".into(), deep.clone().into_parent_value()),
+                ("projection_hash".into(), deep.clone().into_parent_value()),
+            ].into_iter().collect()));
+            let expected_projection = format!("{{\"extra\":{leaf_bytes}}}");
+            let expected_hash = format!("sha256:{}", hex::encode(Sha256::digest(expected_projection.as_bytes())));
+            assert_eq!(public_observation_table_projection_hash(&input), expected_hash);
+            let sealed = SnapshotJsonOwner::from_value(seal_public_observation_table_projection(input.into_parent_value()));
+            assert_eq!(sealed["projection_hash"].as_str(), Some(expected_hash.as_str()));
+            assert!(deep.equals_json(&sealed["extra"]));
+            drop(sealed); drop(root); drop(deep);
+        }).unwrap().join().unwrap();
+    }
+
     use super::*;
     use std::path::PathBuf;
     use std::process;

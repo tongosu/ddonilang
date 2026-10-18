@@ -38,11 +38,30 @@ pub(crate) struct IssuedSavedLocalProjectIdentity(IssuedProjectSnapshotIdentity)
 impl IssuedSavedLocalProjectIdentity {
     pub(crate) fn pesi(&self) -> Identity32 { self.0.pesi }
     pub(crate) fn constituents(&self) -> &[Identity32;4] { &self.0.constituents }
+    pub(crate) fn constituent_preimages(&self) -> &[Vec<u8>;4] { &self.0.preimages }
 }
 
 pub(crate) fn issue_saved_local_project(
     owned: &crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
 ) -> Result<IssuedSavedLocalProjectIdentity,String> {
+    if let Some(draft)=owned.registration(){issue_registration_candidate(owned,draft)}
+    else {issue_saved_local_project_resources(owned,&[])}
+}
+
+/// A private prepared registration can supply content-addressed resources,
+/// but this issued PESI is still a candidate, not durable execution admission.
+pub(crate) fn issue_registration_candidate(
+    owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
+    draft:&crate::authored_project::registration::RegistrationDraft,
+)->Result<IssuedSavedLocalProjectIdentity,String> {
+    draft.verify_source_binding(owned)?;
+    issue_saved_local_project_resources(owned,draft.artifacts())
+}
+
+fn issue_saved_local_project_resources(
+    owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
+    artifacts:&[crate::authored_project::registration::RegistrationBlob],
+)->Result<IssuedSavedLocalProjectIdentity,String> {
     let saved=owned.sources();
     // Current D9 linker rejects unbound execution contracts/views/exports.
     // Its local module closure is source-owned, not an external dependency
@@ -67,10 +86,13 @@ pub(crate) fn issue_saved_local_project(
         "v1-core-v25-logical-alpha2" => b"ExecutionProfileIdentity:v1-core-v25-logical-alpha2",
         _ => return Err("E_SAVED_PROJECT_TARGET_PROFILE: 지원 실행 프로필이 아닙니다".into()),
     };
+    let resource_paths:Vec<_>=artifacts.iter().map(|blob|blob.path()).collect();
+    let resources:Vec<_>=artifacts.iter().map(|blob|Resource{path:blob.path(),identity:blob.sha(),
+        byte_length:blob.bytes().len() as u64,digest:blob.sha()}).collect();
     let issued=issue_constituents_and_pesi(AdmittedProjectSnapshotIdentityInput {
         sources:&rows,epoch,entry:&saved.saved().manifest().entry_path,
         definition:owned.definition_identity().as_bytes(),target_profile:target,
-        requirements:&[],resource_paths:&[],dependencies:&[],edges:&[],resources:&[],
+        requirements:&[],resource_paths:&resource_paths,dependencies:&[],edges:&[],resources:&resources,
     }).map_err(|e|format!("E_SAVED_PROJECT_EXECUTION_IDENTITY: {e:?}"))?;
     Ok(IssuedSavedLocalProjectIdentity(issued))
 }

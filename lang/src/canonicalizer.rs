@@ -15,6 +15,18 @@ pub struct CanonicalizeReport {
     pub warnings: Vec<LintWarning>,
 }
 
+#[derive(Clone)]
+struct CanonicalSeedContext {
+    signatures:HashMap<String,Vec<ParamPin>>,
+    declared_types:HashSet<String>,
+    su_alias:bool,
+    registered_sum_pins:Option<std::collections::BTreeMap<NodeId,[u8;32]>>,
+}
+impl std::ops::Deref for CanonicalSeedContext {
+    type Target=HashMap<String,Vec<ParamPin>>;
+    fn deref(&self)->&Self::Target {&self.signatures}
+}
+
 /// Canonical DDL Wave 1 presentation.  Section order is retained for humans;
 /// stable identities are already registry-bound in the DDL AST and are not
 /// derived from this order.
@@ -143,7 +155,7 @@ fn is_redundant_top_level_chaebi_reassign_value(value: &Expr) -> bool {
 
 fn canonicalize_top_level_item(
     item: &mut TopLevelItem,
-    signatures: &HashMap<String, Vec<ParamPin>>,
+    signatures: &CanonicalSeedContext,
     warnings: &mut Vec<LintWarning>,
 ) -> Result<(), ParseError> {
     match item {
@@ -153,7 +165,7 @@ fn canonicalize_top_level_item(
 
 fn canonicalize_seed_def(
     seed: &mut SeedDef,
-    signatures: &HashMap<String, Vec<ParamPin>>,
+    signatures: &CanonicalSeedContext,
     warnings: &mut Vec<LintWarning>,
 ) -> Result<(), ParseError> {
     canonicalize_ident(&mut seed.canonical_name, seed.span, warnings)?;
@@ -166,13 +178,13 @@ fn canonicalize_seed_def(
     }
     for param in &mut seed.params {
         canonicalize_ident(&mut param.pin_name, param.span, warnings)?;
-        canonicalize_type_ref(&mut param.type_ref, param.span, warnings)?;
+        canonicalize_type_ref(&mut param.type_ref, param.span, warnings, signatures)?;
         if let Some(default_value) = &mut param.default_value {
             canonicalize_expr(default_value, signatures, warnings)?;
         }
     }
     if let Some(result_type) = &mut seed.result_type {
-        canonicalize_type_ref(result_type, seed.span, warnings)?;
+        canonicalize_type_ref(result_type, seed.span, warnings, signatures)?;
     }
     if let Some(body) = &mut seed.body {
         canonicalize_body(body, signatures, warnings)?;
@@ -182,25 +194,66 @@ fn canonicalize_seed_def(
 
 fn canonicalize_body(
     body: &mut Body,
-    signatures: &HashMap<String, Vec<ParamPin>>,
+    signatures: &CanonicalSeedContext,
     warnings: &mut Vec<LintWarning>,
 ) -> Result<(), ParseError> {
+    let mut scoped=signatures.clone();
+    for statement in &body.stmts {
+        if let Stmt::SumDefinition{name,..}=statement {scoped.declared_types.insert(name.clone());}
+    }
     for stmt in &mut body.stmts {
-        canonicalize_stmt(stmt, signatures, warnings)?;
+        canonicalize_stmt(stmt, &scoped, warnings)?;
     }
     Ok(())
 }
 
 fn canonicalize_stmt(
     stmt: &mut Stmt,
-    signatures: &HashMap<String, Vec<ParamPin>>,
+    signatures: &CanonicalSeedContext,
     warnings: &mut Vec<LintWarning>,
 ) -> Result<(), ParseError> {
     match stmt {
+        Stmt::SumDefinition { name, branches, span, .. } => {
+            canonicalize_ident(name, *span, warnings)?;
+            for branch in branches {
+                canonicalize_ident(&mut branch.name, branch.span, warnings)?;
+                for payload in &mut branch.payload {
+                    canonicalize_ident(&mut payload.binder, payload.binder_span, warnings)?;
+                    canonicalize_type_ref(&mut payload.type_ref, payload.binder_span, warnings, signatures)?;
+                }
+            }
+        }
+        Stmt::SumMatch { subject, arms, default_body, .. } => {
+            canonicalize_expr(subject, signatures, warnings)?;
+            for arm in arms {
+                if let Some(kind)=&mut arm.applied_owner {
+                    canonicalize_type_ref(kind,arm.span,warnings,signatures)?;
+                    // This lookup key belongs to the current compilation.
+                    // Canonical type aliases must update both projections;
+                    // saved owner bytes are not processed by this path.
+                    arm.owner=crate::sum_owner::resolve_applied_sum_owner(kind,arm.span)
+                        .map_err(|message|ParseError{span:arm.span,message})?.key;
+                }
+                else {canonicalize_ident(&mut arm.owner, arm.span, warnings)?;}
+                canonicalize_ident(&mut arm.branch, arm.span, warnings)?;
+                for binder in &mut arm.binder {
+                    canonicalize_ident(&mut binder.pin, binder.span, warnings)?;
+                    if let Some(order)=&signatures.registered_sum_pins {
+                        let raw=order.get(&binder.id).filter(|raw|**raw!=[0;32]).ok_or_else(||ParseError{
+                            span:binder.span,message:"E_SUM_PIN_IDENTITY_REQUIRED: 원문 받는자리의 검증된 등록 정체가 없습니다".into()})?;
+                        binder.registered_pin_identity=Some(*raw);
+                    }
+                }
+                canonicalize_body(&mut arm.body, signatures, warnings)?;
+            }
+            if let Some(body) = default_body {
+                canonicalize_body(body, signatures, warnings)?;
+            }
+        }
         Stmt::DeclBlock { items, .. } => {
             for item in items {
                 canonicalize_ident(&mut item.name, item.span, warnings)?;
-                canonicalize_type_ref(&mut item.type_ref, item.span, warnings)?;
+                canonicalize_type_ref(&mut item.type_ref, item.span, warnings, signatures)?;
                 if let Some(value) = &mut item.value {
                     canonicalize_expr(value, signatures, warnings)?;
                 }
@@ -215,11 +268,11 @@ fn canonicalize_stmt(
             ..
         } => {
             canonicalize_ident(name, *span, warnings)?;
-            canonicalize_type_ref(type_ref, *span, warnings)?;
+            canonicalize_type_ref(type_ref, *span, warnings, signatures)?;
             if let Some(registration)=reaction {
                 canonicalize_ident(&mut registration.alert_type,*span,warnings)?;
                 canonicalize_ident(&mut registration.payload.pin_name,registration.payload.span,warnings)?;
-                canonicalize_type_ref(&mut registration.payload.type_ref,registration.payload.span,warnings)?;
+                canonicalize_type_ref(&mut registration.payload.type_ref,registration.payload.span,warnings,signatures)?;
             }
             canonicalize_expr(value, signatures, warnings)?;
         }
@@ -328,7 +381,7 @@ fn canonicalize_stmt(
         } => {
             canonicalize_ident(item, *span, warnings)?;
             if let Some(type_ref) = item_type.as_mut() {
-                canonicalize_type_ref(type_ref, *span, warnings)?;
+                canonicalize_type_ref(type_ref, *span, warnings, signatures)?;
             }
             canonicalize_expr(iterable, signatures, warnings)?;
             canonicalize_body(body, signatures, warnings)?;
@@ -341,7 +394,7 @@ fn canonicalize_stmt(
             ..
         } => {
             canonicalize_ident(variable, *span, warnings)?;
-            canonicalize_type_ref(domain, *span, warnings)?;
+            canonicalize_type_ref(domain, *span, warnings, signatures)?;
             canonicalize_body(body, signatures, warnings)?;
         }
         Stmt::Break { .. } | Stmt::ContinueLoop { .. } => {}
@@ -369,11 +422,29 @@ fn canonicalize_stmt(
 
 fn canonicalize_expr(
     expr: &mut Expr,
-    signatures: &HashMap<String, Vec<ParamPin>>,
+    signatures: &CanonicalSeedContext,
     warnings: &mut Vec<LintWarning>,
 ) -> Result<(), ParseError> {
     match &mut expr.kind {
-        ExprKind::Tensor(value) => canonicalize_expr(value.input_mut(), signatures, warnings)?,
+        ExprKind::SumBranchValue { owner, applied_owner, branch, payload } => {
+            if let Some(kind)=applied_owner {
+                canonicalize_type_ref(kind,expr.span,warnings,signatures)?;
+                *owner=crate::sum_owner::resolve_applied_sum_owner(kind,expr.span)
+                    .map_err(|message|ParseError{span:expr.span,message})?.key;
+            }
+            else {canonicalize_ident(owner, expr.span, warnings)?;}
+            canonicalize_ident(branch, expr.span, warnings)?;
+            for payload in payload {
+                canonicalize_ident(&mut payload.pin,payload.span,warnings)?;
+                canonicalize_expr(&mut payload.value, signatures, warnings)?;
+            }
+        }
+        ExprKind::Tensor(value) => {
+            if let TensorProviderExpr::FromCollection{element_type,..}=value {
+                canonicalize_type_ref(element_type,expr.span,warnings,signatures)?;
+            }
+            canonicalize_expr(value.input_mut(), signatures, warnings)?;
+        },
         ExprKind::MultiAxisSelection(value) => {
             for child in value.children_mut() { canonicalize_expr(child, signatures, warnings)?; }
         }
@@ -393,7 +464,16 @@ fn canonicalize_expr(
                 lint_call_arg_josa_conflict(arg, func, signatures, warnings);
             }
         }
-        ExprKind::CollectionConstructor { elements } => {
+        ExprKind::ProductConstruction { owner, fields, .. } => {
+            canonicalize_ident(owner, expr.span, warnings)?;
+            for field in fields {
+                if let Some(name) = &mut field.resolved_pin {
+                    canonicalize_ident(name, field.span, warnings)?;
+                }
+                canonicalize_expr(&mut field.expr, signatures, warnings)?;
+            }
+        }
+        ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
             for element in elements {
                 canonicalize_expr(element, signatures, warnings)?;
             }
@@ -453,7 +533,7 @@ fn canonicalize_expr(
 fn canonicalize_call_arg_josa(
     arg: &mut ArgBinding,
     func: &str,
-    signatures: &HashMap<String, Vec<ParamPin>>,
+    signatures: &CanonicalSeedContext,
 ) {
     let Some(josa) = arg.josa.as_ref() else {
         return;
@@ -478,7 +558,7 @@ fn canonicalize_call_arg_josa(
 fn lint_call_arg_josa_conflict(
     arg: &ArgBinding,
     func: &str,
-    signatures: &HashMap<String, Vec<ParamPin>>,
+    signatures: &CanonicalSeedContext,
     warnings: &mut Vec<LintWarning>,
 ) {
     if !matches!(arg.binding_reason, BindingReason::UserFixed) {
@@ -516,33 +596,46 @@ fn canonicalize_type_ref(
     type_ref: &mut TypeRef,
     span: Span,
     warnings: &mut Vec<LintWarning>,
+    context:&CanonicalSeedContext,
 ) -> Result<(), ParseError> {
     match type_ref {
-        TypeRef::Tensor { element, .. } => canonicalize_type_ref(element, span, warnings)?,
+        TypeRef::Tuple(items) => {
+            for item in items {
+                canonicalize_type_ref(item, span, warnings, context)?;
+            }
+        }
+        TypeRef::Tensor { element, .. } => canonicalize_type_ref(element, span, warnings, context)?,
         TypeRef::Named(name) => {
             canonicalize_ident(name, span, warnings)?;
-            if let Some(mapped) = canonical_type_alias(name.as_str()) {
-                *name = mapped.to_string();
-            }
+            // M-A: only the builtin declaration alias. A schema owner in the
+            // actual lexical type scope takes precedence; value identifiers,
+            // function names and applied constructor names are not rewritten.
+            *name=resolve_declared_type_spelling(name,context.su_alias,&context.declared_types,false);
         }
         TypeRef::Applied { name, args } => {
             canonicalize_ident(name, span, warnings)?;
-            if let Some(mapped) = canonical_type_alias(name.as_str()) {
-                *name = mapped.to_string();
-            }
+            *name=resolve_declared_type_spelling(name,context.su_alias,&context.declared_types,true);
             for arg in args {
-                canonicalize_type_ref(arg, span, warnings)?;
+                canonicalize_type_ref(arg, span, warnings, context)?;
             }
         }
         TypeRef::Function { params, result } => {
             for param in params {
-                canonicalize_type_ref(param, span, warnings)?;
+                canonicalize_type_ref(param, span, warnings, context)?;
             }
-            canonicalize_type_ref(result, span, warnings)?;
+            canonicalize_type_ref(result, span, warnings, context)?;
         }
         TypeRef::Infer => {}
     }
     Ok(())
+}
+
+/// Common declaration-side alias resolution, not a TypeIdentity issuer.
+/// Registration's static owner uses the same lexical shadow rule; it must
+/// still resolve the resulting name to its actual declaration/builtin owner.
+pub fn resolve_declared_type_spelling(name:&str,su_alias:bool,declared_types:&HashSet<String>,applied:bool)->String {
+    if !applied&&su_alias&&name=="수"&&!declared_types.contains(name) {return "셈수".into();}
+    canonical_type_alias(name).unwrap_or(name).to_owned()
 }
 
 fn canonical_type_alias(name: &str) -> Option<&'static str> {
@@ -585,6 +678,7 @@ fn collect_known_seeds(program: &CanonProgram) -> HashSet<String> {
     let mut known = HashSet::new();
     for item in &program.items {
         let TopLevelItem::SeedDef(seed) = item;
+        if seed.seed_kind.is_schema() { continue; }
         known.extend(seed.callable_surface_names());
     }
     for sig in minimal_stdlib_sigs() {
@@ -593,15 +687,20 @@ fn collect_known_seeds(program: &CanonProgram) -> HashSet<String> {
     known
 }
 
-fn collect_seed_signatures(program: &CanonProgram) -> HashMap<String, Vec<ParamPin>> {
+fn collect_seed_signatures(program: &CanonProgram) -> CanonicalSeedContext {
     let mut signatures = HashMap::new();
+    let mut declared_types=HashSet::new();
     for item in &program.items {
         let TopLevelItem::SeedDef(seed) = item;
+        if seed.seed_kind.is_schema() {declared_types.insert(seed.canonical_name.clone());continue;}
         for surface in seed.callable_surface_names() {
             signatures.insert(surface, seed.params.clone());
         }
     }
-    signatures
+    for statement in &program.root_stmts {
+        if let Stmt::SumDefinition{name,..}=statement {declared_types.insert(name.clone());}
+    }
+    CanonicalSeedContext {signatures,declared_types,su_alias:program.source_epoch==SourceEpoch::V25,registered_sum_pins:program.origin.registered_sum_pin_order.clone()}
 }
 
 fn collect_stdlib_names() -> HashSet<String> {
@@ -634,6 +733,16 @@ fn lint_tailless_body(
 ) {
     for stmt in &body.stmts {
         match stmt {
+            Stmt::SumDefinition { .. } => {}
+            Stmt::SumMatch { subject, arms, default_body, .. } => {
+                lint_tailless_expr(subject, known_seeds, stdlib_names, warnings);
+                for arm in arms {
+                    lint_tailless_body(&arm.body, known_seeds, stdlib_names, warnings);
+                }
+                if let Some(body) = default_body {
+                    lint_tailless_body(body, known_seeds, stdlib_names, warnings);
+                }
+            }
             Stmt::DeclBlock { items, .. } => {
                 for item in items {
                     if let Some(value) = &item.value {
@@ -792,6 +901,16 @@ fn lint_tailless_expr(
     warnings: &mut Vec<LintWarning>,
 ) {
     match &expr.kind {
+        ExprKind::SumBranchValue { payload, .. } => {
+            for payload in payload {
+                lint_tailless_expr(&payload.value, known_seeds, stdlib_names, warnings);
+            }
+        }
+        ExprKind::ProductConstruction { fields, .. } => {
+            for field in fields {
+                lint_tailless_expr(&field.expr, known_seeds, stdlib_names, warnings);
+            }
+        }
         ExprKind::Tensor(value) => lint_tailless_expr(value.input(), known_seeds, stdlib_names, warnings),
         ExprKind::MultiAxisSelection(value) => {
             for child in value.children() { lint_tailless_expr(child, known_seeds, stdlib_names, warnings); }
@@ -811,7 +930,7 @@ fn lint_tailless_expr(
                 lint_tailless_expr(&arg.expr, known_seeds, stdlib_names, warnings);
             }
         }
-        ExprKind::CollectionConstructor { elements } => {
+        ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
             for element in elements {
                 lint_tailless_expr(element, known_seeds, stdlib_names, warnings);
             }
@@ -873,4 +992,46 @@ fn lint_tailless_expr(
 fn has_call_tail(name: &str) -> bool {
     let tails = ["기", "하기", "고", "하고", "면", "하면"];
     tails.iter().any(|tail| name.ends_with(tail))
+}
+
+#[cfg(test)]
+mod declared_su_alias_tests {
+    use super::*;
+
+    #[test]
+    fn declared_su_alias_is_scoped_to_type_children() {
+        let source="(값:수) 값전달:수:셈씨 := { 값전달 <- 값. }. 자료:(수)차림 := 차림[1,2]. 수 := \"그대로\".";
+        let mut program=crate::parse_v25(source,"declared-su.ddn").unwrap();
+        canonicalize(&mut program).unwrap();
+        let TopLevelItem::SeedDef(seed)=&program.items[0];
+        assert_eq!(seed.params[0].type_ref,TypeRef::Named("셈수".into()));
+        assert_eq!(seed.result_type,Some(TypeRef::Named("셈수".into())));
+        let output=crate::parse_v25_and_normalize(source,"declared-su.ddn",crate::NormalizationLevel::N1).unwrap();
+        assert!(output.contains("(셈수) 차림"),"{output}");
+        assert!(output.contains("수 :="),"value identifier must remain: {output}");
+        assert!(output.contains("\"그대로\""));
+    }
+
+    #[test]
+    fn declared_su_alias_preserves_actual_user_type_owner() {
+        let source="(내용:글) 수:묶음씨 := {}. (값:수) 그대로:수:셈씨 := { 그대로 <- 값. }.";
+        let mut program=crate::parse_v25(source,"user-su.ddn").unwrap();
+        canonicalize(&mut program).unwrap();
+        let seed=program.items.iter().find_map(|item|match item {TopLevelItem::SeedDef(seed) if seed.canonical_name=="그대로"=>Some(seed),_=>None}).unwrap();
+        assert_eq!(seed.params[0].type_ref,TypeRef::Named("수".into()));
+        assert_eq!(seed.result_type,Some(TypeRef::Named("수".into())));
+    }
+
+    #[test]
+    fn declared_su_alias_does_not_rewrite_legacy_or_constructor_names() {
+        let mut context=CanonicalSeedContext {signatures:HashMap::new(),declared_types:HashSet::new(),su_alias:false,registered_sum_pins:None};
+        let mut kind=TypeRef::Named("수".into());
+        let span=Span{start:0,end:0};
+        canonicalize_type_ref(&mut kind,span,&mut vec![],&context).unwrap();
+        assert_eq!(kind,TypeRef::Named("수".into()));
+        context.su_alias=true;
+        let mut applied=TypeRef::Applied{name:"수".into(),args:vec![TypeRef::Named("수".into())]};
+        canonicalize_type_ref(&mut applied,span,&mut vec![],&context).unwrap();
+        assert_eq!(applied,TypeRef::Applied{name:"수".into(),args:vec![TypeRef::Named("셈수".into())]});
+    }
 }

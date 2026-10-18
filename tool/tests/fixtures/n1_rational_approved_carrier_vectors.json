@@ -1,0 +1,263 @@
+{
+  "status": "SPECIFICATION_VECTORS_ONLY_NOT_PRODUCT_TEST",
+  "tag": "10",
+  "assignment": "PROPOSED_NOT_ASSIGNED",
+  "domain_hex": "44444e2d524154494f4e414c2d53415645442d563100",
+  "header_byte_length": 25,
+  "type_descriptor_hex": "000900000000000000eb8298eb8894ec8898",
+  "type_descriptor_sha256": "034e22ee9ad2867c1e65c43fc91d220e64eb5bf2df30c13bc51a3fde0e027b34",
+  "positive_count": 7,
+  "negative_count": 18,
+  "rows": [
+    {
+      "id": "P01",
+      "expect": "ACCEPT_SPEC_ONLY",
+      "detail": "1/3",
+      "source_type": "나눔수",
+      "byte_length": 44,
+      "sha256": "7022e00436f7ed8aa070fbcc7c8f1dfd32a02a96a02a6b152d1a371d2e3d7fa6",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d563100000101000000000000000101000000000000000103",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQEAAAAAAAAAAQEAAAAAAAAAAQM"
+    },
+    {
+      "id": "P02",
+      "expect": "ACCEPT_SPEC_ONLY",
+      "detail": "3/10",
+      "source_type": "나눔수",
+      "byte_length": 44,
+      "sha256": "6508985fbf24690cde75e8a8265267561c89045f9c222d08bb27872f85f2070f",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d56310000010100000000000000010300000000000000010a",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQEAAAAAAAAAAQMAAAAAAAAAAQo"
+    },
+    {
+      "id": "P03",
+      "expect": "ACCEPT_SPEC_ONLY",
+      "detail": "-2/3",
+      "source_type": "나눔수",
+      "byte_length": 44,
+      "sha256": "5b0e5b2e77d5ca4119e4638aee942ce00fa8a8153027cab88a4a0e9e80c0663e",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d563100000102000000000000000102000000000000000103",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQIAAAAAAAAAAQIAAAAAAAAAAQM"
+    },
+    {
+      "id": "P04",
+      "expect": "ACCEPT_SPEC_ONLY",
+      "detail": "0/1",
+      "source_type": "나눔수",
+      "byte_length": 43,
+      "sha256": "1740a5f6b078892195c7efe8e8750ad6d04e0723d889dcd7a3e675b69494059d",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d5631000001000000000000000000000000000000000101",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQAAAAAAAAAAAAAAAAAAAAABAQ"
+    },
+    {
+      "id": "P05",
+      "expect": "ACCEPT_SPEC_ONLY",
+      "detail": "2/1",
+      "source_type": "나눔수",
+      "byte_length": 44,
+      "sha256": "bf6d2d6e75a1fb5f74437c4613c5adf465cd2db95c6b24d8963f3726a1e1078a",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d563100000101000000000000000102000000000000000101",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQEAAAAAAAAAAQIAAAAAAAAAAQE"
+    },
+    {
+      "id": "P06",
+      "expect": "ACCEPT_SPEC_ONLY",
+      "detail": "340282366920938463463374607431768211456/3",
+      "source_type": "나눔수",
+      "byte_length": 60,
+      "sha256": "af1cbef2ddcb18e2268ab8bc609a1e546e46ea61aee00361083f7d8f18e42bde",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d56310000010100000000000000110100000000000000000000000000000000000000000000000103",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQEAAAAAAAAAEQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAED"
+    },
+    {
+      "id": "P07",
+      "expect": "ACCEPT_SPEC_ONLY",
+      "detail": "existing Tuple (Barun 1, Rational 1/3, Bool true)",
+      "source_type": "Tuple(바른수,나눔수,참거짓)",
+      "byte_length": 128,
+      "sha256": "388cd25308662f3783e4b48e3f418f137f5bc9f58119566ab3cf0102ef1dda05",
+      "hex": "0f01030300000000000000000900000000000000ebb094eba5b8ec8898000900000000000000eb8298eb8894ec8898000900000000000000ecb0b8eab1b0eca79303000000000000000200000000010000001044444e2d524154494f4e414c2d53415645442d5631000001010000000000000001010000000000000001030101",
+      "base64url": "DwEDAwAAAAAAAAAACQAAAAAAAADrsJTrpbjsiJgACQAAAAAAAADrgpjriJTsiJgACQAAAAAAAADssLjqsbDsp5MDAAAAAAAAAAIAAAAAAQAAABBERE4tUkFUSU9OQUwtU0FWRUQtVjEAAAEBAAAAAAAAAAEBAAAAAAAAAAEDAQE"
+    },
+    {
+      "id": "N01",
+      "expect": "REJECT",
+      "detail": "denominator zero",
+      "source_type": "나눔수",
+      "byte_length": 44,
+      "sha256": "55a66a6c85e5922adc27e8603cd83d2718181b4407157327ad6e3c1c002c5bcd",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d563100000101000000000000000101000000000000000100",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQEAAAAAAAAAAQEAAAAAAAAAAQA"
+    },
+    {
+      "id": "N02",
+      "expect": "REJECT",
+      "detail": "not reduced",
+      "source_type": "나눔수",
+      "byte_length": 44,
+      "sha256": "560337e73655e126d3f8c670c194f09e75e3d31e147688d3ceb3ddd420e48166",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d563100000101000000000000000102000000000000000106",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQEAAAAAAAAAAQIAAAAAAAAAAQY"
+    },
+    {
+      "id": "N03",
+      "expect": "REJECT",
+      "detail": "leading numerator zero",
+      "source_type": "나눔수",
+      "byte_length": 45,
+      "sha256": "91e83e576da632116e93491c3b89d645ce6d3936e4bbc0834bd576e0dd88e79b",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d56310000010100000000000000020001000000000000000103",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQEAAAAAAAAAAgABAAAAAAAAAAED"
+    },
+    {
+      "id": "N04",
+      "expect": "REJECT",
+      "detail": "leading denominator zero",
+      "source_type": "나눔수",
+      "byte_length": 45,
+      "sha256": "8cbdc169a7ddd788d92cb1e370a6f10924d255c7e5e286ddc3210d5f242e357e",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d56310000010100000000000000010100000000000000020003",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQEAAAAAAAAAAQEAAAAAAAAAAgAD"
+    },
+    {
+      "id": "N05",
+      "expect": "REJECT",
+      "detail": "zero must have denominator one",
+      "source_type": "나눔수",
+      "byte_length": 43,
+      "sha256": "b3af21a6df2c3af58ae052863c82598ed33a8177e3acdf96df465c6acb5d3a00",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d5631000001000000000000000000000000000000000103",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQAAAAAAAAAAAAAAAAAAAAABAw"
+    },
+    {
+      "id": "N06",
+      "expect": "REJECT",
+      "detail": "negative zero",
+      "source_type": "나눔수",
+      "byte_length": 43,
+      "sha256": "71e30bddbd2dc1911ae8dba6a340053a87153c6b5a21a7ab593231a6d303b26b",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d5631000001020000000000000000000000000000000101",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQIAAAAAAAAAAAAAAAAAAAABAQ"
+    },
+    {
+      "id": "N07",
+      "expect": "REJECT",
+      "detail": "unknown numerator sign",
+      "source_type": "나눔수",
+      "byte_length": 44,
+      "sha256": "cdfd2b9feb20a47a749e5571c28249c788ffd1824e7da806d88112dc31a7b560",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d563100000103000000000000000101000000000000000103",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQMAAAAAAAAAAQEAAAAAAAAAAQM"
+    },
+    {
+      "id": "N08",
+      "expect": "REJECT",
+      "detail": "nonzero sign with empty magnitude",
+      "source_type": "나눔수",
+      "byte_length": 43,
+      "sha256": "c599afca74c3e4b605f5ff961bedce23391b51adb5bcb8190f9cd47608a517c4",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d5631000001010000000000000000000000000000000103",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQEAAAAAAAAAAAAAAAAAAAABAw"
+    },
+    {
+      "id": "N09",
+      "expect": "REJECT",
+      "detail": "zero sign with nonzero magnitude",
+      "source_type": "나눔수",
+      "byte_length": 44,
+      "sha256": "f271bfbda61d566a0b9e8d8b04c139864fdd0b68c740b69dd1103cb9c2a11144",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d563100000100000000000000000101000000000000000101",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQAAAAAAAAAAAQEAAAAAAAAAAQE"
+    },
+    {
+      "id": "N10",
+      "expect": "REJECT",
+      "detail": "empty denominator",
+      "source_type": "나눔수",
+      "byte_length": 43,
+      "sha256": "218c075ab3a38407e5ba15d2ce5005fa4a32bc5120047206355079a2b4552a0a",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d5631000001010000000000000001010000000000000000",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQEAAAAAAAAAAQEAAAAAAAAAAA"
+    },
+    {
+      "id": "N11",
+      "expect": "REJECT",
+      "detail": "trailing scalar byte",
+      "source_type": "나눔수",
+      "byte_length": 45,
+      "sha256": "589286cfea81fce46fa03cb9cd507ee36d036a4c41f72d876f3622b6af3cc865",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d56310000010100000000000000010100000000000000010300",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQEAAAAAAAAAAQEAAAAAAAAAAQMA"
+    },
+    {
+      "id": "N12",
+      "expect": "REJECT",
+      "detail": "truncated denominator",
+      "source_type": "나눔수",
+      "byte_length": 43,
+      "sha256": "2883dda0ae481526580cc2b013e2f2005e3c74bd62414f61b7b71050f134f3a4",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d5631000001010000000000000001010000000000000001",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQEAAAAAAAAAAQEAAAAAAAAAAQ"
+    },
+    {
+      "id": "N13",
+      "expect": "REJECT",
+      "detail": "unknown version",
+      "source_type": "나눔수",
+      "byte_length": 44,
+      "sha256": "e0b5940fbbdf5fc7aeb5f48585ade8ffbc677251470ff53fe0600660561ef76d",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d563100000201000000000000000101000000000000000103",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAgEAAAAAAAAAAQEAAAAAAAAAAQM"
+    },
+    {
+      "id": "N14",
+      "expect": "REJECT",
+      "detail": "domain mismatch",
+      "source_type": "나눔수",
+      "byte_length": 44,
+      "sha256": "27d1e004be6b6631d09b8b27a5b8a1256188b707b08170c5f59cc82c8efe90d2",
+      "hex": "1045444e2d524154494f4e414c2d53415645442d563100000101000000000000000101000000000000000103",
+      "base64url": "EEVETi1SQVRJT05BTC1TQVZFRC1WMQAAAQEAAAAAAAAAAQEAAAAAAAAAAQM"
+    },
+    {
+      "id": "N15",
+      "expect": "REJECT",
+      "detail": "unknown saved ResourceValue tag",
+      "source_type": "나눔수",
+      "byte_length": 44,
+      "sha256": "dd4f42924bb676396681331f8d6d160e657ab1cba1bc6d6226936352717e2f50",
+      "hex": "ff44444e2d524154494f4e414c2d53415645442d563100000101000000000000000101000000000000000103",
+      "base64url": "_0RETi1SQVRJT05BTC1TQVZFRC1WMQAAAQEAAAAAAAAAAQEAAAAAAAAAAQM"
+    },
+    {
+      "id": "N16",
+      "expect": "REJECT_BEFORE_ALLOCATION",
+      "detail": "length exceeds remaining message and 2000000 envelope budget",
+      "source_type": "나눔수",
+      "byte_length": 34,
+      "sha256": "f71c776e3795884cf16d438c9a696515853dc12b099c2432c8b9e1c0c084e714",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d563100000101ffffffffffffffff",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQH__________w"
+    },
+    {
+      "id": "N17",
+      "expect": "REJECT_TYPE_MISMATCH",
+      "detail": "Rational carrier cannot satisfy Approximate source",
+      "source_type": "셈수",
+      "byte_length": 44,
+      "sha256": "7022e00436f7ed8aa070fbcc7c8f1dfd32a02a96a02a6b152d1a371d2e3d7fa6",
+      "hex": "1044444e2d524154494f4e414c2d53415645442d563100000101000000000000000101000000000000000103",
+      "base64url": "EERETi1SQVRJT05BTC1TQVZFRC1WMQAAAQEAAAAAAAAAAQEAAAAAAAAAAQM"
+    },
+    {
+      "id": "N18",
+      "expect": "REJECT_TYPE_MISMATCH",
+      "detail": "Map is not Rational, no Map to Pack retyping",
+      "source_type": "나눔수",
+      "byte_length": 9,
+      "sha256": "92c0a3cd8b571ac5634aa066fcc63d7b62155c36126a29231d97692ff2944875",
+      "hex": "080000000000000000",
+      "base64url": "CAAAAAAAAAAA"
+    }
+  ]
+}

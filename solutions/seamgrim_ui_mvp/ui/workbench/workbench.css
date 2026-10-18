@@ -905,6 +905,7 @@ p {
 }
 
 .workbench-layout[data-mode="bogae-full"] .source-panel {
+  display: none;
   position: absolute;
   left: -10000px;
   width: 1px;
@@ -1104,6 +1105,27 @@ p {
 .bogae-stage[data-authored-layout="true"] > .side-view-panel { display: none; }
 .authored-side-dock { display: grid; gap: 10px; min-width: 0; align-content: start; }
 .authored-side-dock[hidden] { display: none; }
+[data-authored-side-edge] { display:none; }
+.workbench-layout[data-mode="bogae-full"] .bogae-stage[data-authored-layout="true"] {
+  position:relative; grid-template-columns:minmax(0,1fr); grid-template-areas:"primary";
+  grid-template-rows:auto;
+}
+.workbench-layout[data-mode="bogae-full"] [data-authored-side-edge]:not([hidden]) {
+  display:block; position:absolute; z-index:7; max-width:240px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:5px 8px;
+}
+.workbench-layout[data-mode="bogae-full"] [data-authored-side-edge="left"] { left:0;top:40%; }
+.workbench-layout[data-mode="bogae-full"] [data-authored-side-edge="right"] { right:0;top:40%; }
+.workbench-layout[data-mode="bogae-full"] [data-authored-side-edge="top"] { top:0;left:35%; }
+.workbench-layout[data-mode="bogae-full"] [data-authored-side-edge="bottom"] { bottom:0;left:35%; }
+.workbench-layout[data-mode="bogae-full"] .authored-side-dock {
+  position:absolute; z-index:6; width:min(330px,45%); max-height:calc(100% - 40px);
+  overflow:auto; background:var(--panel,#f8fbf7); box-shadow:0 3px 12px #0002;
+}
+.workbench-layout[data-mode="bogae-full"] .authored-side-dock[data-authored-dock="left"] { left:0;top:0; }
+.workbench-layout[data-mode="bogae-full"] .authored-side-dock[data-authored-dock="right"] { right:0;top:0; }
+.workbench-layout[data-mode="bogae-full"] .authored-side-dock[data-authored-dock="top"] { top:0;left:15%;width:70%;max-height:40%; }
+.workbench-layout[data-mode="bogae-full"] .authored-side-dock[data-authored-dock="bottom"] { bottom:0;left:15%;width:70%;max-height:40%; }
 .authored-side-dock > .side-view-instance[hidden] { display: none; }
 .authored-side-dock[data-authored-dock="left"] { grid-area: left; }
 .authored-side-dock[data-authored-dock="right"] { grid-area: right; }
@@ -1565,3 +1587,55 @@ p {
 .first-steps-panel a { margin-right: 12px; color: #245b3b; }
 .first-steps-panel details { margin-top: 8px; }
 .first-steps-panel pre { white-space: pre-wrap; }
+.logical-manipulation-controls > [data-field="value-controls"]:not([hidden]) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+}
+.logical-manipulation-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logical-manipulation-controls input[type="range"] { width: 150px; }
+.logical-manipulation-controls canvas { width: 150px; height: 88px; }
+.logical-record-drawer { position:fixed; top:100px; bottom:auto; width:min(700px,calc(100vw - 32px)); max-height:calc(100dvh - 130px); overflow:auto; z-index:20; }
+.logical-record-drawer #logical-input-panel { margin:0 !important; border:0 !important; padding:6px !important; }
+.workbench-layout[data-mode] .bogae-panel { grid-template-rows:auto; grid-auto-rows:max-content; }
+.workbench-layout[data-mode] .bogae-stage > .canvas-wrap { aspect-ratio:var(--primary-aspect,1.3333333333333333); height:auto; min-height:0 !important; min-width:0; width:100%; align-self:start; }
+.workbench-layout #canvas-bogae { min-height:0; }
+.app-frame { height:100dvh; min-height:0; overflow:hidden; }
+.main-shell { min-height:0; overflow:hidden; }
+.workbench { display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+.workbench-layout { flex:1; min-height:0; overflow:hidden; }
+.workbench-layout .source-panel { min-height:0; overflow:hidden; }
+.workbench-layout .source-panel textarea { min-height:0; height:100%; resize:none; }
+.workbench-layout[data-mode] .bogae-panel { min-height:0; overflow:auto; }
+.workbench-layout[data-mode] .bogae-stage > .canvas-wrap { max-width:calc((100dvh - 360px) * var(--primary-aspect,1.3333333333333333)); justify-self:center; }
+.app-frame[data-experiment-mode="true"] .project-rail { display:none; }
+.app-frame[data-experiment-mode="true"] .main-shell { grid-template-columns:minmax(0,1fr); }
+.app-frame[data-experiment-mode="true"] .file-tabs,
+.app-frame[data-experiment-mode="true"] [data-testid="example-guide"],
+.app-frame[data-experiment-mode="true"] .project-title-block .eyebrow { display:none; }
+.app-frame[data-experiment-mode="true"] .workbench-toolbar { flex-direction:row; align-items:center; gap:8px; }
+.app-frame[data-experiment-mode="true"] .project-title-block { flex:1; min-width:0; }
+.app-frame[data-experiment-mode="true"] .project-title-block h1 { font-size:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* File and save tools stay in the existing menu; the experiment keeps its
+   title, playback controls and the always-reachable way back to editing. */
+.app-frame[data-experiment-mode="true"] .project-actions > :not(.project-more-menu):not(.first-steps-guide) { display:none; }
+.app-frame[data-experiment-mode="true"] .mode-switch { flex-wrap:nowrap; }
+.workbench-layout[data-mode="bogae-full"] .bogae-stage > .canvas-wrap { max-width:calc((100dvh - 240px) * var(--primary-aspect,1.3333333333333333)); }
+[data-testid="project-files-dialog"] { width:min(900px,calc(100vw - 32px)); max-height:85dvh; overflow:auto; }
+[data-testid="project-files-dialog"] .file-drawer { display:grid; position:static; width:auto; min-height:0; }
+@media (max-width:700px) {
+  .topbar { flex-wrap:wrap; }
+  .workbench-toolbar { max-height:150px; overflow:auto; }
+  .workbench-layout { overflow:auto; }
+  .app-frame[data-experiment-mode="true"] .workbench-toolbar { flex-wrap:wrap; }
+  .app-frame[data-experiment-mode="true"] .project-title-block { flex-basis:100%; }
+  .app-frame[data-experiment-mode="true"] .mode-switch { flex:1; }
+}
+[data-authored-camera-controls] { position:relative; z-index:6; }
+.authored-camera-actions { position:absolute; top:100%; right:0; width:220px; padding:8px; display:flex; flex-wrap:wrap; gap:4px; background:var(--panel); border:1px solid var(--line); border-radius:6px; box-shadow:0 3px 10px #0002; }

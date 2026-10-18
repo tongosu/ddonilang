@@ -93,6 +93,17 @@ pub fn folding_ranges_snapshot(
 fn collect_nested_candidates(body: &Body, candidates: &mut Vec<Candidate>) {
     for statement in &body.stmts {
         match statement {
+            Stmt::SumDefinition { .. } => {}
+            Stmt::SumMatch { arms, default_body, .. } => {
+                let mut bodies = arms.iter().map(|arm| &arm.body).collect::<Vec<_>>();
+                if let Some(body) = default_body {
+                    bodies.push(body);
+                }
+                push_compound(statement, &bodies, candidates);
+                for body in bodies {
+                    collect_nested_candidates(body, candidates);
+                }
+            }
             Stmt::Receive { body, .. }
             | Stmt::Repeat { body, .. }
             | Stmt::BeatBlock { body, .. }
@@ -191,6 +202,8 @@ fn push_compound(statement: &Stmt, bodies: &[&Body], candidates: &mut Vec<Candid
 fn statement_span(statement: &Stmt) -> ddonirang_lang::Span {
     match statement {
         Stmt::DeclBlock { span, .. }
+        | Stmt::SumDefinition {span,..}
+        | Stmt::SumMatch {span,..}
         | Stmt::Definition { span, .. }
         | Stmt::Mutate { span, .. }
         | Stmt::ResultFlow { span, .. }

@@ -95,7 +95,7 @@ pub(super) fn from_carrier(carrier: &[u8]) -> Result<AdmittedTensor, TensorFrame
     admit_tensor_value(&saved, saved.len(), &Sha256::digest(carrier).into(), &Sha256::digest(&saved).into())
 }
 
-fn decode_base64url(text: &str) -> Result<Vec<u8>, TensorFrameError> {
+pub(super) fn decode_base64url(text: &str) -> Result<Vec<u8>, TensorFrameError> {
     if text.len() > BASE64_MAX || text.len() % 4 == 1 { return Err(TensorFrameError::Length); }
     let mut out = Vec::new();
     out.try_reserve_exact(text.len() * 3 / 4).map_err(|_| TensorFrameError::Capacity)?;

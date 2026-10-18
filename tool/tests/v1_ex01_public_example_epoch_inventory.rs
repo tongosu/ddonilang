@@ -5,7 +5,7 @@ use ddonirang_tool::ddn_runtime::DdnProgram;
 
 const CANDIDATES: &[(&str, &str, bool, bool, &str, &str)] = &[
     // WO03 D7 removes the blanket ':='-presence rejection. Explicit V25 now
-    // reaches its parser: SPEC01/03/04/05 and VIEW cases retain rejection, but
+    // reaches its parser: SPEC01/03/04 and VIEW cases retain rejection, but
     // expose the actual syntax error instead of a guessed migration category.
     // SPEC06 now has correct top-level source references after the root visitor
     // fix. RD-106 historical observation/result-table intent does not require
@@ -28,8 +28,11 @@ const CANDIDATES: &[(&str, &str, bool, bool, &str, &str)] = &[
         "publish/spec/v0.5.0/examples/02_generic_static_header.ddn",
         false,
         false,
-        "UNCLASSIFIED",
-        "UNCLASSIFIED",
+        // Historical generic-header syntax is still unsupported. RD-090's
+        // mixed-pack guard now identifies the first rejected parenthesis
+        // shape explicitly; neither epoch is newly accepted. Keep the source.
+        "E_PACK_MIXED_SHAPE",
+        "E_PACK_MIXED_SHAPE",
     ),
     (
         "SPEC03",
@@ -50,10 +53,12 @@ const CANDIDATES: &[(&str, &str, bool, bool, &str, &str)] = &[
     (
         "SPEC05",
         "publish/spec/v0.5.0/examples/05_pack_kinds.ddn",
-        false,
-        false,
-        "UNCLASSIFIED",
-        "UNCLASSIFIED",
+        // RD-090: positional Tuple now remains its own parser category.
+        // Parser acceptance is not storage support or public example promotion.
+        true,
+        true,
+        "NONE",
+        "NONE",
     ),
     (
         "SPEC06",
@@ -108,16 +113,16 @@ const CANDIDATES: &[(&str, &str, bool, bool, &str, &str)] = &[
         "pack/bogae_backend_parity_console_web_v1/fixtures/input.ddn",
         false,
         false,
-        "UNCLASSIFIED",
-        "UNCLASSIFIED",
+        "E_PACK_MIXED_SHAPE",
+        "E_PACK_MIXED_SHAPE",
     ),
     (
         "GRID2D_VIEW",
         "pack/bogae_grid2d_smoke_v1/fixtures/input.ddn",
         false,
         false,
-        "UNCLASSIFIED",
-        "UNCLASSIFIED",
+        "E_PACK_MIXED_SHAPE",
+        "E_PACK_MIXED_SHAPE",
     ),
     (
         "RICH_TEXT",

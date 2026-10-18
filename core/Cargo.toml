@@ -5,6 +5,7 @@ license = "Apache-2.0"
 edition = "2021"
 
 [dependencies]
+ddonirang-numeric = { path = "../numeric" }
 blake3 = "1.5"
 sha2 = "0.10"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }

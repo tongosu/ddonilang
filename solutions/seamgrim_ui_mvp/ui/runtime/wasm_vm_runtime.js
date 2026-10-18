@@ -562,6 +562,15 @@ export class WasmVmHandle {
     }
   }
 
+  hasNativeSource() {
+    return this.client?.vm?.is_native_source_bound?.() === true;
+  }
+
+  async saveNativeCheckpoint(authoredText) {
+    if (!this.hasNativeSource()) return null;
+    return JSON.parse(this.client.vm.save_native_source_checkpoint(authoredText));
+  }
+
   async exportSavedProjectArtifact(parentHex, revisionHex) {
     const client = this.client ?? await this.ensureClient(this.defaultSourceText);
     return client.exportSavedProjectArtifact(parentHex, revisionHex);
@@ -652,6 +661,10 @@ export async function createWasmVm({
   }
   const sourceBoundProject = Boolean(projectRuntimeArtifactText || savedProjectArtifactText);
   const vmFactory = !sourceBoundProject ? null : (module) => {
+    if(projectRuntimeArtifactText&&module.authored_project_operation?.('source_probe',JSON.stringify({artifact_json_utf8:projectRuntimeArtifactText}))==='true'){
+      if(typeof module.DdnWasmVm?.from_native_project_json!=='function')throw new Error('E_NATIVE_SOURCE_RUNTIME_MISSING');
+      return module.DdnWasmVm.from_native_project_json(projectRuntimeArtifactText);
+    }
     const name = savedProjectArtifactText ? "from_saved_project_artifact_json" : "from_authored_project_json";
     if (typeof module.DdnWasmVm?.[name] !== "function") {
       throw new Error("E_PROJECT_RUNTIME_RESTORE_API_MISSING: 이 WASM에는 명시 작품 실행 저장 기능이 없습니다.");

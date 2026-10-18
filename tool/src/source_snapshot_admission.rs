@@ -46,6 +46,7 @@ impl SourceCapture {
         std::str::from_utf8(&self.bytes).expect("sealed source is UTF-8")
     }
     pub(crate) fn identity(&self) -> &[u8;32] { &self.identity }
+    pub(crate) fn content_digest(&self) -> &[u8;32] { &self.content }
     pub(crate) fn ordinal(&self) -> u64 { self.ordinal }
     pub(crate) fn recorded_json(&self) -> Result<String,String> {
         serde_json::to_string(&RecordedSourceCaptureV1 {
@@ -88,7 +89,7 @@ pub(crate) fn restore_recorded_v25_capture(
         return Err("E_SOURCE_CAPTURE_RECORD_LIMIT: 저장 원문 봉인 한도를 넘었습니다".into());
     }
     let strict=crate::unit_wire::parse_snapshot_json(record_json)?;
-    let record:RecordedSourceCaptureV1=serde_json::from_value(strict)
+    let record=<RecordedSourceCaptureV1 as serde::Deserialize>::deserialize(&*strict)
         .map_err(|_|"E_SOURCE_CAPTURE_RECORD_FIELDS: 저장 원문 봉인 필드가 다릅니다")?;
     if record.schema!="ddn.recorded_source_capture.v1"
         || serde_json::to_string(&record).map_err(|_|"E_SOURCE_CAPTURE_RECORD_ENCODING")?!=record_json {

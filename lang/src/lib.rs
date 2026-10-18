@@ -9,6 +9,7 @@
 
 pub mod age_gate;
 pub mod ast;
+pub mod bytes;
 pub mod canonicalizer;
 pub mod currentline;
 pub mod ddl;
@@ -27,8 +28,10 @@ pub mod parser;
 pub mod runtime;
 pub mod source_coordinate;
 pub mod stdlib;
+pub mod sum_owner;
 pub mod surface;
 pub mod term_map;
+mod vc04_semantics;
 
 pub use age_gate::{age_not_available_error, AgeTarget};
 pub use ast::*;
@@ -125,19 +128,28 @@ pub fn parse_frontdoor_with_mode(
     parse_with_mode(&prepared, file_path, mode)
 }
 
+fn lex_error_to_parse_error(source: &str, error: LexError) -> ParseError {
+    // Lexer 위치는 원문 UTF-8 byte offset이다. 다중 byte 문자를 자르지
+    // 않고, EOF는 원문 끝의 빈 구간으로 보존한다.
+    let width = source[error.pos..].chars().next().map_or(0, char::len_utf8);
+    ParseError {
+        span: crate::ast::Span {
+            start: error.pos,
+            end: error.pos + width,
+        },
+        message: error.message,
+    }
+}
+
 /// 편리 함수: 소스 → AST (모드 지정)
 pub fn parse_with_mode(
     source: &str,
     file_path: &str,
     mode: ParseMode,
 ) -> Result<CanonProgram, ParseError> {
-    let tokens = Lexer::new(source).tokenize().map_err(|e| ParseError {
-        span: crate::ast::Span {
-            start: e.pos,
-            end: e.pos + 1,
-        },
-        message: e.message,
-    })?;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .map_err(|error| lex_error_to_parse_error(source, error))?;
 
     validate_rd203_forbidden_field_surfaces(&tokens)?;
 
@@ -155,13 +167,9 @@ pub fn parse_v25_with_mode(
     file_path: &str,
     mode: ParseMode,
 ) -> Result<CanonProgram, ParseError> {
-    let tokens = Lexer::new(source).tokenize().map_err(|e| ParseError {
-        span: crate::ast::Span {
-            start: e.pos,
-            end: e.pos + 1,
-        },
-        message: e.message,
-    })?;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .map_err(|error| lex_error_to_parse_error(source, error))?;
     let mut parser = Parser::new_v25_with_mode(tokens, mode);
     parser.parse_program(source.to_string(), file_path.to_string())
 }
@@ -293,6 +301,29 @@ mod integration_tests {
             panic!("fixed literal expected");
         };
         assert_eq!(value.raw_i64(), 13_486_197_309);
+    }
+
+    #[test]
+    fn b01_numeric_literal_source_preserves_token_not_rounded_value() {
+        for (raw, decimal) in [("1", false), ("1.0", true), ("0.10000000001", true)] {
+            let source = format!("검사:셈씨 = {{ {raw} 돌려줘. }}");
+            let program = parse(&source, "literal-source.ddn").expect("numeric source");
+            let TopLevelItem::SeedDef(seed) = &program.items[0];
+            let Stmt::Return { value, .. } = &seed.body.as_ref().unwrap().stmts[0] else {
+                panic!("return expected");
+            };
+            let evidence = value.numeric_literal_source.as_ref().expect("token evidence");
+            assert_eq!(evidence.raw(), raw);
+            assert_eq!(evidence.is_decimal(), decimal);
+            assert_eq!(evidence.default_type(), TypeRef::Named(
+                if decimal { "셈수" } else { "바른수" }.into()));
+            assert_eq!(value.clone().numeric_literal_source, value.numeric_literal_source);
+        }
+        let synthetic = Expr::new(
+            0, Span::new(0, 0),
+            ExprKind::Literal(Literal::Fixed64(ddonirang_core::Fixed64::from_i64(1))),
+        );
+        assert!(synthetic.numeric_literal_source.is_none(), "a value cannot issue source evidence");
     }
 
     #[test]
@@ -1379,14 +1410,16 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_index_sugar_normalizes_to_charim_value() {
+    fn test_postfix_selection_retains_target_owned_category() {
         let source = r#"
 테스트:셈씨 = {
     값 <- 보드[2].
 }
 "#;
         let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
-        assert!(normalized.contains("값 <- 보드:대상 2:i 차림.값."));
+        // RD-351/357: bracket selection is not an explicit list call.
+        assert!(normalized.contains("값 <- 보드[2]."));
+        assert!(!normalized.contains("차림.값"));
     }
 
     #[test]

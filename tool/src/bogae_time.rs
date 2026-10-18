@@ -2,9 +2,21 @@
 //! never a world resource, physical clock, or a replacement input tape.
 use std::collections::BTreeMap;
 use serde_json::{json,Value as Json};
+use crate::unit_wire::SnapshotJsonOwner as OwnedJson;
 
 #[derive(Debug,Clone,Default)]
-pub struct SceneHistory { frames:BTreeMap<u64,Json>, encoded_bytes:usize }
+pub struct SceneHistory { frames:BTreeMap<u64,OwnedJson>, encoded_bytes:usize }
+
+fn compact_json(value:&Json)->String {
+    let mut bytes=Vec::new();
+    crate::unit_wire::write_compact_json(&mut bytes,value).expect("Vec JSON writer");
+    String::from_utf8(bytes).expect("JSON UTF-8")
+}
+
+fn replace_json(target:&mut Json,value:&Json) {
+    let replacement=OwnedJson::clone_from_value(value).into_parent_value();
+    drop(OwnedJson::from_value(std::mem::replace(target,replacement)));
+}
 
 fn requested_madi(policy:&Json,cursor:u64)->Result<u64,String> {
     let number=match policy["kind"].as_str() {
@@ -26,7 +38,7 @@ fn candidate_at<'a>(projection:&'a Json,identity:&Json)->Result<&'a Json,String>
 /// Uses the same validated public-observation projector on Native and WASM.
 pub fn resolve_result_tables(projection:&mut Json,frames:&[Json],source_identity:&str,revision_identity:&str)->Result<(),String> {
     if projection["schema"]!="ddn.bogae_projection.v2" {return Ok(());}
-    let mut cache:BTreeMap<u64,Json>=BTreeMap::new();
+    let mut cache:BTreeMap<u64,OwnedJson>=BTreeMap::new();
     let Some(candidates)=projection["candidates"].as_array_mut() else {return Ok(());};
     for candidate in candidates {
         let artifact=&mut candidate["artifact"];
@@ -39,25 +51,36 @@ pub fn resolve_result_tables(projection:&mut Json,frames:&[Json],source_identity
                         return Err("E_BOGAE_TIME_OUT_OF_RANGE: 지정 마디의 관찰 기록이 없습니다".into());
                     }
                     let run_id=format!("scene:{}",crate::runtime_surface::sha256_hex(format!("{source_identity}\0{revision_identity}\0{madi}").as_bytes()));
-                    let prefix:Vec<Json>=frames.iter().filter(|frame|frame["committed_madi"].as_u64().is_some_and(|tick|tick<=madi)).map(|frame| {
-                        let mut frame=frame.clone();
-                        frame["run_id"]=json!(run_id);frame["source_identity"]=json!(source_identity);frame["revision_identity"]=json!(revision_identity);frame
-                    }).collect();
-                    let bundle=crate::deterministic_debug::build_public_observation_trace(&json!({"project_id":"","run_id":run_id,
-                        "source_identity":source_identity,"revision_identity":revision_identity,"run_status":"completed","frames":prefix}))?;
-                    cache.insert(madi,crate::deterministic_debug::build_public_observation_table_projection(&bundle["trace"],&run_id)?);
+                    let mut request=OwnedJson::from_value(json!({"project_id":"","run_id":run_id,
+                        "source_identity":source_identity,"revision_identity":revision_identity,"run_status":"completed","frames":[]}));
+                    for frame in frames.iter().filter(|frame|frame["committed_madi"].as_u64().is_some_and(|tick|tick<=madi)) {
+                        let mut frame=OwnedJson::clone_from_value(frame);
+                        frame.value_mut()["run_id"]=json!(run_id);frame.value_mut()["source_identity"]=json!(source_identity);
+                        frame.value_mut()["revision_identity"]=json!(revision_identity);
+                        request.value_mut()["frames"].as_array_mut().unwrap().push(frame.into_parent_value());
+                    }
+                    let bundle=OwnedJson::from_value(crate::deterministic_debug::build_public_observation_trace(&request)?);
+                    cache.insert(madi,OwnedJson::from_value(crate::deterministic_debug::build_public_observation_table_projection(&bundle["trace"],&run_id)?));
                 }
-                owner["view"]["table_projection"]=cache[&madi].clone();
+                replace_json(&mut owner["view"]["table_projection"],&cache[&madi]);
             }
             if let Some(relations)=owner.get_mut("relations").and_then(Json::as_array_mut) {owners.extend(relations.iter_mut());}
         }
         candidate["resolved_digest"]=json!(crate::runtime_surface::sha256_hex(
-            format!("ddn.bogae_resolved_scene.v1\0{}",candidate["artifact"]).as_bytes()));
+            format!("ddn.bogae_resolved_scene.v1\0{}",compact_json(&candidate["artifact"])).as_bytes()));
     }
     Ok(())
 }
 
 impl SceneHistory {
+    /// Compare retained execution history without recursively cloning a JSON
+    /// snapshot. Matching the latest projection alone can lose past views.
+    pub(crate) fn same_execution_history(&self,other:&Self)->bool {
+        self.encoded_bytes==other.encoded_bytes && self.frames.len()==other.frames.len()
+            && self.frames.iter().zip(&other.frames).all(|((tick,left),(other_tick,right))|
+                tick==other_tick && left.equals_json(right))
+    }
+
     /// Preview is immutable: any out-of-range relation rejects the whole madi.
     pub fn preview(&self,cursor:u64,current:&Json)->Result<Json,String> {
         let needs_history=current["candidates"].as_array().into_iter().flatten().any(|candidate| {
@@ -65,21 +88,22 @@ impl SceneHistory {
             artifact["time_policy"]["kind"]!="common" || artifact["relations"].as_array().into_iter().flatten()
                 .any(|relation|relation["time_policy"]["kind"]!="common")
         });
-        if !needs_history {return Ok(current.clone());}
-        let mut result=current.clone();
-        let Some(candidates)=result["candidates"].as_array_mut() else {
+        if !needs_history {return Ok(OwnedJson::clone_from_value(current).into_parent_value());}
+        let mut result=OwnedJson::clone_from_value(current);
+        let Some(candidates)=result.value_mut()["candidates"].as_array_mut() else {
             return Err("E_BOGAE_TIME_POLICY_INVALID: 장면 후보 목록이 없습니다".into());
         };
         for candidate in candidates {
-            candidate["authored_artifact"]=candidate["artifact"].clone();
+            let authored=OwnedJson::clone_from_value(&candidate["artifact"]);
+            replace_json(&mut candidate["authored_artifact"],&authored);
             candidate["artifact"]["lock"]["time"]=json!("scene_madi.v1");
-            let identity=candidate["artifact"]["identity"].clone();
+            let identity=OwnedJson::clone_from_value(&candidate["artifact"]["identity"]);
             let primary_madi=requested_madi(&candidate["artifact"]["time_policy"],cursor)?;
             let primary_frame=if primary_madi==cursor {current}else{
                 self.frames.get(&primary_madi).ok_or("E_BOGAE_TIME_OUT_OF_RANGE: 지정한 장면 마디가 없습니다")?
             };
             let old=candidate_at(primary_frame,&identity)?;
-            candidate["artifact"]["view"]=old["artifact"]["view"].clone();
+            replace_json(&mut candidate["artifact"]["view"],&old["artifact"]["view"]);
             candidate["artifact"]["resolved_madi"]=json!(primary_madi);
             if let Some(relations)=candidate["artifact"]["relations"].as_array_mut() {
                 for relation in relations {
@@ -93,26 +117,27 @@ impl SceneHistory {
                     // Keep current authored policy/identity. Only typed scene
                     // content comes from the explicitly selected scene-madi.
                     for field in ["view","target","target_digest","selection"] {
-                        if let Some(value)=prior.get(field) {relation[field]=value.clone();}
+                        if let Some(value)=prior.get(field) {replace_json(&mut relation[field],value);}
                     }
                     relation["resolved_madi"]=json!(madi);
                 }
             }
             candidate["resolved_digest"]=json!(crate::runtime_surface::sha256_hex(
-                format!("ddn.bogae_resolved_scene.v1\0{}",candidate["artifact"]).as_bytes()));
+                format!("ddn.bogae_resolved_scene.v1\0{}",compact_json(&candidate["artifact"])).as_bytes()));
         }
-        result["scene_cursor"]=json!(cursor);
-        result["schema"]=json!("ddn.bogae_projection.v2");
-        Ok(result)
+        result.value_mut()["scene_cursor"]=json!(cursor);
+        result.value_mut()["schema"]=json!("ddn.bogae_projection.v2");
+        Ok(result.into_parent_value())
     }
 
     /// Caller records only after activation and all madi validation succeed.
     pub fn storage_bytes_after(&self,madi:u64,authored:&Json)->Result<usize,String> {
-        let old=self.frames.get(&madi).map(|frame|frame.to_string().len()).unwrap_or(0);
-        self.encoded_bytes.checked_sub(old).and_then(|bytes|bytes.checked_add(authored.to_string().len()))
+        let old=self.frames.get(&madi).map(|frame|compact_json(frame).len()).unwrap_or(0);
+        self.encoded_bytes.checked_sub(old).and_then(|bytes|bytes.checked_add(compact_json(authored).len()))
             .ok_or_else(||"E_BOGAE_HISTORY_SIZE_OVERFLOW: 장면 이력 크기가 표현 범위를 넘었습니다".into())
     }
     pub fn commit(&mut self,madi:u64,authored:Json) {
+        let authored=OwnedJson::from_value(authored);
         self.encoded_bytes=self.storage_bytes_after(madi,&authored).expect("caller preflights result artifact bytes");
         self.frames.insert(madi,authored);
     }
@@ -125,9 +150,16 @@ impl SceneHistory {
     }
 
     pub fn snapshot(&self)->Json {
-        let frames:Vec<Json>=self.frames.iter().map(|(madi,projection)|json!({"madi":madi,"projection":projection})).collect();
-        let digest=crate::runtime_surface::sha256_hex(format!("ddn.bogae_scene_history.v1\0{}",json!(frames)).as_bytes());
-        json!({"schema":"ddn.bogae_scene_history.v1","frames":frames,"sha256":digest})
+        let mut frames=OwnedJson::from_value(json!([]));
+        for (madi,projection) in &self.frames {
+            let mut row=json!({"madi":madi});
+            row["projection"]=projection.clone().into_parent_value();
+            frames.value_mut().as_array_mut().unwrap().push(row);
+        }
+        let digest=crate::runtime_surface::sha256_hex(format!("ddn.bogae_scene_history.v1\0{}",compact_json(&frames)).as_bytes());
+        let mut result=json!({"schema":"ddn.bogae_scene_history.v1","sha256":digest});
+        result["frames"]=frames.into_parent_value();
+        result
     }
 
     /// Validate separately before the caller replaces live state.
@@ -136,7 +168,7 @@ impl SceneHistory {
         let invalid=||"E_BOGAE_HISTORY_SNAPSHOT_INVALID: 장면 이력 저장값이 올바르지 않습니다".to_string();
         if snapshot["schema"]!="ddn.bogae_scene_history.v1" {return Err(invalid());}
         let rows=snapshot["frames"].as_array().ok_or_else(invalid)?;
-        let expected=crate::runtime_surface::sha256_hex(format!("ddn.bogae_scene_history.v1\0{}",json!(rows)).as_bytes());
+        let expected=crate::runtime_surface::sha256_hex(format!("ddn.bogae_scene_history.v1\0{}",compact_json(&snapshot["frames"])).as_bytes());
         if snapshot["sha256"].as_str()!=Some(expected.as_str()) {return Err(invalid());}
         let mut history=Self::default();
         let mut previous=None;
@@ -148,7 +180,7 @@ impl SceneHistory {
             let bytes=history.storage_bytes_after(madi,projection)?;
             crate::work_cost::WorkCostMeter::new(Default::default()).set_result_artifact_bytes(bytes)
                 .map_err(|error|error.to_string())?;
-            history.commit(madi,projection.clone());previous=Some(madi);
+            history.commit(madi,OwnedJson::clone_from_value(projection).into_parent_value());previous=Some(madi);
         }
         Ok(history)
     }
@@ -157,6 +189,43 @@ impl SceneHistory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn rd694_scene_history_owns_deep_saved_json_and_late_rejection() {
+        std::thread::Builder::new().stack_size(128*1024).spawn(|| {
+            let mut payload=Json::Null;
+            for _ in 0..20_000 {payload=Json::Array(vec![payload]);}
+            let mut authored=OwnedJson::from_value(frame(10,json!({"kind":"common"})));
+            authored.value_mut()["candidates"][0]["artifact"]["view"]["payload"]=payload;
+            let mut history=SceneHistory::default();
+            let bytes=history.storage_bytes_after(0,&authored).unwrap();
+            history.commit(0,authored.clone().into_parent_value());
+            assert_eq!(history.encoded_bytes,bytes);
+            let copy=history.clone();
+            assert!(history.same_execution_history(&copy));
+            let saved=OwnedJson::from_value(history.snapshot());
+            let restored=SceneHistory::from_snapshot(Some(&saved),1).unwrap();
+            assert!(history.same_execution_history(&restored));
+            let preview=OwnedJson::from_value(restored.preview(0,&authored).unwrap());
+            assert!(preview.equals_json(&authored));
+            let mut fixed=authored.clone();
+            fixed.value_mut()["candidates"][0]["artifact"]["time_policy"]=json!({"kind":"fixed","madi":0});
+            let resolved=OwnedJson::from_value(restored.preview(1,&fixed).unwrap());
+            assert_eq!(resolved["candidates"][0]["artifact"]["resolved_madi"],0);
+            fixed.value_mut()["candidates"][0]["artifact"]["time_policy"]["madi"]=json!(99);
+            assert!(restored.preview(1,&fixed).is_err());
+            // The first row has been admitted into a private history before
+            // this second row rejects; its deep JSON must still clean up.
+            let mut bad=saved.clone();
+            bad.value_mut()["frames"].as_array_mut().unwrap().push(json!({"madi":1,"projection":{"candidates":[]}}));
+            let digest=crate::runtime_surface::sha256_hex(format!("ddn.bogae_scene_history.v1\0{}",compact_json(&bad["frames"])).as_bytes());
+            bad.value_mut()["sha256"]=json!(digest);
+            assert!(SceneHistory::from_snapshot(Some(&bad),1).is_err());
+            assert!(history.same_execution_history(&restored));
+            history.commit(0,authored.into_parent_value());
+            assert_eq!(history.encoded_bytes,bytes);
+            history.clear(); assert_eq!(history.encoded_bytes,0);
+        }).unwrap().join().unwrap();
+    }
     #[test]
     fn a3_rd136_actual_native_table_uses_selected_committed_prefix() {
         // A3-TIME-P1: no harness rewrite; this is the public V25 source frontdoor.
@@ -181,6 +250,9 @@ mod tests {
         let mut history=SceneHistory::default();
         history.commit(0,frame(10,json!({"kind":"common"})));
         let saved=history.snapshot();
+        let legacy_rows=json!([{"madi":0,"projection":frame(10,json!({"kind":"common"}))}]);
+        let legacy_digest=crate::runtime_surface::sha256_hex(format!("ddn.bogae_scene_history.v1\0{legacy_rows}").as_bytes());
+        assert_eq!(saved,json!({"schema":"ddn.bogae_scene_history.v1","frames":legacy_rows,"sha256":legacy_digest}));
         assert!(history.restored_projection(Some(1)).unwrap().is_none(),"restoration never substitutes the last available frame for an absent current frame");
         let restored=SceneHistory::from_snapshot(Some(&saved),1).unwrap();
         assert_eq!(restored.snapshot(),saved);

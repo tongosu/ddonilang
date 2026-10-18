@@ -155,7 +155,7 @@ mod tests {
         let vertices=|points:&[(i64,i64)]| Value::List(points.iter().map(|(x,y)|pair_value(*x,*y)).collect());
         for points in [vec![(0,0),(2,0),(2,2),(0,2)],vec![(0,2),(2,2),(2,0),(0,0)],vec![(0,0),(1,0),(2,0),(2,2),(0,2)]] {
             let value=construct("표준장면.다각형",&[vertices(&points)]).unwrap();
-            let Value::SceneElement(PlaneElement::Polygon{vertices})=value else {panic!("typed polygon expected")};
+            let Value::SceneElement(PlaneElement::Polygon{vertices})=&value else {panic!("typed polygon expected")};
             assert_eq!(vertices.len(),points.len());
             assert_eq!(vertices[0],[Fixed64::from_i64(points[0].0),Fixed64::from_i64(points[0].1)]);
         }

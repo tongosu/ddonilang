@@ -133,6 +133,11 @@ export function normalizeWasmStatePayload(payload) {
     state_hash: stateHash,
     input,
     input_receipt: obj.input_receipt ?? nestedState.input_receipt ?? null,
+    // Pass through the actual Rust first-frame binding. Do not reconstruct it
+    // from display data or substitute an independent invocation's state hash.
+    ...(obj.temporary_committed_summary ? {
+      temporary_committed_summary: obj.temporary_committed_summary,
+    } : {}),
     // A3-P1: pass through Rust's typed, non-world presentation separately.
     ...((obj.output_display ?? nestedState.output_display) ? {
       output_display: obj.output_display ?? nestedState.output_display,

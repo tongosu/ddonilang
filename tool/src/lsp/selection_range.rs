@@ -198,6 +198,16 @@ fn collect_stmt(statement: &Stmt, candidates: &mut Vec<ByteRange>) {
     let span = statement_span(statement);
     push_range(candidates, ByteRange::new(span.start, span.end));
     match statement {
+        Stmt::SumDefinition { .. } => {}
+        Stmt::SumMatch { subject, arms, default_body, .. } => {
+            collect_expr(subject, candidates);
+            for arm in arms {
+                collect_body(&arm.body, candidates);
+            }
+            if let Some(body) = default_body {
+                collect_body(body, candidates);
+            }
+        }
         Stmt::DeclBlock { items, .. } => {
             for item in items {
                 push_range(candidates, ByteRange::new(item.span.start, item.span.end));
@@ -333,15 +343,20 @@ fn collect_expr(expression: &Expr, candidates: &mut Vec<ByteRange>) {
         ByteRange::new(expression.span.start, expression.span.end),
     );
     match &expression.kind {
+        ExprKind::SumBranchValue { payload, .. } => {
+            for payload in payload {
+                collect_expr(&payload.value, candidates);
+            }
+        }
         ExprKind::Tensor(value) => collect_expr(value.input(), candidates),
         ExprKind::MultiAxisSelection(value) => { for child in value.children() { collect_expr(child, candidates); } }
-        ExprKind::Call { args, .. } => {
+        ExprKind::Call { args, .. } | ExprKind::ProductConstruction { fields: args, .. } => {
             for arg in args {
                 push_range(candidates, ByteRange::new(arg.span.start, arg.span.end));
                 collect_expr(&arg.expr, candidates);
             }
         }
-        ExprKind::CollectionConstructor { elements } => {
+        ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
             for element in elements {
                 collect_expr(element, candidates);
             }
@@ -393,6 +408,8 @@ fn collect_expr(expression: &Expr, candidates: &mut Vec<ByteRange>) {
 fn statement_span(statement: &Stmt) -> ddonirang_lang::Span {
     match statement {
         Stmt::DeclBlock { span, .. }
+        | Stmt::SumDefinition {span,..}
+        | Stmt::SumMatch {span,..}
         | Stmt::Definition { span, .. }
         | Stmt::Mutate { span, .. }
         | Stmt::ResultFlow { span, .. }

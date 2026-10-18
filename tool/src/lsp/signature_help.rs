@@ -271,6 +271,16 @@ fn collect_body_calls<'a>(body: &'a Body, calls: &mut Vec<CallCandidate<'a>>) {
 
 fn collect_stmt_calls<'a>(stmt: &'a Stmt, calls: &mut Vec<CallCandidate<'a>>) {
     match stmt {
+        Stmt::SumDefinition { .. } => {}
+        Stmt::SumMatch { subject, arms, default_body, .. } => {
+            collect_expr_calls(subject, calls);
+            for arm in arms {
+                collect_body_calls(&arm.body, calls);
+            }
+            if let Some(body) = default_body {
+                collect_body_calls(body, calls);
+            }
+        }
         Stmt::DeclBlock { items, .. } => {
             for item in items {
                 if let Some(value) = &item.value {
@@ -402,6 +412,16 @@ fn collect_stmt_calls<'a>(stmt: &'a Stmt, calls: &mut Vec<CallCandidate<'a>>) {
 
 fn collect_expr_calls<'a>(expr: &'a Expr, calls: &mut Vec<CallCandidate<'a>>) {
     match &expr.kind {
+        ExprKind::SumBranchValue { payload, .. } => {
+            for payload in payload {
+                collect_expr_calls(&payload.value, calls);
+            }
+        }
+        ExprKind::ProductConstruction { fields, .. } => {
+            for field in fields {
+                collect_expr_calls(&field.expr, calls);
+            }
+        }
         ExprKind::Tensor(value) => collect_expr_calls(value.input(), calls),
         ExprKind::MultiAxisSelection(value) => { for child in value.children() { collect_expr_calls(child, calls); } }
         ExprKind::Call { args, func } => {
@@ -410,7 +430,7 @@ fn collect_expr_calls<'a>(expr: &'a Expr, calls: &mut Vec<CallCandidate<'a>>) {
                 collect_expr_calls(&arg.expr, calls);
             }
         }
-        ExprKind::CollectionConstructor { elements } => {
+        ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
             for element in elements {
                 collect_expr_calls(element, calls);
             }

@@ -231,6 +231,10 @@ fn count_contracts_in_body(body: &Body) -> usize {
     for stmt in &body.stmts {
         match stmt {
             Stmt::Contract { .. } => count += 1,
+            Stmt::SumMatch { arms, default_body, .. } => {
+                for arm in arms { count += count_contracts_in_body(&arm.body); }
+                if let Some(body) = default_body { count += count_contracts_in_body(body); }
+            }
             Stmt::If {
                 then_body,
                 else_body,
@@ -272,6 +276,12 @@ fn collect_calls_from_body(body: &Body, out: &mut Vec<CallDet>) {
 
 fn collect_calls_from_stmt(stmt: &Stmt, out: &mut Vec<CallDet>) {
     match stmt {
+        Stmt::SumDefinition { .. } => {}
+        Stmt::SumMatch { subject, arms, default_body, .. } => {
+            collect_calls_from_expr(subject, out);
+            for arm in arms { collect_calls_from_body(&arm.body, out); }
+            if let Some(body) = default_body { collect_calls_from_body(body, out); }
+        }
         Stmt::DeclBlock { items, .. } => {
             for item in items {
                 if let Some(value) = &item.value {
@@ -385,6 +395,9 @@ fn collect_calls_from_stmt(stmt: &Stmt, out: &mut Vec<CallDet>) {
 
 fn collect_calls_from_expr(expr: &Expr, out: &mut Vec<CallDet>) {
     match &expr.kind {
+        ExprKind::SumBranchValue { payload, .. } => {
+            for value in payload { collect_calls_from_expr(&value.value, out); }
+        }
         ExprKind::Call { args, func } => {
             let call = CallDet {
                 func: func.clone(),
@@ -395,9 +408,15 @@ fn collect_calls_from_expr(expr: &Expr, out: &mut Vec<CallDet>) {
                 collect_calls_from_expr(&arg.expr, out);
             }
         }
-        ExprKind::CollectionConstructor { elements } => {
+        ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
             for element in elements {
                 collect_calls_from_expr(element, out);
+            }
+        }
+        ExprKind::ProductConstruction { fields, .. } => {
+            // Construction is not a callable; only its field expressions may call.
+            for field in fields {
+                collect_calls_from_expr(&field.expr, out);
             }
         }
         ExprKind::SelectionPlace { target, index } => {
@@ -464,6 +483,9 @@ fn seed_kind_label(kind: &SeedKind) -> &str {
         SeedKind::Heureumssi => "흐름씨",
         SeedKind::Ieumssi => "이음씨",
         SeedKind::Semssi => "셈씨",
+        SeedKind::Product => "묶음씨",
+        SeedKind::Schema(ddonirang_lang::ast::SchemaCategory::Subject) => "임자",
+        SeedKind::Schema(ddonirang_lang::ast::SchemaCategory::NominalValue) => "이름씨",
         SeedKind::Named(_) => "이름씨",
     }
 }
@@ -481,11 +503,16 @@ fn binding_reason_label(reason: &BindingReason) -> &str {
 
 fn expr_fingerprint(expr: &Expr) -> String {
     match &expr.kind {
+        ExprKind::SumBranchValue { owner, branch, .. } => format!("owned_branch:{}:${}", owner, branch),
         ExprKind::Literal(lit) => literal_fingerprint(lit),
         ExprKind::Var(name) => format!("var:{}", name),
         ExprKind::FieldAccess { field, .. } => format!("field:{}", field),
         ExprKind::SeedLiteral { param, .. } => format!("seed_literal:{}", param),
         ExprKind::Call { func, .. } => format!("call:{}", func),
+        ExprKind::ProductConstruction { owner, fields, .. } => {
+            format!("product_construction:{}:{}", owner, fields.len())
+        }
+        ExprKind::TupleConstructor { elements } => format!("tuple_constructor:{}",elements.len()),
         ExprKind::CollectionConstructor { elements } => {
             format!("collection_constructor:{}", elements.len())
         }
@@ -534,6 +561,48 @@ mod tensor_dump_tests {
     }
 
     #[test]
+    fn product_dump_visits_field_calls_without_inventing_a_constructor_call() {
+        let field = |name: &str, value| ArgBinding {
+            id: 0, span: Span::new(0, 0), expr: value,
+            josa: None, resolved_pin: Some(name.into()),
+            binding_reason: BindingReason::UserFixed,
+        };
+        let product = expr(ExprKind::ProductConstruction {
+            owner: "좌표".into(), definition: 7,
+            fields: vec![field("가로", call("가로값")), field("세로", call("세로값"))],
+        });
+        let mut calls = vec![];
+        collect_calls_from_expr(&product, &mut calls);
+        assert_eq!(calls.iter().map(|c| c.func.as_str()).collect::<Vec<_>>(), ["가로값", "세로값"]);
+        assert_eq!(expr_fingerprint(&product), "product_construction:좌표:2");
+        assert_eq!(seed_kind_label(&SeedKind::Product), "묶음씨");
+    }
+
+    #[test]
+    fn authored_product_schema_and_construction_remain_distinct_in_dump() {
+        let source = "(가로:셈수, 세로:셈수) 좌표:묶음씨 := {}.\n점 <- (가로=10, 세로=20) 좌표.";
+        let mut program = ddonirang_lang::parse_v25(source, "product.ddn").unwrap();
+        canonicalize(&mut program).unwrap();
+        let TopLevelItem::SeedDef(schema) = &program.items[0];
+        assert_eq!(seed_kind_label(&schema.seed_kind), "묶음씨");
+        let Stmt::Mutate { value, .. } = &program.root_stmts[0] else { panic!("binding expected") };
+        assert_eq!(expr_fingerprint(value), "product_construction:좌표:2");
+        let mut calls = vec![];
+        collect_calls_from_expr(value, &mut calls);
+        assert!(calls.is_empty(), "a Product construction is not a callable");
+    }
+
+    #[test]
+    fn byte_fingerprint_preserves_octets_without_text_decode() {
+        let bytes = ddonirang_core::bytes::ByteSequence::new(vec![0, 0xff]);
+        let value = expr(ExprKind::Literal(Literal::Bytes(bytes.clone())));
+        assert_eq!(expr_fingerprint(&value), format!("bytes:{}", bytes.canonical_literal()));
+        let mut calls = vec![];
+        collect_calls_from_expr(&value, &mut calls);
+        assert!(calls.is_empty());
+    }
+
+    #[test]
     fn tensor_provider_visits_its_input_without_becoming_a_collection_alias() {
         let tensor = expr(ExprKind::Tensor(TensorProviderExpr::ToCollection {
             input: Box::new(call("텐서값")),
@@ -565,6 +634,7 @@ fn literal_fingerprint(lit: &Literal) -> String {
         Literal::Int(value) => format!("int:{}", value),
         Literal::Fixed64(value) => format!("fixed64:{}", value),
         Literal::String(value) => format!("string:{}", value),
+        Literal::Bytes(value) => format!("bytes:{}", value.canonical_literal()),
         Literal::Bool(value) => format!("bool:{}", value),
         Literal::Atom(value) => format!("atom:{}", value),
         Literal::Regex(value) => format!("regex:{}/{}", value.pattern, value.flags),

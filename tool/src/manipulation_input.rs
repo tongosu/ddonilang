@@ -342,7 +342,7 @@ fn transition(
     }
     Ok((held, active))
 }
-fn validate(tape: &Tape) -> Result<(), String> {
+pub(crate) fn validate(tape: &Tape) -> Result<(), String> {
     query(
         &tape.binding,
         &ManipulationSnapshot {
@@ -444,6 +444,12 @@ pub struct ManipulationSession {
     last_table: Option<serde_json::Value>,
 }
 impl ManipulationSession {
+    pub(crate) fn accepted_prefix_v3(&self) -> (&ManipulationBinding, &[Frame], Option<&str>) {
+        (&self.binding, &self.frames, self.failure.as_deref())
+    }
+    pub(crate) fn replay_v3_frame(&mut self, frame: &Frame) -> Result<serde_json::Value, String> {
+        self.step_expected(&frame.input, Some(frame))
+    }
     pub fn bind_source_for_fresh_run(
         source: &str,
         mut binding: ManipulationBinding,
@@ -780,6 +786,59 @@ mod tests {
                     )],
                 ),
             ],
+        }
+    }
+    #[test]
+    fn beta1_phase_query_uses_admitted_original_order_without_consuming(){
+        let source="(매마디)마다 { (순서=0) 조작단계 보여주기. (순서=0) 조작단계 보여주기. }.";
+        let mut session=ManipulationSession::new(source,binding(source)).unwrap();
+        for (madi,phase) in [Phase::Begin,Phase::Move,Phase::End].into_iter().enumerate(){
+            session.step(&snapshot(madi as u64,vec![event("좌표",EventKind::Coordinate{raw:["0".into(),"0".into()],phase},0)])).unwrap();
+        }
+        session.step(&snapshot(3,vec![event("수",EventKind::Number{raw:"0".into(),phase:Phase::Set},0)])).unwrap();
+        assert_eq!(session.summary()["output_display"]["texts"],serde_json::json!(["시작","시작","이동","이동","끝","끝","설정","설정"]));
+        assert_eq!(session.summary()["frames"].as_array().unwrap().len(),4);
+        assert!(session.seal().is_ok());
+    }
+    #[test]
+    fn beta1_phase_query_uses_event_supplied_integer_ordinal() {
+        let source="(매마디)마다 { 사건목록 <- () 입력사상.사건들. 사건목록마다 { (순서=사건목록.순서) 조작단계 보여주기. }. }.";
+        let mut session=ManipulationSession::new(source,binding(source)).unwrap();
+        session.step(&snapshot(0,vec![
+            event("좌표",EventKind::Coordinate{raw:["0".into(),"0".into()],phase:Phase::Begin},0),
+            event("수",EventKind::Number{raw:"0".into(),phase:Phase::Set},1),
+        ])).unwrap();
+        assert_eq!(session.summary()["output_display"]["texts"],serde_json::json!(["시작","설정"]));
+    }
+    #[test]
+    fn beta1_phase_warning_keeps_comparison_output_and_commit() {
+        let source="(매마디)마다 { ((순서=0) 조작단계 == \"중간\") 보여주기. }.";
+        let mut session=ManipulationSession::new(source,binding(source)).unwrap();
+        let baseline_source="(매마디)마다 { 거짓 보여주기. }.";
+        let mut baseline=ManipulationSession::new(baseline_source,binding(baseline_source)).unwrap();
+        let input=snapshot(0,vec![event("수",EventKind::Number{raw:"0".into(),phase:Phase::Set},0)]);
+        session.step(&input).unwrap(); baseline.step(&input).unwrap();
+        assert_eq!(session.summary()["output_display"]["texts"],serde_json::json!(["거짓"]));
+        // Compare the same accepted madi, not an initial-world hash against
+        // a world whose tick has already advanced.
+        assert_eq!(crate::runtime_surface::current_state_hash(session.committed_world()),
+            crate::runtime_surface::current_state_hash(baseline.committed_world()));
+        assert_eq!(session.summary()["frames"].as_array().unwrap().len(),1);
+    }
+    #[test]
+    fn beta1_phase_query_invalid_selection_keeps_whole_frame_unpublished(){
+        for index in ["-1","4096","1"] {
+            let source=format!("(매마디)마다 {{ 9 보여주기. (순서={index}) 조작단계 보여주기. }}.");
+            let mut session=ManipulationSession::new(&source,binding(&source)).unwrap();
+            let before=crate::runtime_surface::current_state_hash(session.committed_world());
+            let error=session.step(&snapshot(0,vec![event("수",EventKind::Number{raw:"0".into(),phase:Phase::Set},0)])).unwrap_err();
+            assert!(error.contains("E_LOGICAL_INPUT_ORDER"),"{error}");
+            assert_eq!(crate::runtime_surface::current_state_hash(session.committed_world()),before);
+            assert_eq!(session.summary()["frames"],serde_json::json!([]));
+            assert!(session.summary().get("output_display").is_none(),"no successful output display may be published");
+        }
+        for source in ["(순서=0.5) 조작단계 보여주기.","() 조작단계 보여주기.","(순번=0) 조작단계 보여주기."]{
+            assert!(ManipulationSession::new(source,binding(source)).is_err(),"{source}");
         }
     }
     #[test]

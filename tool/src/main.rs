@@ -5785,9 +5785,9 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
                 .collect::<Vec<_>>();
             let json = serde_json::to_string(&order).expect("net_events_order");
             Patch {
-                ops: vec![PatchOp::SetResourceJson {
+                ops: vec![PatchOp::SetResourceValue {
                     tag: "net_events_order".to_string(),
-                    json,
+                    value: ddonirang_core::ResourceValue::String(json),
                 }],
                 origin: Origin::system("tool"),
             }
@@ -5838,7 +5838,15 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
         let unsorted_events =
             read_net_events_detjson(unsorted_path.to_str().expect("unsorted path"))
                 .expect("read unsorted detjson");
-        let expected = self_contained_test_sources::W23_STATE_HASH;
+        // R1.1: independently specified sorted input, not copied runtime output.
+        // Keep the old fixture's hash checked as historical custody evidence.
+        let ordered=r#"["peer-a:1","peer-a:2","peer-b:1"]"#;
+        let mut historical=ddonirang_core::platform::NuriWorld::new();
+        historical.set_resource_json("net_events_order".into(),ordered.into());
+        assert_eq!(format!("blake3:{}",historical.state_hash().to_hex()),self_contained_test_sources::W23_STATE_HASH);
+        let mut typed=ddonirang_core::platform::NuriWorld::new();
+        typed.set_resource_value("net_events_order".into(),ddonirang_core::ResourceValue::String(ordered.into()));
+        let expected=format!("blake3:{}",typed.state_hash().to_hex());
 
         let hash_sorted = compute_w23_state_hash(sorted_events);
         let hash_unsorted = compute_w23_state_hash(unsorted_events);

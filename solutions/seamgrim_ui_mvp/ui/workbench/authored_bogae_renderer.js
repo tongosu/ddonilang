@@ -214,9 +214,12 @@ export function createAuthoredCompositionHost(onChange) {
   let magnifierPanels = new Map();
   let docks = new Map();
   let layoutStage = null;
+  const edgeHandles = new Map();
   let pickCanvas=null, pickHandler=null;
+  let cameraCleanup=null;
   let camera={zoom:1,x:0,y:0}, cameraControls=null;
   function reset() {
+    cameraCleanup?.(); cameraCleanup=null;
     if (pickCanvas && pickHandler) pickCanvas.removeEventListener("click",pickHandler);
     pickCanvas=null;pickHandler=null;
     controls?.remove(); controls = null;
@@ -225,6 +228,8 @@ export function createAuthoredCompositionHost(onChange) {
     for (const {panel} of magnifierPanels.values()) panel.remove();
     magnifierPanels = new Map();
     for (const dock of docks.values()) dock.remove();
+    for (const handle of edgeHandles.values()) handle.remove();
+    edgeHandles.clear();
     docks = new Map();
     if (layoutStage) {
       delete layoutStage.dataset.authoredLayout;
@@ -262,14 +267,16 @@ export function createAuthoredCompositionHost(onChange) {
         controls.tabIndex=-1;
         // Reopen controls must remain reachable when the side pane is hidden.
         toolbar.append(controls);
-        cameraControls=document.createElement('span');
+        cameraControls=document.createElement('details');
         cameraControls.dataset.authoredCameraControls='true';
+        const cameraSummary=document.createElement('summary');cameraSummary.textContent='화면';cameraControls.append(cameraSummary);
+        const cameraActions=document.createElement('div');cameraActions.className='authored-camera-actions';cameraControls.append(cameraActions);
         const operations=[['＋','확대',()=>camera.zoom=Math.min(8,camera.zoom*1.25)],['−','축소',()=>camera.zoom=Math.max(0.25,camera.zoom/1.25)],
           ['전체','원문 범위로 돌아가기',()=>camera={zoom:1,x:0,y:0}],
           ['←','왼쪽으로 보기 이동',()=>camera.x-=40],['→','오른쪽으로 보기 이동',()=>camera.x+=40],
           ['↑','위로 보기 이동',()=>camera.y-=40],['↓','아래로 보기 이동',()=>camera.y+=40]];
         for(const [label,title,change] of operations){const button=document.createElement('button');button.type='button';button.textContent=label;
-          button.title=title;button.setAttribute('aria-label',title);button.addEventListener('click',()=>{change();onChange();});cameraControls.append(button);}
+          button.title=title;button.setAttribute('aria-label',title);button.addEventListener('click',()=>{change();onChange();});cameraActions.append(button);}
         toolbar.append(cameraControls);
         list.replaceChildren();
       }
@@ -281,7 +288,38 @@ export function createAuthoredCompositionHost(onChange) {
       const relationById = new Map(relations.map(relation => [relation.relation_id, relation]));
       if (primaryCanvas && pickCanvas!==primaryCanvas) {
         if (pickCanvas && pickHandler) pickCanvas.removeEventListener("click",pickHandler);
+        cameraCleanup?.();
         pickCanvas=primaryCanvas;
+        const canvas=primaryCanvas;
+        let drag=null;
+        const down=event=>{
+          if(event.button!==1 || layoutStage?.dataset.authoredPrimaryKind!=='scene')return;
+          event.preventDefault();drag={pointer:event.pointerId,x:event.clientX,y:event.clientY};
+          canvas.setPointerCapture(event.pointerId);
+        };
+        const move=event=>{
+          if(drag?.pointer!==event.pointerId)return;
+          const rect=canvas.getBoundingClientRect();
+          camera.x+=(event.clientX-drag.x)*canvas.width/rect.width;
+          camera.y+=(event.clientY-drag.y)*canvas.height/rect.height;
+          drag.x=event.clientX;drag.y=event.clientY;onChange();
+        };
+        const end=event=>{if(drag?.pointer===event.pointerId){drag=null;if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);}};
+        const wheel=event=>{
+          if(layoutStage?.dataset.authoredPrimaryKind!=='scene')return;
+          event.preventDefault();camera.zoom=Math.max(0.25,Math.min(8,camera.zoom*Math.exp(-event.deltaY*0.001)));onChange();
+        };
+        const aux=event=>{if(event.button===1)event.preventDefault();};
+        canvas.addEventListener('pointerdown',down);canvas.addEventListener('pointermove',move);
+        canvas.addEventListener('pointerup',end);canvas.addEventListener('pointercancel',end);
+        canvas.addEventListener('wheel',wheel,{passive:false});canvas.addEventListener('auxclick',aux);
+        cameraCleanup=()=>{
+          if(drag && canvas.hasPointerCapture(drag.pointer))canvas.releasePointerCapture(drag.pointer);
+          drag=null;
+          canvas.removeEventListener('pointerdown',down);canvas.removeEventListener('pointermove',move);
+          canvas.removeEventListener('pointerup',end);canvas.removeEventListener('pointercancel',end);
+          canvas.removeEventListener('wheel',wheel);canvas.removeEventListener('auxclick',aux);
+        };
         pickHandler=event=>pickCanvas.selectAuthoredTarget(event);
         pickCanvas.addEventListener("click",pickHandler);
       }
@@ -524,6 +562,32 @@ export function createAuthoredCompositionHost(onChange) {
       }
       for (const [position,dock] of docks) {
         dock.hidden = [...dock.children].every(panel => panel.hidden);
+        const sides=[...dock.children].filter(panel=>panel.dataset.authoredRelationId);
+        let handle=edgeHandles.get(position);
+        if(sides.length && !handle) {
+          handle=document.createElement('button');handle.type='button';
+          handle.dataset.authoredSideEdge=position;
+          handle.addEventListener('click',()=>{
+            const panels=[...dock.children].filter(panel=>panel.dataset.authoredRelationId);
+            const open=panels.every(panel=>hidden.has(panel.dataset.authoredRelationId));
+            for(const panel of panels) {
+              if(open)hidden.delete(panel.dataset.authoredRelationId);
+              else hidden.add(panel.dataset.authoredRelationId);
+            }
+            onChange();
+          });
+          stage.append(handle);edgeHandles.set(position,handle);
+        }
+        if(handle) {
+          // The edge handle opens a hidden dock. An open dock already has
+          // per-panel Close controls; do not cover its content with a duplicate.
+          handle.hidden=!sides.length || !dock.hidden;
+          const names=sides.map(panel=>relationById.get(panel.dataset.authoredRelationId)?.authored_name ?? '곁').join(' · ');
+          const arrow={left:'›',right:'‹',top:'⌄',bottom:'⌃'}[position];
+          handle.textContent=`${arrow} ${names}`;
+          handle.setAttribute('aria-expanded',String(!dock.hidden));
+          handle.setAttribute('aria-label',`${names} ${dock.hidden?'열기':'닫기'}`);
+        }
         if (position === "left" || position === "right") {
           stage.style.setProperty(`--authored-${position}`,dock.hidden ? "0px" : "minmax(140px, 0.5fr)");
         }

@@ -34,7 +34,10 @@ const INVALID_PROGRAMS: [(&str, &str); 5] = [
     ),
     (
         include_str!("../../solutions/seamgrim_ui_mvp/alpha1/잘못된입력/02_반복_원소타입오류.ddn"),
-        "E_RUNTIME_TYPE_MISMATCH",
+        // RD-352: the declared homogeneous List has a statically known bad
+        // Text member. Reject before execution, preserving the taught error
+        // and the no-output/atomic failure assertions below.
+        "E_CHECK_TYPE_MISMATCH",
     ),
     (
         include_str!("../../solutions/seamgrim_ui_mvp/alpha1/잘못된입력/03_함수표_인자누락.ddn"),

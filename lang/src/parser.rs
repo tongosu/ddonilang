@@ -18,7 +18,7 @@ pub struct Parser {
     root_hide: bool,
     beat_depth: usize,
     chaebi_forbidden_depth: usize,
-    declared_scopes: Vec<HashSet<String>>,
+    declared_scopes: Vec<DeclaredNames>,
     declared_type_scopes: Vec<HashMap<String, TypeRef>>,
     seed_kind_stack: Vec<SeedKind>,
     natural_foreach_ids: HashSet<NodeId>,
@@ -29,7 +29,23 @@ pub struct Parser {
     registered_call_spans: HashMap<NodeId, Span>,
     registered_definitions: HashMap<NodeId, SeedDef>,
     explicitly_registered_owners: HashSet<String>,
+    product_definitions: HashMap<String, (NodeId, Vec<ParamPin>)>,
+    schema_categories: HashMap<String, SchemaCategory>,
+    schema_header_names: HashSet<String>,
+    schema_construction_nodes: HashSet<NodeId>,
+    sum_definitions: HashMap<String, Vec<SumBranchDecl>>,
+    bytes_calls: HashMap<NodeId, crate::bytes::BytesConversion>,
+    atom_value_occurrences: HashMap<NodeId, AtomValueOccurrence>,
+    retirement_commands: HashMap<NodeId,RetirementCommandBinding>,
+    subject_reference_calls: HashMap<NodeId,SubjectReferenceCallBinding>,
+    manipulation_phase_calls: HashMap<NodeId,ManipulationPhaseCallBinding>,
     mode: ParseMode,
+}
+#[derive(Clone,Default)]
+struct DeclaredNames {
+    // Keep root-hide authorization distinct from ordinary value bindings.
+    explicit: HashSet<String>,
+    ordinary: HashSet<String>,
 }
 struct ArgSuffix {
     josa: Option<String>,
@@ -74,7 +90,7 @@ impl Parser {
             root_hide: false,
             beat_depth: 0,
             chaebi_forbidden_depth: 0,
-            declared_scopes: vec![HashSet::new()],
+            declared_scopes: vec![DeclaredNames::default()],
             declared_type_scopes: vec![HashMap::new()],
             seed_kind_stack: Vec::new(),
             natural_foreach_ids: HashSet::new(),
@@ -85,9 +101,395 @@ impl Parser {
             registered_call_spans: HashMap::new(),
             registered_definitions: HashMap::new(),
             explicitly_registered_owners: HashSet::new(),
+            product_definitions: HashMap::new(),
+            schema_categories: HashMap::new(),
+            schema_header_names: HashSet::new(),
+            schema_construction_nodes: HashSet::new(),
+            sum_definitions: HashMap::new(),
+            bytes_calls: HashMap::new(),
+            atom_value_occurrences: HashMap::new(),
+            retirement_commands: HashMap::new(),
+            subject_reference_calls: HashMap::new(),
+            manipulation_phase_calls: HashMap::new(),
             mode,
         }
     }
+    fn is_sum_match_stmt_start(&self) -> bool {
+        self.sum_match_boundary().is_some()
+    }
+
+    // RD-613 owns a general Expression subject, not an identifier-only form.
+    // Locate its grammatical boundary without rewriting authored source.
+    fn sum_match_boundary(&self) -> Option<(usize,Option<usize>)> {
+        let word=|kind:&TokenKind,text:&str|matches!(kind,TokenKind::Ident(name)|TokenKind::Josa(name) if name==text);
+        let mut depth=0usize;
+        for index in self.pos..self.tokens.len() {
+            let token=&self.tokens[index];
+            if depth==0 {
+                let followed_by_body=self.tokens.get(index+1).is_some_and(|next|word(&next.kind,"따라"))
+                    && self.tokens.get(index+2).is_some_and(|next|matches!(next.kind,TokenKind::LBrace));
+                if followed_by_body && index>self.pos && word(&token.kind,"에") {
+                    return Some((index,None));
+                }
+                if followed_by_body && matches!(&token.kind,TokenKind::Ident(name) if name.len()>'에'.len_utf8() && name.ends_with('에')) {
+                    return Some((index+1,Some(index)));
+                }
+                match &token.kind {
+                    TokenKind::Eof|TokenKind::Semicolon|TokenKind::Arrow|TokenKind::Define => return None,
+                    TokenKind::Dot => {
+                        let postfix=self.tokens.get(index.wrapping_sub(1)).is_some_and(|previous|previous.span.end==token.span.start)
+                            && self.tokens.get(index+1).is_some_and(|next|next.span.start==token.span.end
+                                && matches!(next.kind,TokenKind::Ident(_)|TokenKind::BranchRole(_)));
+                        if !postfix {return None;}
+                    }
+                    _=>{}
+                }
+            }
+            match &token.kind {
+                TokenKind::LParen|TokenKind::LBracket|TokenKind::LBrace=>depth+=1,
+                TokenKind::RParen|TokenKind::RBracket|TokenKind::RBrace=>{
+                    if depth==0 {return None;}
+                    depth-=1;
+                }
+                _=>{}
+            }
+        }
+        None
+    }
+
+    fn is_sum_definition_stmt_start(&self) -> bool {
+        self.check_ident()
+            && self.peek_kind_n_is(1, |kind| matches!(kind, TokenKind::Colon))
+            && self.peek_kind_n_is(2, |kind| matches!(kind, TokenKind::KwGallaessi))
+            && self.peek_kind_n_is(3, |kind| matches!(kind, TokenKind::Define))
+    }
+
+    fn parse_sum_definition_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start = self.current_span();
+        let name = self.expect_ident("고름씨 이름")?.raw.clone();
+        if self.sum_definitions.contains_key(&name) {
+            return Err(ParseError {
+                span: start,
+                message: format!("E_SUM_DEFINITION_DUPLICATE: `{name}` 고름씨가 이미 선언되었습니다"),
+            });
+        }
+        self.expect(&TokenKind::Colon, ":")?;
+        if self.current().raw!="고름씨" {
+            return Err(self.error("E_SUM_DEFINITION_KIND: 고름씨 선언에는 `고름씨`를 사용해야 합니다"));
+        }
+        self.expect(&TokenKind::KwGallaessi, "고름씨")?;
+        self.expect(&TokenKind::Define, ":=")?;
+        self.expect(&TokenKind::LBrace, "{")?;
+        let mut branches = Vec::new();
+        let mut branch_names = HashSet::new();
+        while !self.check(&TokenKind::RBrace) {
+            let branch_start = self.current_span();
+            let branch_token = match self.current().kind.clone() {
+                TokenKind::BranchRole(branch) => {
+                    let token = self.advance();
+                    (branch, self.to_ast_span(token.span))
+                }
+                _ => return Err(self.error("E_SUM_SCHEMA_BRANCH_NAME_REQUIRED: 고름씨 선언 안에는 소유자 접두어 없이 `$이름`을 사용해야 합니다")),
+            };
+            if !branch_names.insert(branch_token.0.clone()) {
+                return Err(ParseError {
+                    span: branch_token.1,
+                    message: format!("E_SUM_BRANCH_DUPLICATE: `{name}.${}` 갈래가 중복되었습니다", branch_token.0),
+                });
+            }
+            let mut payload = Vec::new();
+            if self.check(&TokenKind::LParen) {
+                self.advance();
+                let mut pins=HashSet::new();
+                loop {
+                    let binder_token = self.expect_ident("고름씨 값 갈래 받는 이름")?;
+                    let binder = binder_token.raw.clone();
+                    if !pins.insert(binder.clone()) {
+                        return Err(ParseError {span:self.to_ast_span(binder_token.span),
+                            message:format!("E_SUM_PAYLOAD_PIN_DUPLICATE: 갈래 받는 이름이 중복되었습니다: {binder}")});
+                    }
+                    self.expect(&TokenKind::Colon, ":")?;
+                    let type_ref = self.parse_type_ref()?;
+                    payload.push(SumBranchPayload {
+                        binder, binder_span:self.to_ast_span(binder_token.span), type_ref,
+                    });
+                    if !self.check(&TokenKind::Comma) {break;}
+                    self.advance();
+                }
+                self.expect(&TokenKind::RParen, ")")?;
+            }
+            self.expect(&TokenKind::Dot, ".")?;
+            branches.push(SumBranchDecl {
+                id: self.next_id(),
+                span: branch_start.merge(&self.previous_span()),
+                name: branch_token.0,
+                payload,
+            });
+        }
+        if branches.is_empty() {
+            return Err(ParseError {
+                span: start,
+                message: "E_SUM_BRANCH_REQUIRED: 고름씨에는 하나 이상의 갈래가 필요합니다".to_string(),
+            });
+        }
+        self.expect(&TokenKind::RBrace, "}")?;
+        let mood = self.consume_stmt_terminator()?;
+        self.sum_definitions.insert(name.clone(), branches.clone());
+        Ok(Stmt::SumDefinition {
+            id: self.next_id(),
+            span: start.merge(&self.previous_span()),
+            mood,
+            name,
+            branches,
+        })
+    }
+
+    fn sum_branch_schemas(&self,owner:&str,applied:Option<&TypeRef>,span:Span)
+        ->Result<Vec<crate::sum_owner::ResolvedSumBranch>,ParseError> {
+        if let Some(kind)=applied {
+            return crate::sum_owner::resolve_applied_sum_owner(kind,span)
+                .map(|resolved|resolved.branches).map_err(|message|ParseError{span,message});
+        }
+        self.sum_definitions.get(owner).map(|branches|branches.iter().map(|branch|
+            crate::sum_owner::ResolvedSumBranch{name:branch.name.clone(),payload:branch.payload.clone()}).collect())
+            .ok_or_else(||ParseError{span,message:format!("E_SUM_OWNER_UNKNOWN: `{owner}` 고름씨가 선언되지 않았습니다")})
+    }
+
+    fn parse_sum_branch_value(&mut self,owner:String,applied_owner:Option<TypeRef>,start:Span)->Result<Expr,ParseError> {
+        let branch_token=self.advance();
+        let TokenKind::BranchRole(branch)=branch_token.kind.clone() else {return Err(self.error("owner.$갈래"));};
+        let definitions=self.sum_branch_schemas(&owner,applied_owner.as_ref(),start)?;
+        let declaration=definitions.iter().find(|schema|schema.name==branch)
+            .ok_or_else(||ParseError{span:self.to_ast_span(branch_token.span),message:format!("E_SUM_BRANCH_UNKNOWN: `{owner}.${branch}` 갈래가 선언되지 않았습니다")})?;
+        let mut payload=Vec::new();
+        if self.check(&TokenKind::LParen) {
+            if declaration.payload.is_empty() {return Err(ParseError{span:self.current_span(),
+                message:format!("E_SUM_BRANCH_NULLARY_PAYLOAD: `{owner}.${branch}`는 값을 받지 않는 갈래입니다")});}
+            self.advance();
+            let mut supplied=HashSet::new();
+            loop {
+                let pin_span=self.current_span();
+                let pin=self.expect_ident("고름씨 값 이름")?.raw.clone();
+                if !declaration.payload.iter().any(|schema|schema.binder==pin) {return Err(ParseError{span:pin_span,
+                    message:format!("E_SUM_BRANCH_PAYLOAD_PIN: `{owner}.${branch}`에 선언되지 않은 값 이름입니다: {pin}")});}
+                if !supplied.insert(pin.clone()) {return Err(ParseError{span:pin_span,
+                    message:format!("E_SUM_BRANCH_PAYLOAD_DUPLICATE: 값 이름이 중복되었습니다: {pin}")});}
+                self.expect(&TokenKind::Equals,"=")?;
+                let value=self.parse_expr()?;
+                payload.push(SumPayloadArgument{pin,span:pin_span,value});
+                if !self.check(&TokenKind::Comma) {break;}
+                self.advance();
+            }
+            self.expect(&TokenKind::RParen,")")?;
+        }
+        if declaration.payload.len()!=payload.len() {return Err(ParseError{span:self.to_ast_span(branch_token.span),
+            message:format!("E_SUM_BRANCH_PAYLOAD_REQUIRED: `{owner}.${branch}`에는 명시적 값이 필요합니다")});}
+        Ok(Expr::new(self.next_id(),start.merge(&self.previous_span()),
+            ExprKind::SumBranchValue{owner,applied_owner,branch,payload}))
+    }
+
+    fn try_parse_sum_match_stmt(&mut self) -> Result<Option<Stmt>, ParseError> {
+        let Some((boundary,attached))=self.sum_match_boundary() else {return Ok(None);};
+        let start = self.current_span();
+        let marker=std::mem::replace(&mut self.tokens[boundary].kind,TokenKind::Eof);
+        let original=attached.map(|index|(index,self.tokens[index].clone()));
+        if let Some(index)=attached {
+            let stem=self.tokens[index].raw.strip_suffix('에').expect("attached case suffix").to_string();
+            self.tokens[index].raw=stem.clone();
+            self.tokens[index].kind=TokenKind::Ident(stem);
+            self.tokens[index].span.end-='에'.len_utf8();
+        }
+        let parsed=self.parse_expr();
+        self.tokens[boundary].kind=marker;
+        if let Some((index,token))=original {self.tokens[index]=token;}
+        let subject=parsed?;
+        if self.pos!=boundary {return Err(self.error("E_SUM_MATCH_SUBJECT_EXPRESSION: `에 따라` 앞에는 하나의 식이 필요합니다"));}
+        if attached.is_none() {
+            self.advance(); // 에
+        }
+        self.advance(); // 따라
+        self.expect(&TokenKind::LBrace, "{")?;
+
+        let mut arms = Vec::new();
+        let mut arm_names = HashSet::new();
+        let mut match_owner: Option<String> = None;
+        let mut match_branches=Vec::new();
+        let mut default_body = None;
+        while !self.check(&TokenKind::RBrace) {
+            if self.check(&TokenKind::KwAniramyeon) {
+                if self.current().raw!="아니면" {
+                    return Err(self.error("E_SUM_MATCH_DEFAULT_RAW: 고름씨 기본 갈래에는 `아니면`만 사용할 수 있습니다"));
+                }
+                if default_body.is_some() {
+                    return Err(ParseError {
+                        span: self.current_span(),
+                        message: "E_SUM_MATCH_DEFAULT_DUPLICATE: `아니면`은 한 번만 허용됩니다".to_string(),
+                    });
+                }
+                self.advance();
+                let body = self.parse_body()?;
+                self.consume_stmt_terminator()?;
+                default_body = Some(body);
+                if !self.check(&TokenKind::RBrace) {
+                    return Err(ParseError {
+                        span: self.current_span(),
+                        message: "E_SUM_MATCH_DEFAULT_LAST: `아니면`은 마지막 갈래여야 합니다".to_string(),
+                    });
+                }
+                break;
+            }
+
+            let arm_start = self.current_span();
+            let owner_span=self.current_span();
+            let (owner,applied_owner)=if self.check(&TokenKind::LParen) {
+                let kind=self.parse_type_ref()?;
+                let resolved=crate::sum_owner::resolve_applied_sum_owner(&kind,owner_span)
+                    .map_err(|message|ParseError{span:owner_span,message})?;
+                (resolved.key,Some(resolved.type_ref))
+            } else {(self.expect_ident("고름씨 소유자")?.raw.clone(),None)};
+            self.expect_adjacent_dot(self.previous_span().end)?;
+            let branch_token = match self.current().kind.clone() {
+                TokenKind::BranchRole(branch) => {
+                    let token = self.advance();
+                    (branch, token)
+                }
+                _ => return Err(self.error("owner.$갈래")),
+            };
+            let branch = branch_token.0;
+            let branch_span = self.to_ast_span(branch_token.1.span);
+            let definitions = self.sum_branch_schemas(&owner,applied_owner.as_ref(),owner_span)?;
+            let declaration = definitions.iter().find(|candidate| candidate.name == branch).cloned().ok_or_else(|| ParseError {
+                span: branch_span,
+                message: format!("E_SUM_BRANCH_UNKNOWN: `{owner}.${branch}` 갈래가 선언되지 않았습니다"),
+            })?;
+            if let Some(expected_owner) = &match_owner {
+                if expected_owner != &owner {
+                    return Err(ParseError {
+                        span: owner_span,
+                        message: "E_SUM_MATCH_OWNER_MISMATCH: 한 `에 따라` 문장은 하나의 정확한 고름씨 소유자만 다룰 수 있습니다".to_string(),
+                    });
+                }
+            } else {
+                match_owner = Some(owner.clone());
+                match_branches=definitions.iter().map(|branch|branch.name.clone()).collect();
+            }
+            if !arm_names.insert(branch.clone()) {
+                return Err(ParseError {
+                    span: branch_span,
+                    message: format!("E_SUM_MATCH_BRANCH_DUPLICATE: `{owner}.${branch}` 갈래가 중복되었습니다"),
+                });
+            }
+            let mut binder = Vec::new();
+            if self.check(&TokenKind::LParen) {
+                if declaration.payload.is_empty() {
+                    return Err(ParseError {
+                        span: self.current_span(),
+                        message: format!("E_SUM_MATCH_NULLARY_BINDER: `{owner}.${branch}`는 값을 받지 않는 갈래입니다"),
+                    });
+                }
+                self.advance();
+                if self.check(&TokenKind::RParen) {
+                    return Err(self.error("E_SUM_MATCH_BINDER_EMPTY: 받는 이름 목록은 비워 둘 수 없습니다"));
+                }
+                let mut selected=HashSet::new();
+                loop {
+                let token = self.expect_ident("값 갈래 받는 이름")?;
+                let pin = token.raw.clone();
+                if !declaration.payload.iter().any(|schema|schema.binder==pin) {
+                    return Err(ParseError {
+                        span: self.to_ast_span(token.span),
+                        message: format!("E_SUM_MATCH_BINDER_UNKNOWN: `{owner}.${branch}`의 선언된 받는 이름만 선택할 수 있습니다: {pin}"),
+                    });
+                }
+                if !selected.insert(pin.clone()) {
+                    return Err(ParseError {span:self.to_ast_span(token.span),
+                        message:format!("E_SUM_MATCH_BINDER_DUPLICATE: 받는 이름이 중복되었습니다: {pin}")});
+                }
+                if self.pattern_name_is_bound(&pin) {
+                    return Err(ParseError {
+                        span: self.to_ast_span(token.span),
+                        message: format!("E_SUM_MATCH_BINDER_CAPTURE: 이미 결속된 이름을 갈래 받는 이름으로 잡을 수 없습니다: {pin}"),
+                    });
+                }
+                binder.push(SumPatternBinder {id:self.next_id(),span:self.to_ast_span(token.span),pin,registered_pin_identity:None});
+                if !self.check(&TokenKind::Comma) {break;}
+                self.advance();
+                }
+                self.expect(&TokenKind::RParen, ")")?;
+            }
+            if !self.check(&TokenKind::KwMajeumyeon) || self.current().raw!="이면" {
+                return Err(self.error("E_SUM_MATCH_ARM_CONDITION: 고름씨 갈래 조건에는 `이면`만 사용할 수 있습니다"));
+            }
+            self.advance();
+            let body = self.parse_sum_match_arm_body(&binder)?;
+            self.consume_stmt_terminator()?;
+            arms.push(SumMatchArm {
+                id: self.next_id(),
+                span: arm_start.merge(&self.previous_span()),
+                owner,
+                applied_owner,
+                branch,
+                binder,
+                body,
+            });
+        }
+        self.expect(&TokenKind::RBrace, "}")?;
+        if arms.is_empty() {
+            return Err(ParseError {
+                span: start,
+                message: "E_SUM_MATCH_ARM_REQUIRED: `에 따라`에는 하나 이상의 갈래가 필요합니다".to_string(),
+            });
+        }
+        if default_body.is_none() {
+            if arms.len() != match_branches.len() || match_branches.iter().any(|branch| !arm_names.contains(branch)) {
+                return Err(ParseError {
+                    span: start,
+                    message: "E_SUM_MATCH_EXHAUSTIVE_REQUIRED: `아니면`이 없으면 선언된 모든 갈래를 정확히 한 번씩 다뤄야 합니다".to_string(),
+                });
+            }
+        }
+        let mood = self.consume_stmt_terminator()?;
+        Ok(Some(Stmt::SumMatch {
+            id: self.next_id(),
+            span: start.merge(&self.previous_span()),
+            mood,
+            subject,
+            arms,
+            default_body,
+        }))
+    }
+
+    fn parse_sum_match_arm_body(&mut self, binders: &[SumPatternBinder]) -> Result<Body, ParseError> {
+        let start = self.current_span();
+        self.expect(&TokenKind::LBrace, "{")?;
+        self.enter_scope();
+        for binder in binders {
+            self.declare_name(&binder.pin);
+        }
+        let mut stmts = Vec::new();
+        while !self.check(&TokenKind::RBrace) {
+            stmts.push(self.parse_stmt(false)?);
+        }
+        self.expect(&TokenKind::RBrace, "}")?;
+        self.exit_scope();
+        Ok(Body {
+            id: self.next_id(),
+            span: start.merge(&self.previous_span()),
+            stmts,
+        })
+    }
+
+    fn expect_adjacent_dot(&mut self, expected_end: usize) -> Result<(), ParseError> {
+        if !self.check(&TokenKind::Dot) || self.current().span.start != expected_end {
+            return Err(self.error("owner.$갈래의 붙은 `.`"));
+        }
+        self.advance();
+        if self.current().span.start != expected_end + 1 {
+            return Err(self.error("owner.$갈래의 붙은 `$`"));
+        }
+        Ok(())
+    }
+
     fn next_id(&mut self) -> NodeId {
         let id = self.nid;
         self.nid += 1;
@@ -122,8 +524,27 @@ impl Parser {
         self.beat_depth = 0;
         self.chaebi_forbidden_depth = 0;
         self.declared_scopes.clear();
-        self.declared_scopes.push(HashSet::new());
+        self.declared_scopes.push(DeclaredNames::default());
         self.declared_type_scopes.clear();
+        self.product_definitions.clear();
+        self.schema_categories.clear();
+        self.schema_header_names.clear();
+        self.schema_construction_nodes.clear();
+        // Grammar lookahead only. Actual category/owner/slot admission happens
+        // after the complete program has been parsed, including forward uses.
+        if self.source_epoch==SourceEpoch::V25 {
+            let mut depth=0usize;
+            for index in 0..self.tokens.len() {
+                if depth==0&&self.is_vc04_schema_header_at(index) {self.schema_header_names.insert(self.tokens[index].raw.clone());}
+                match self.tokens[index].kind {TokenKind::LBrace=>depth+=1,TokenKind::RBrace=>depth=depth.saturating_sub(1),_=>{}}
+            }
+        }
+        self.sum_definitions.clear();
+        self.bytes_calls.clear();
+        self.atom_value_occurrences.clear();
+        self.retirement_commands.clear();
+        self.subject_reference_calls.clear();
+        self.manipulation_phase_calls.clear();
         self.declared_type_scopes.push(HashMap::new());
         self.seed_kind_stack.clear();
         self.natural_foreach_ids.clear();
@@ -187,7 +608,11 @@ impl Parser {
                 top_level_decl.push(stmt);
                 continue;
             }
-            if self.is_root_statement_start() {
+            if self.is_vc04_schema_start() {
+                items.push(TopLevelItem::SeedDef(self.parse_vc04_schema()?));
+            } else if self.is_sum_definition_stmt_start()
+                || self.is_sum_match_stmt_start()
+                || self.is_root_statement_start() {
                 root_stmts.push(self.parse_stmt(false)?);
             } else {
                 items.push(self.parse_top_level_item()?);
@@ -205,7 +630,13 @@ impl Parser {
                 file_path,
                 source,
                 node_spans: std::collections::HashMap::new(),
+                registered_sum_pin_order:None,
                 registered_call_candidates: HashMap::new(),
+                bytes_calls: HashMap::new(),
+                atom_value_occurrences: self.atom_value_occurrences.clone(),
+                retirement_commands: HashMap::new(),
+                subject_reference_calls: HashMap::new(),
+                manipulation_phase_calls: HashMap::new(),
             },
         };
         self.validate_seed_name_conflicts(&program)?;
@@ -220,6 +651,11 @@ impl Parser {
             self.apply_default_args(&mut program)?;
         }
         program.origin.registered_call_candidates = self.registered_call_candidates.clone();
+        program.origin.bytes_calls = self.bytes_calls.clone();
+        program.origin.retirement_commands = self.retirement_commands.clone();
+        program.origin.subject_reference_calls = self.subject_reference_calls.clone();
+        program.origin.manipulation_phase_calls = self.manipulation_phase_calls.clone();
+        if resolve_calls {crate::vc04_semantics::validate(&mut program)?;}
         program
             .origin
             .node_spans
@@ -229,7 +665,7 @@ impl Parser {
         Ok(program)
     }
     fn enter_scope(&mut self) {
-        self.declared_scopes.push(HashSet::new());
+        self.declared_scopes.push(DeclaredNames::default());
         self.declared_type_scopes.push(HashMap::new());
     }
     fn exit_scope(&mut self) {
@@ -238,7 +674,7 @@ impl Parser {
     }
     fn declare_name(&mut self, name: &str) {
         if let Some(scope) = self.declared_scopes.last_mut() {
-            scope.insert(name.to_string());
+            scope.explicit.insert(name.to_string());
         }
     }
     fn declare_typed_name(&mut self, name: &str, type_ref: &TypeRef) {
@@ -257,7 +693,11 @@ impl Parser {
         self.declared_scopes
             .iter()
             .rev()
-            .any(|scope| scope.contains(name))
+            .any(|scope| scope.explicit.contains(name))
+    }
+    fn pattern_name_is_bound(&self, name: &str) -> bool {
+        self.declared_scopes.iter().rev().any(|scope|
+            scope.explicit.contains(name)||scope.ordinary.contains(name))
     }
     fn in_imja_seed_body(&self) -> bool {
         self.seed_kind_stack
@@ -335,7 +775,8 @@ impl Parser {
                             | TokenKind::MinusArrow
                             | TokenKind::PlusEqual
                             | TokenKind::MinusEqual
-                            | TokenKind::KwBoyeojugi
+                        | TokenKind::Dot
+                        | TokenKind::KwBoyeojugi
                             | TokenKind::KwTolabogi
                     ) || (v25 && matches!(kind, TokenKind::Equals))
                 })
@@ -397,10 +838,93 @@ impl Parser {
                 }
                 false
             }
-            TokenKind::LParen => false,
+            TokenKind::LParen => {
+                let mut depth = 0;
+                for (offset, token) in self.tokens[self.pos..].iter().enumerate() {
+                    match token.kind {
+                        TokenKind::LParen => depth += 1,
+                        TokenKind::RParen => {
+                            depth -= 1;
+                            if depth == 0 {
+                                return !self.peek_kind_n_is(offset + 2, |kind| matches!(kind, TokenKind::Colon));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                false
+            }
             _ => true,
         }
     }
+    fn is_vc04_schema_start(&self) -> bool {
+        self.is_vc04_schema_header_at(self.pos)
+    }
+    fn is_vc04_schema_header_at(&self,index:usize)->bool {
+        let Some(row)=self.tokens.get(index..index+5)else{return false};
+        self.source_epoch==SourceEpoch::V25&&matches!(row[0].kind,TokenKind::Ident(_))
+            &&matches!(row[1].kind,TokenKind::Colon)&&matches!(row[2].raw.as_str(),"임자"|"이름씨")
+            &&matches!(row[3].kind,TokenKind::Define)&&matches!(row[4].kind,TokenKind::LBrace)
+            &&!(row[2].raw=="임자"&&self.is_existing_reaction_owner_body(index+5))
+    }
+    /// Preserve the already-supported RD-293/445 owner body, not a permissive
+    /// fallback for malformed slot schemas. The actual legacy parser remains
+    /// responsible for admitting its receiver/provider declaration.
+    fn is_existing_reaction_owner_body(&self,start:usize)->bool {
+        if !self.tokens.get(start).is_some_and(|t|matches!(t.kind,TokenKind::LParen)){return false;}
+        let mut depth=0;
+        for (index,token) in self.tokens.iter().enumerate().skip(start){
+            match token.kind{
+                TokenKind::LParen=>depth+=1,
+                TokenKind::RParen=>{depth-=1;if depth==0 {
+                    let raw=|offset:usize|self.tokens.get(index+offset).map(|t|t.raw.as_str());
+                    let provider=self.tokens.get(index+2).is_some_and(|t|matches!(t.kind,TokenKind::Colon))
+                        &&raw(3)==Some("움직씨")&&self.tokens.get(index+4).is_some_and(|t|matches!(t.kind,TokenKind::LBrace));
+                    let receiver=matches!(raw(1),Some("를"|"을"))&&raw(2)==Some("받으면");
+                    return provider||receiver;
+                }},
+                TokenKind::Dot|TokenKind::Eof=>return false,
+                _=>{},
+            }
+        }
+        false
+    }
+
+    fn parse_vc04_schema(&mut self) -> Result<SeedDef, ParseError> {
+        let start = self.current_span();
+        let name = self.expect_ident("schema 이름")?.raw.clone();
+        self.expect(&TokenKind::Colon, ":")?;
+        let category = match self.advance().raw.as_str() {
+            "임자" => SchemaCategory::Subject,
+            "이름씨" => SchemaCategory::NominalValue,
+            _ => return Err(self.error("E_SCHEMA_CATEGORY: 임자 또는 이름씨가 필요합니다")),
+        };
+        self.expect(&TokenKind::Define, ":=")?;
+        self.expect(&TokenKind::LBrace, "{")?;
+        let mut params = Vec::new();
+        let mut names = HashSet::new();
+        while !self.check(&TokenKind::RBrace) {
+            let slot_start = self.current_span();
+            let pin_name = self.expect_ident("schema 성분 이름")?.raw.clone();
+            if !names.insert(pin_name.clone()) {
+                return Err(self.error("E_SCHEMA_SLOT_DUPLICATE: 같은 성분 이름을 중복 선언할 수 없습니다"));
+            }
+            self.expect(&TokenKind::Colon, ":")?;
+            let type_ref = self.parse_type_ref()?;
+            if type_ref == TypeRef::Infer {
+                return Err(self.error("E_SCHEMA_SLOT_TYPE: 성분의 씨를 명시해야 합니다"));
+            }
+            self.expect(&TokenKind::Dot, "schema 성분 선언의 마침표 `.`")?;
+            params.push(ParamPin { id: self.next_id(), span: slot_start.merge(&self.previous_span()),
+                pin_name, type_ref, default_value: None, optional: false, josa_list: Vec::new() });
+        }
+        self.expect(&TokenKind::RBrace, "}")?;
+        self.expect(&TokenKind::Dot, "schema 정의의 마침표 `.`")?;
+        Ok(SeedDef { id: self.next_id(), span: start.merge(&self.previous_span()),
+            canonical_name: name, alternate_forms: Vec::new(), seed_kind: SeedKind::Schema(category),
+            params, result_type: None, body: None, modifiers: Vec::new() })
+    }
+
     fn parse_seed_def(&mut self) -> Result<SeedDef, ParseError> {
         if self.check_ident() && self.peek_kind_n_is(1, |kind| matches!(kind, TokenKind::LParen)) {
             return self.parse_named_single_expression_callable();
@@ -418,9 +942,6 @@ impl Parser {
             } else {
                 Vec::new()
             };
-        if alternate_forms.is_empty() {
-            self.validate_seed_name_tail(&name, self.previous_span())?;
-        }
         self.expect(&TokenKind::Colon, ":")?;
         // Full callable declarations place an explicit result type between the
         // preferred name and the callable kind:
@@ -443,6 +964,9 @@ impl Parser {
             None
         };
         let kind = self.parse_seed_kind()?;
+        if kind != SeedKind::Product && alternate_forms.is_empty() {
+            self.validate_seed_name_tail(&name, start)?;
+        }
         if result_type.is_some() && !matches!(kind, SeedKind::Semssi | SeedKind::Umjikssi) {
             return Err(self.error("결과 타입이 있는 셈씨 또는 움직씨 선언"));
         }
@@ -473,7 +997,8 @@ impl Parser {
                 Ok(body) => {
                     // V25의 `이름:씨 := { ... }.` 종결자는 선언에 속한다.
                     // root statement로 넘기거나 본문 span에 포함하지 않는다.
-                    if self.source_epoch == SourceEpoch::V25 && self.check(&TokenKind::Dot) {
+                    if kind != SeedKind::Product
+                        && self.source_epoch == SourceEpoch::V25 && self.check(&TokenKind::Dot) {
                         self.advance();
                     }
                     Ok(body)
@@ -500,6 +1025,27 @@ impl Parser {
         };
         self.seed_kind_stack.pop();
         let body = body_result?;
+        if kind == SeedKind::Product {
+            if self.source_epoch == SourceEpoch::V25 {
+                self.expect(&TokenKind::Dot, "묶음씨 정의의 마침표 `.`")?;
+            }
+            if !body.stmts.is_empty() {
+                return Err(ParseError { span: body.span, message:
+                    "E_PRODUCT_SCHEMA_BODY: 묶음씨 본문은 실행문 없는 빈 schema여야 합니다".into() });
+            }
+            let mut names = HashSet::new();
+            for field in &params {
+                if !names.insert(&field.pin_name) {
+                    return Err(ParseError { span: field.span, message:
+                        format!("E_PRODUCT_FIELD_DUPLICATE: 필드 `{}`가 중복되었습니다", field.pin_name) });
+                }
+                if field.type_ref == TypeRef::Infer || field.optional || field.default_value.is_some()
+                    || !field.josa_list.is_empty() {
+                    return Err(ParseError { span: field.span, message:
+                        "E_PRODUCT_FIELD_SCHEMA: 묶음씨 필드는 명시적 `이름:씨`이며 callable 받는자리·기본값을 갖지 않습니다".into() });
+                }
+            }
+        }
         self.exit_scope();
         Ok(SeedDef {
             id: self.next_id(),
@@ -867,8 +1413,11 @@ impl Parser {
             if self.check(&TokenKind::TypeArrow) {
                 return Ok(ParsedTypeOperand::FunctionParams(args));
             }
-            if args.len() == 1 && matches!(args.first(), Some(TypeRef::Function { .. })) {
+            if args.len() == 1 && matches!(args.first(), Some(TypeRef::Function { .. } | TypeRef::Tuple(_))) {
                 return Ok(ParsedTypeOperand::Single(args.pop().expect("grouped type")));
+            }
+            if args.len() >= 2 {
+                return Ok(ParsedTypeOperand::Single(TypeRef::Tuple(args)));
             }
             return Err(ParseError {
                 span: self.current_span(),
@@ -895,6 +1444,9 @@ impl Parser {
             TokenKind::KwIeumssi => Ok(SeedKind::Ieumssi),
             TokenKind::KwSemssi => Ok(SeedKind::Semssi),
             TokenKind::Ident(name) | TokenKind::Josa(name) => {
+                if name == "묶음씨" {
+                    return Ok(SeedKind::Product);
+                }
                 if let Some(replacement) = legacy_seed_kind_replacement(name) {
                     return Err(ParseError {
                         span: self.to_ast_span(t.span),
@@ -986,6 +1538,19 @@ impl Parser {
     }
 
     fn parse_stmt(&mut self, allow_implicit_terminator: bool) -> Result<Stmt, ParseError> {
+        let stmt=self.parse_stmt_inner(allow_implicit_terminator)?;
+        let binding=match &stmt {
+            Stmt::Mutate {target,..}=>match &target.kind {ExprKind::Var(name)=>Some(name),_=>None},
+            Stmt::Definition {name,..}=>Some(name),
+            _=>None,
+        };
+        if let Some(name)=binding {
+            if let Some(scope)=self.declared_scopes.last_mut() {scope.ordinary.insert(name.clone());}
+        }
+        Ok(stmt)
+    }
+
+    fn parse_stmt_inner(&mut self, allow_implicit_terminator: bool) -> Result<Stmt, ParseError> {
         let s = self.current_span();
         if let Some(provider)=self.try_parse_reaction_provider()? {
             return Ok(provider);
@@ -1053,6 +1618,9 @@ impl Parser {
         if let Some(kind) = self.peek_decl_block_kind() {
             return self.parse_decl_block(kind);
         }
+        if self.is_sum_definition_stmt_start() {
+            return self.parse_sum_definition_stmt();
+        }
         if self.source_epoch == SourceEpoch::V25 && self.is_legacy_definition_stmt_start() {
             return Err(ParseError {
                 span: self.current_span(),
@@ -1076,6 +1644,9 @@ impl Parser {
                 return Err(self.error("E_V25_IF_SURFACE: 조건문은 '{ 조건 }이면 { ... } 아니면 { ... }.'로 작성하세요"));
             }
             return self.parse_manyak_if_stmt();
+        }
+        if self.is_sum_match_stmt_start() {
+            if let Some(stmt) = self.try_parse_sum_match_stmt()? { return Ok(stmt); }
         }
         if let Some(stmt) = self.try_parse_receive_stmt()? {
             return Ok(stmt);
@@ -1157,7 +1728,7 @@ impl Parser {
         if self.check(&TokenKind::PersistentDependencyArrow) {
             return Err(ParseError {
                 span: self.current_span(),
-                message: "E_PERSISTENT_DEPENDENCY_PRODUCT_OPEN: `<<-` has a distinct successor identity but its shared-lang statement lowering is not implemented".to_string(),
+                message: "E_PERSISTENT_DEPENDENCY_PRODUCT_OPEN: `<<-`는 지속 파생 선언으로 예약되어 있지만 베타1에서는 아직 지원하지 않습니다. 실제 파생 실행은 베타2 대상이며, `<-` 다시결속으로 대신 실행하지 않습니다".to_string(),
             });
         }
 
@@ -3215,7 +3786,7 @@ impl Parser {
                 ExprKind::Literal(Literal::Fixed64(Fixed64::from_i64(0))),
             );
             let span = zero.span.merge(&rhs.span);
-            return Ok(Expr::new(
+            let mut expr = Expr::new(
                 self.next_id(),
                 span,
                 ExprKind::Infix {
@@ -3223,7 +3794,9 @@ impl Parser {
                     op: op_token.raw.clone(),
                     right: Box::new(rhs),
                 },
-            ));
+            );
+            expr.source_unary_minus = true;
+            return Ok(expr);
         }
         if self.check(&TokenKind::Plus) {
             self.advance();
@@ -3235,6 +3808,19 @@ impl Parser {
         self.parse_primary_inner(true)
     }
     fn parse_primary_inner(&mut self, allow_bare_bound_call: bool) -> Result<Expr, ParseError> {
+        if let Some(end)=self.find_matching_rparen_after_current_lparen() {
+            if self.tokens.get(end+1).is_some_and(|token|matches!(token.kind,TokenKind::Ident(_)))
+                && self.tokens.get(end+2).is_some_and(|token|matches!(token.kind,TokenKind::Dot))
+                && self.tokens.get(end+3).is_some_and(|token|matches!(token.kind,TokenKind::BranchRole(_))) {
+                let start=self.current_span();
+                let kind=self.parse_type_ref()?;
+                let resolved=crate::sum_owner::resolve_applied_sum_owner(&kind,start)
+                    .map_err(|message|ParseError{span:start,message})?;
+                self.expect_adjacent_dot(self.previous_span().end)?;
+                let value=self.parse_sum_branch_value(resolved.key,Some(resolved.type_ref),start)?;
+                return self.parse_primary_tail(value,allow_bare_bound_call);
+            }
+        }
         if let Some(end) = self.find_matching_rparen_after_current_lparen() {
             if let Some(provider) = self.tokens.get(end + 1).map(|token| token.raw.clone()) {
                 if provider == "텐서로" || provider == "차림으로" {
@@ -3256,22 +3842,35 @@ impl Parser {
                     message: "E_FIXED64_LITERAL_RANGE: 수치 리터럴 범위 초과 또는 잘못된 10진 표기"
                         .to_string(),
                 })?;
-                Expr::new(
+                let mut expr = Expr::new(
                     self.next_id(),
                     self.to_ast_span(t.span),
                     ExprKind::Literal(Literal::Fixed64(value)),
-                )
+                );
+                // Preserve the producer's token spelling before any Fixed64
+                // rounding. B01 exact-context supply must use these digits,
+                // never reverse-convert the evaluated numeric value.
+                expr.numeric_literal_source = Some(NumericLiteralSource::from_token(
+                    &t.raw, matches!(t.kind, TokenKind::Float(_)),
+                ));
+                expr
             }
+            TokenKind::BytesLit(bytes) => Expr::new(
+                self.next_id(),
+                self.to_ast_span(t.span),
+                ExprKind::Literal(Literal::Bytes(ddonirang_core::bytes::ByteSequence::new(bytes.clone()))),
+            ),
             TokenKind::StringLit(s) => Expr::new(
                 self.next_id(),
                 self.to_ast_span(t.span),
                 ExprKind::Literal(Literal::String(s.clone())),
             ),
-            TokenKind::Atom(a) => Expr::new(
-                self.next_id(),
-                self.to_ast_span(t.span),
-                ExprKind::Literal(Literal::Atom(a.clone())),
-            ),
+            TokenKind::Atom(a) => {
+                let id = self.next_id();
+                let span = self.to_ast_span(t.span);
+                self.atom_value_occurrences.insert(id, AtomValueOccurrence {span, label:a.clone(),role:AtomValueRole::LocalValue});
+                Expr::new(id, span, ExprKind::Literal(Literal::Atom(a.clone())))
+            },
             TokenKind::TemplateBlock(raw) => {
                 let template = self.parse_template_block(raw, self.to_ast_span(t.span), None)?;
                 Expr::new(
@@ -3309,6 +3908,12 @@ impl Parser {
                 return Err(ParseError {
                     span: self.to_ast_span(t.span),
                     message: "E_FUNCTION_TYPE_ARROW_VALUE_POSITION: `-->`는 타입 위치에서만 사용할 수 있습니다".to_string(),
+                });
+            }
+            TokenKind::BranchRole(_) => {
+                return Err(ParseError {
+                    span: self.to_ast_span(t.span),
+                    message: "E_SUM_BRANCH_OWNER_REQUIRED: `$갈래` 앞에는 정확한 고름씨 이름이 필요합니다".to_string(),
                 });
             }
             TokenKind::Nuance(level) => {
@@ -3464,6 +4069,20 @@ impl Parser {
                         break;
                     }
                     self.advance();
+                    if matches!(self.current().kind,TokenKind::BranchRole(_)) {
+                        let owner = match &e.kind {
+                            ExprKind::Var(owner) => owner.clone(),
+                            _ => {
+                                return Err(ParseError {
+                                    span: e.span,
+                                    message: "E_SUM_BRANCH_OWNER_REQUIRED: `$갈래` 앞에는 정확한 고름씨 이름이 필요합니다".to_string(),
+                                })
+                            }
+                        };
+                        e=self.parse_sum_branch_value(owner,None,e.span)?;
+                        end = self.previous_span().end;
+                        continue;
+                    }
                     let field_token = self.expect_ident("필드")?;
                     let field = match &field_token.kind {
                         TokenKind::Ident(name) | TokenKind::Josa(name) => name.clone(),
@@ -3492,22 +4111,30 @@ impl Parser {
                 let mut args = Vec::new();
                 let mut pack_fields = Vec::new();
                 let mut saw_pack = false;
+                let mut positional_comma = false;
                 if !self.check(&TokenKind::RParen) {
                     loop {
                         if self.check_ident() && self.peek_is_colon() {
+                            // RD090: a named pack cannot absorb and discard
+                            // positional arguments or fixed call-pin bindings.
+                            if !args.is_empty() {
+                                return Err(self.error("E_PACK_MIXED_SHAPE: 위치값·고정 인자와 이름형 값꾸러미 필드를 섞을 수 없습니다"));
+                            }
                             saw_pack = true;
                             let name = self.expect_ident("묶음 필드")?.raw.clone();
                             self.expect(&TokenKind::Colon, ":")?;
                             let value = self.parse_expr()?;
                             pack_fields.push((name, value));
                         } else if saw_pack {
-                            return Err(self.error("묶음 필드는 이름:값 형태여야 합니다"));
+                            return Err(self.error("E_PACK_MIXED_SHAPE: 이름형 값꾸러미 필드는 이름:값 형태여야 하며 위치값·고정 인자를 섞을 수 없습니다"));
                         } else {
                             let arg = self.parse_call_arg()?;
                             args.push(arg);
                         }
                         if self.check(&TokenKind::Comma) {
                             self.advance();
+                            positional_comma = true;
+                            if !saw_pack && self.check(&TokenKind::RParen) { break; }
                             continue;
                         }
                         break;
@@ -3519,6 +4146,12 @@ impl Parser {
                     .merge(&self.to_ast_span(close.span));
                 if !saw_pack {
                     if self.check_adjacent_in(close.span.end) {
+                        if self.tokens.get(self.pos+1).is_some_and(|token|self.schema_header_names.contains(&token.raw)) {
+                            self.advance();
+                            let owner=self.expect_ident("명목 schema 이름")?;
+                            let id=self.next_id();self.schema_construction_nodes.insert(id);
+                            return Ok(Expr::new(id,span.merge(&self.to_ast_span(owner.span)),ExprKind::Call{func:owner.raw,args}));
+                        }
                         self.advance();
                         let mut value_expr = self.parse_primary_inner(false)?;
                         value_expr = self.parse_index_suffix(value_expr)?;
@@ -3704,12 +4337,18 @@ impl Parser {
                         )
                     } else {
                         if args.len() == 1
+                            && !positional_comma
                             && args[0].josa.is_none()
                             && args[0].resolved_pin.is_none()
                         {
                             args.into_iter().next().unwrap().expr
                         } else {
-                            return Err(self.error("함수 호출"));
+                            if args.iter().any(|arg| arg.josa.is_some() || arg.resolved_pin.is_some()) {
+                                return Err(self.error("E_PACK_MIXED_SHAPE: 위치형 값꾸러미에는 조사나 고정 받는자리를 넣을 수 없습니다"));
+                            }
+                            Expr::new(self.next_id(),span,ExprKind::TupleConstructor {
+                                elements:args.into_iter().map(|arg| arg.expr).collect(),
+                            })
                         }
                     }
                 }
@@ -3868,6 +4507,12 @@ impl Parser {
                 return Err(ParseError {span:root.span,message:"E_TENSOR_TEMPORARY_UPDATE: 임시 텐서에는 다시결속할 수 없습니다".into()});
             }
             self.ensure_root_declared_for_write(root)?;
+            if let [TensorAxisSelector::Index(index)] = selection.selectors.as_slice() {
+                return Ok(Stmt::Mutate {id:self.next_id(),span:stmt_start.merge(&self.previous_span()),mood,
+                    target:Expr::new(self.next_id(),target.span,ExprKind::SelectionPlace {
+                        target:selection.target.clone(),index:index.clone(),
+                    }),value,deferred,deferred_span});
+            }
             let mut selection = selection.clone();
             selection.writable = true;
             return Ok(Stmt::Mutate {id:self.next_id(),span:stmt_start.merge(&self.previous_span()),mood,
@@ -3928,6 +4573,11 @@ impl Parser {
                 return Err(ParseError {span:selection.target.span,message:"E_RESULT_FLOW_ROOT_REQUIRED: 결과흐름의 텐서 root는 이름이어야 합니다".into()});
             }
             self.ensure_root_declared_for_write(&selection.target)?;
+            if let [TensorAxisSelector::Index(index)] = selection.selectors.as_slice() {
+                return Ok(Expr::new(self.next_id(),destination.span,ExprKind::SelectionPlace {
+                    target:selection.target.clone(),index:index.clone(),
+                }));
+            }
             let mut selection = selection.clone();
             selection.writable = true;
             return Ok(Expr::new(self.next_id(),destination.span,ExprKind::MultiAxisSelection(selection)));
@@ -4027,7 +4677,9 @@ impl Parser {
 
     fn stmt_span(stmt: &Stmt) -> Span {
         match stmt {
-            Stmt::DeclBlock { span, .. }
+            Stmt::SumDefinition { span, .. }
+            | Stmt::SumMatch { span, .. }
+            | Stmt::DeclBlock { span, .. }
             | Stmt::Definition { span, .. }
             | Stmt::Mutate { span, .. }
             | Stmt::ResultFlow { span, .. }
@@ -4267,9 +4919,11 @@ impl Parser {
             TokenKind::Integer(_)
                 | TokenKind::Float(_)
                 | TokenKind::StringLit(_)
+                | TokenKind::BytesLit(_)
                 | TokenKind::Atom(_)
                 | TokenKind::Variable(_)
                 | TokenKind::Nuance(_)
+                | TokenKind::BranchRole(_)
                 | TokenKind::TemplateBlock(_)
                 | TokenKind::FormulaBlock(_)
                 | TokenKind::Ident(_)
@@ -4391,11 +5045,23 @@ impl Parser {
                                 _ => None,
                             }
                         };
-                        let (Some(start),Some(end),Some(0)) = (static_integer(&args[0].expr),static_integer(&args[1].expr),static_integer(&args[2].expr)) else {
-                            return Err(ParseError {span:index.span,message:"E_TENSOR_STATIC_RANGE: 축 범위는 0 이상의 정적 half-open 정수 범위여야 합니다".into()});
-                        };
-                        if start > end { return Err(ParseError {span:index.span,message:"E_TENSOR_STATIC_RANGE: 범위 시작은 끝을 넘을 수 없습니다".into()}); }
-                        selectors.push(TensorAxisSelector::Range {start,end});
+                        if static_integer(&args[2].expr) != Some(0) {
+                            return Err(ParseError {span:index.span,message:"E_SELECTION_HALF_OPEN_RANGE: 선택 범위는 반열림 범위여야 합니다".into()});
+                        }
+                        match (static_integer(&args[0].expr),static_integer(&args[1].expr)) {
+                            (Some(start),Some(end)) => {
+                                if start > end { return Err(ParseError {span:index.span,message:"E_TENSOR_STATIC_RANGE: 범위 시작은 끝을 넘을 수 없습니다".into()}); }
+                                selectors.push(TensorAxisSelector::Range {start,end});
+                            }
+                            _ if matches!(args[0].expr.kind,ExprKind::Literal(_))
+                                && matches!(args[1].expr.kind,ExprKind::Literal(_)) => {
+                                return Err(ParseError {span:index.span,message:"E_TENSOR_STATIC_RANGE: 범위는 0 이상의 정수여야 합니다".into()});
+                            }
+                            // RD-352 permits runtime list bounds. Preserve the
+                            // authored range expression; Tensor still requires
+                            // static bounds at its shared target-owned boundary.
+                            _ => selectors.push(TensorAxisSelector::Index(Box::new(index))),
+                        }
                     } else { selectors.push(TensorAxisSelector::Index(Box::new(index))); }
                 }
                 if !self.check(&TokenKind::Comma) { break; }
@@ -4404,27 +5070,16 @@ impl Parser {
             }
             let close = self.expect(&TokenKind::RBracket, "]")?;
             let span = expr.span.merge(&self.to_ast_span(close.span));
-            if selectors.len() != 1 || !matches!(selectors[0], TensorAxisSelector::Index(_)) {
-                expr = Expr::new(self.next_id(), span, ExprKind::MultiAxisSelection(MultiAxisSelection {
-                    target: Box::new(expr), selectors, writable: false,
-                }));
-                continue;
+            if selectors.len()>1 && selectors.iter().any(|selector| matches!(selector,
+                TensorAxisSelector::Index(index) if matches!(&index.kind,
+                    ExprKind::Call {func,..} if func=="표준.범위"))) {
+                return Err(ParseError {span,message:"E_TENSOR_STATIC_RANGE: 다축 범위는 정적이어야 합니다".into()});
             }
-            let TensorAxisSelector::Index(index_expr) = selectors.pop().unwrap() else { unreachable!() };
-            let mut arg_target = self.new_arg_binding(expr);
-            arg_target.resolved_pin = Some("대상".to_string());
-            arg_target.binding_reason = BindingReason::UserFixed;
-            let mut arg_index = self.new_arg_binding(*index_expr);
-            arg_index.resolved_pin = Some("i".to_string());
-            arg_index.binding_reason = BindingReason::UserFixed;
-            expr = Expr::new(
-                self.next_id(),
-                span,
-                ExprKind::Call {
-                    args: vec![arg_target, arg_index],
-                    func: "차림.값".to_string(),
-                },
-            );
+            // RD-351/357: postfix selection retains its AST category. It must
+            // not become an explicit list-provider call before target typing.
+            expr = Expr::new(self.next_id(), span, ExprKind::MultiAxisSelection(MultiAxisSelection {
+                target: Box::new(expr), selectors, writable: false,
+            }));
         }
         Ok(expr)
     }
@@ -4661,6 +5316,12 @@ impl Parser {
 
     fn stmt_has_mutation(&self, stmt: &Stmt) -> bool {
         match stmt {
+            Stmt::SumDefinition { .. } => false,
+            Stmt::SumMatch { subject, arms, default_body, .. } => {
+                self.expr_has_mutation(subject)
+                    || arms.iter().any(|arm| self.body_has_mutation(&arm.body))
+                    || default_body.as_ref().map_or(false, |body| self.body_has_mutation(body))
+            }
             Stmt::DeclBlock { items, .. } => items.iter().any(|item| {
                 item.value
                     .as_ref()
@@ -4758,6 +5419,12 @@ impl Parser {
 
     fn stmt_has_eval_do(&self, stmt: &Stmt) -> bool {
         match stmt {
+            Stmt::SumDefinition { .. } => false,
+            Stmt::SumMatch { subject, arms, default_body, .. } => {
+                self.expr_has_eval_do(subject)
+                    || arms.iter().any(|arm| self.body_has_eval_do(&arm.body))
+                    || default_body.as_ref().map_or(false, |body| self.body_has_eval_do(body))
+            }
             Stmt::DeclBlock { items, .. } => items.iter().any(|item| {
                 item.value
                     .as_ref()
@@ -4859,6 +5526,12 @@ impl Parser {
 
     fn stmt_has_random(&self, stmt: &Stmt) -> bool {
         match stmt {
+            Stmt::SumDefinition { .. } => false,
+            Stmt::SumMatch { subject, arms, default_body, .. } => {
+                self.expr_has_random(subject)
+                    || arms.iter().any(|arm| self.body_has_random(&arm.body))
+                    || default_body.as_ref().map_or(false, |body| self.body_has_random(body))
+            }
             Stmt::DeclBlock { items, .. } => items.iter().any(|item| {
                 item.value
                     .as_ref()
@@ -4960,6 +5633,12 @@ impl Parser {
 
     fn stmt_has_show(&self, stmt: &Stmt) -> bool {
         match stmt {
+            Stmt::SumDefinition { .. } => false,
+            Stmt::SumMatch { subject, arms, default_body, .. } => {
+                self.expr_has_show(subject)
+                    || arms.iter().any(|arm| self.body_has_show(&arm.body))
+                    || default_body.as_ref().map_or(false, |body| self.body_has_show(body))
+            }
             Stmt::Show { .. } | Stmt::Inspect { .. } => true,
             Stmt::DeclBlock { items, .. } => items.iter().any(|item| {
                 item.value
@@ -5064,6 +5743,8 @@ impl Parser {
 
     fn expr_has_mutation(&self, expr: &Expr) -> bool {
         match &expr.kind {
+            ExprKind::SumBranchValue {payload,..} => payload.iter().any(|value|self.expr_has_mutation(&value.value)),
+            ExprKind::TupleConstructor { elements } => elements.iter().any(|e| self.expr_has_mutation(e)),
             ExprKind::Eval { thunk, .. } => self.expr_exec_has_mutation(thunk),
             ExprKind::Thunk(_) => false,
             ExprKind::FieldAccess { target, .. } => self.expr_has_mutation(target),
@@ -5101,6 +5782,7 @@ impl Parser {
 
     fn expr_has_eval_do(&self, expr: &Expr) -> bool {
         match &expr.kind {
+            ExprKind::SumBranchValue {payload,..} => payload.iter().any(|value|self.expr_has_eval_do(&value.value)),
             ExprKind::Eval { thunk, mode } => {
                 if matches!(mode, ThunkEvalMode::Do) {
                     return true;
@@ -5116,6 +5798,7 @@ impl Parser {
             }
             ExprKind::Suffix { value, .. } => self.expr_has_eval_do(value),
             ExprKind::Pipe { stages } => stages.iter().any(|stage| self.expr_has_eval_do(stage)),
+            ExprKind::TupleConstructor { elements } => elements.iter().any(|e| self.expr_has_eval_do(e)),
             ExprKind::Pack { fields } => fields.iter().any(|(_, expr)| self.expr_has_eval_do(expr)),
             ExprKind::Assertion(_) => false,
             ExprKind::Formula(_) => false,
@@ -5133,6 +5816,7 @@ impl Parser {
 
     fn expr_has_random(&self, expr: &Expr) -> bool {
         match &expr.kind {
+            ExprKind::SumBranchValue {payload,..} => payload.iter().any(|value|self.expr_has_random(&value.value)),
             ExprKind::Eval { thunk, .. } => self.expr_exec_has_random(thunk),
             ExprKind::Thunk(_) => false,
             ExprKind::FieldAccess { target, .. } => self.expr_has_random(target),
@@ -5148,6 +5832,7 @@ impl Parser {
             }
             ExprKind::Suffix { value, .. } => self.expr_has_random(value),
             ExprKind::Pipe { stages } => stages.iter().any(|stage| self.expr_has_random(stage)),
+            ExprKind::TupleConstructor { elements } => elements.iter().any(|e| self.expr_has_random(e)),
             ExprKind::Pack { fields } => fields.iter().any(|(_, expr)| self.expr_has_random(expr)),
             ExprKind::Assertion(_) => false,
             ExprKind::Formula(_) => false,
@@ -5165,6 +5850,7 @@ impl Parser {
 
     fn expr_has_show(&self, expr: &Expr) -> bool {
         match &expr.kind {
+            ExprKind::SumBranchValue {payload,..} => payload.iter().any(|value|self.expr_has_show(&value.value)),
             ExprKind::Eval { thunk, .. } => self.expr_exec_has_show(thunk),
             ExprKind::Thunk(_) => false,
             ExprKind::FieldAccess { target, .. } => self.expr_has_show(target),
@@ -5175,6 +5861,7 @@ impl Parser {
             }
             ExprKind::Suffix { value, .. } => self.expr_has_show(value),
             ExprKind::Pipe { stages } => stages.iter().any(|stage| self.expr_has_show(stage)),
+            ExprKind::TupleConstructor { elements } => elements.iter().any(|e| self.expr_has_show(e)),
             ExprKind::Pack { fields } => fields.iter().any(|(_, expr)| self.expr_has_show(expr)),
             ExprKind::Assertion(_) => false,
             ExprKind::Formula(_) => false,
@@ -5372,6 +6059,15 @@ impl Parser {
     }
 
     fn try_parse_bare_bound_call(&mut self, first_expr: Expr) -> Result<Expr, ParseError> {
+        // R1.1 retains the approved postfix value receiver without inventing
+        // a josa or a public named pin. Other bare calls keep their grammar.
+        if self.source_epoch==SourceEpoch::V25&&matches!(self.current().raw.as_str(),"가리키기"|"읽기") {
+            let token=self.advance();
+            let span=first_expr.span.merge(&self.to_ast_span(token.span));
+            let arg=ArgBinding{id:self.next_id(),span:first_expr.span,expr:first_expr,josa:None,
+                resolved_pin:None,binding_reason:BindingReason::Positional};
+            return Ok(Expr::new(self.next_id(),span,ExprKind::Call{args:vec![arg],func:token.raw}));
+        }
         let checkpoint = self.pos;
         let Some(first_suffix) = self.try_parse_arg_suffix()? else {
             return Ok(first_expr);
@@ -6331,12 +7027,22 @@ impl Parser {
 
     fn validate_seed_name_conflicts(&self, program: &CanonProgram) -> Result<(), ParseError> {
         let mut names: HashMap<String, Span> = HashMap::new();
+        let mut all_names = HashMap::new();
         for item in &program.items {
             let TopLevelItem::SeedDef(seed) = item;
-            names.insert(seed.canonical_name.clone(), seed.span);
+            if let Some(previous_product) = all_names.insert(&seed.canonical_name, seed.seed_kind.is_schema()) {
+                if previous_product || seed.seed_kind.is_schema() {
+                    return Err(ParseError { span: seed.span, message: format!(
+                        "E_PRODUCT_DEFINITION_DUPLICATE: 정의 `{}`의 소유자가 중복되었습니다", seed.canonical_name) });
+                }
+            }
+            if !seed.seed_kind.is_schema() {
+                names.insert(seed.canonical_name.clone(), seed.span);
+            }
         }
         for item in &program.items {
             let TopLevelItem::SeedDef(seed) = item;
+            if seed.seed_kind.is_schema() { continue; }
             let name = &seed.canonical_name;
             if let Some(base) = name.strip_suffix("하") {
                 if !base.is_empty() && names.contains_key(base) {
@@ -6368,6 +7074,7 @@ impl Parser {
         let mut exact_surface_owners: HashMap<(String, String), (String, Span)> = HashMap::new();
         for item in &program.items {
             let TopLevelItem::SeedDef(seed) = item;
+            if seed.seed_kind.is_schema() { continue; }
             let typed_shape = format!(
                 "{:?}",
                 seed.params
@@ -6410,6 +7117,21 @@ impl Parser {
         let mut signatures = HashMap::new();
         for item in &program.items {
             let TopLevelItem::SeedDef(seed) = item;
+            if seed.callable_surface_names().iter().any(|name|
+                crate::bytes::BytesConversion::from_registered_surface(name).is_some()) {
+                return Err(ParseError { span: seed.span,
+                    message: "E_BYTES_ARGUMENT_BINDING: UTF-8 변환의 기존 정의 정체를 다시 선언할 수 없습니다".into() });
+            }
+            if seed.seed_kind == SeedKind::Product {
+                self.product_definitions.insert(seed.canonical_name.clone(), (seed.id, seed.params.clone()));
+                continue;
+            }
+            if matches!(seed.seed_kind, SeedKind::Schema(_)) {
+                let SeedKind::Schema(category)=seed.seed_kind else {unreachable!()};
+                self.schema_categories.insert(seed.canonical_name.clone(),category);
+                self.product_definitions.insert(seed.canonical_name.clone(),(seed.id,seed.params.clone()));
+                continue;
+            }
             for surface in seed.callable_surface_names() {
                 signatures.insert(surface, seed.params.clone());
             }
@@ -6454,6 +7176,13 @@ impl Parser {
 
     fn validate_stmt_units(&self, stmt: &Stmt) -> Result<(), ParseError> {
         match stmt {
+            Stmt::SumDefinition { .. } => Ok(()),
+            Stmt::SumMatch { subject, arms, default_body, .. } => {
+                self.infer_expr_dim(subject)?;
+                for arm in arms { self.validate_body_units(&arm.body)?; }
+                if let Some(body) = default_body { self.validate_body_units(body)?; }
+                Ok(())
+            }
             Stmt::DeclBlock { items, .. } => {
                 for item in items {
                     if let Some(value) = &item.value {
@@ -6616,6 +7345,14 @@ impl Parser {
 
     fn infer_expr_dim(&self, expr: &Expr) -> Result<DimState, ParseError> {
         match &expr.kind {
+            ExprKind::SumBranchValue { payload, .. } => {
+                for payload in payload { self.infer_expr_dim(&payload.value)?; }
+                Ok(DimState::Unknown)
+            }
+            ExprKind::ProductConstruction { fields, .. } => {
+                for field in fields { self.infer_expr_dim(&field.expr)?; }
+                Ok(DimState::Unknown)
+            }
             ExprKind::Tensor(value) => {
                 self.infer_expr_dim(value.input())?;
                 Ok(DimState::Unknown)
@@ -6639,7 +7376,7 @@ impl Parser {
                 }
                 Ok(DimState::Unknown)
             }
-            ExprKind::CollectionConstructor { elements } => {
+            ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
                 for element in elements {
                     self.infer_expr_dim(element)?;
                 }
@@ -6805,6 +7542,12 @@ impl Parser {
     ) -> Result<(), ParseError> {
         for stmt in stmts {
             match stmt {
+                Stmt::SumDefinition { .. } => {}
+                Stmt::SumMatch { subject, arms, default_body, .. } => {
+                    self.apply_defaults_in_expr(subject, signatures, known_seeds)?;
+                    for arm in arms { self.apply_defaults_in_body(&mut arm.body, signatures, known_seeds)?; }
+                    if let Some(body) = default_body { self.apply_defaults_in_body(body, signatures, known_seeds)?; }
+                }
                 Stmt::DeclBlock { items, .. } => {
                     for item in items {
                         if let Some(value) = &mut item.value {
@@ -6972,9 +7715,80 @@ impl Parser {
         known_seeds: &HashSet<String>,
     ) -> Result<(), ParseError> {
         match &mut expr.kind {
+            ExprKind::SumBranchValue {payload,..} => {
+                for value in payload {self.apply_defaults_in_expr(&mut value.value,signatures,known_seeds)?;}
+            }
             ExprKind::Call { args, func } => {
                 for arg in args.iter_mut() {
                     self.apply_defaults_in_expr(&mut arg.expr, signatures, known_seeds)?;
+                }
+                if let Some((definition, schema)) = self.product_definitions.get(func) {
+                    let category=self.schema_categories.get(func).copied();
+                    if category.is_some()&&!self.schema_construction_nodes.contains(&expr.id) {
+                        return Err(ParseError{span:expr.span,message:"E_SCHEMA_CONSTRUCTION_SURFACE: 명목 구성은 '(성분=값)인 이름'으로 쓰세요".into()});
+                    }
+                    let mut seen = HashSet::new();
+                    for arg in args.iter() {
+                        let pin = arg.resolved_pin.as_ref().ok_or_else(|| ParseError {
+                            span: arg.span, message: "E_PRODUCT_NAMED_FIELD_REQUIRED: 구성할 필드 이름을 명시하세요".into()
+                        })?;
+                        if arg.josa.is_some() || !schema.iter().any(|field| field.pin_name == *pin) {
+                            return Err(ParseError { span: arg.span, message:
+                                format!("E_PRODUCT_FIELD_UNKNOWN: `{func}`의 필드 `{pin}`가 아닙니다") });
+                        }
+                        if !seen.insert(pin) {
+                            return Err(ParseError { span: arg.span, message:
+                                format!("E_PRODUCT_FIELD_DUPLICATE: 필드 `{pin}`가 중복되었습니다") });
+                        }
+                        let expected = &schema.iter().find(|field| field.pin_name == *pin).unwrap().type_ref;
+                        let literal = match &arg.expr.kind {
+                            ExprKind::Literal(Literal::Int(value)) => i32::try_from(*value).ok()
+                                .map(|value| crate::runtime::Value::Fixed64(Fixed64::from_i32(value))),
+                            ExprKind::Literal(Literal::Fixed64(value)) => Some(crate::runtime::Value::Fixed64(*value)),
+                            ExprKind::Literal(Literal::String(value) | Literal::Atom(value)) => Some(crate::runtime::Value::String(value.clone())),
+                            ExprKind::Literal(Literal::Bool(value)) => Some(crate::runtime::Value::Bool(*value)),
+                            ExprKind::Literal(Literal::None) => Some(crate::runtime::Value::None),
+                            _ => None,
+                        };
+                        if let Some(literal) = literal {
+                            if let Err(detail) = crate::runtime::check_value_type(&literal, expected) {
+                                return Err(ParseError { span: arg.expr.span, message: format!(
+                                    "E_RUNTIME_TYPE_MISMATCH: 필드={pin} 기대={} 실제={}", detail.expected, detail.actual) });
+                            }
+                        }
+                    }
+                    if seen.len() != schema.len() {
+                        return Err(ParseError { span: expr.span, message:
+                            format!("E_PRODUCT_FIELD_MISSING: `{func}`의 모든 필드를 명시해야 합니다") });
+                    }
+                    // Retain authored value evaluation order. Record identity
+                    // is owned by the schema, never declaration/source order.
+                    expr.kind = ExprKind::ProductConstruction {
+                        owner: func.clone(), definition: *definition, category, fields: args.clone(),
+                    };
+                    return Ok(());
+                }
+                if self.source_epoch==SourceEpoch::V25&&func=="조작단계"&&!signatures.contains_key(func) {
+                    if args.len()!=1||args[0].resolved_pin.as_deref()!=Some("순서")||args[0].josa.is_some(){
+                        return Err(ParseError{span:expr.span,message:"E_INPUT_PHASE_PIN: '(순서=원순번) 조작단계'의 필수 받는자리 하나를 명시하세요".into()});
+                    }
+                    self.manipulation_phase_calls.insert(expr.id,ManipulationPhaseCallBinding{
+                        definition:"B1.DEF.INPUT_PHASE.R1",ordinal_pin:"B1.PIN.INPUT_PHASE.ORDINAL.R1"});
+                    return Ok(());
+                }
+                if self.source_epoch==SourceEpoch::V25&&func=="폐기하기" {
+                    if signatures.contains_key(func){return Err(ParseError{span:expr.span,message:"E_VC04_RETIRE_AMBIGUOUS: 폐기하기의 사용자 정의와 등록 정의가 경쟁합니다".into()});}
+                    if args.len()!=1||args[0].resolved_pin.as_deref()!=Some("대상")||args[0].josa.is_some(){return Err(ParseError{span:expr.span,message:"E_VC04_RETIRE_PIN: '(대상=표적) 폐기하기'의 필수 받는자리 하나만 사용하세요".into()});}
+                    self.retirement_commands.insert(expr.id,RetirementCommandBinding{definition:"VC04.DEF.PYEGIHAGI.R1",target_pin:"VC04.PIN.PYEGIHAGI.TARGET.R1"});
+                    return Ok(());
+                }
+                if self.source_epoch==SourceEpoch::V25&&matches!(func.as_str(),"가리키기"|"읽기") {
+                    if signatures.contains_key(func){return Err(ParseError{span:expr.span,message:format!("E_VC04_REFERENCE_AMBIGUOUS: 사용자 정의와 등록 `{func}`가 경쟁합니다")});}
+                    if args.len()!=1||args[0].resolved_pin.is_some()||args[0].josa.is_some(){return Err(ParseError{span:expr.span,message:format!("E_VC04_REFERENCE_RECEIVER: '{} {func}'의 값 받는자리 하나만 사용하세요",if func=="읽기"{"가리킴값"}else{"임자값"})});}
+                    let binding=if func=="가리키기" {SubjectReferenceCallBinding{definition:"VC04.DEF.GARIKIGI.R1",receiver_pin:"VC04.PIN.GARIKIGI.TARGET.R1"}}
+                        else {SubjectReferenceCallBinding{definition:"VC04.DEF.ILGI.R1",receiver_pin:"VC04.PIN.ILGI.REFERENCE.R1"}};
+                    self.subject_reference_calls.insert(expr.id,binding);
+                    return Ok(());
                 }
                 let func_name = func.clone();
                 self.record_registered_call(expr.id, expr.span, &func_name);
@@ -6990,6 +7804,15 @@ impl Parser {
             }
             ExprKind::FieldAccess { target, .. } => {
                 self.apply_defaults_in_expr(target, signatures, known_seeds)?;
+            }
+            ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
+                for element in elements {
+                    self.apply_defaults_in_expr(element, signatures, known_seeds)?;
+                }
+            }
+            ExprKind::SelectionPlace { target, index } => {
+                self.apply_defaults_in_expr(target, signatures, known_seeds)?;
+                self.apply_defaults_in_expr(index, signatures, known_seeds)?;
             }
             ExprKind::Infix { left, right, .. } => {
                 self.apply_defaults_in_expr(left, signatures, known_seeds)?;
@@ -7012,6 +7835,11 @@ impl Parser {
                     self.apply_defaults_in_expr(value, signatures, known_seeds)?;
                 }
             }
+            ExprKind::ProductConstruction { fields, .. } => {
+                for field in fields {
+                    self.apply_defaults_in_expr(&mut field.expr, signatures, known_seeds)?;
+                }
+            }
             ExprKind::TemplateRender { inject, .. } => {
                 for (_, value) in inject.iter_mut() {
                     self.apply_defaults_in_expr(value, signatures, known_seeds)?;
@@ -7026,6 +7854,17 @@ impl Parser {
                 self.apply_defaults_in_expr(expr, signatures, known_seeds)?;
             }
             _ => {}
+        }
+        self.bind_bytes_call(expr)?;
+        Ok(())
+    }
+
+    fn bind_bytes_call(&mut self, expr: &Expr) -> Result<(), ParseError> {
+        if let ExprKind::Call { func, args } = &expr.kind {
+            if let Some(operation) = crate::bytes::BytesConversion::from_registered_surface(func) {
+                operation.validate(args, expr.span)?;
+                self.bytes_calls.insert(expr.id, operation);
+            }
         }
         Ok(())
     }
@@ -7043,6 +7882,11 @@ impl Parser {
                 false
             };
             let stage = &mut stages[index];
+            if matches!(&stage.kind, ExprKind::Call { func, .. } if self.product_definitions.contains_key(func)) {
+                // Explicit Product fields have no implicit flow/current-item pin.
+                self.apply_defaults_in_expr(stage, signatures, known_seeds)?;
+                continue;
+            }
             match &mut stage.kind {
                 ExprKind::Call { args, func } => {
                     for arg in args.iter_mut() {
@@ -7077,6 +7921,7 @@ impl Parser {
                     self.apply_defaults_in_expr(stage, signatures, known_seeds)?;
                 }
             }
+            self.bind_bytes_call(stage)?;
         }
         Ok(())
     }
@@ -7372,6 +8217,13 @@ impl Parser {
             return Ok((owner.clone(), owner.clone()));
         }
         let resolved = resolve_known_call_target(func, known_seeds, span)?;
+        if crate::bytes::BytesConversion::from_registered_surface(&resolved.0).is_some()
+            && func != resolved.0 {
+            return Err(ParseError {
+                span,
+                message: format!("E_REGISTERED_FORM_REQUIRED: '{}'은 등록된 UTF-8 변환 표면이 아닙니다", func),
+            });
+        }
         if self.explicitly_registered_owners.contains(&resolved.0) {
             return Err(ParseError {
                 span,
@@ -7941,6 +8793,9 @@ enum FieldShape {
 }
 
 fn validate_record_field_accesses(program: &CanonProgram) -> Result<(), ParseError> {
+    let root = Body { id: program.id, span: Span::new(0, program.origin.source.len()),
+        stmts: program.root_stmts.clone() };
+    validate_field_body(&root, &mut HashMap::new())?;
     for item in &program.items {
         let TopLevelItem::SeedDef(seed) = item;
         let mut env = HashMap::new();
@@ -7963,6 +8818,16 @@ fn validate_field_body(
 ) -> Result<(), ParseError> {
     for stmt in &body.stmts {
         match stmt {
+            Stmt::SumDefinition { .. } => {}
+            Stmt::SumMatch { subject, arms, default_body, .. } => {
+                validate_field_expr(subject, env)?;
+                for arm in arms {
+                    let mut nested = env.clone();
+                    for binder in &arm.binder { nested.insert(binder.pin.clone(), FieldShape::Unknown); }
+                    validate_field_body(&arm.body, &mut nested)?;
+                }
+                if let Some(body) = default_body { validate_field_body(body, &mut env.clone())?; }
+            }
             Stmt::DeclBlock { items, .. } => {
                 for item in items {
                     let shape = match &item.value {
@@ -8109,6 +8974,20 @@ fn validate_field_expr(
     env: &HashMap<String, FieldShape>,
 ) -> Result<FieldShape, ParseError> {
     match &expr.kind {
+        ExprKind::SumBranchValue { payload, .. } => {
+            for payload in payload { validate_field_expr(&payload.value, env)?; }
+            Ok(FieldShape::Unknown)
+        }
+        ExprKind::ProductConstruction { fields, .. } => {
+            let mut shape = HashMap::new();
+            for field in fields {
+                let name = field.resolved_pin.as_ref().ok_or_else(|| ParseError {
+                    span: field.span, message: "E_PRODUCT_NAMED_FIELD_REQUIRED: 구성 필드 이름이 없습니다".into()
+                })?;
+                shape.insert(name.clone(), validate_field_expr(&field.expr, env)?);
+            }
+            Ok(FieldShape::Record(shape))
+        }
         ExprKind::Tensor(value) => {
             validate_field_expr(value.input(), env)?;
             Ok(FieldShape::Unknown)
@@ -8149,7 +9028,7 @@ fn validate_field_expr(
             }
             Ok(FieldShape::Unknown)
         }
-        ExprKind::CollectionConstructor { elements } => {
+        ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
             for element in elements {
                 validate_field_expr(element, env)?;
             }
@@ -8197,6 +9076,13 @@ pub struct ParseError {
 
 impl ParseError {
     pub fn code(&self) -> &'static str {
+        for code in ["E_VC04_RETIRE_AMBIGUOUS", "E_VC04_RETIRE_BINDING", "E_VC04_RETIRE_PIN", "E_VC04_RETIRE_TARGET", "E_VC04_COMMAND_VALUE", "E_VC04_PURE_WORLD_WRITE", "E_SCHEMA_CONSTRUCTION_SURFACE",
+            "E_PRODUCT_DEFINITION_DUPLICATE", "E_PRODUCT_SCHEMA_BODY", "E_PRODUCT_FIELD_SCHEMA", "E_PRODUCT_FIELD_DUPLICATE",
+            "E_PRODUCT_NAMED_FIELD_REQUIRED", "E_PRODUCT_FIELD_UNKNOWN", "E_PRODUCT_FIELD_MISSING",
+            "E_RUNTIME_TYPE_MISMATCH", "E_BYTES_ARGUMENT_BINDING", "E_BYTES_LITERAL_INVALID",
+            "E_TYPE_MISMATCH"] {
+            if self.message.starts_with(code) { return code; }
+        }
         if self.message.starts_with("E_V25_IF_SURFACE:") {
             return "E_V25_IF_SURFACE";
         }

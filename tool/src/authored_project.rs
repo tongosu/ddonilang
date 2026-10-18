@@ -5,6 +5,8 @@ use serde::{
     Deserialize, Deserializer, Serialize,
 };
 use serde_json::Value;
+pub(crate) mod registration;
+mod source_save;
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -738,6 +740,11 @@ pub fn open(bytes: &[u8]) -> Result<ProjectArtifact, String> {
 /// Shared native/WASM entry point. Does not activate unvalidated authored views.
 pub fn operate(operation: &str, text: &str) -> Result<String, String> {
     match operation {
+        // Private Workbench transport operations, not DDN callables or new
+        // CLI command names. Source candidates grant no execution authority.
+        "source_prepare"=>source_save::prepare(text),
+        "source_open"=>source_save::open(text),
+        "source_probe"=>source_save::requirements(text),
         "create" => {
             if text.len() > MAX_BYTES || text.starts_with('\u{feff}') {
                 return Err(fail("크기 초과 또는 BOM입니다"));

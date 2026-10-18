@@ -1,13 +1,15 @@
 // Persistent IDs are supplied only by the common Rust codec after an explicit
 // user operation. Local storage keys and download names are locators, not IDs.
-export function installAuthoredProjectPanel({root, bridge, host, capture, apply, saveRuntime, reopenRuntime}) {
+import {createAuthoredSourceStorage} from './persistence/authored_source_save.js';
+export function installAuthoredProjectPanel({root, bridge, host, capture, apply, saveRuntime, reopenRuntime, exportRuntime}) {
   const status=root.querySelector('[data-authored-status]');
   const identity=root.querySelector('[data-authored-identity]');
   const contents=root.querySelector('[data-authored-contents]');
   const fileInput=root.querySelector('input[type=file]');
   const key='ddn.authored_project.last.v1';
   const operate=(operation,text)=>bridge.authoredProjectOperation({operation,text});
-  let artifactText='', baseline='', busy=false;
+  const sourceStorage=createAuthoredSourceStorage(bridge);
+  let artifactText='', baseline='', busy=false, sourceContextActive=false;
   function show(text, message) {
     const artifact=JSON.parse(text);
     artifactText=text;
@@ -32,12 +34,18 @@ export function installAuthoredProjectPanel({root, bridge, host, capture, apply,
   function unchanged(token) {
     if(JSON.stringify(capture())!==token) throw new Error('원문이나 선택 작품이 바뀌었습니다. 다시 시도하세요.');
   }
-  async function perform(action) {
-    if(busy) return;
+  async function perform(action,{propagate=false}={}) {
+    if(busy) {if(propagate)throw new Error('E_SOURCE_SAVE_BUSY: 다른 작성 작업을 마친 뒤 저장하세요.');return;}
     busy=true;
+    // Disabling the focused save button can emit focusout(null), which the
+    // input host correctly treats as loss. Stay inside this admitted drawer.
+    if(root.contains(root.ownerDocument.activeElement)) {
+      if(!root.hasAttribute('tabindex'))root.tabIndex=-1;
+      root.focus({preventScroll:true});
+    }
     root.querySelectorAll('button').forEach(button=>button.disabled=true);
-    try { await action(); }
-    catch(error) { status.textContent=`저장 자료 오류: ${String(error?.message ?? error)}`; }
+    try { return await action(); }
+    catch(error) { status.textContent=`저장 자료 오류: ${String(error?.message ?? error)}`;if(propagate)throw error; }
     finally {busy=false;root.querySelectorAll('button').forEach(button=>button.disabled=false);fileInput.value='';}
   }
   async function openText(text, message, token) {
@@ -47,6 +55,7 @@ export function installAuthoredProjectPanel({root, bridge, host, capture, apply,
     const expectedToken=JSON.stringify(expected);
     unchanged(expectedToken);
     baseline=expectedToken;
+    sourceContextActive=false;
     show(admitted,message);
   }
   root.querySelector('[data-authored-create]').onclick=()=>perform(async()=>{
@@ -57,19 +66,25 @@ export function installAuthoredProjectPanel({root, bridge, host, capture, apply,
     }));
     unchanged(token);
     baseline=token;
+    sourceContextActive=false;
     show(text,'명시 작품 정체를 만들었습니다. 아직 이 기기에 저장하지 않았습니다.');
   });
-  root.querySelector('[data-authored-save]').onclick=()=>perform(async()=>{
+  async function saveSourceAction() {
     if(!artifactText) throw new Error('먼저 정체를 만들거나 저장 자료를 여세요.');
     const captured=capture(), token=JSON.stringify(captured), prior=JSON.parse(baseline);
     if(captured.selected_project!==prior.selected_project || captured.source_profile!==prior.source_profile) throw new Error('다른 작품이나 프로필로 바뀌었습니다. 저장 자료를 다시 여세요.');
     const text=await operate('update',JSON.stringify({original_json:artifactText,source_snapshot:captured.source_snapshot}));
     unchanged(token);
-    localStorage.setItem(key,text);
+    const sourceSaved=await sourceStorage.save(text,()=>unchanged(token),{previousArtifactText:artifactText,retainedLocator:localStorage.getItem(key)??''});
+    unchanged(token);
+    localStorage.setItem(key,sourceSaved?.locator??text);
     baseline=token;
-    show(text,'이 기기에 저장했습니다. 다시 열어도 같은 ID를 사용합니다.');
-  });
-  for(const [selector,operation] of [['[data-authored-runtime-save]',saveRuntime],['[data-authored-runtime-reopen]',reopenRuntime]]) {
+    sourceContextActive=Boolean(sourceSaved);
+    show(text,sourceSaved?.message??'이 기기에 작성 자료를 저장했습니다. 다시 열어도 같은 ID를 사용합니다.');
+    return sourceSaved;
+  }
+  root.querySelector('[data-authored-save]').onclick=()=>perform(saveSourceAction);
+  for(const [selector,operation] of [['[data-authored-runtime-save]',saveRuntime],['[data-authored-runtime-reopen]',reopenRuntime],['[data-authored-runtime-export]',exportRuntime]]) {
     root.querySelector(selector)?.addEventListener('click',()=>perform(async()=>{
       if(!artifactText || JSON.stringify(capture())!==baseline)throw new Error('먼저 현재 작품 원문을 갱신 저장하세요.');
       if(!operation)throw new Error('E_PROJECT_RUNTIME_UI_UNSUPPORTED');
@@ -95,11 +110,19 @@ export function installAuthoredProjectPanel({root, bridge, host, capture, apply,
     baseline=expectedToken;
     show(text,'보개 시작을 명시 등록했습니다. 실행은 직접 시작하세요. 이 기기 저장은 별도입니다.');
   });
-  root.querySelector('[data-authored-reopen]').onclick=()=>perform(async()=>{
+  async function reopenSourceAction() {
     const token=JSON.stringify(capture()), text=localStorage.getItem(key);
     if(!text) throw new Error('이 기기에 저장한 작성 자료가 없습니다.');
+    const locator=JSON.parse(text);
+    if((Object.keys(locator).length===1 && typeof locator.source_project_id==='string')||typeof locator.native_source_project_id==='string') {
+      const admitted=await sourceStorage.reopen(locator.source_project_id??locator.native_source_project_id,()=>unchanged(token),locator);
+      await openText(admitted,'저장 원문과 등록 자료를 다시 읽어 열었습니다. 실행하지 않았습니다.',token);sourceContextActive=true;
+      return {message:'저장 원문과 등록 자료를 다시 읽었습니다. 실행하지 않았습니다.'};
+    }
     await openText(text,'저장 자료를 다시 열었습니다. 실행은 직접 시작하세요.',token);
-  });
+    return null;
+  }
+  root.querySelector('[data-authored-reopen]').onclick=()=>perform(reopenSourceAction);
   root.querySelector('[data-authored-clone]').onclick=()=>perform(async()=>{
     if(!artifactText) throw new Error('복제할 작성 자료가 없습니다.');
     const token=JSON.stringify(capture());
@@ -110,9 +133,11 @@ export function installAuthoredProjectPanel({root, bridge, host, capture, apply,
     const expectedToken=JSON.stringify(expected);
     unchanged(expectedToken);
     baseline=expectedToken;
+    sourceContextActive=false;
     show(text,'새 ID로 복제했습니다. 원본 자료는 바꾸지 않았습니다.');
   });
   root.querySelector('[data-authored-export]').onclick=()=>perform(async()=>{
+    if(sourceContextActive)throw new Error('E_SOURCE_SAVE_EXPORT_UNSUPPORTED: 등록 자료를 버리는 작성 자료 내보내기는 하지 않습니다. 원문 저장본 파일 내보내기는 아직 연결 중입니다.');
     if(!artifactText || JSON.stringify(capture())!==baseline) throw new Error('내보낼 저장 자료가 없거나 원문이 바뀌었습니다.');
     const token=baseline, text=await operate('open',artifactText);
     unchanged(token);
@@ -164,6 +189,24 @@ export function installAuthoredProjectPanel({root, bridge, host, capture, apply,
     await openText(text,'파일을 열었습니다. 영구 ID는 보존했고 실행하지 않았습니다.',token);
   });
   return {
+    saveIfRegisteredSource:async()=>{
+      if(!artifactText)return null;
+      const current=capture(),prior=JSON.parse(baseline);
+      if(current.selected_project!==prior.selected_project||current.source_profile!==prior.source_profile)return null;
+      const token=JSON.stringify(current);
+      const updated=await operate('update',JSON.stringify({original_json:artifactText,source_snapshot:current.source_snapshot}));unchanged(token);
+      const required=await operate('source_probe',JSON.stringify({artifact_json_utf8:updated}));unchanged(token);
+      if(required!=='true'&&!sourceContextActive)return null;
+      return perform(saveSourceAction,{propagate:true});
+    },
+    reopenIfRegisteredSource:async(projectIdentity='')=>{
+      let locator;try{locator=JSON.parse(localStorage.getItem(key)??'null');}catch{return null;}
+      const savedId=locator?.source_project_id??locator?.native_source_project_id;
+      if(typeof savedId!=='string')return null;
+      const sameCurrent=sourceContextActive&&baseline&&capture().selected_project===JSON.parse(baseline).selected_project;
+      if(!sameCurrent&&projectIdentity!==savedId)return null;
+      return perform(reopenSourceAction,{propagate:true});
+    },
     getArtifactText:()=>artifactText,
     getRunProjectArtifact:()=>{
       if(!artifactText) return '';

@@ -1,13 +1,15 @@
 // Device events stay in the host. Only the admitted logical channel identities,
 // ordered Press/Repeat/Release and explicit settled held enter the world.
 export class LogicalActionInput {
-  constructor({ session, channels, initialHeld, actionMap, maxEvents, valueChannels = null }) {
+  constructor({ session, channels, initialHeld, actionMap, maxEvents, valueChannels = null, nextMadi = 0 }) {
     if (!session || typeof session.step !== "function" || typeof session.abort !== "function") {
       throw new Error("E_LOGICAL_INPUT_SESSION: 논리 실행이 필요합니다.");
     }
     if (!Number.isSafeInteger(maxEvents) || maxEvents < 1) {
       throw new Error("E_LOGICAL_INPUT_CAPACITY: 사건 용량을 명시해야 합니다.");
     }
+    if(!Number.isSafeInteger(nextMadi)||nextMadi<0)
+      throw new Error('E_LOGICAL_INPUT_POSITION: 확인된 다음 마디가 필요합니다.');
     const names = Object.keys(channels ?? {}).sort();
     if ((!names.length && !Object.keys(valueChannels ?? {}).length) || names.some(name => channels[name] !== "Control")
         || JSON.stringify(Object.keys(initialHeld ?? {}).sort()) !== JSON.stringify(names)
@@ -37,14 +39,17 @@ export class LogicalActionInput {
     this.maxEvents = maxEvents;
     this.held = { ...initialHeld };
     this.events = [];
-    this.madi = 0;
+    this.madi = nextMadi;
     this.inFlight = false;
     this.failure = null;
     this.abortPromise = null;
     this.detach = null;
+    this.stopped = false;
+    this.stopping = false;
   }
 
   loseInput(message) {
+    if (this.stopped || this.stopping) return this.abortPromise;
     if (this.failure) return this.abortPromise;
     this.failure = new Error(`E_LOGICAL_INPUT_LOST: ${message}`);
     this.abortPromise = Promise.resolve().then(() => this.session.abort(message));
@@ -54,6 +59,7 @@ export class LogicalActionInput {
   }
 
   receive(event, released = false) {
+    if (this.stopped || this.stopping) throw new Error('E_INPUT_RECORDING_STOPPED: 기록을 명시적으로 중단했습니다.');
     if (this.failure) throw this.failure;
     const channel = this.keyToChannel.get(event.key);
     if (!channel) return false;
@@ -76,6 +82,7 @@ export class LogicalActionInput {
   // Provisional typed host intake. Exact raw strings are produced/validated by
   // Rust. Never hide a coordinate in an action name or write world resources.
   receiveValue(channel, payload) {
+    if (this.stopped || this.stopping) throw new Error('E_INPUT_RECORDING_STOPPED: 기록을 명시적으로 중단했습니다.');
     if (this.failure) throw this.failure;
     const contract=this.valueChannels?.[channel];
     if (!contract || !['Number','Coordinate'].includes(contract.kind)
@@ -137,6 +144,7 @@ export class LogicalActionInput {
   }
 
   async step() {
+    if (this.stopped || this.stopping) throw new Error('E_INPUT_RECORDING_STOPPED: 기록을 명시적으로 중단했습니다.');
     if (this.failure) { await this.abortPromise; throw this.failure; }
     if (this.inFlight) throw new Error("E_LOGICAL_INPUT_STEP_BUSY: 한 마디가 아직 계산 중입니다.");
     this.inFlight = true;
@@ -162,6 +170,7 @@ export class LogicalActionInput {
   }
 
   async seal() {
+    if (this.stopped || this.stopping) throw new Error('E_INPUT_RECORDING_STOPPED: 중단 기록을 완료 봉인으로 바꿀 수 없습니다.');
     if (this.failure) { await this.abortPromise; throw this.failure; }
     if (this.inFlight || this.events.length) {
       throw new Error("E_LOGICAL_INPUT_PENDING: 아직 세계에 전달하지 않은 사건이나 계산이 있습니다.");
@@ -173,5 +182,28 @@ export class LogicalActionInput {
       throw new Error("E_LOGICAL_INPUT_PENDING: 아직 세계에 전달하지 않은 사건이나 계산이 있습니다.");
     }
     return record;
+  }
+
+  async stopRecording() {
+    if (this.stopped || this.stopping) throw new Error('E_INPUT_RECORDING_STOPPED: 이미 중단한 기록입니다.');
+    if (this.inFlight || (!this.failure && this.events.length)) {
+      throw new Error('E_LOGICAL_INPUT_PENDING: 미전달 사건을 먼저 한 마디 처리한 뒤 기록을 중단하세요.');
+    }
+    if (typeof this.session.stopRecording !== 'function') {
+      throw new Error('E_INPUT_V3_UNSUPPORTED: 통합 기록 실행기가 필요합니다.');
+    }
+    if (this.failure) await this.abortPromise;
+    this.stopping = true;
+    this.detach?.(); // Explicit stop ends intake; no synthetic release/End.
+    try {
+      const record = await this.session.stopRecording();
+      if (!['INCOMPLETE','ABORTED'].includes(record?.outcome)) {
+        throw new Error('E_INPUT_RECORDING_PROOF: live 중단을 완료 기록으로 게시할 수 없습니다.');
+      }
+      return record;
+    } finally {
+      // An uncertain Worker reply is not permission to continue recording.
+      this.stopped = true; this.stopping = false;
+    }
   }
 }

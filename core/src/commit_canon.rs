@@ -260,8 +260,111 @@ pub fn carrier_base64url(bytes: &[u8]) -> String {
     out
 }
 
+#[cfg(test)]
+mod saved_bytes_canon_tests {
+    use super::*;
+    use crate::bytes::ByteSequence;
+    use crate::platform::{RecordFieldType, ResourceMapEntry};
+    use sha2::{Digest, Sha256};
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn bytes_canonical_leaf_matches_all_four_rd680_vectors() {
+        let cases: &[(&[u8], usize, &str)] = &[
+            (&[], 259, "3c25d05e8e8e392bb4b6fe776f9fc3696293e4acfc9ebf70e363467889b7bf8d"),
+            (&[0], 260, "d5d1ea2160b2bfe9a4b35a89699a44bd31b2fffa3feac36b00a6b3a16f28358e"),
+            (&[0, 255], 262, "698923b8c97a8212df73c6389636da42635bc2755a9373e722f5e2fedff64b48"),
+            ("한글😀".as_bytes(), 272, "1ccae588cc19896d34fc3a03834b61da0c28a6e75cd3f493d317217c81a940a7"),
+        ];
+        for (bytes, length, sha) in cases {
+            let value = ResourceValue::Bytes(ByteSequence::new(*bytes));
+            let text = resource_value(&value);
+            let actual: String = Sha256::digest(text.as_bytes()).iter().map(|b| format!("{b:02x}")).collect();
+            assert_eq!(text.len(), *length);
+            assert_eq!(actual, *sha);
+            assert_eq!(resource_value(&value), text);
+            assert_ne!(resource_value(&ResourceValue::String(value.canon_key())), text);
+        }
+    }
+
+    #[test]
+    fn bytes_does_not_change_legacy_map_record_canonical_encodings() {
+        let map = ResourceValue::map_from_entries(vec![ResourceMapEntry {
+            key: ResourceValue::String("a".into()), value: ResourceValue::Bool(true),
+        }]);
+        let mut encoded = Vec::new(); map.encode_canon(&mut encoded);
+        assert_eq!(encoded, vec![8,1,0,0,0,0,0,0,0,4,1,0,0,0,0,0,0,0,97,1,1]);
+        assert_eq!(resource_value(&map), r#"{"entries":[{"key":"a","value":true}],"kind":"map"}"#);
+        let record = ResourceValue::Record {
+            field_types: BTreeMap::from([("a".into(), RecordFieldType::Named { name: "판정".into() })]),
+            fields: BTreeMap::from([("a".into(), ResourceValue::Bool(true))]),
+        };
+        let mut bytes = Vec::new(); record.encode_canon(&mut bytes);
+        assert_eq!(bytes[0..3], [0x0a,1,2]);
+        let identity_hex = "020100000000000000010000000000000061000600000000000000ed8c90eca095";
+        assert_eq!(resource_value(&record), format!(
+            "{{\"fields\":[{{\"name\":\"a\",\"value\":true}}],\"kind\":\"record-v1\",\"type_identity\":\"{identity_hex}\"}}"));
+        assert_eq!(resource_value(&ResourceValue::List(vec![map.clone()])),
+            format!("{{\"items\":[{}],\"kind\":\"list\"}}", resource_value(&map)));
+    }
+}
+
+
 fn resource_value(value: &ResourceValue) -> String {
     match value {
+        ResourceValue::NominalValueV1(_) | ResourceValue::SubjectHandleV1(_) | ResourceValue::SubjectPayloadV1(_) => {
+            let mut canonical=Vec::new(); value.encode_canon(&mut canonical);
+            object(vec![("canonical_base64url",json_string(&carrier_base64url(&canonical))),
+                ("kind",json_string(match value {ResourceValue::NominalValueV1(_)=>"nominal-value-v1",
+                    ResourceValue::SubjectHandleV1(_)=>"subject-handle-v1",_=>"subject-payload-v1"}))])
+        }
+        ResourceValue::Tuple { element_types, .. } => {
+            use sha2::{Digest, Sha256};
+            let mut canonical = Vec::new(); value.encode_canon(&mut canonical);
+            let mut kind = Vec::new();
+            crate::platform::RecordFieldType::Tuple { items: element_types.clone() }.encode_canon(&mut kind);
+            object(vec![
+                ("canonical_base64url", json_string(&carrier_base64url(&canonical))),
+                ("canonical_sha256", json_string(&format!("{:x}", Sha256::digest(&canonical)))),
+                ("kind", json_string("tuple-v1")),
+                ("resource_value_tag", json_string("0f")),
+                ("type_sha256", json_string(&format!("{:x}", Sha256::digest(&kind)))),
+            ])
+        }
+        ResourceValue::IdentityReference(_) => {
+            let mut canonical=Vec::new();value.encode_canon(&mut canonical);
+            let hex:String=canonical.iter().map(|byte|format!("{byte:02x}")).collect();
+            object(vec![("canonical_hex",json_string(&hex)),("kind",json_string("identity-reference-v1"))])
+        },
+        ResourceValue::RegisteredAtom(_) => {
+            let mut canonical = Vec::new();
+            value.encode_canon(&mut canonical);
+            let hex: String = canonical.iter().map(|byte| format!("{byte:02x}")).collect();
+            object(vec![("canonical_hex", json_string(&hex)), ("kind", json_string("registered-atom-v1"))])
+        }
+        ResourceValue::Bytes(value) => {
+            let hex = |bytes: [u8; 32]| bytes.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+            object(vec![
+                ("frame_base64url", json_string(&value.storage_base64url())),
+                ("frame_sha256", json_string(&hex(value.storage_sha256()))),
+                ("kind", json_string("bytes-v1")),
+                ("payload_sha256", json_string(&hex(value.content_sha256()))),
+                ("resource_value_tag", json_string("0c")),
+            ])
+        }
+        ResourceValue::Record { field_types, fields } => {
+            let mut identity = Vec::new();
+            crate::platform::RecordFieldType::Record { fields: field_types.clone() }
+                .encode_canon(&mut identity);
+            let identity: String = identity.iter().map(|byte| format!("{byte:02x}")).collect();
+            object(vec![
+                ("kind", json_string("record-v1")),
+                ("type_identity", json_string(&identity)),
+                ("fields", array(fields.iter().map(|(name, value)| object(vec![
+                    ("name", json_string(name)), ("value", resource_value(value)),
+                ])))),
+            ])
+        }
         ResourceValue::BasicTensorV1(carrier) => {
             use sha2::{Digest, Sha256};
             let mut saved = vec![0x0e]; saved.extend_from_slice(carrier);
@@ -271,6 +374,17 @@ fn resource_value(value: &ResourceValue) -> String {
                 ("kind", json_string("basic-tensor-v1")),
                 ("resource_value_sha256", json_string(&format!("{:x}", Sha256::digest(&saved)))),
                 ("resource_value_tag", json_string("0e")),
+            ])
+        }
+        ResourceValue::RationalV1(_) => {
+            use sha2::{Digest,Sha256};
+            let mut canonical=Vec::new();value.encode_canon(&mut canonical);
+            object(vec![
+                ("canonical_base64url",json_string(&carrier_base64url(&canonical))),
+                ("canonical_sha256",json_string(&format!("{:x}",Sha256::digest(&canonical)))),
+                ("kind",json_string("rational-v1")),
+                ("resource_value_tag",json_string("10")),
+                ("type_sha256",json_string("034e22ee9ad2867c1e65c43fc91d220e64eb5bf2df30c13bc51a3fde0e027b34")),
             ])
         }
         ResourceValue::None => "null".to_string(),
@@ -492,6 +606,13 @@ fn patch_op_text(op: &PatchOp, local_seq: usize) -> String {
             ("local_seq", local_seq),
             ("target", json_string(&format!("resource/{tag}"))),
             ("value", resource_value(value)),
+        ]),
+        PatchOp::SetSubjectWorld { value } => object(vec![
+            ("kind",json_string("assign")),
+            ("local_seq",local_seq),
+            ("target",json_string("subject-world")),
+            ("subject_values",json_string(&value.subject_values.iter().map(|b|format!("{b:02x}")).collect::<String>())),
+            ("subject_custody",json_string(&value.subject_custody.iter().map(|b|format!("{b:02x}")).collect::<String>())),
         ]),
         PatchOp::DivAssignResourceFixed64 {
             tag,

@@ -37,6 +37,16 @@ pub(crate) struct VerifiedSavedV25Sources {
     captures: Vec<(String, crate::source_snapshot_admission::SourceCapture)>,
     preparation: local_project::AuthoredPreparation,
     entry_declaration: SavedEntryDeclaration,
+    atom_value_occurrences: Vec<ResolvedSavedAtomOccurrence>,
+}
+#[derive(Debug)]
+pub(crate) struct ResolvedSavedAtomOccurrence {
+    path: String,
+    occurrence: ddonirang_lang::AtomValueOccurrence,
+}
+impl ResolvedSavedAtomOccurrence {
+    pub(crate) fn path(&self) -> &str { &self.path }
+    pub(crate) fn occurrence(&self) -> &ddonirang_lang::AtomValueOccurrence { &self.occurrence }
 }
 #[derive(Debug)]
 pub(crate) struct SavedEntryDeclaration { name: String, path: String, span: ddonirang_lang::Span }
@@ -46,6 +56,7 @@ impl SavedEntryDeclaration {
     pub(crate) fn span(&self) -> ddonirang_lang::Span { self.span }
 }
 impl VerifiedSavedV25Sources {
+    pub(crate) fn atom_value_occurrences(&self) -> &[ResolvedSavedAtomOccurrence] { &self.atom_value_occurrences }
     pub(crate) fn recorded_capture_catalog_json(&self) -> Result<String,String> {
         let records=self.captures.iter().map(|(path,capture)|Ok(SavedCaptureRecordV1 {
             path:path.clone(),record_json_utf8:capture.recorded_json()?,
@@ -71,14 +82,49 @@ impl VerifiedSavedV25Sources {
 
 /// Explicit project/module ownership admitted by the existing authoring owner.
 /// This does not turn caller-supplied DefinitionIdentity bytes into evidence.
+/// Source ownership before canon. There is deliberately no final Start,
+/// definition context, PESI, registration admission, or world capability here.
+/// Only the shared source/module/capture verifier constructs this stage.
+#[derive(Debug,Clone)]
+pub(crate) struct PreCanonAuthoredSourceV1 {
+    sources: std::sync::Arc<VerifiedSavedV25Sources>,
+    project: crate::authored_project::ProjectArtifact,
+    entry_module_index: usize,
+}
+impl PreCanonAuthoredSourceV1 {
+    pub(crate) fn sources(&self)->&std::sync::Arc<VerifiedSavedV25Sources> {&self.sources}
+    pub(crate) fn project(&self)->&crate::authored_project::ProjectArtifact {&self.project}
+    pub(crate) fn entry_module(&self)->&crate::authored_project::AuthoredModule {
+        &self.project.authored_identity.modules[self.entry_module_index]
+    }
+    /// Paths select an existing owned row, never issue a module identity.
+    /// A metadata root outside every module remains None, not a fake module.
+    pub(crate) fn module_for_source(&self,path:&str)->Result<Option<&crate::authored_project::AuthoredModule>,String> {
+        let mut owners=self.project.authored_identity.modules.iter().filter(|module|module.sources.iter().any(|source|source==path));
+        let owner=owners.next();
+        if owners.next().is_some(){return Err("E_PROJECT_SAVED_AUTHORED_OWNER: 원문의 소유 모듈이 둘 이상입니다".into());}
+        Ok(owner)
+    }
+}
+
 #[derive(Debug,Clone)]
 pub(crate) struct VerifiedSavedAuthoredProjectV1 {
     sources: std::sync::Arc<VerifiedSavedV25Sources>,
     project: crate::authored_project::ProjectArtifact,
     entry_module_index: usize,
     definition_identity: crate::saved_definition_identity::SavedDefinitionIdentity,
+    registration:Option<std::sync::Arc<crate::authored_project::registration::RegistrationDraft>>,
 }
 impl VerifiedSavedAuthoredProjectV1 {
+    pub(crate) fn precanon_view(&self)->PreCanonAuthoredSourceV1 {
+        PreCanonAuthoredSourceV1{sources:self.sources.clone(),project:self.project.clone(),entry_module_index:self.entry_module_index}
+    }
+    pub(crate) fn registration(&self)->Option<&crate::authored_project::registration::RegistrationDraft> {self.registration.as_deref()}
+    /// Candidate binding only. Durable lineage/readback still precedes Run.
+    pub(crate) fn bind_registration_candidate(mut self,draft:crate::authored_project::registration::RegistrationDraft)->Result<Self,String> {
+        draft.verify_source_binding(&self)?;
+        self.registration=Some(std::sync::Arc::new(draft));Ok(self)
+    }
     pub(crate) fn resolved_revision_supply(&self) -> VerifiedSavedSourceV1 {
         let saved=self.sources.saved();
         VerifiedSavedSourceV1 {
@@ -102,6 +148,14 @@ pub(crate) fn admit_saved_authored_project(
     sources: std::sync::Arc<VerifiedSavedV25Sources>,
     artifact_bytes: &[u8],
 ) -> Result<VerifiedSavedAuthoredProjectV1,String> {
+    finalize_legacy_authored_source(admit_precanon_authored_source(sources,artifact_bytes)?)
+}
+
+/// Bootstrap input for the R3 registration owner. Reuses every original
+/// source ownership check, but never calls the final canon/Start producer.
+pub(crate) fn admit_precanon_authored_source(
+    sources:std::sync::Arc<VerifiedSavedV25Sources>,artifact_bytes:&[u8],
+)->Result<PreCanonAuthoredSourceV1,String> {
     let project=crate::authored_project::open(artifact_bytes)?;
     let snapshot=&project.source_snapshot;
     let manifest=sources.saved().manifest();
@@ -127,10 +181,31 @@ pub(crate) fn admit_saved_authored_project(
     if owners.next().is_some() {
         return Err("E_PROJECT_SAVED_AUTHORED_OWNER: 시작 선언의 소유 모듈이 둘 이상입니다".into());
     }
-    let definition_identity = crate::saved_definition_identity::issue_saved_start(
-        &sources, &project, entry_module_index,
+    Ok(PreCanonAuthoredSourceV1 {sources,project,entry_module_index})
+}
+
+// Existing compiler path, with all prior admission checks preserved. The R3
+// catalog/raw-canon successor must be inserted before its final Start stage;
+// this function does not claim to implement that successor or invent a Start.
+fn finalize_legacy_authored_source(source:PreCanonAuthoredSourceV1)->Result<VerifiedSavedAuthoredProjectV1,String> {
+    let definition_identity=crate::saved_definition_identity::issue_saved_start(
+        &source.sources,&source.project,source.entry_module_index,
     )?;
-    Ok(VerifiedSavedAuthoredProjectV1 {sources,project,entry_module_index,definition_identity})
+    Ok(VerifiedSavedAuthoredProjectV1 {sources:source.sources,project:source.project,
+        entry_module_index:source.entry_module_index,definition_identity,registration:None})
+}
+
+/// Source-save bootstrap: verify the actual candidate before final Start,
+/// then recheck the same candidate against the finalized source. Neither
+/// stage grants world activation or durable transaction success.
+pub(crate) fn finalize_registered_authored_source(
+    source:PreCanonAuthoredSourceV1,
+    draft:crate::authored_project::registration::RegistrationDraft,
+)->Result<VerifiedSavedAuthoredProjectV1,String> {
+    draft.verify_precanon_binding(&source)?;
+    let definition_identity=crate::saved_definition_identity::issue_registered_saved_start(&source,&draft,source.entry_module_index)?;
+    VerifiedSavedAuthoredProjectV1{sources:source.sources,project:source.project,entry_module_index:source.entry_module_index,
+        definition_identity,registration:None}.bind_registration_candidate(draft)
 }
 
 pub(crate) fn seal_saved_v25_sources(saved: VerifiedSavedSourceV1) -> Result<VerifiedSavedV25Sources,String> {
@@ -158,7 +233,7 @@ pub(crate) fn restore_saved_v25_sources(
     if count>MAX_PROJECT_FILES || count!=saved.source.files.len() {
         return Err("E_PROJECT_SOURCE_CAPTURE_CATALOG_COUNT: 원문과 저장 봉인 목록의 개수가 다릅니다".into());
     }
-    let catalog:SavedCaptureCatalogV1=serde_json::from_value(strict)
+    let catalog=<SavedCaptureCatalogV1 as serde::Deserialize>::deserialize(&*strict)
         .map_err(|_|"E_PROJECT_SOURCE_CAPTURE_CATALOG_FIELDS: 저장 봉인 목록 필드가 다릅니다")?;
     if catalog.schema!="ddn.saved_source_capture_catalog.v1"
         || serde_json::to_string(&catalog).map_err(|_|"E_PROJECT_SOURCE_CAPTURE_CATALOG_ENCODING")?!=catalog_json {
@@ -221,7 +296,29 @@ fn prepare_saved_v25_captures(
     if !captures.iter().any(|(path,_)|path == &saved.manifest.entry_path) {
         return Err("E_PROJECT_SOURCE_ADMISSION_ENTRY: 봉인된 시작 원문이 없습니다".into());
     }
-    Ok(VerifiedSavedV25Sources {saved,captures,preparation,entry_declaration})
+    // Consume actual parser value nodes and the linker's checked source map.
+    // No textual `#` scan and no path/selected-editor identity substitution.
+    let mut atom_value_occurrences = Vec::new();
+    for occurrence in linked.origin.atom_value_occurrences.values() {
+        if !matches!(occurrence.role,ddonirang_lang::ast::AtomValueRole::LocalValue){continue;}
+        let (path,span) = preparation.original_span(occurrence.span)?;
+        let source = captures.iter().find(|(candidate,_)|candidate == &path)
+            .ok_or("E_PROJECT_ATOM_SOURCE: 원자 값의 봉인 원문이 없습니다")?;
+        let raw = source.1.text().get(span.start..span.end)
+            .ok_or("E_PROJECT_ATOM_SOURCE: 원자 값의 원문 범위가 다릅니다")?;
+        if raw.strip_prefix('#') != Some(occurrence.label.as_str()) {
+            return Err("E_PROJECT_ATOM_SOURCE: 원자 값과 봉인 원문이 다릅니다".into());
+        }
+        atom_value_occurrences.push(ResolvedSavedAtomOccurrence {path,
+            occurrence:ddonirang_lang::AtomValueOccurrence {span,label:occurrence.label.clone(),role:occurrence.role.clone()}});
+    }
+    atom_value_occurrences.sort_by(|a,b|(&a.path,a.occurrence.span.start,a.occurrence.span.end)
+        .cmp(&(&b.path,b.occurrence.span.start,b.occurrence.span.end)));
+    if atom_value_occurrences.windows(2).any(|pair|pair[0].path == pair[1].path
+        && pair[0].occurrence.span.end > pair[1].occurrence.span.start) {
+        return Err("E_PROJECT_ATOM_SOURCE: 원자 값의 원문 범위가 중복됩니다".into());
+    }
+    Ok(VerifiedSavedV25Sources {saved,captures,preparation,entry_declaration,atom_value_occurrences})
 }
 
 impl VerifiedSavedSourceV1 {
@@ -395,6 +492,12 @@ fn collect_source_supply(
 pub(crate) fn admit_fresh_authored_project(
     artifact_bytes:&[u8],
 ) -> Result<VerifiedSavedAuthoredProjectV1,String> {
+    finalize_legacy_authored_source(admit_fresh_precanon_authored_source(artifact_bytes)?)
+}
+
+pub(crate) fn admit_fresh_precanon_authored_source(
+    artifact_bytes:&[u8],
+)->Result<PreCanonAuthoredSourceV1,String> {
     let project=crate::authored_project::open(artifact_bytes)?;
     let snapshot=&project.source_snapshot;
     let root=snapshot.root_path.as_deref()
@@ -405,7 +508,7 @@ pub(crate) fn admit_fresh_authored_project(
     let saved=collect_source_supply(root,&snapshot.entry_path,None,&blobs)
         .map_err(|_|"E_PROJECT_RUNTIME_SOURCE_SUPPLY: 명시 작품의 원문 공급이 다릅니다")?;
     let sources=seal_saved_v25_sources(saved)?;
-    admit_saved_authored_project(std::sync::Arc::new(sources),artifact_bytes)
+    admit_precanon_authored_source(std::sync::Arc::new(sources),artifact_bytes)
 }
 
 fn verify_exact_project_path(path: &str) -> Result<(), Failure> {
@@ -584,6 +687,31 @@ mod tests {
     use ddonirang_core::Nuri;
 
     #[test]
+    fn r3_precanon_ownership_precedes_final_start_without_a_sentinel() {
+        let raw=include_bytes!("../../solutions/seamgrim_ui_mvp/samples/beta1_logical_tetris/authored-project.json");
+        let source=admit_fresh_precanon_authored_source(raw).unwrap();
+        assert!(source.sources().saved().official_entry_definition().is_err(),"fresh ownership must not contain an invented final Start");
+        assert!(source.module_for_source("root.ddn").unwrap().is_none());
+        assert_eq!(source.module_for_source("main.ddn").unwrap().unwrap().id,source.entry_module().id);
+        let capture_ids=source.sources().captures().iter().map(|(path,capture)|(path.clone(),capture.identity().to_vec())).collect::<Vec<_>>();
+        let project_id=source.project().authored_identity.logical_dependency_id.clone();
+        let verified=finalize_legacy_authored_source(source).unwrap();
+        assert_eq!(verified.project().authored_identity.logical_dependency_id,project_id);
+        assert_eq!(verified.sources().captures().iter().map(|(path,capture)|(path.clone(),capture.identity().to_vec())).collect::<Vec<_>>(),capture_ids);
+        assert!(verified.definition_identity().as_bytes().iter().any(|byte|*byte!=0));
+    }
+    #[test]
+    fn r3_precanon_rejects_different_raw_capture_before_finalization() {
+        let raw=include_bytes!("../../solutions/seamgrim_ui_mvp/samples/beta1_logical_tetris/authored-project.json");
+        let source=admit_fresh_precanon_authored_source(raw).unwrap();
+        let mut changed=source.project().clone();
+        changed.source_snapshot.files.iter_mut().find(|file|file.path=="main.ddn").unwrap().text.push_str("\n// 다른 원문 판\n");
+        let changed=changed.save().unwrap();
+        assert!(admit_precanon_authored_source(source.sources().clone(),changed.as_bytes()).is_err());
+        assert!(admit_precanon_authored_source(source.sources().clone(),raw).is_ok());
+    }
+
+    #[test]
     fn saved_v25_sealing_binds_root_and_entry_exact_bytes_without_legacy_fallback() {
         let root="(글판=\"v25\", 모듬=차림[(이름=앱, 머리=\"app/main.ddn\", 원문=\"app/main.ddn\")], 시작=(모듈=앱, 정의=실행)) 얽음.\n";
         let entry="실행:움직씨 := { 1 보여주기. }.\r\n";
@@ -606,6 +734,16 @@ mod tests {
         let saved_again=collect_saved_source_supply("root.ddn","app/main.ddn",&definition,&blobs).unwrap();
         let reopened=restore_saved_v25_sources(saved_again,&catalog).unwrap();
         assert_eq!(reopened.recorded_capture_catalog_json().unwrap(),catalog);
+        let supply = crate::unit_wire::resumable_complete_state::encode_source_capture_supply(&sealed).unwrap();
+        let restored_supply = crate::unit_wire::resumable_complete_state::encode_source_capture_supply(&reopened).unwrap();
+        assert_eq!(supply, restored_supply, "reopening must not mint new captures");
+        let check = |bytes: &[u8]| crate::unit_wire::resumable_complete_state::check_source_capture_supply(bytes, &reopened);
+        check(&supply).unwrap();
+        let mut corrupt = supply.clone(); *corrupt.last_mut().unwrap() ^= 1;
+        assert!(check(&corrupt).is_err());
+        assert!(check(&supply[..supply.len()-1]).is_err());
+        let mut suffix = supply.clone(); suffix.push(0);
+        assert!(check(&suffix).is_err());
         for (old,new) in sealed.captures().iter().zip(reopened.captures()) {
             assert_eq!(old.1.identity(),new.1.identity());
             assert_eq!(old.1.ordinal(),new.1.ordinal());
@@ -691,8 +829,85 @@ mod tests {
         assert_eq!(first.definition_identity(),second.definition_identity());
         let first_execution=crate::project_snapshot_identity::current::issue_saved_local_project(&first).unwrap();
         let second_execution=crate::project_snapshot_identity::current::issue_saved_local_project(&second).unwrap();
+        let program = crate::ddn_runtime::DdnProgram::from_saved_v25_project_with_mode(
+            sources.clone(), ddonirang_lang::ParseMode::Strict, crate::ddn_runtime::default_age_target(),
+        ).unwrap();
+        let runner = crate::ddn_runtime::DdnRunner::new(program, "매마디");
+        let contract = crate::unit_wire::resumable_complete_state::encode_execution_contract_supply(&first, &runner).unwrap();
+        let check_contract = |bytes: &[u8]| crate::unit_wire::resumable_complete_state::check_execution_contract_supply(bytes, &second, &runner);
+        check_contract(&contract).unwrap();
+        let mut forged_capability = contract.clone(); *forged_capability.last_mut().unwrap() = 1;
+        assert!(check_contract(&forged_capability).is_err());
+        assert!(check_contract(&contract[..contract.len()-1]).is_err());
+        let mut suffix = contract.clone(); suffix.push(0);
+        assert!(check_contract(&suffix).is_err());
+        let plain = crate::ddn_runtime::DdnRunner::new(
+            crate::ddn_runtime::DdnProgram::from_v25_source("1 보여주기.", "plain.ddn").unwrap(), "매마디",
+        );
+        assert!(crate::unit_wire::resumable_complete_state::encode_execution_contract_supply(&first, &plain).is_err());
+        // Field12 reconstructs the real named Start in a staging runner; it
+        // does not publish or claim admission of these structural fixtures.
+        let empty = [0;8];
+        let initial = crate::unit_wire::CompleteStateFrameV1 {
+            pesi:first_execution.pesi().as_raw(),resources:&empty,parameters:&empty,
+            next_tick:0,subjects:&empty,atom_evidence:&[],subject_custody:&[],
+        }.encode_canonical().unwrap();
+        let descriptor = |age:u8,strict:u8,n1:&[u8],entry:&[u8],strategy:u8,instance:&[u8],phase:u8,count:u64| {
+            let mut out=vec![0,2];
+            let add=|out:&mut Vec<u8>,bytes:&[u8]| {out.extend((bytes.len() as u32).to_be_bytes());out.extend(bytes);};
+            add(&mut out,b"ddn.resume.source-rebuild-descriptor.v1");add(&mut out,b"v1-core-v25");
+            out.extend([age,strict]);add(&mut out,n1);
+            out.push(1);out.extend([0;24]);add(&mut out,entry);add(&mut out,entry);out.push(strategy);
+            add(&mut out,bytes.as_bytes());add(&mut out,&initial);out.extend(0u64.to_be_bytes());out.extend(7u64.to_be_bytes());
+            out.push(phase);out.extend(count.to_be_bytes());add(&mut out,instance);out.extend(0u32.to_be_bytes());out
+        };
+        let canonical=crate::ddn_runtime::DdnProgram::from_saved_v25_project_with_mode(
+            sources.clone(),ddonirang_lang::ParseMode::Strict,ddonirang_lang::AgeTarget::Age3,
+        ).unwrap().canonical_ddn();
+        let entry=first.definition_identity().as_bytes();
+        let instance=runner.execution_instance_owner_bytes();
+        let good=descriptor(3,1,canonical.as_bytes(),entry,1,instance,0,0);
+        let rebuild=|raw:&[u8]| crate::unit_wire::resumable_complete_state::rebuild_source_descriptor_candidate(raw,&first).is_ok();
+        assert!(rebuild(&good));
+        let mut candidate=crate::unit_wire::resumable_complete_state::rebuild_source_descriptor_candidate(&good,&first).unwrap();
+        assert_eq!(candidate.initial_tick,0);assert_eq!(candidate.initial_world.next_tick,0);
+        assert_eq!(candidate.base_rng_seed,7);assert_eq!(candidate.phase,0);assert_eq!(candidate.successful_madi_count,0);
+        assert!(candidate.prior_durable_receipts.is_empty());
+        assert_eq!(candidate.runner.execution_instance_owner_bytes(),instance);
+        assert_eq!(candidate.runner.work_cost_receipt().counters.committed_madi,0,
+            "rebuilding must not execute or publish the named entry");
+        let input=ddonirang_core::InputSnapshot {
+            tick_id:0,dt:ddonirang_core::Fixed64::ONE,keys_pressed:0,last_key_name:String::new(),
+            pointer_x_i32:0,pointer_y_i32:0,ai_injections:Vec::new(),net_events:Vec::new(),
+            frame_source:ddonirang_core::InputSource::Person,rng_seed:7,
+        };
+        let world=ddonirang_core::platform::DetNuri::new();
+        let output=candidate.runner.run_update(world.world(),&input,&std::collections::HashMap::new()).unwrap();
+        assert_eq!(output.display_outputs.iter().map(|row|row.text.as_str()).collect::<Vec<_>>(),vec!["1"]);
+        assert_eq!(sources.captures().iter().map(|(_,c)|c.identity()).collect::<Vec<_>>(),
+            candidate.runner.saved_program_sources().unwrap().captures().iter().map(|(_,c)|c.identity()).collect::<Vec<_>>());
+        for bad in [descriptor(8,1,canonical.as_bytes(),entry,1,instance,0,0),
+            descriptor(3,0,canonical.as_bytes(),entry,1,instance,0,0),
+            descriptor(3,1,b"different",entry,1,instance,0,0),
+            descriptor(3,1,canonical.as_bytes(),&[1;32],1,instance,0,0),
+            descriptor(3,1,canonical.as_bytes(),entry,0,instance,0,0),
+            descriptor(3,1,canonical.as_bytes(),entry,1,b"foreign",0,0),
+            descriptor(3,1,canonical.as_bytes(),entry,1,instance,0,1),
+            descriptor(3,1,canonical.as_bytes(),entry,1,instance,1,0)] {assert!(!rebuild(&bad));}
+        assert!(!rebuild(&good[..good.len()-1]));
+        let mut suffixed=good.clone();suffixed.push(0);assert!(!rebuild(&suffixed));
+        let mut inflated=good.clone();let n=inflated.len();inflated[n-4..].copy_from_slice(&u32::MAX.to_be_bytes());
+        assert!(!rebuild(&inflated));
         assert_eq!(first_execution.pesi(),second_execution.pesi());
         assert_eq!(first_execution.constituents(),second_execution.constituents());
+        let constituent_supply = crate::unit_wire::resumable_complete_state::encode_constituent_supply(&first).unwrap();
+        assert_eq!(constituent_supply, crate::unit_wire::resumable_complete_state::encode_constituent_supply(&second).unwrap());
+        let check = |bytes: &[u8], pesi: &[u8;32]| crate::unit_wire::resumable_complete_state::check_constituent_supply(bytes, pesi, &second);
+        check(&constituent_supply, first_execution.pesi().as_raw()).unwrap();
+        let mut corrupt = constituent_supply.clone(); *corrupt.last_mut().unwrap() ^= 1;
+        assert!(check(&corrupt, first_execution.pesi().as_raw()).is_err());
+        assert!(check(&constituent_supply, &[0;32]).is_err());
+        assert!(check(&constituent_supply[..constituent_supply.len()-1], first_execution.pesi().as_raw()).is_err());
         let source_tree=crate::project_snapshot_identity::current::issue_saved_source_tree(first.sources()).unwrap();
         assert_eq!(first_execution.constituents()[0],source_tree.identity);
         assert_eq!(first.project().authored_identity.logical_dependency_id,
@@ -707,6 +922,9 @@ mod tests {
         assert_ne!(duplicate.definition_identity(),first.definition_identity());
         assert_ne!(crate::project_snapshot_identity::current::issue_saved_local_project(&duplicate).unwrap().pesi(),
             first_execution.pesi());
+        assert!(crate::unit_wire::resumable_complete_state::check_constituent_supply(
+            &constituent_supply, first_execution.pesi().as_raw(), &duplicate,
+        ).is_err(), "explicit project duplication cannot reuse the old constituent supply");
         let mut changed=project.clone();
         changed.source_snapshot.files.iter_mut().find(|file|file.path=="app/run.ddn").unwrap()
             .text=body.replace("1 보여주기","2 보여주기");
