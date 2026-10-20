@@ -30,6 +30,7 @@ fn resolved_type_dependencies(raw:&[u8],version:u16)->Option<Vec<(u8,[u8;32])>> 
     let mut jobs=vec![&value];let mut valid=true;let mut dependencies=Vec::new();
     while let Some(value)=jobs.pop() {
         match value {
+            T::RegisteredAtomV1=>{valid=false;break;},
             T::ResolvedNominalV1{category,name_type_identity}=>dependencies.push((*category,*name_type_identity)),
             T::Named{name}=>if !matches!(name.as_str(),"바른수"|"셈수"|"참거짓"|"글")&&!(version==3&&name=="나눔수") {valid=false;break;},
             T::Tuple{items}=>jobs.extend(items),

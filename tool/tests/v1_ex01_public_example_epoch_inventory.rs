@@ -1,7 +1,8 @@
 use std::fs;
 use std::path::Path;
 
-use ddonirang_tool::ddn_runtime::DdnProgram;
+use ddonirang_tool::ddn_runtime::{DdnProgram,SupportedSourceProfile};
+use ddonirang_lang::ParseMode;
 
 const CANDIDATES: &[(&str, &str, bool, bool, &str, &str)] = &[
     // WO03 D7 removes the blanket ':='-presence rejection. Explicit V25 now
@@ -151,6 +152,7 @@ fn error_family(message: &str) -> &str {
 
 #[test]
 fn inventory_candidate_examples_by_real_product_parser() {
+    println!("EX01_CURRENT_PROFILE=v1-core-v25 (same explicit producer as official CLI)");
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
     let mut mismatches = Vec::new();
     for (id, relative, expected_pre, expected_v25, expected_pre_error, expected_v25_error) in
@@ -160,7 +162,13 @@ fn inventory_candidate_examples_by_real_product_parser() {
         let source =
             fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
         let pre = DdnProgram::from_source(&source, relative);
-        let v25 = DdnProgram::from_v25_source(&source, relative);
+        if *id=="GRID_CURRENT" {
+            let missing=DdnProgram::from_v25_source(&source,relative).err()
+                .expect("unprofiled source must not invent its host frame supplier");
+            assert!(missing.contains("E_TYPE_MISMATCH") && missing.contains("프레임수"),"{missing}");
+        }
+        let v25 = DdnProgram::from_supported_source_profile_with_mode(
+            &source,relative,ParseMode::Strict,SupportedSourceProfile::V1CoreV25);
         println!(
             "EX01|{id}|pre={}|v25={}|pre_error={}|v25_error={}",
             pre.is_ok(),

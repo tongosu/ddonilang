@@ -289,6 +289,7 @@ fn collect_stmt_calls<'a>(stmt: &'a Stmt, calls: &mut Vec<CallCandidate<'a>>) {
             }
         }
         Stmt::Definition { value, .. }
+        | Stmt::DerivedBinding {value,..}
         | Stmt::Show { expr: value, .. }
         | Stmt::Inspect { expr: value, .. }
         | Stmt::Return { value, .. } => collect_expr_calls(value, calls),

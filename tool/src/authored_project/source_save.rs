@@ -64,6 +64,21 @@ pub(super) fn open(raw:&str)->Result<String,String>{
     source.owned().project().save()
 }
 
+/// Candidate construction for the distinct Native authoring transition. The
+/// actual protected caller must supply/admit its world or source parent; this
+/// does not relax `source_prepare`'s existing source-only parent contract.
+pub(crate) fn prepare_authoring_source(previous:&Source,artifact:&str,parent:&[u8],revision:&[u8])->Result<Source,String>{
+    let project=super::open(artifact.as_bytes())?;
+    if hex::decode(project.authored_identity.logical_dependency_id.as_str()).map_err(|_|"E_SOURCE_SAVE_PROJECT_IDENTITY")?!=previous.project()
+        ||project.source_profile.as_bytes()!=previous.profile()||project.source_snapshot.root_path.is_none(){return Err("E_SOURCE_SAVE_PARENT: 다른 작품·글판 또는 명시 뿌리 없는 원문입니다".into());}
+    if previous.owned().project().save()?==artifact{return Err("E_SOURCE_AUTHORING_UNCHANGED: 같은 원문은 검증된 재저장 경로를 쓰세요".into());}
+    let source=crate::project_revision_envelope_supply::admit_fresh_precanon_authored_source(artifact.as_bytes())?;
+    let mut entropy=|id:&mut [u8;32]|getrandom::fill(id).map_err(|_|"E_SOURCE_SAVE_ENTROPY".into());
+    let draft=super::registration::prepare_precanon_under_candidate_owner(&source,previous.owned().registration(),&mut entropy)?;
+    let owned=crate::project_revision_envelope_supply::finalize_registered_authored_source(source,draft)?;
+    Source::prepare(&owned,parent,revision)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

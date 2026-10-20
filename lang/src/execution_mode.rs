@@ -94,7 +94,7 @@ fn scan_stmt(stmt: &Stmt, counts: &mut LiveHookCounts) {
                 }
             }
         }
-        Stmt::Definition { value, .. } => scan_expr(value, counts),
+        Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} => scan_expr(value, counts),
         Stmt::Mutate { target, value, .. } => {
             scan_expr(target, counts);
             scan_expr(value, counts);

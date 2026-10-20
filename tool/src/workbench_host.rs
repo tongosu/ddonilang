@@ -13,6 +13,12 @@ use std::time::Duration;
 const MAX_REQUEST_BYTES: usize = 16 * 1024;
 mod native_source;
 
+/// CLI and the same-origin workbench share the exact closed Native request
+/// frontdoor. A JSON request supplies locators only, never a run permit.
+pub fn native_source_operation(request:&str)->Result<String,String>{
+    native_source::NativeSourceController::start().call(request.into())
+}
+
 #[derive(Debug, Deserialize)]
 pub struct WorkbenchAssetManifest {
     pub schema: String,

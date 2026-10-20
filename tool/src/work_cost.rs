@@ -561,7 +561,7 @@ pub fn stmt_registry_key(stmt: &Stmt) -> &'static str {
         Stmt::SumDefinition { .. } => "stmt.sum_definition",
         Stmt::SumMatch { .. } => "stmt.sum_match",
         Stmt::DeclBlock { .. } => "stmt.decl_block",
-        Stmt::Definition { .. } => "stmt.definition",
+        Stmt::Definition { .. } | Stmt::DerivedBinding {..} => "stmt.definition",
         Stmt::Mutate { .. } => "stmt.mutate",
         Stmt::ResultFlow { .. } => "stmt.result_flow",
         Stmt::Expr { .. } => "stmt.expr",

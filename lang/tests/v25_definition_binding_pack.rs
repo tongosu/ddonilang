@@ -175,7 +175,9 @@ fn v25_typed_local_legacy_equals_targeted_matrix() {
     assert_migration_at_equals(&local_source("    변환:(수, 글) --> 수 = 1."));
 
     // A malformed annotation remains a type error and is not relabeled.
-    let malformed = parse_v25(&local_source("    값:(수, 글) = 1."), "malformed_type.ddn")
+    // A two-position Tuple is now valid (VC13). Keep this a genuinely
+    // malformed type instead of requiring the old Tuple syntax rejection.
+    let malformed = parse_v25(&local_source("    값:(수,, 글) = 1."), "malformed_type.ddn")
         .expect_err("malformed type must fail closed");
     assert_ne!(malformed.code(), DEFINITION_MIGRATION_DIAGNOSTIC);
     assert!(!malformed.message.contains(DEFINITION_MIGRATION_DIAGNOSTIC));

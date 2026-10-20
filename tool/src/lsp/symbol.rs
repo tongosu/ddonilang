@@ -521,7 +521,7 @@ fn walk_stmt(
                 }
             }
         }
-        Stmt::Definition { value, .. } => walk_expr(value, caller_identity, tokens, calls),
+        Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} => walk_expr(value, caller_identity, tokens, calls),
         Stmt::Mutate { target, value, .. } => {
             walk_expr(target, caller_identity, tokens, calls);
             walk_expr(value, caller_identity, tokens, calls);

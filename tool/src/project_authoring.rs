@@ -2322,6 +2322,9 @@ impl<'a> DefinitionCollector<'a> {
                         self.set_last_value_label(value);
                     }
                 }
+                Stmt::DerivedBinding {value,..} => {
+                    self.collect_expr(value,&scope_id,false);
+                }
                 Stmt::Mutate { target, value, .. } => {
                     let mut created = false;
                     if let ExprKind::Var(name) = &target.kind {

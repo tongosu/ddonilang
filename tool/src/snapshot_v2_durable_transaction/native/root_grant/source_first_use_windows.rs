@@ -5,6 +5,35 @@ use crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnl
 fn source_failure(phase:&'static str,cause:Failure)->SourceGrantFailureV2{SourceGrantFailureV2{phase,cause}}
 
 impl WindowsRootGrantStoreV1 {
+    // Store mechanics only. Absence is not authoring/Run authority; the mixed
+    // history producer must prove a genuinely first transition before writing.
+    fn read_transition_record(grant:&Grant2)->Result<Option<super::source_transition::Record>,Failure>{
+        use super::source_transition::Record;
+        if Self::read_source_grant(&grant.base.nonce)?!=*grant
+            ||grant.base.lifecycle!=Lifecycle::Active||!matches!(grant.state,FirstUse::Started(_)) {
+            return Err(Failure::CustodyConflict);
+        }
+        let key=Self::key(Namespace::SourceTransition,&grant.base.nonce,false,false)?;
+        let name=utf16(Namespace::SourceTransition.value_name());let mut kind=0;let mut length=0;
+        let status=unsafe{RegQueryValueExW(key.0,name.as_ptr(),null_mut(),&mut kind,null_mut(),&mut length)};
+        if status==2{return Ok(None);}
+        if status!=0||kind!=3||length==0||length as usize>MAX_CIPHERTEXT_BYTES{return Err(Failure::CorruptRecoveryRecord);}
+        let mut bytes=Self::read_plaintext_on_key(&key,Namespace::SourceTransition.value_name())?;
+        let record=Record::decode(&bytes);bytes.fill(0);let record=record?;
+        if record.nonce!=grant.base.nonce||record.generation!=grant.base.generation
+            ||Self::read_source_grant(&grant.base.nonce)?!=*grant{return Err(Failure::CustodyConflict);}
+        Ok(Some(record))
+    }
+    fn write_transition_record(grant:&Grant2,previous:Option<&super::source_transition::Record>,
+        next:&super::source_transition::Record)->Result<(),Failure>{
+        if next.nonce!=grant.base.nonce||next.generation!=grant.base.generation
+            ||Self::read_transition_record(grant)?.as_ref()!=previous{return Err(Failure::CustodyConflict);}
+        next.check_successor(previous)?;
+        let mut bytes=next.encode()?;
+        let result=Self::write_plaintext(Namespace::SourceTransition,&grant.base.nonce,&bytes,false);bytes.fill(0);result?;
+        if Self::read_transition_record(grant)?.as_ref()!=Some(next){return Err(Failure::RereadMismatch);}
+        Ok(())
+    }
     fn write_next_source_pending(grant:&Grant2,previous:&AttemptRecord,pending:&AttemptRecord)->Result<(),Failure>{
         if Self::read_source_grant(&grant.base.nonce)?!=*grant||grant.base.lifecycle!=Lifecycle::Active
             ||!matches!(grant.state,FirstUse::Started(_))||Self::read_attempt(&grant.base)?!=*previous
@@ -265,7 +294,8 @@ impl ReadmittedFirstSourceWorldV2 {
         previous:&crate::unit_wire::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>,
         next:&crate::unit_wire::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>,
         request:crate::snapshot_v2_durable_transaction::ActualPreparedRequestV1)->Result<NextSourceWorldAttemptStartV1,Failure>{
-        let Self{_grant:grant,_attempt:old,payload,history:_}=self;
+        if self.restart.is_some(){return self.start_restart_next_world(adapter,previous,next,request);}
+        let Self{_grant:grant,_attempt:old,payload,history:_,restart:_}=self;
         grant.verify_root(adapter,&payload.binding.project)?;
         if WindowsRootGrantStoreV1::read_attempt(&grant.record.base)?!=old||old.mode!=AttemptMode::RecordWitness {
             return Err(Failure::RecoveryRequired);
@@ -290,7 +320,7 @@ impl ReadmittedFirstSourceWorldV2 {
         WindowsRootGrantStoreV1::write_next_source_pending(&grant.record,&old,&pending)?;
         let previous=super::super::StoredHeadV1{project:payload.binding.project,revision:payload.binding.new_revision,
             integrity:payload.binding.revision_integrity,digest:payload.digest};
-        let start=NextSourceWorldAttemptStartV1{grant,source:chain.latest,attempt:pending,request,previous};
+        let start=NextSourceWorldAttemptStartV1{grant,source:chain.latest,attempt:pending,request,previous,restart:None};
         start.check_current(adapter,next)?;Ok(start)
     }
 }
@@ -303,6 +333,7 @@ impl NextSourceWorldAttemptStartV1 {
         if WindowsRootGrantStoreV1::read_attempt(&self.grant.record.base)?!=self.attempt||self.attempt.mode!=AttemptMode::Pending
             ||self.request.binding().expected_parent!=self.previous.revision||self.request.binding().project!=self.previous.project
             ||self.request.binding().pesi!=*self.source.pesi(){return Err(Failure::CustodyConflict);}
+        if let Some(record)=&self.restart {if WindowsRootGrantStoreV1::read_transition_record(&self.grant.record)?.as_ref()!=Some(record){return Err(Failure::CustodyConflict);}}
         let source=super::super::source_chain::read(&adapter.connect()?,self.source.project(),self.source.revision())?;
         if source.artifact().map_err(|_|Failure::CustodyConflict)?!=self.source.artifact().map_err(|_|Failure::CustodyConflict)?{return Err(Failure::CustodyConflict);}
         Ok(())
@@ -317,6 +348,15 @@ impl NextSourceWorldAttemptStartV1 {
         let result=WindowsRootGrantStoreV1::write_plaintext(Namespace::Attempt,&self.grant.record.base.nonce,&bytes,false);bytes.fill(0);result?;
         self.grant.verify_root(adapter,&self.previous.project)?;
         if WindowsRootGrantStoreV1::read_attempt(&self.grant.record.base)?!=witness{return Err(Failure::RereadMismatch);}
+        if let Some(record)=&self.restart {
+            if WindowsRootGrantStoreV1::read_transition_record(&self.grant.record)?.as_ref()!=Some(record){return Err(Failure::CustodyConflict);}
+            if sql.outcome().failure().is_none(){
+                let db=adapter.connect()?;db.execute_batch("BEGIN").map_err(|_|Failure::RereadFailed)?;
+                super::super::source_world::check_mixed_source_world_history(&db,self.source.project(),witness.epoch,&witness.transaction,
+                    &witness.request_hash,&witness.token_hash,&witness.record_hash,Some(record))?;
+                db.execute_batch("COMMIT").map_err(|_|Failure::RereadFailed)?;
+            }
+        }
         sql.revalidate(adapter)?;Ok(RetainedAttemptWitnessV1{_attempt:witness})
     }
 }
@@ -361,8 +401,18 @@ impl super::super::SqliteAdapterV1 {
             ||!locator.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)){return Err(Failure::InvalidInput);}
         let nonce:[u8;32]=hex::decode(locator).map_err(|_|Failure::InvalidInput)?.try_into().map_err(|_|Failure::InvalidInput)?;
         let record=WindowsRootGrantStoreV1::read_source_grant(&nonce)?;
-        let parent=match &record.state{FirstUse::Started(parent)=>parent.clone(),_=>return Err(Failure::RecoveryRequired)};
+        if !matches!(record.state,FirstUse::Started(_)){return Err(Failure::RecoveryRequired);}
         self.pin_objects_for_grant(false)?;
+        self.readmit_source_world_pinned_context(record,context,first_only)
+    }
+    // Same existing full admission, without replacing a live operation's Arc
+    // pin. Only the normal capture above or an actual replay scope enters it.
+    fn readmit_source_world_pinned_context(&mut self,record:Grant2,
+        context:&crate::unit_wire::project_runtime_attachment::SourceEnvelopeBoundRuntimeAttachment<'_>,first_only:bool)
+        ->Result<ReadmittedFirstSourceWorldV2,Failure>{
+        if self.schema_profile!=super::super::NativeSchemaProfile::SourceRevision{return Err(Failure::InvalidInput);}
+        let nonce=record.base.nonce;
+        let parent=match &record.state{FirstUse::Started(parent)=>parent.clone(),_=>return Err(Failure::RecoveryRequired)};
         let grant=AdmittedSourceGrantV2{record,pinned:self.pinned_root.as_ref().ok_or(Failure::UnsupportedDurability)?.clone(),
             lease:self.root_lease.as_ref().ok_or(Failure::UnsupportedDurability)?.clone()};
         let project=hex::decode(context.owned().project().authored_identity.logical_dependency_id.as_str()).map_err(|_|Failure::CustodyConflict)?;
@@ -371,6 +421,10 @@ impl super::super::SqliteAdapterV1 {
         let mut slot=encode_slot(&nonce)?;let result=WindowsRootGrantStoreV1::confirm_current(Namespace::RootSlot,&root_fingerprint(&grant.record.base),&slot);slot.fill(0);result?;
         let attempt=WindowsRootGrantStoreV1::read_attempt(&grant.record.base)?;
         if attempt.mode!=AttemptMode::RecordWitness||(first_only&&attempt.epoch!=1){return Err(Failure::RecoveryRequired);}
+        if let Some(transition)=WindowsRootGrantStoreV1::read_transition_record(&grant.record)? {
+            if first_only{return Err(Failure::CustodyConflict);}
+            return self.readmit_restart_source_world(grant,attempt,transition,context);
+        }
         self.confirm_container_durable()?;
         let db=self.connect()?;db.execute_batch("BEGIN").map_err(|_|Failure::RereadFailed)?;
         let chain=super::super::source_chain::read_retained_source_ancestry(&db,&project,&parent.revision)?;
@@ -389,7 +443,7 @@ impl super::super::SqliteAdapterV1 {
         db.execute_batch("COMMIT").map_err(|_|Failure::RereadFailed)?;drop(db);
         grant.verify_root(self,&project)?;
         if WindowsRootGrantStoreV1::read_attempt(&grant.record.base)?!=attempt{return Err(Failure::CustodyConflict);}
-        Ok(ReadmittedFirstSourceWorldV2{_grant:grant,_attempt:attempt,payload,history})
+        Ok(ReadmittedFirstSourceWorldV2{_grant:grant,_attempt:attempt,payload,history,restart:None})
     }
     pub(crate) fn register_source_root_grant(&mut self,source:&SourceOnly)->Result<AdmittedSourceGrantV2,SourceGrantFailureV2>{
         use sha2::{Digest,Sha256};
@@ -458,6 +512,7 @@ impl ReadmittedFirstSourceWorldV2 {
     pub(crate) fn historical_payload(&self,adapter:&super::super::SqliteAdapterV1,index:usize,
         context:&crate::unit_wire::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>)
         ->Result<super::super::StoredPayloadV1,Failure>{
+        if self.restart.is_some(){return self.restart_historical_payload(adapter,index,context);}
         self._grant.verify_root(adapter,&self.payload.binding.project)?;
         if WindowsRootGrantStoreV1::read_attempt(&self._grant.record.base)?!=self._attempt{return Err(Failure::CustodyConflict);}
         let anchor=match &self._grant.record.state{FirstUse::Started(anchor)=>anchor,_=>return Err(Failure::RecoveryRequired)};

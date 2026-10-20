@@ -26,6 +26,7 @@ pub(crate) use resource_snapshot::restore_world_resources_with_tuple_plan;
 pub(crate) use resource_snapshot::stage_resource_snapshot_with_complete_frame;
 pub(crate) use saved_resource_value::check_saved_type as validate_saved_value_type;
 pub(crate) use saved_resource_value::decode_recorded_field_type;
+pub(crate) use saved_resource_value::decode_result_output_field_type;
 pub(crate) fn read_registered_nominal_slots(
     value:&std::sync::Arc<ddonirang_core::nominal::NominalSlotTableV1>,
     catalog:&crate::authored_project::registration::SavedNominalCatalogV1,
@@ -841,6 +842,9 @@ pub fn resource_value_to_detjson(value: &ResourceValue) -> JsonValue {
                 built.0.push(object(vec![("kind", "Tuple".into()), ("items", JsonValue::Array(items))]));
             }
             Job::Type(RecordFieldType::Named { name }) => built.0.push(json!({"kind":"Named", "name":name})),
+            // Diagnostic projection only: the saved decoder rejects this
+            // output-only descriptor; it is not a saved type allocation.
+            Job::Type(RecordFieldType::RegisteredAtomV1) => built.0.push(json!({"kind":"UnsupportedOutputOnly"})),
             Job::Type(RecordFieldType::ResolvedNominalV1{category,name_type_identity})=>built.0.push(json!({"kind":"ResolvedNominalV1","category":category,"name_type_identity":name_type_identity})),
             Job::Type(RecordFieldType::Applied { name, args }) => {
                 jobs.push(Job::Applied(name, args.len()));

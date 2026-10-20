@@ -1,6 +1,8 @@
 import { createRuntimeBridgeV1 } from "../runtime/runtime_bridge.js";
+import {nativeSourceAvailable,nativeSourceRequest,sourceStorageErrorMessage} from '../runtime/native_source_transport.js';
 import { installLogicalInputPanel, committedLogicalSpace2d } from "./logical_input_panel.js";
 import { installAuthoredProjectPanel } from "./authored_project_panel.js";
+import { createEditRecoveryGuard } from './persistence/edit_recovery_guard.js';
 import { readDdnSourceFile } from './source_file.js';
 import { loadRuntimeProject, commitRuntimeProject, newRuntimeRevisionHex, runtimeStorageRecord } from './persistence/runtime_project_store.js';
 import { renderAuthoredBogae, createAuthoredCompositionHost } from "./authored_bogae_renderer.js";
@@ -12,7 +14,7 @@ import { FIRST_STEPS_ALPHA3_PROJECTS } from './first_steps_alpha3_catalog.js';
 import { FIRST_STEPS_ALPHA4_PROJECTS } from './first_steps_alpha4_catalog.js';
 const FIRST_STEPS_PROJECTS=[...FIRST_STEPS_ALPHA1_PROJECTS,...FIRST_STEPS_ALPHA2_PROJECTS,...FIRST_STEPS_ALPHA3_PROJECTS,...FIRST_STEPS_ALPHA4_PROJECTS];
 const DEFERRED_LESSONS = [];
-import { runHostStep, HOST_STEP_STOP_NOTICE } from "../runtime/host_step_watchdog.js";
+import { runHostStep } from "../runtime/host_step_watchdog.js";
 let hostStopNotice = ""; // Presentation only; excluded from run/state/receipt/replay.
 let hostStepInFlight = false;
 let pendingBogaeDisplay = null; // Local committed presentation, never world state.
@@ -24,15 +26,25 @@ function currentLogicalPresentation() {
   return logicalPanel?.logicalExecution.ownsCurrentSource()
     && logicalPresentation?.projectId === state.projectId ? logicalPresentation : null;
 }
+function renderCurrentMadi(value, fallback = null) {
+  const countText=String(value?.madi_count??'');
+  const count=/^\d{1,20}$/u.test(countText)?BigInt(countText):null;
+  const index=value?.frame?.input?.madi??value?.frames?.at(-1)?.input?.madi
+    ??(count!==null&&count>0n?String(count-1n):fallback);
+  els.currentMadi.textContent=`마디: ${index??'-'}`;
+  els.currentMadi.title=count!==null
+    ?`0부터 세는 마디 번호입니다. 지금까지 ${countText}마디를 처리했습니다.`
+    :'마디 번호는 0부터 셉니다.';
+}
 
 async function stepWithHostStop(vm, options) {
   hostStepInFlight = true;
   renderAll();
-  try { return await runHostStep(() => vm.step(options), () => {
-    hostStopNotice = HOST_STEP_STOP_NOTICE;
+  try { return await runHostStep(() => vm.step(options), (notice) => {
+    hostStopNotice = notice;
     // Use the exact user-stop path; do not synthesize a runtime failure.
     void stopRun();
-  }); } finally { hostStepInFlight = false; }
+  }, {nativeSourceBound: vm.hasNativeSource?.() === true}); } finally { hostStepInFlight = false; }
 }
 import { createHostBridgeV1 } from "../host/host_bridge.js";
 import { extractCanonicalViewAuthorityInputsFromState, extractObservationOutputRowsFromState } from "../seamgrim_runtime_state.js";
@@ -191,6 +203,8 @@ const PROJECTS = [
     summary: "▶로 시작합니다. ←·→ 이동, ↓ 내리기, ↑ 회전, Space 떨어뜨리기, r 다시 시작. 보개에서 키를 누르세요.",
     tags: ["공식", "게임", "입력", "기록 재생"], primaryView: "space2d", viewGrade: "explicit",
     logicalInput: {binding: "alpha2_logical_tetris.binding.json", actions: "alpha2_logical_tetris.action_map.json", capacity: 128},
+    nativeAuthoredFiles:[{path:'root.ddn',role:'root',url:'../../samples/beta1_logical_tetris/root.ddn'},
+      {path:'main.ddn',role:'ddn_source',url:'../../samples/beta1_logical_tetris/main.ddn'}],
     viewPolicy: {primary: "칸판", overlay: "그림자 조각", side: "점수·다음 조각", magnifier: ""},
     files: [{path: "lesson.ddn", role: "main", url: "../../samples/alpha2_logical_tetris.ddn"}],
   },
@@ -1096,6 +1110,37 @@ function activeFile(project = currentProject()) {
   return project.files.find((file) => file.path === state.activeFilePath) ?? project.files[0];
 }
 
+const editRecoveryGuard=createEditRecoveryGuard({
+  // Access storage lazily: a restricted browser must get a visible diagnostic
+  // rather than aborting the Workbench module before it renders.
+  storage:{getItem:key=>localStorage.getItem(key),setItem:(key,value)=>localStorage.setItem(key,value)},
+  capture:()=>state.fileTexts.size?{project_id:state.projectId,profile:workbenchSourceProfile(currentProject()),
+    files:currentProject().files.map(file=>({path:file.path,text:state.fileTexts.get(file.path)??''}))}:null,
+  applyDraft:async draft=>{
+    if(state.runtimeBusy||state.livePump.inFlight||state.runtimeStatus==='running')
+      throw new Error('E_EDIT_RECOVERY_PAUSE_REQUIRED: 실행을 멈춘 뒤 편집을 복구하세요.');
+    for(const file of draft.files)state.fileTexts.set(file.path,file.text);
+    state.completionDocumentVersion+=1;state.completionGeneration+=1;closeCompletionPopup();
+    markCurrentProjectExecutionStale('edit_recovered');state.lastPortableExport=null;
+    syncNativeProjectFromState();renderAll();
+  },
+  present:notice=>{
+    const root=document.querySelector('[data-testid="edit-recovery-notice"]');
+    root.hidden=!notice.visible;
+    root.querySelector('[data-testid="edit-recovery-message"]').textContent=notice.message;
+    root.querySelector('[data-testid="edit-recovery-restore"]').hidden=!notice.canRestore;
+    root.querySelector('[data-testid="edit-recovery-open"]').hidden=!notice.canOpen;
+  },
+});
+document.querySelector('[data-testid="edit-recovery-restore"]').addEventListener('click',()=>editRecoveryGuard.restore());
+document.querySelector('[data-testid="edit-recovery-dismiss"]').addEventListener('click',()=>editRecoveryGuard.dismiss());
+document.querySelector('[data-testid="edit-recovery-open"]').addEventListener('click',()=>reopenProjectSnapshot().catch(()=>renderAll()));
+// Capture runs before the normal input handler. A renderer/control exception
+// cannot erase the just-typed text by preventing its model update.
+els.sourceEditor.addEventListener('input',()=>editRecoveryGuard.saveEditor(state.activeFilePath,els.sourceEditor.value),{capture:true});
+window.addEventListener('error',event=>editRecoveryGuard.fault(event.error??event.message));
+window.addEventListener('unhandledrejection',event=>editRecoveryGuard.fault(event.reason));
+
 function activeRun() {
   return state.runs.find((run) => run.run_id === state.activeRunId) ?? null;
 }
@@ -1442,6 +1487,8 @@ function rememberMyWorkProject({
   viewCapability = "",
   source = "",
   role = "",
+  nativeLocator = "",
+  logicalInput = null,
 } = {}) {
   const normalizedProjectId = String(projectId || "").trim();
   if (!normalizedProjectId) return;
@@ -1455,6 +1502,7 @@ function rememberMyWorkProject({
     origin_kind: String(source || (editCapability || viewCapability ? "server_saved" : "local_only")),
     access_role: String(role || (editCapability ? "edit" : viewCapability ? "view" : "edit")),
     updated_at: new Date().toISOString(),
+    ...(nativeLocator?{native_source_locator:nativeLocator,native_input_profile:logicalInput?{...logicalInput}:null}:{}),
   };
   const rows = readMyWorkIndex().filter((row) => String(row.project_id ?? "") !== normalizedProjectId);
   writeMyWorkIndex([next, ...rows]);
@@ -1467,7 +1515,7 @@ async function refreshMyWorkIndex() {
   for (const row of rows) {
     const capability = String(row.edit_capability || row.view_capability || "");
     const projectId = String(row.project_id || "");
-    let status = "server 확인 전";
+    let status = row.origin_kind==='native_source'?'Native 저장 위치 · 다시 열 때 확인':"server 확인 전";
     let head = String(row.head_revision_id || "");
     if (projectId && capability) {
       try {
@@ -1518,7 +1566,7 @@ function renderMyWork() {
     link.href = href;
     link.setAttribute("data-testid", "my-work-item");
     link.dataset.projectId = String(row.project_id || "");
-    const origin = row.origin_kind === "local_only" ? "로컬 전용" : "서버 저장";
+    const origin = row.origin_kind==='native_source'?'Native 저장':row.origin_kind === "local_only" ? "로컬 전용" : "서버 저장";
     const access = row.access_role === "view" || (!row.edit_capability && row.view_capability) ? "보기 전용" : "편집 가능";
     link.innerHTML = `<strong>${escapeHtml(row.title || row.project_id)}</strong><span>${origin} · ${access} · ${escapeHtml(row.verify_status || (origin === "로컬 전용" ? "이 기기" : "server 확인 전"))} · head ${escapeHtml(row.head_revision_id || "-")}</span>`;
     appendMyWorkRow(link, row, "index");
@@ -1946,9 +1994,15 @@ function renderExecutionControls() {
     els.root.dataset.executionState = logical.running ? "running" : logical.started ? "paused" : "idle";
     const committed=currentLogicalPresentation()?.value;
     els.runStatus.textContent=logical.failed ? '논리 입력 중단' : logical.running ? '논리 입력 실행 중' : committed ? '논리 입력 일시정지 · 기록 결과' : '논리 입력 준비';
-    els.currentMadi.textContent=`마디: ${committed?.frame?.input?.madi ?? committed?.madi_count ?? '-'}`;
+    renderCurrentMadi(committed);
     els.runHash.textContent=`state_hash: ${committed?.state_hash ?? committed?.frame?.state_hash ?? '-'}`;
-  } else els.root.dataset.executionOwner = "ordinary";
+  } else {
+    els.root.dataset.executionOwner = "ordinary";
+    if(logicalPanel?.logicalExecution.status().busy){
+      primary.disabled=true;
+      for(const id of ['lifecycle-step','lifecycle-stop'])document.querySelector(`[data-testid="${id}"]`).disabled=true;
+    }
+  }
 }
 
 function activeRunSourceChanged() {
@@ -1959,6 +2013,11 @@ function activeRunSourceChanged() {
 }
 
 async function primaryExecutionCommand() {
+  if(logicalPanel?.logicalExecution.status().busy)return false;
+  if(currentProject().nativeSaveOnFirstUse&&!authoredProjectPanel.getRunProjectArtifact()) {
+    if(!window.confirm('이 공식 작품을 새 ID로 내 작업에 저장하고 실행할까요? 기존 작품과 저장본은 바꾸지 않습니다.'))return false;
+    try{await saveProjectSnapshot();}catch{return false;}
+  }
   if (logicalPanel && (logicalPanel.logicalExecution.ownsCurrentSource() || logicalPanel.logicalExecution.status().started)) return logicalPanel.logicalExecution.command('primary');
   const policy = executionControlPolicy(state.executionLifecycle, executionLifecycleContext());
   if (policy.canPause) return pauseRun();
@@ -1980,7 +2039,7 @@ function renderServerProject() {
     : "아직 서버에 저장하지 않았습니다.";
   const saveButton = document.querySelector("[data-testid='project-save']");
   saveButton.disabled = Boolean(projectId && !canEdit);
-  saveButton.dataset.disabledReason = saveButton.disabled ? "view_write_forbidden" : "";
+  renderPersistenceFeedback();
   renderExecutionControls();
   if (els.projectClone) {
     els.projectClone.disabled = !canPortableClone && (!projectId || !state.capabilitySession?.capability);
@@ -3992,7 +4051,7 @@ function renderRunMetadata(project) {
     els.runHash.textContent = frameHash === "-" ? `source_hash: ${sourceHash}` : `state_hash: ${frameHash}`;
   }
   const logicalCommitted = currentLogicalPresentation()?.value;
-  els.currentMadi.textContent = `마디: ${logicalCommitted?.frame?.input?.madi ?? logicalCommitted?.madi_count ?? frame?.madi ?? "-"}`;
+  renderCurrentMadi(logicalCommitted,frame?.madi);
   els.runLineage.textContent = runEvidence
     ? `project-run: ${runEvidence.frontdoor} · lineage ${String(runEvidence.run_lineage?.lineage_hash ?? "").slice(0, 24)} · revision ${runEvidence.run_lineage?.created_revision || "-"}`
     : run
@@ -4029,7 +4088,26 @@ function renderRunMetadata(project) {
       state.persistenceStatus = null;
     }
   }
-  els.saveStatus.textContent = describePersistenceStatus(state.persistenceStatus);
+  renderPersistenceFeedback();
+}
+
+function renderPersistenceFeedback() {
+  const saving = state.persistenceOperation?.phase === "saving";
+  const saveButton = document.querySelector("[data-testid='project-save']");
+  // Keep focus on the admitted input control: disabling it can emit focusout
+  // and change the logical input snapshot while a save is frozen.
+  if (saveButton) {
+    saveButton.dataset.disabledReason = saving ? "persistence_in_flight" : saveButton.disabled ? "view_write_forbidden" : "";
+    saveButton.textContent = saving ? "저장 중…" : "저장";
+    saveButton.setAttribute("aria-busy", String(saving));
+    saveButton.setAttribute("aria-disabled", String(saving || saveButton.disabled));
+  }
+  els.saveStatus.textContent = saving
+    ? "저장 중… 완료될 때까지 창을 닫지 마세요."
+    : describePersistenceStatus(state.persistenceStatus);
+  els.saveStatus.title = saving
+    ? "저장소 확인에 시간이 걸릴 수 있습니다. 완료 또는 실패 안내가 나올 때까지 기다려 주세요."
+    : "";
 }
 
 function renderDiagnostics() {
@@ -4117,6 +4195,17 @@ function renderAll() {
   renderExecutionControls();
 }
 
+async function selectProjectInputContract(project) {
+  if(!project.logicalInput||!logicalPanel)return;
+  const readContract=async name=>{
+    const response=await fetch(new URL(`../../samples/${name}`,import.meta.url));
+    if(!response.ok)throw new Error(`E_LOGICAL_INPUT_CONTRACT_LOAD: ${name} (${response.status})`);
+    return response.text();
+  };
+  const [bindingJson,actionsJson]=await Promise.all([readContract(project.logicalInput.binding),readContract(project.logicalInput.actions)]);
+  await logicalPanel.logicalExecution.selectContract({bindingJson,actionsJson,capacity:project.logicalInput.capacity,reveal:false});
+}
+
 async function selectProject(projectId, { preserveServerSession = false } = {}) {
   closeCompletionPopup();
   runtimeBridge.cancelExecution("프로젝트를 바꿔 이전 실행을 중지했습니다.");
@@ -4145,6 +4234,15 @@ async function selectProject(projectId, { preserveServerSession = false } = {}) 
     state.fileFilter = "";
     els.fileSearch.value = "";
     state.projectLoadError = "";
+    if(project.nativeAuthoredFiles&&await nativeSourceAvailable()) {
+      // Reuse the already authored project files verbatim. Do not wrap or
+      // rewrite a one-file learner program in JavaScript.
+      project.files=project.nativeAuthoredFiles;project.nativeSaveOnFirstUse=true;
+      project.portableSnapshot={source_profile_identity:workbenchSourceProfile(project),local_package_payload:{
+        kind:'seamgrim.local_project_tree.v0',root_path:'root.ddn',entry_path:'main.ddn',
+        files:project.files.map(file=>({path:file.path,role:file.role}))}};
+      state.activeFilePath=localProjectEntryPath(project);
+    }
     await loadProjectFiles(project);
     state.pendingRecipe = null;
     state.nextInput = null;
@@ -4174,17 +4272,7 @@ async function selectProject(projectId, { preserveServerSession = false } = {}) 
       state.runArchives = [];
     }
     await refreshProjectControls(project);
-    if (project.logicalInput && logicalPanel) {
-      const readContract = async name => {
-        const response = await fetch(new URL(`../../samples/${name}`, import.meta.url));
-        if (!response.ok) throw new Error(`E_LOGICAL_INPUT_CONTRACT_LOAD: ${name} (${response.status})`);
-        return response.text();
-      };
-      const [bindingJson, actionsJson] = await Promise.all([
-        readContract(project.logicalInput.binding), readContract(project.logicalInput.actions),
-      ]);
-      await logicalPanel.logicalExecution.selectContract({bindingJson, actionsJson, capacity: project.logicalInput.capacity, reveal: false});
-    }
+    await selectProjectInputContract(project);
   } catch (error) {
     state.projectLoadError = String(error?.message ?? error);
     state.fileTexts.clear();
@@ -4199,6 +4287,7 @@ async function selectProject(projectId, { preserveServerSession = false } = {}) 
     state.runtimeBusy = false;
     renderAll();
   }
+  editRecoveryGuard.offer();
   setTimeout(() => refreshProjectGraph().catch(() => {}), 0);
 }
 
@@ -4231,7 +4320,7 @@ function selectFile(path) {
 document.querySelectorAll("[data-global-entry]").forEach((button) => {
   button.addEventListener("click", () => {
     state.globalEntry = button.dataset.globalEntry;
-    if (["first-steps", "official-collection"].includes(state.globalEntry)) {
+    if (["first-steps", "official-collection", "my-work"].includes(state.globalEntry)) {
       state.projectFilter = "";
       els.projectSearch.value = "";
       setProjectRailOpen(true);
@@ -5212,6 +5301,8 @@ async function startRun({ branchFrom = null } = {}) {
       const projectWasm = await runtimeBridge.createSession({
         ddnSourceText: projectExecutionPlan.linked_execution_source,
         projectRuntimeArtifactText: run.project_runtime_artifact_text,
+        nativeSourceRequested: authoredProjectPanel.hasNativeSourceContext(),
+        ...authoredProjectPanel.nativeSourceRunOptions(),
         sourceProfileIdentity: workbenchSourceProfile(project),
         projectEntryName: projectExecutionPlan.target,
         bogaeEntryName: run.bogae_entry,
@@ -5223,6 +5314,7 @@ async function startRun({ branchFrom = null } = {}) {
       assertExecutionGeneration(executionGeneration, projectIdAtStart);
       state.wasm = projectWasm;
       await projectWasm.updateLogic(projectExecutionPlan.linked_execution_source);
+      authoredProjectPanel.rememberNativeSelection(projectWasm.nativeSourceSelection());
       assertExecutionGeneration(executionGeneration, projectIdAtStart);
       const vmExecutionModeDecision = requireParsedExecutionModeDecision(
         projectWasm.getExecutionModeDecision(),
@@ -6620,12 +6712,14 @@ async function openProjectFromServerSession() {
 
 function beginPersistenceOperation() {
   const generation = Number(state.persistenceOperation?.generation ?? 0) + 1;
+  editRecoveryGuard.beginSave(generation);
   state.persistenceOperation = {
     generation,
     completedGeneration: Number(state.persistenceOperation?.completedGeneration ?? 0),
     phase: "saving",
     outcome: "",
   };
+  renderPersistenceFeedback();
   return generation;
 }
 
@@ -6636,20 +6730,61 @@ function completePersistenceOperation(generation, phase, outcome) {
     phase: String(phase || "saved"),
     outcome: String(outcome || ""),
   };
+  if(phase==='saved')editRecoveryGuard.saved(generation);
+  else editRecoveryGuard.failed(generation);
+  if(phase==='saved'&&['source_only','native_world'].includes(outcome)&&authoredProjectPanel.hasNativeSourceContext()) {
+    // This is only a UI locator. Reopening always asks the protected Native
+    // source owner; a catalogue entry is never a world/permission producer.
+    try{
+      const nativeLocator=localStorage.getItem('ddn.authored_project.last.v1'),locator=JSON.parse(nativeLocator);
+      rememberMyWorkProject({projectId:locator.native_source_project_id,title:currentProject().title,source:'native_source',
+        nativeLocator,logicalInput:currentProject().logicalInput??null});
+    }catch{pushDiagnostic('W_NATIVE_WORK_LIST_NOT_UPDATED','Native 저장은 완료했지만 내 작업 목록을 갱신하지 못했습니다. 작성 정체 자료에서 저장 자료를 다시 열 수 있습니다.','warning');}
+  }
 }
 
 async function saveProjectSnapshot() {
+  if (state.persistenceOperation?.phase === "saving") {
+    throw new Error("E_PROJECT_SAVE_BUSY: 이미 저장 중입니다. 완료될 때까지 기다려 주세요.");
+  }
   const persistenceGeneration = beginPersistenceOperation();
   const snapshot = buildProjectSnapshot();
   const sourceSession=state.capabilitySession??readWorkbenchCapabilitySession();
   if(!(state.serverProject.projectId&&sourceSession?.role!=="edit")) {
     try {
+      if(currentProject().nativeSaveOnFirstUse&&!authoredProjectPanel.getRunProjectArtifact()) {
+        if(state.runtimeBusy||state.livePump?.in_flight||state.runtimeStatus==='running')
+          throw new Error('E_NATIVE_SOURCE_PAUSE_REQUIRED: 일시정지한 뒤 내 작업으로 저장하세요.');
+        const project=currentProject();
+        const saved=await authoredProjectPanel.createAndSaveSource({title:project.title,logicalInput:project.logicalInput});
+        await selectProjectInputContract(currentProject());
+        state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'source_only',server_saved:false,
+          local_saved:true,user_label:saved.message};
+        completePersistenceOperation(persistenceGeneration,'saved','source_only');renderAll();return saved;
+      }
+      if(authoredProjectPanel.hasSourceEdits()) {
+        if(state.runtimeBusy||state.livePump?.in_flight||state.runtimeStatus==='running')
+          throw new Error('E_NATIVE_SOURCE_PAUSE_REQUIRED: 일시정지한 뒤 수정 원문을 저장하세요.');
+        const sourceSaved=await authoredProjectPanel.saveIfRegisteredSource();
+        if(sourceSaved){
+          state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'source_only',server_saved:false,
+            local_saved:true,user_label:sourceSaved.message,snapshot};
+          completePersistenceOperation(persistenceGeneration,'saved','source_only');renderAll();return sourceSaved;
+        }
+      }
+      if(logicalPanel?.logicalExecution.status().started&&authoredProjectPanel.hasNativeSourceContext()){
+        const message=await saveCurrentRuntimeProject(authoredProjectPanel.getRunProjectArtifact());
+        state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'native_world',server_saved:false,
+          local_saved:true,user_label:message,snapshot};
+        completePersistenceOperation(persistenceGeneration,'saved','native_world');renderAll();return {kind:'native_logical_world_saved'};
+      }
       if(state.wasm?.hasNativeSource?.()) {
         if(state.runtimeBusy||state.livePump?.in_flight||state.runtimeStatus==='running')
           throw new Error('E_NATIVE_SOURCE_PAUSE_REQUIRED: 일시정지한 뒤 저장하세요.');
         const authored=authoredProjectPanel.getRunProjectArtifact();
         const saved=await state.wasm.saveNativeCheckpoint(authored);
         if(saved?.kind!=='native_world_saved')throw new Error('E_NATIVE_SOURCE_SAVE_READBACK');
+        authoredProjectPanel.rememberNativeSelection(saved.authoring_selection);
         state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'native_world',server_saved:false,
           local_saved:true,user_label:'현재 세계를 Native에 저장하고 다시 확인했습니다.',snapshot};
         completePersistenceOperation(persistenceGeneration,'saved','native_world');renderAll();return saved;
@@ -6663,9 +6798,9 @@ async function saveProjectSnapshot() {
     }catch(error) {
       // Never turn a Rust/source/CAS failure into the old local fallback's
       // success. Existing source, VM, run records and saved head stay intact.
-      state.persistenceStatus={...(state.persistenceStatus??{}),last_error:`원문 저장 실패: ${String(error?.message??error)}`};
+      state.persistenceStatus={...(state.persistenceStatus??{}),last_error:`원문 저장 실패: ${sourceStorageErrorMessage(error)}`};
       els.saveStatus.textContent=describePersistenceStatus(state.persistenceStatus);
-      pushDiagnostic('E_SOURCE_SAVE_FAILED',String(error?.message??error),'error');
+      pushDiagnostic('E_SOURCE_SAVE_FAILED',sourceStorageErrorMessage(error),'error');
       completePersistenceOperation(persistenceGeneration,'error','source_only');throw error;
     }
   }
@@ -6732,11 +6867,11 @@ async function saveProjectSnapshot() {
 
 async function reopenProjectSnapshot() {
   try {
-    const source=await authoredProjectPanel.reopenIfRegisteredSource(currentProject().authoredArtifact?.authored_identity?.logical_dependency_id??'');
+    const source=await authoredProjectPanel.reopenIfRegisteredSource(currentProject().authoredArtifact?.authored_identity?.logical_dependency_id??'',{allowLast:true});
     if(source){state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'source_only',server_saved:false,local_saved:true,user_label:source.message};els.saveStatus.textContent=source.message;return source;}
   }catch(error) {
-    pushDiagnostic('E_SOURCE_REOPEN_FAILED',String(error?.message??error),'error');
-    state.persistenceStatus={...(state.persistenceStatus??{}),last_error:`원문 재열기 실패: ${String(error?.message??error)}`};
+    pushDiagnostic('E_SOURCE_REOPEN_FAILED',sourceStorageErrorMessage(error),'error');
+    state.persistenceStatus={...(state.persistenceStatus??{}),last_error:`원문 재열기 실패: ${sourceStorageErrorMessage(error)}`};
     els.saveStatus.textContent=describePersistenceStatus(state.persistenceStatus);throw error;
   }
   if (state.capabilitySession?.project_id || state.serverProject.projectId) {
@@ -6889,6 +7024,18 @@ async function saveCurrentRuntimeProject(artifactText) {
     const projectId=JSON.parse(artifactText).authored_identity.logical_dependency_id;
     const unchanged=()=>{context.unchanged();if(authoredProjectPanel.getRunProjectArtifact()!==artifactText)
       throw new Error('E_PROJECT_RUNTIME_CHANGED: 저장 중 작품 원문이 바뀌었습니다.');};
+    const native=await nativeSourceAvailable();unchanged();
+    if(native){
+      if(!authoredProjectPanel.hasNativeSourceContext())throw new Error('E_NATIVE_SOURCE_SAVE_REQUIRED: 먼저 작품 원문을 Native에 저장하세요.');
+      const input=await context.inputRequest();unchanged();
+      const current=await context.summary();unchanged();
+      const result=await nativeSourceRequest('logical_save',artifactText,{input_request:input,state_hash:current.state_hash});unchanged();
+      if(result.kind!=='native_logical_world'||result.summary?.state_hash!==current.state_hash||result.summary?.madi_count!==current.madi_count)
+        throw new Error('E_NATIVE_SOURCE_LOGICAL_SAVE_MISMATCH: Native 저장 결과가 현재 세계와 다릅니다.');
+      authoredProjectPanel.rememberNativeSelection(result.authoring_selection);
+      return '논리 입력과 세계를 Native에 저장하고 검증했습니다. 종료 후 다시 열어 이어갈 수 있습니다.';
+    }
+    if(authoredProjectPanel.hasNativeSourceContext())throw new Error('E_NATIVE_SOURCE_HOST_REQUIRED: 같은 Native 작업대에서 저장하세요.');
     unchanged();const prior=await loadRuntimeProject(projectId);unchanged();
     const parent=prior?.revision_hex??'',revision=newRuntimeRevisionHex();
     const bytes=hex=>Uint8Array.from(hex.match(/../g)??[],pair=>parseInt(pair,16));
@@ -6918,6 +7065,18 @@ async function saveCurrentRuntimeProject(artifactText) {
 }
 async function reopenCurrentRuntimeProject(artifactText) {
   if(logicalPanel?.logicalExecution.ownsCurrentSource()) {
+    if(authoredProjectPanel.hasNativeSourceContext()){
+      if(!await nativeSourceAvailable())throw new Error('E_NATIVE_SOURCE_HOST_REQUIRED: 같은 Native 작업대에서 다시 여세요.');
+      const binding=logicalPanel.logicalExecution.storageInputBinding();
+      const native=await nativeSourceRequest('logical_load',artifactText,{input_request:{binding,snapshots:[]}});
+      if(authoredProjectPanel.getRunProjectArtifact()!==artifactText||native.authored_project_json_utf8!==artifactText||native.kind!=='native_logical_world')
+        throw new Error('E_PROJECT_RUNTIME_SOURCE_CHANGED: 다시 여는 중 작품이 바뀌었습니다.');
+      const checked=await logicalPanel.logicalExecution.prepareStoredCheckpoint({native_logical_summary:native.summary});
+      let published=false;
+      try{const cleanup=checked.publish();published=true;await cleanup;
+        return 'Native 저장본과 실제 입력을 검증하고 화면을 복원했습니다. ▶ 또는 한 마디로 이어갑니다.';
+      }finally{if(!published)await checked.close();}
+    }
     const projectId=JSON.parse(artifactText).authored_identity.logical_dependency_id;
     const record=await loadRuntimeProject(projectId);
     if(authoredProjectPanel.getRunProjectArtifact()!==artifactText)
@@ -7000,7 +7159,10 @@ const authoredProjectPanel = installAuthoredProjectPanel({
   root:document.querySelector('[data-testid="authored-project-drawer"]'),bridge:runtimeBridge,host:hostBridge,
   saveRuntime:saveCurrentRuntimeProject,
   reopenRuntime:reopenCurrentRuntimeProject,
+  ownsLogicalSource:()=>Boolean(logicalPanel?.logicalExecution.ownsCurrentSource()),
   exportRuntime:exportCurrentRuntimeProject,
+  saveProject:saveProjectSnapshot,
+  reopenProject:reopenProjectSnapshot,
   capture:()=>({
     selected_project:state.projectId,
     source_profile:workbenchSourceProfile(currentProject()),
@@ -7009,11 +7171,12 @@ const authoredProjectPanel = installAuthoredProjectPanel({
         ? {root_path:currentProject().authoredArtifact?.source_snapshot.root_path ?? localProjectTreePayloadFromSnapshot(currentProject().portableSnapshot ?? {}).root_path}:{}),
     },
   }),
-  apply:async artifact=>{
+  apply:async (artifact,projectContext={})=>{
     const id=`authored_${artifact.authored_identity.logical_dependency_id}`;
     const snapshot=artifact.source_snapshot;
     const files=snapshot.files.map(file=>({path:file.path,role:snapshot.root_path?(file.path===snapshot.root_path?'root':'ddn_source'):'main',fallback:file.text}));
     const project={id,title:'명시 작품',kind:'내 작업',summary:'명시 정체를 가진 원문입니다. 등록한 보개짜임은 저장된 정체로 실행합니다.',tags:['내 작업'],primaryView:'line',viewGrade:'output-only',viewPolicy:{primary:'원문 결과',side:'',overlay:'',magnifier:''},sourceProfileIdentity:artifact.source_profile,files,authoredArtifact:artifact};
+    if(projectContext.logicalInput) {project.logicalInput={...projectContext.logicalInput};project.title=projectContext.title??project.title;}
     if(snapshot.root_path) project.portableSnapshot={source_profile_identity:artifact.source_profile,local_package_payload:{kind:'seamgrim.local_project_tree.v0',root_path:snapshot.root_path,entry_path:snapshot.entry_path,files:files.map(file=>({path:file.path,role:file.role,utf8_text:file.fallback}))}};
     receivedPortableProjects=[project,...receivedPortableProjects.filter(row=>row.id!==id)];
     await selectProject(id);
@@ -7055,6 +7218,7 @@ els.runArchiveList?.addEventListener("click", (event) => {
   });
 });
 document.querySelector("[data-testid='project-save']")?.addEventListener("click", () => {
+  if (state.persistenceOperation?.phase === "saving") return;
   saveProjectSnapshot().catch(() => renderAll());
 });
 document.querySelector("[data-testid='project-reopen']")?.addEventListener("click", () => {
@@ -7070,7 +7234,6 @@ document.querySelector("[data-testid='portable-project-export-confirm']")?.addEv
   exportPortableProject().catch(() => renderAll());
 });
 els.portableImport?.addEventListener("click", () => {
-  openProgressiveDialog(els.portableDialog);
   els.portableImportInput?.click();
 });
 const sourceFileInput=document.querySelector('[data-testid="source-file-input"]');
@@ -7098,8 +7261,22 @@ sourceFileInput?.addEventListener('change',async()=>{
     pushDiagnostic(diagnostic.code,diagnostic.message,'error');renderAll();
   }finally{if(request===sourceFileRequest)sourceFileInput.value='';}
 });
-els.portableImportInput?.addEventListener("change", () => {
+els.portableImportInput?.addEventListener("change", async () => {
   const file = els.portableImportInput.files?.[0] ?? null;
+  if(!file)return;
+  try {
+    if(file.size>64*1024*1024)throw new Error('저장 자료가 64MiB를 넘습니다.');
+    const text=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(await file.arrayBuffer());
+    const schema=JSON.parse(text)?.schema;
+    if(schema==='ddn.authored_project_artifact.v1'||schema==='ddn.authored_project_artifact.v2') {
+      await authoredProjectPanel.importFile(file);
+      els.saveStatus.textContent='작품 자료를 열었습니다. 저장·다시 열기는 위쪽 단추를 사용하세요. 실행은 직접 시작하세요.';
+      els.portableImportInput.value='';return;
+    }
+  }catch(error) {
+    els.portableImportInput.value='';
+    pushDiagnostic('E_PROJECT_IMPORT',sourceStorageErrorMessage(error),'error');renderAll();return;
+  }
   openProgressiveDialog(els.portableDialog);
   previewPortableProjectFile(file).catch(() => renderAll());
 });
@@ -7194,6 +7371,14 @@ els.myWorkList?.addEventListener("click", (event) => {
   }
   const projectId = String(link.dataset.projectId || "");
   const row = readMyWorkIndex().find((item) => String(item.project_id || "") === projectId);
+  if(row?.origin_kind==='native_source') {
+    authoredProjectPanel.reopenNativeLocator(row.native_source_locator,{title:row.title,logicalInput:row.native_input_profile,expectedNativeProjectId:projectId}).then(async result=>{
+      await selectProjectInputContract(currentProject());
+      state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'source_only',server_saved:false,local_saved:true,user_label:result.message};
+      renderAll();
+    }).catch(error=>{pushDiagnostic('E_NATIVE_WORK_REOPEN_FAILED',sourceStorageErrorMessage(error),'error');renderAll();});
+    return;
+  }
   const localProject = nativeProjects.find((item) => item.id === projectId);
   if (localProject) {
     selectProject(projectId).then(() => {
@@ -7231,9 +7416,10 @@ window.__SEAMGRIM_APPROVED_WORKBENCH__ = {
     const project = currentProject();
     const controlSnapshot = (testId) => {
       const node = document.querySelector(`[data-testid='${testId}']`);
+      const disabled = Boolean(node?.disabled || node?.getAttribute("aria-disabled") === "true");
       return {
-        enabled: Boolean(node && !node.disabled),
-        disabled_reason: node?.disabled ? String(node.dataset.disabledReason || "disabled") : "",
+        enabled: Boolean(node && !disabled),
+        disabled_reason: disabled ? String(node.dataset.disabledReason || "disabled") : "",
       };
     };
     return {
@@ -7490,10 +7676,36 @@ window.__SEAMGRIM_APPROVED_WORKBENCH__ = {
 };
 logicalPanel = installLogicalInputPanel({ parent: document.querySelector('[data-testid="logical-record-content"]'), readSource: () => activeSourceText(),
   readAuthoredProject: () => authoredProjectPanel.getRunProjectArtifact() || null,
+  onNativeCheckpoint:selection=>authoredProjectPanel.rememberNativeSelection(selection),
+  prepareNativeNewRecord:async(artifact,binding)=>{
+    if(!authoredProjectPanel.hasNativeSourceContext()||!await nativeSourceAvailable())throw new Error('E_NATIVE_SOURCE_HOST_REQUIRED');
+    const options=authoredProjectPanel.nativeSourceRunOptions();
+    const selection=JSON.parse(options.nativeSourceSelectionJson??'null');
+    if(!selection||selection.kind!==1)throw new Error('E_NEW_RECORD_WORLD_REQUIRED: 먼저 세계를 저장하거나 저장한 세계를 여세요.');
+    if(authoredProjectPanel.getRunProjectArtifact()!==artifact)throw new Error('E_NEW_RECORD_SOURCE_CHANGED');
+    const result=await nativeSourceRequest('logical_new_record',artifact,{input_request:{binding,snapshots:[]},authoring_selection:selection});
+    if(result.kind!=='native_logical_world'||result.authored_project_json_utf8!==artifact||authoredProjectPanel.getRunProjectArtifact()!==artifact)
+      throw new Error('E_NEW_RECORD_SOURCE_CHANGED');
+    authoredProjectPanel.rememberNativeSelection(result.authoring_selection);
+    return {artifact_text:result.saved_artifact_json_utf8,parent_hex:result.parent_hex,revision_hex:result.revision_hex,native_logical_summary:result.summary};
+  },
+  prepareNativeNewRun:async(artifact,binding)=>{
+    const options=authoredProjectPanel.nativeSourceRunOptions();
+    if(!options.nativeSourceNewRun)return null;
+    if(!await nativeSourceAvailable())throw new Error('E_NATIVE_SOURCE_HOST_REQUIRED');
+    if(authoredProjectPanel.getRunProjectArtifact()!==artifact)throw new Error('E_PROJECT_RUNTIME_SOURCE_CHANGED');
+    const initial={binding,snapshots:[{madi:0,events:[],held:binding.initial_held}]};
+    const result=await nativeSourceRequest('logical_new_run',artifact,{input_request:initial,
+      authoring_selection:JSON.parse(options.nativeSourceSelectionJson)});
+    if(result.kind!=='native_logical_world'||result.authored_project_json_utf8!==artifact||authoredProjectPanel.getRunProjectArtifact()!==artifact)
+      throw new Error('E_NATIVE_SOURCE_NEW_LOGICAL_READBACK');
+    authoredProjectPanel.rememberNativeSelection(result.authoring_selection);
+    return result.summary;
+  },
   valueControlsParent: document.querySelector('[data-testid="logical-manipulation-controls"]'),
   onStateChange: renderExecutionControls,
   inputRegion: els.canvas,
-  viewControls: [els.bogaeStage,document.querySelector('[data-testid="authored-view-controls"]'),document.querySelector('[data-testid="logical-record-drawer"]'),document.querySelector('[data-testid="logical-record-open"]'),document.querySelector('[data-testid="project-more-menu"]'),document.querySelector('[data-testid="authored-project-drawer"]')],
+  viewControls: [els.bogaeStage,document.querySelector('[data-testid="project-save"]'),document.querySelector('[data-testid="authored-view-controls"]'),document.querySelector('[data-testid="logical-record-drawer"]'),document.querySelector('[data-testid="logical-record-open"]'),document.querySelector('[data-testid="project-more-menu"]'),document.querySelector('[data-testid="authored-project-drawer"]')],
   onPresentation: (value,generation) => {
     logicalPresentation = value ? {value,generation,projectId:state.projectId} : null;
     renderViewPolicy(currentProject()); drawPreview(); renderSemanticObservations(currentProject());

@@ -8,12 +8,17 @@ const logicalOperations = new Map([
   ["logicalStep", "step"], ["logicalSummary", "summary"],
   ["logicalSeal", "seal"], ["logicalAbort", "abort"], ["logicalClose", "close"],
   ["logicalStopRecordingV3", "stopRecording"],
+  ["logicalRegisterInputProducer", "registerInputProducer"],
+  ["logicalFinishPending", "finishPending"], ["logicalFinishNotice", "finishNotice"],
+  ["logicalPreviewFinishPending", "previewFinishPending"],
+  ["logicalResultIdentity", "resultIdentity"],
   ["logicalExportSavedProjectArtifact", "exportSavedProjectArtifact"],
   ["logicalExportProjectCheckpoint", "exportProjectCheckpoint"],
 ]);
 const sessionOperations = new Set(["updateLogic", "reset", "getStateJson", "step", "setParam", "exportSavedProjectArtifact", "saveNativeCheckpoint", "close"]);
 const adapterOperations = new Set([
   "authoredProjectOperation",
+  "compareGeneralOriginalRecording",
   "canonMaegimPlan", "sourceAnalysis", "moduleDirectiveAnalysis", "sharedCompletion",
   "runSummaryWithSourceProfile", "planGajiExtraction", "projectSourceSha256",
   "exportInputTapeV1", "runSummaryWithTapeV1",
@@ -29,7 +34,7 @@ let nextSessionId = 1;
 let queue = Promise.resolve();
 
 function metadata(session) {
-  return { executionModeDecision: session.getExecutionModeDecision(), configuredMadi: session.getConfiguredMadi(),nativeSourceBound:session.hasNativeSource?.()===true };
+  return { executionModeDecision: session.getExecutionModeDecision(), configuredMadi: session.getConfiguredMadi(),nativeSourceBound:session.hasNativeSource?.()===true,nativeSourceSelection:session.nativeSourceSelection?.()??null };
 }
 
 async function dispatch({ operation, args, sessionId }) {

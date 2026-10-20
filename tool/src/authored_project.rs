@@ -7,6 +7,7 @@ use serde::{
 use serde_json::Value;
 pub(crate) mod registration;
 mod source_save;
+pub(crate) use source_save::prepare_authoring_source;
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},

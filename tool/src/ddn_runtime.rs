@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
 mod phase_diagnostics;
+pub(crate) mod persistent_dependencies;
 
 use crate::fixed64_boundary::Fixed64FloatBoundary;
 fn manipulation_phase_text(phase: ddonirang_core::input::ValueEventPhase) -> &'static str {
@@ -1710,6 +1711,7 @@ pub struct DdnProgram {
     record_schemas: ddonirang_lang::runtime::RecordSchemas,
     nominal_constructors:BTreeMap<NodeId,crate::authored_project::registration::ResolvedConstructorV1>,
     registered_atom_literals:BTreeMap<NodeId,ddonirang_core::platform::RegisteredAtomValueV1>,
+    result_output_type_plan:Option<Arc<crate::registered_atom_contract::output_evidence::OutputTypePlanV1>>,
     temporary_registration:Option<Arc<crate::authored_project::registration::temporary::TemporaryRegisteredSource>>,
     temporary_subject_bootstrap:Option<crate::unit_wire::subject_execution::SubjectExecutionStage>,
     registered_nominal_catalog:Option<Arc<crate::authored_project::registration::SavedNominalCatalogV1>>,
@@ -1718,6 +1720,7 @@ pub struct DdnProgram {
     ordinary_callable_admission_evidence:
         Vec<ddonirang_lang::OrdinaryCallableAdmissionEvidence>,
     root_stmts: Vec<ddonirang_lang::Stmt>,
+    derived_plan: Arc<persistent_dependencies::DerivedPlan>,
     top_level_decl_names: HashSet<String>,
     #[allow(dead_code)]
     file_meta: FileMeta,
@@ -1805,7 +1808,10 @@ impl DdnProgram {
             registration.bind_resolved_program(owned,&mut self.program)?;
             self.refresh_registered_executable_copies()?;
             self.nominal_constructors=registration.bind_constructors(owned,&self.program)?;
-            self.registered_atom_literals=registration.bind_atom_values(owned,&self.program)?;
+            let (atoms,proof)=registration.bind_atom_values(owned,&self.program)?.into_parts();
+            self.registered_atom_literals=atoms;
+            self.result_output_type_plan=self.numeric_constraint_plan.as_deref().and_then(|original|
+                crate::registered_atom_contract::output_evidence::OutputTypePlanV1::compile(&self.program,&self.top_level_decl_names,self.host_numeric_supply.as_ref(),original,proof));
             self.registered_nominal_catalog=Some(Arc::new(registration.saved_nominal_catalog(owned)?));
             self.registered_atom_contracts=Arc::new(registration.verified_recorded_atom_contracts(owned)?.to_vec());
         }
@@ -1817,10 +1823,12 @@ impl DdnProgram {
         context.bind_resolved_program(&mut self.program)?;
         self.refresh_registered_executable_copies()?;
         let constructors=context.bind_constructors(&self.program)?;
-        let atoms=context.bind_atoms(&self.program)?;
+        let (atoms,proof)=context.bind_atoms(&self.program)?.into_parts();
         let stage=crate::unit_wire::subject_execution::SubjectExecutionStage::fresh_for_temporary(&context,&self.program)?;
         let catalog=context.catalog(&self.program)?;let contracts=context.contracts().to_vec();
         self.nominal_constructors=constructors;self.registered_atom_literals=atoms;
+        self.result_output_type_plan=self.numeric_constraint_plan.as_deref().and_then(|original|
+            crate::registered_atom_contract::output_evidence::OutputTypePlanV1::compile(&self.program,&self.top_level_decl_names,self.host_numeric_supply.as_ref(),original,proof));
         self.registered_nominal_catalog=Some(Arc::new(catalog));self.registered_atom_contracts=Arc::new(contracts);
         self.temporary_subject_bootstrap=stage;self.temporary_registration=Some(Arc::new(context));Ok(())
     }
@@ -1831,6 +1839,7 @@ impl DdnProgram {
             *seed=(*seeds.get(&seed.id).ok_or("E_RESOLVED_SUPPLY_EXECUTABLE_COPY: 실행 선언의 소유 원문이 없습니다")?).clone();
         }
         self.root_stmts=self.program.root_stmts.clone();
+        self.derived_plan=Arc::new(persistent_dependencies::DerivedPlan::compile(&self.program)?);
         self.numeric_constraint_plan=Some(Arc::new(crate::numeric_constraint_plan::NumericConstraintPlan::compile_with_host(
             &self.program,&self.top_level_decl_names,self.host_numeric_supply.as_ref())?));
         Ok(())
@@ -2104,6 +2113,7 @@ impl DdnProgram {
                 }
             }
         }
+        let derived_plan=Arc::new(persistent_dependencies::DerivedPlan::compile(&program)?);
         let numeric_constraint_plan = if v25 {
             Some(Arc::new(crate::numeric_constraint_plan::NumericConstraintPlan::compile_with_host(&program,&top_level_decl_names,host_numeric_supply.as_ref())
                 .map_err(|error|{
@@ -2124,6 +2134,7 @@ impl DdnProgram {
             saved_project_sources: None,
             nominal_constructors:BTreeMap::new(),
             registered_atom_literals:BTreeMap::new(),
+            result_output_type_plan:None,
             temporary_registration:None,
             temporary_subject_bootstrap:None,
             registered_nominal_catalog:None,
@@ -2135,6 +2146,7 @@ impl DdnProgram {
             products,
             record_schemas,
             root_stmts,
+            derived_plan,
             top_level_decl_names,
             file_meta: meta_parse.meta,
             parse_warnings,
@@ -2285,7 +2297,7 @@ fn collect_v1_core_named_calls_body(
                     }
                 }
             }
-            Stmt::Definition { value, .. } => {
+            Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} => {
                 collect_v1_core_named_calls_expr(value, alias_owner, calls)
             }
             Stmt::Mutate { target, value, .. } => {
@@ -2528,7 +2540,7 @@ fn validate_v25_known_infix_operand_types(program: &CanonProgram) -> Result<(), 
                     bindings.insert(name.clone(), value_kind);
                 }
             }
-            Stmt::Definition { name, value, .. } => {
+            Stmt::Definition { name, value, .. } | Stmt::DerivedBinding {name,value,..} => {
                 let value_kind = infer_expr(value, &bindings, false)?;
                 bindings.insert(name.clone(), value_kind);
             }
@@ -2872,7 +2884,7 @@ fn collect_public_observation_fields_stmts<'a>(
                     }
                 }
             }
-            Stmt::Definition { value, .. } => {
+            Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} => {
                 collect_public_observation_fields_expr(value, fields);
             }
             Stmt::Mutate { target, value, .. } => {
@@ -3449,7 +3461,7 @@ fn stmt_regex_feature(stmt: &Stmt) -> Option<&'static str> {
             }
             None
         }
-        Stmt::Definition { value, .. } => expr_regex_feature(value),
+        Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} => expr_regex_feature(value),
         Stmt::Mutate { target, value, .. } => {
             expr_regex_feature(target).or_else(|| expr_regex_feature(value))
         }
@@ -3558,7 +3570,7 @@ fn stmt_assertion_feature(stmt: &Stmt) -> Option<&'static str> {
             }
             None
         }
-        Stmt::Definition { value, .. } => expr_assertion_feature(value),
+        Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} => expr_assertion_feature(value),
         Stmt::Mutate { target, value, .. } => {
             expr_assertion_feature(target).or_else(|| expr_assertion_feature(value))
         }
@@ -3667,7 +3679,7 @@ fn stmt_state_machine_feature(stmt: &Stmt) -> Option<&'static str> {
             }
             None
         }
-        Stmt::Definition { value, .. } => expr_state_machine_feature(value),
+        Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} => expr_state_machine_feature(value),
         Stmt::Mutate { target, value, .. } => {
             expr_state_machine_feature(target).or_else(|| expr_state_machine_feature(value))
         }
@@ -3775,6 +3787,7 @@ fn stmt_quantifier_feature(stmt: &Stmt) -> Option<&'static str> {
             None
         }
         Stmt::Definition { .. }
+        | Stmt::DerivedBinding { .. }
         | Stmt::Mutate { .. }
         | Stmt::ResultFlow { .. }
         | Stmt::Send { .. }
@@ -4664,6 +4677,7 @@ pub struct StateTransitionRecord {
 }
 
 pub struct DdnRunOutput {
+    pub(crate) result_emissions: crate::replay_evidence::StagedResultEmissionsV1,
     /// Explicit UTF-8 decoding provenance, separate from display and world state.
     pub explicit_nfc_provenance: Vec<(NodeId, ddonirang_core::bytes::NfcDecodeProvenance)>,
     /// A3-P1: typed display sidecar; never a world resource or input authority.
@@ -4793,6 +4807,7 @@ impl DdnRunner {
     pub(crate) fn validate_persisted_records(&self, world: &NuriWorld) -> Result<(), String> {
         world.validate_typed_resource_lanes().map_err(|reason|
             format!("E_RESOURCE_SNAPSHOT_INVALID: {reason}"))?;
+        self.validate_derived_world(world,false)?;
         // The shared parser places top-level chaebi declarations in the
         // update body's prefix. Local declarations of other callables do not
         // constrain world resources and must not be collected here.
@@ -5379,8 +5394,10 @@ impl DdnRunner {
             }
             ctx.dispatch_logical_input_reactions()?;
             for stmt in &ctx.program.root_stmts {
-                if self.named_entry_after_definitions
-                    && crate::bogae_projection::is_observation_definition(stmt) {
+                let post_settle_observation=crate::bogae_projection::is_observation_definition(stmt)
+                    || (!ctx.program.derived_plan.bindings.is_empty() && matches!(stmt,Stmt::PublicObservation{..}));
+                if (self.named_entry_after_definitions || !ctx.program.derived_plan.bindings.is_empty())
+                    && post_settle_observation {
                     continue;
                 }
                 let snapshot = ctx.capture_frame_snapshot(&locals);
@@ -5403,8 +5420,12 @@ impl DdnRunner {
                     self.prev_keys_pressed = prev_keys_pressed;
                     return Err(error);
                 }
+            }
+            if let Err(error)=ctx.settle_derived(&mut locals){self.prev_keys_pressed=prev_keys_pressed;return Err(error);}
+            if self.named_entry_after_definitions || !ctx.program.derived_plan.bindings.is_empty() {
                 for stmt in &ctx.program.root_stmts {
-                    if crate::bogae_projection::is_observation_definition(stmt) {
+                    if crate::bogae_projection::is_observation_definition(stmt)
+                        || (!ctx.program.derived_plan.bindings.is_empty() && matches!(stmt,Stmt::PublicObservation{..})) {
                         if let Err(error) = ctx.eval_stmt(&mut locals, stmt) {
                             self.prev_keys_pressed = prev_keys_pressed;
                             return Err(error);
@@ -5423,6 +5444,7 @@ impl DdnRunner {
             })?
         } else if missing_is_noop {
             return Ok(DdnRunOutput {
+                result_emissions: Default::default(),
                 display_outputs: Vec::new(),
                 bogae_projection: None,
                 patch: Patch {
@@ -5443,6 +5465,9 @@ impl DdnRunner {
             self.prev_keys_pressed = prev_keys_pressed;
             return Err(error);
         }
+        }
+        if !ctx.root_program_active {
+            if let Err(error)=ctx.settle_derived(&mut HashMap::new()){self.prev_keys_pressed=prev_keys_pressed;return Err(error);}
         }
         if logical_input.is_some() && ctx.input_reads.borrow().contains("logical.forbidden_physical") {
             self.prev_keys_pressed = prev_keys_pressed;
@@ -5504,6 +5529,7 @@ impl DdnRunner {
         let work_cost = ctx.work_cost.borrow().receipt();
         self.internal_dispatch = ctx.internal_dispatch.clone();
         Ok(DdnRunOutput {
+            result_emissions: ctx.result_emissions,
             display_outputs: ctx.display_outputs,
             bogae_projection,
             patch,
@@ -5592,6 +5618,7 @@ impl From<HashMap<String, Value>> for ResourceBindings {
 }
 
 struct EvalContext<'a> {
+    result_emissions: crate::replay_evidence::StagedResultEmissionsV1,
     subject_stage:Option<Rc<RefCell<crate::unit_wire::subject_execution::SubjectExecutionStage>>>,
     tuple_type_plan: Rc<crate::tuple_saved_type_plan::TupleSavedTypePlan>,
     explicit_nfc_provenance: Vec<(NodeId, ddonirang_core::bytes::NfcDecodeProvenance)>,
@@ -5635,6 +5662,7 @@ struct EvalContext<'a> {
     /// Root-program `<-` bindings are ordinary mutable bindings, but they must
     /// not silently change their runtime value category on a later rebind.
     root_program_active: bool,
+    derived_initialized: bool,
     root_binding_types: HashMap<String, String>,
     sum_definitions: HashMap<String, Vec<SumBranchDecl>>,
     // Pattern payloads are lexical bindings, never world slots by spelling.
@@ -5686,6 +5714,8 @@ fn restore_local_binding(locals: &mut HashMap<String, Value>, name: &str, previo
 
 #[derive(Clone)]
 struct EvalFrameSnapshot {
+    result_emissions: crate::replay_evidence::StagedResultEmissionsV1,
+    derived_initialized: bool,
     subject_stage:Option<crate::unit_wire::subject_execution::SubjectExecutionStage>,
     explicit_nfc_provenance: Vec<(NodeId, ddonirang_core::bytes::NfcDecodeProvenance)>,
     locals: Option<HashMap<String, Value>>,
@@ -6108,6 +6138,7 @@ impl<'a> EvalContext<'a> {
         Self {
             program,
             subject_stage:None,
+            result_emissions: Default::default(),
             source_span_cache: Rc::new(RefCell::new(HashMap::new())),
             tuple_type_plan: Rc::new(crate::tuple_saved_type_plan::TupleSavedTypePlan::default()),
             world,
@@ -6143,6 +6174,7 @@ impl<'a> EvalContext<'a> {
             explicit_nfc_provenance: Vec::new(),
             display_outputs: Vec::new(),
             root_program_active: false,
+            derived_initialized: false,
             root_binding_types: HashMap::new(),
             sum_definitions: program.program.root_stmts.iter().filter_map(|stmt|match stmt {
                 Stmt::SumDefinition {name,branches,..} => Some((name.clone(),branches.clone())),
@@ -6528,7 +6560,7 @@ impl<'a> EvalContext<'a> {
             return Ok(ThunkResult::Value(Value::None));
         }
         match stmt {
-            Stmt::DeclBlock { .. } | Stmt::Definition { .. } | Stmt::SumDefinition {..} => match self.eval_stmt(locals, stmt)? {
+            Stmt::DeclBlock { .. } | Stmt::Definition { .. } | Stmt::DerivedBinding {..} | Stmt::SumDefinition {..} => match self.eval_stmt(locals, stmt)? {
                 FlowControl::Continue => Ok(ThunkResult::Value(Value::None)),
                 FlowControl::Return(value) => Ok(ThunkResult::Return(value)),
                 FlowControl::ContinueLoop(span) => Ok(ThunkResult::ContinueLoop(span)),
@@ -6833,6 +6865,11 @@ impl<'a> EvalContext<'a> {
             return Ok(FlowControl::Continue);
         }
         match stmt {
+            Stmt::DerivedBinding {..} => {
+                if !self.root_program_active{return Err("E_DERIVED_SCOPE: 파생 관계는 맨 바깥에서만 활성화합니다".to_string().into());}
+                if !self.derived_initialized{self.settle_derived(locals)?;}
+                Ok(FlowControl::Continue)
+            },
             Stmt::SumDefinition {name,branches,..} => {
                 self.sum_definitions.insert(name.clone(),branches.clone());
                 Ok(FlowControl::Continue)
@@ -6884,6 +6921,11 @@ impl<'a> EvalContext<'a> {
             }
             Stmt::DeclBlock { items, .. } => {
                 for item in items {
+                    if self.program.derived_plan.declaration_ids.contains(&item.id) {
+                        self.pending_top_level_decl_names.remove(&item.name);
+                        self.declare_binding_type(&item.name,&item.type_ref);
+                        continue;
+                    }
                     let is_top_level_decl =
                         self.pending_top_level_decl_names.remove(&item.name);
                     let resource_exists = if is_top_level_decl {
@@ -7327,7 +7369,14 @@ impl<'a> EvalContext<'a> {
             }
             Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
                 match self.eval_expr(locals, expr) {
-                    Ok(value) => self.append_output_log(value)?,
+                    Ok(value) => {
+                        self.result_emissions.stage(self.tick_id,
+                            self.program.result_output_type_plan.as_deref().and_then(|plan|plan.kind(expr.id))
+                                .or_else(||self.program.numeric_constraint_plan.as_deref().and_then(|plan|plan.position_types.get(&expr.id))),
+                            &self.program.nominal_type_ids(),&value,
+                            self.program.result_output_type_plan.as_deref().map(|plan|plan.source()),&self.program.registered_atom_contracts);
+                        self.append_output_log(value)?;
+                    },
                     Err(err) => return Err(err),
                 };
                 Ok(FlowControl::Continue)
@@ -9140,6 +9189,7 @@ impl<'a> EvalContext<'a> {
         let mut resource_writes=BTreeMap::<String,Value>::new();
         let mut output_ops=Vec::new();let mut envelopes=Vec::new();
         let mut observations=Vec::new();let mut displays=Vec::new();
+        let mut result_emissions=crate::replay_evidence::StagedResultEmissionsV1::default();
         let mut final_rng=None;
         let result=(|| {
             for (_identity,(binding,provider_body)) in providers {
@@ -9193,6 +9243,7 @@ impl<'a> EvalContext<'a> {
                 }
                 observations.extend_from_slice(&self.public_observations[base.public_observations.len()..]);
                 displays.extend_from_slice(&self.display_outputs[base.display_outputs.len()..]);
+                result_emissions.extend_since(&self.result_emissions,base.result_emissions.len());
                 if self.rng_state!=initial_rng {
                     if final_rng.is_some_and(|old|old!=self.rng_state) {return Err("E_REACTION_PATCH_CONFLICT: 난수 상태가 충돌합니다".to_string().into());}
                     final_rng=Some(self.rng_state);
@@ -9207,6 +9258,7 @@ impl<'a> EvalContext<'a> {
         for (key,value) in resource_writes {self.resources.insert(key,value);}
         for op in merged.into_values().chain(output_ops) {self.patch_ops.push(op);}
         self.public_observations.extend(observations);self.display_outputs.extend(displays);
+        self.result_emissions.extend_since(&result_emissions,0);
         self.rng_state=final_rng.unwrap_or(initial_rng);
         self.admit_async_envelopes(envelopes);
         Ok(())
@@ -14050,6 +14102,8 @@ impl<'a> EvalContext<'a> {
         keep_locals: bool,
     ) -> EvalFrameSnapshot {
         EvalFrameSnapshot {
+            result_emissions: self.result_emissions.clone(),
+            derived_initialized:self.derived_initialized,
             subject_stage:self.subject_stage.as_ref().map(|stage|stage.borrow().clone()),
             explicit_nfc_provenance: self.explicit_nfc_provenance.clone(),
             locals: keep_locals.then(|| locals.clone()),
@@ -14079,6 +14133,8 @@ impl<'a> EvalContext<'a> {
             *locals = saved_locals.clone();
         }
         self.resources = snapshot.resources.clone();
+        self.result_emissions = snapshot.result_emissions.clone();
+        self.derived_initialized=snapshot.derived_initialized;
         if let (Some(stage),Some(saved))=(&self.subject_stage,&snapshot.subject_stage) {*stage.borrow_mut()=saved.clone();}
         self.patch_ops = snapshot.patch_ops.clone();
         self.guard_rejected = snapshot.guard_rejected;
@@ -14223,6 +14279,10 @@ impl<'a> EvalContext<'a> {
     }
 
     fn set_resource_with_type(&mut self, name: &str, value: Value, kind: Option<&ddonirang_core::platform::RecordFieldType>) -> Result<(), EvalError> {
+        if self.program.derived_plan.contains(name){return Err(format!("E_DERIVED_DIRECT_WRITE: {name}: 파생 대상에 직접 값을 넣을 수 없습니다").into());}
+        self.set_resource_with_type_owner(name,value,kind)
+    }
+    fn set_resource_with_type_owner(&mut self, name: &str, value: Value, kind: Option<&ddonirang_core::platform::RecordFieldType>) -> Result<(), EvalError> {
         if value.contains_transient_subject_view(){return Err("E_VC04_READ_SNAPSHOT_ESCAPE: 임자 읽기값은 지속 상태에 넣을 수 없습니다".to_string().into());}
         // A value may replace its own lane, never shadow another committed
         // lane or an earlier write in this same candidate patch.
@@ -14962,6 +15022,7 @@ impl<'a> EvalContext<'a> {
         let args = state_machine_transition_action_args(&seed, bindings)?;
         let mut child = EvalContext {
             explicit_nfc_provenance: self.explicit_nfc_provenance.clone(),
+            result_emissions: self.result_emissions.clone(),
             program: self.program,
             source_span_cache: Rc::clone(&self.source_span_cache),
             subject_stage:self.subject_stage.as_ref().map(Rc::clone),
@@ -14997,6 +15058,7 @@ impl<'a> EvalContext<'a> {
             factor_bits_max: self.factor_bits_max,
             public_observations: self.public_observations.clone(),
             root_program_active: self.root_program_active,
+            derived_initialized: self.derived_initialized,
             display_outputs: self.display_outputs.clone(),
             root_binding_types: self.root_binding_types.clone(),
             sum_definitions: self.sum_definitions.clone(),
@@ -15026,6 +15088,7 @@ impl<'a> EvalContext<'a> {
         self.explicit_nfc_provenance = child.explicit_nfc_provenance;
         self.display_outputs = child.display_outputs;
         self.root_binding_types = child.root_binding_types;
+        self.result_emissions = child.result_emissions;
         self.pending_async_signals = child.pending_async_signals;
         self.async_outbox = child.async_outbox;
         self.async_wait_receipts = child.async_wait_receipts;
@@ -15042,6 +15105,7 @@ impl<'a> EvalContext<'a> {
         let bindings = build_state_machine_transition_bindings(&transition.from, &transition.to);
         let mut child = EvalContext {
             explicit_nfc_provenance: self.explicit_nfc_provenance.clone(),
+            result_emissions: self.result_emissions.clone(),
             program: self.program,
             source_span_cache: Rc::clone(&self.source_span_cache),
             subject_stage:self.subject_stage.as_ref().map(Rc::clone),
@@ -15077,6 +15141,7 @@ impl<'a> EvalContext<'a> {
             factor_bits_max: self.factor_bits_max,
             public_observations: self.public_observations.clone(),
             root_program_active: self.root_program_active,
+            derived_initialized: self.derived_initialized,
             display_outputs: self.display_outputs.clone(),
             root_binding_types: self.root_binding_types.clone(),
             sum_definitions: self.sum_definitions.clone(),
@@ -15108,6 +15173,7 @@ impl<'a> EvalContext<'a> {
         self.explicit_nfc_provenance = child.explicit_nfc_provenance;
         self.display_outputs = child.display_outputs;
         self.pending_async_signals = child.pending_async_signals;
+        self.result_emissions = child.result_emissions;
         self.async_outbox = child.async_outbox;
         self.async_wait_receipts = child.async_wait_receipts;
         self.internal_dispatch = child.internal_dispatch;
@@ -15202,6 +15268,7 @@ impl<'a> EvalContext<'a> {
         };
         let mut child = EvalContext {
             program: self.program,
+            result_emissions: Default::default(),
             source_span_cache: Rc::clone(&self.source_span_cache),
             subject_stage:self.subject_stage.as_ref().map(Rc::clone),
             tuple_type_plan: Rc::clone(&self.tuple_type_plan),
@@ -15236,6 +15303,7 @@ impl<'a> EvalContext<'a> {
             factor_bits_max: self.factor_bits_max,
             public_observations: Vec::new(),
             root_program_active: self.root_program_active,
+            derived_initialized: self.derived_initialized,
             explicit_nfc_provenance: Vec::new(),
             display_outputs: Vec::new(),
             root_binding_types: self.root_binding_types.clone(),
@@ -20760,7 +20828,11 @@ fn runtime_value_contains_tuple(root: &Value) -> bool {
     false
 }
 
-fn resource_value_from_typed_value(value: &Value, kind: &ddonirang_core::platform::RecordFieldType) -> Result<ResourceValue, EvalError> {
+pub(crate) fn resource_value_from_typed_value(value: &Value, kind: &ddonirang_core::platform::RecordFieldType) -> Result<ResourceValue, EvalError> {
+    resource_value_from_typed_value_with_output(value,kind,None)
+}
+pub(crate) fn resource_value_from_typed_value_with_output(value:&Value,kind:&ddonirang_core::platform::RecordFieldType,
+    output:Option<&crate::registered_atom_contract::output_evidence::OutputValueContextV1<'_>>)->Result<ResourceValue,EvalError>{
     if value.contains_transient_subject_view(){return Err("E_VC04_READ_SNAPSHOT_ESCAPE: 임자 읽기값에는 저장 형식이 없습니다".to_string().into());}
     use ddonirang_core::platform::RecordFieldType as R;
     enum Job<'a> { Pair(&'a Value, &'a R), Tuple(&'a [R], usize), List(usize), Record(&'a BTreeMap<String, R>) }
@@ -20769,6 +20841,11 @@ fn resource_value_from_typed_value(value: &Value, kind: &ddonirang_core::platfor
     let mut built = Vec::<ResourceValue>::new();
     while let Some(job) = pending.pop() {
         match job {
+            Job::Pair(value,R::RegisteredAtomV1)=>{
+                let context=output.ok_or_else(unbound)?;
+                built.push(context.registered_atom(value).map_err(EvalError::from)?);
+            },
+            Job::Pair(Value::RegisteredAtom(_),_) if output.is_some()=>return Err(unbound()),
             Job::Pair(Value::Rational(value), R::Named { name }) if name == "나눔수" => {
                 built.push(ResourceValue::RationalV1(value.clone()));
             }
@@ -25144,9 +25221,18 @@ mod tests {
             ("값 <- 차림[(차림[1]) 길이].", false),
             ("값 <- (차림[1]) 길이.", false),
         ] {
-            let source = format!("계산:수:셈씨 := {{ 계산 <- 1. }}. {statement}");
+            // Compile each RHS under an actual typed input owner. The private
+            // frame assignment below is a defensive evaluator test, not a
+            // claim that statically invalid assignments enter a public VM.
+            let rhs=statement.strip_prefix("값 <- ").unwrap().strip_suffix('.').unwrap();
+            let source = format!("(값:바른수) 계산:바른수:셈씨 := {{ 임시 := {rhs}. 계산 <- 1. }}.");
             let program = DdnProgram::from_v25_source(&source, "snapshot.ddn").unwrap();
-            let stmt = program.root_stmts.last().unwrap();
+            let seed=program.program.items.iter().map(|TopLevelItem::SeedDef(seed)|seed)
+                .find(|seed|seed.canonical_name=="계산").expect("declared test callable");
+            let Stmt::Definition{id,span,mood,value,..}=&seed.body.as_ref().unwrap().stmts[0] else {panic!("RHS definition");};
+            let statement_ast=Stmt::Mutate{id:*id,span:*span,mood:mood.clone(),
+                target:Expr::new(*id,*span,ExprKind::Var("값".into())),value:value.clone(),deferred:false,deferred_span:None};
+            let stmt=&statement_ast;
             let Stmt::Mutate { value, .. } = stmt else { panic!("assignment: {statement}: {stmt:?}"); };
             assert_eq!(expression_preserves_local_bindings(value), preserves);
             let world = NuriWorld::new();
@@ -25156,9 +25242,10 @@ mod tests {
             context.current_seed_name = Some("계산".into());
             context.active_callable_name = Some("계산".into());
             assert!(context.owns_pure_local_bindings());
-            context.declare_binding_type("값", &inferred_binding_type(&Value::Fixed64(Fixed64::from_i64(1))));
+            let initial=make_big_int_pack_from_bigint(&BigInt::from(1));
+            context.declare_binding_type("값", &inferred_binding_type(&initial));
             let mut locals = HashMap::from([
-                ("값".into(), Value::Fixed64(Fixed64::from_i64(1))),
+                ("값".into(), initial),
                 ("판".into(), Value::List(vec![Value::List(vec![Value::Fixed64(Fixed64::ZERO); 10]); 20])),
             ]);
             let full = context.capture_frame_snapshot(&locals);
@@ -25796,15 +25883,21 @@ mod tests {
 
     #[test]
     fn wo02_foreach_type_rejection_restores_outer_binding() {
-        let source = "항목 <- \"바깥\". (항목) (1, 2) 차림에 대해 { 항목 <- \"가\". }.";
+        let rejected="항목 <- \"바깥\". (항목) (1, 2) 차림에 대해 { 항목 <- \"가\". }.";
+        assert!(DdnProgram::from_v25_source(rejected,"wo02-static.ddn").is_err(),"authored type conflict must still reject");
+        let source = "항목 <- \"바깥\". 자료 <- 차림[\"안\",\"둘\"]. (항목) 자료에 대해 { 항목 <- \"가\". }.";
         let program = DdnProgram::from_v25_source(source, "wo02.ddn").expect("source");
         let world = NuriWorld::new();
         let defaults = HashMap::new();
         let mut ctx = EvalContext::new(&program, &world, &defaults, None, InputState::new(0, 0), 0, 0, None);
         let mut locals = HashMap::new();
         ctx.eval_stmt(&mut locals, &program.root_stmts[0]).expect("outer binding");
+        // Deliberately corrupt only this private evaluator fixture after
+        // static admission. Runtime defenses must restore the outer scope,
+        // even for an impossible source-level iteration value.
+        locals.insert("자료".into(),Value::List(vec![Value::Fixed64(Fixed64::from_i64(1))]));
         let before = ctx.binding_type_scopes.clone();
-        let error = ctx.eval_stmt(&mut locals, &program.root_stmts[1]).err().expect("different iteration type");
+        let error = ctx.eval_stmt(&mut locals, &program.root_stmts[2]).err().expect("different iteration type");
         assert!(error.to_string().contains("TYPE_MISMATCH"), "{error}");
         assert_eq!(ctx.binding_type_scopes, before);
     }
@@ -26418,15 +26511,46 @@ mod tests {
 
     #[test]
     fn alpha2_nested_selection_rejects_every_missing_level() {
-        for indices in ["[2][0]", "[0][2]", "[-1][0]", "[0][-1]"] {
-            let source = format!("판 <- 차림[차림[0, 0], 차림[0, 0]]. 판{indices} <- 7.");
+        // Admit a well-typed, in-bounds authored statement first. Inject an
+        // invalid integer index only into this private evaluator fixture, so
+        // runtime bounds checks are tested independently of static rejection.
+        for (indices, index) in [("[쪽][0]",2),("[0][쪽]",2),
+                                 ("[쪽][0]",-1),("[0][쪽]",-1)] {
+            let source = format!("쪽 <- 0. 판 <- 차림[차림[\"가\",\"나\"],차림[\"다\",\"라\"]]. 판{indices} <- \"새\".");
             let program = DdnProgram::from_v25_source(&source, "alpha2_nested_bounds.ddn").unwrap();
-            let mut runner = DdnRunner::new(program, "매마디");
-            let error = runner.run_update(&NuriWorld::new(), &empty_input(), &HashMap::new())
+            let runner = DdnRunner::new(program, "매마디");
+            let world=NuriWorld::new();let defaults=HashMap::new();
+            let mut context=EvalContext::new(&runner.program,&world,&defaults,None,
+                InputState::new(0,0),0,0,None);
+            context.tuple_type_plan=Rc::clone(&runner.tuple_type_plan);
+            let mut locals=HashMap::new();
+            for statement in &runner.program.program.root_stmts[..2] {
+                context.eval_stmt(&mut locals,statement).unwrap();
+            }
+            assert!(matches!(context.get_resource("쪽"),Some(Value::Fixed64(_))),
+                "private legacy numeric fixture must keep its original resource lane");
+            context.set_resource("쪽",Value::Fixed64(Fixed64::from_i64(index))).unwrap();
+            let before=format!("{:?}",context.patch_ops);
+            let error=context.eval_stmt(&mut locals,&runner.program.program.root_stmts[2])
                 .err().expect("missing existing selection rejected");
             assert!(error.to_string().contains("INDEX_OUT_OF_RANGE")
                 || error.to_string().contains("음수")
                 || error.to_string().contains("인덱스는 0 이상이어야 합니다"), "{indices}: {error}");
+            assert_eq!(format!("{:?}",context.patch_ops),before,"failed replacement must not stage a partial board");
+        }
+        // Original invalid raw sources must still fail without publication;
+        // static rejection is not misreported as runtime execution evidence.
+        for indices in ["[2][0]","[0][2]","[-1][0]","[0][-1]"] {
+            let source=format!("판 <- 차림[차림[0, 0], 차림[0, 0]]. 판{indices} <- 7.");
+            let world=NuriWorld::new();let before=format!("{world:?}");
+            let rejected=DdnProgram::from_v25_source(&source,"negative-literal.ddn")
+                .and_then(|program|DdnRunner::new(program,"매마디").run_update(&world,&empty_input(),&HashMap::new()));
+            let error=rejected.err().expect("invalid authored selection must not publish success");
+            assert!(error.contains("INDEX_OUT_OF_RANGE") || error.contains("음수")
+                || error.contains("인덱스는 0 이상이어야 합니다")
+                || (error.contains("E_TYPE_MISMATCH") && error.contains("수 종류의 정적 공급")),
+                "unrelated rejection must not satisfy the bounds regression: {indices}: {error}");
+            assert_eq!(format!("{world:?}"),before);
         }
     }
 

@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>셈그림 작업실로 이동</title>
+    <link rel="icon" href="data:," />
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #f4f7fb;
+        color: #0f172a;
+        font-family: "Pretendard", "Noto Sans KR", "Segoe UI", sans-serif;
+      }
+      .panel {
+        width: min(560px, calc(100% - 32px));
+        background: #fff;
+        border: 1px solid #dbe2ef;
+        border-radius: 14px;
+        padding: 20px 18px;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: 20px;
+      }
+      p {
+        margin: 0;
+        color: #475569;
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      a {
+        color: #1268d6;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <section
+      class="panel"
+      data-surface-identity="legacy_compatibility_only"
+      data-authoritative-language-runtime-meaning="shared"
+      data-full-product-surface-identity="false"
+    >
+      <h1>작업실로 이동 중...</h1>
+      <p>
+        예전 Playground 주소는 작업실로 통합되었습니다. 자동으로 이동하지 않으면
+        <a id="studio-fallback-link" href="./index.html?tab=studio">작업실 열기</a>
+        를 눌러 계속 편집하고 실행하세요.
+      </p>
+    </section>
+    <script>
+      (function redirectToStudio() {
+        const decodeSafely = (raw) => {
+          try {
+            return decodeURIComponent(String(raw ?? ""));
+          } catch (_) {
+            return String(raw ?? "");
+          }
+        };
+        const paramsFromHash = () => {
+          const hash = String(window.location.hash || "").replace(/^#/, "").trim();
+          return new URLSearchParams(hash);
+        };
+        const pick = (searchParams, hashParams, keys) => {
+          for (const key of keys) {
+            const q = String(searchParams.get(key) ?? "").trim();
+            if (q) return decodeSafely(q);
+          }
+          for (const key of keys) {
+            const h = String(hashParams.get(key) ?? "").trim();
+            if (h) return decodeSafely(h);
+          }
+          return "";
+        };
+        const normalizeLessonId = (raw) => {
+          const value = String(raw ?? "").trim().replace(/^\/+/, "").replace(/\/+$/, "");
+          if (!value) return "";
+          const matched = value.match(/^lessons\/([^/]+)\/lesson\.ddn$/i);
+          if (matched && matched[1]) return String(matched[1]).trim();
+          return value.includes("/") ? "" : value;
+        };
+        const toBase64Utf8 = (text) => {
+          try {
+            const bytes = new TextEncoder().encode(String(text ?? ""));
+            let binary = "";
+            bytes.forEach((byte) => {
+              binary += String.fromCharCode(byte);
+            });
+            return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+          } catch (_) {
+            return "";
+          }
+        };
+        const resolveDdnBase64 = (raw) => {
+          const value = String(raw ?? "").trim();
+          if (!value) return "";
+          const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+          const padLen = normalized.length % 4;
+          const padded = padLen === 0 ? normalized : normalized + "=".repeat(4 - padLen);
+          try {
+            const decoded = atob(padded);
+            if (decoded) {
+              const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0));
+              const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+              if (utf8.trim()) return toBase64Utf8(utf8);
+            }
+          } catch (_) {
+            // raw text fallback
+          }
+          return toBase64Utf8(value);
+        };
+        const resolveSourceDdn = (rawSource) => {
+          const source = String(rawSource ?? "").trim();
+          if (!source) return "";
+          if (/^example:/i.test(source)) return "";
+          return source;
+        };
+
+        const searchParams = new URLSearchParams(window.location.search);
+        const hashParams = paramsFromHash();
+
+        const lessonRaw = pick(searchParams, hashParams, ["lesson", "lessonId"]);
+        const sourceRaw = pick(searchParams, hashParams, ["source"]);
+        const srcRaw = pick(searchParams, hashParams, ["src", "ddn"]);
+
+        const lessonId = normalizeLessonId(lessonRaw) || normalizeLessonId(sourceRaw.replace(/^lesson:?/i, ""));
+        const ddnBase64 = resolveDdnBase64(srcRaw || resolveSourceDdn(sourceRaw));
+
+        const target = new URL("./index.html", window.location.href);
+        target.searchParams.set("tab", "studio");
+        target.searchParams.set("legacy_play_redirect", "1");
+        try {
+          const shown = String(sessionStorage.getItem("play_redirect_shown") ?? "");
+          if (shown !== "1") {
+            sessionStorage.setItem("play_redirect_shown", "1");
+            target.searchParams.set("_notice", "play_unified");
+          }
+        } catch (_) {
+          target.searchParams.set("_notice", "play_unified");
+        }
+        if (lessonId) target.searchParams.set("lesson", lessonId);
+        if (ddnBase64) target.searchParams.set("ddn", ddnBase64);
+
+        const fallbackLink = document.getElementById("studio-fallback-link");
+        if (fallbackLink) fallbackLink.href = target.toString();
+        window.location.replace(target.toString());
+      })();
+    </script>
+  </body>
+</html>

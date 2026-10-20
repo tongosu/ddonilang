@@ -333,6 +333,15 @@ pub struct ReactionRegistration {
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
+    /// RD-294 one-way relation, not a direct assignment spelling. Runtime
+    /// settles a graph of these declarations atomically with the world.
+    DerivedBinding {
+        id: NodeId,
+        span: Span,
+        mood: Mood,
+        name: String,
+        value: Expr,
+    },
     SumDefinition {
         id: NodeId,
         span: Span,

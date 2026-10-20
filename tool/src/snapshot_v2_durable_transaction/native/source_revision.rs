@@ -15,6 +15,31 @@ std::thread_local! {static SAVE_FAULT:std::cell::Cell<u8>=const{std::cell::Cell:
 pub(super) fn inject_save_fault(phase:u8){assert!(phase<=2);SAVE_FAULT.with(|fault|fault.set(phase));}
 
 impl SqliteAdapterV1 {
+    /// Distinct W/S -> edited S entry. Only the actual protected authoring
+    /// producer constructs this token; the old Unused source entry is intact.
+    #[cfg(windows)]
+    pub(crate) fn save_authoring_source(&mut self,prepared:super::PreparedAuthoringSourceV1)
+        ->Result<super::DurablySavedAuthoringSourceV1,SourceSaveFailure>{
+        use SourceSaveFailure::{BeforeCommit as Before,AfterCommitUnconfirmed as After};
+        if self.schema_profile!=NativeSchemaProfile::SourceRevision{return Err(Before(Failure::UnsupportedDurability));}
+        prepared.verify_before_save(self).map_err(Before)?;
+        let source=prepared.source();let parent=prepared.parent();
+        let db=self.connect().map_err(Before)?;db.execute_batch("BEGIN IMMEDIATE").map_err(|_|Before(Failure::WriteFailed))?;
+        let write=(||->Result<(),Failure>{
+            let count:i64=db.query_row("SELECT count(*) FROM (SELECT 1 FROM vc04_project_revisions LIMIT 65537)",[],|r|r.get(0)).map_err(database_error)?;
+            if count>=65536{return Err(Failure::LimitExceeded);}
+            db.execute("INSERT INTO vc04_prepared_payloads VALUES (0,?1,NULL,?2,?3,?4,?5,?6,NULL,NULL,NULL,?7,?1,?8)",
+                params![source.integrity().as_slice(),source.project(),source.parent(),source.revision(),source.profile(),source.pesi().as_slice(),source.payload(),source.envelope()]).map_err(|_|Failure::WriteFailed)?;
+            db.execute("INSERT INTO vc04_project_revisions VALUES(?1,?2,?3,0,?3)",params![source.project(),source.revision(),source.integrity().as_slice()]).map_err(|_|Failure::WriteFailed)?;
+            let changes=db.execute("UPDATE vc04_project_heads SET history_revision_identity=?1,revision_integrity_sha256=?2,payload_kind=0,payload_key=?2
+                WHERE project_identity=?3 AND history_revision_identity=?4 AND revision_integrity_sha256=?5 AND payload_kind=?6 AND payload_key=?7",
+                params![source.revision(),source.integrity().as_slice(),source.project(),parent.revision,parent.integrity.as_slice(),parent.kind,parent.key.as_slice()]).map_err(|_|Failure::WriteFailed)?;
+            if changes!=1{return Err(Failure::StaleRevision);}Ok(())
+        })();
+        if let Err(error)=write{return match db.execute_batch("ROLLBACK"){Ok(())=>Err(Before(error)),Err(_)=>Err(After(Failure::RecoveryRequired))};}
+        db.execute_batch("COMMIT").map_err(|_|After(Failure::WriteFailed))?;drop(db);
+        prepared.confirm_saved(self).map_err(After)
+    }
     #[cfg(windows)]
     pub(crate) fn save_source_successor<'a>(&'a mut self,source:&Source,
         grant:&super::root_grant::AdmittedSourceGrantV2)->Result<DurablySavedSourceRevision<'a>,SourceSaveFailure>{

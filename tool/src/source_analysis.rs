@@ -493,6 +493,10 @@ fn validate_root_statements(
                     },
                 );
             }
+            Stmt::DerivedBinding{name,value,..}=>{
+                let actual=infer_expr(value,symbols,call_results,unknown_names_allowed)?;
+                symbols.insert(name.clone(),actual);
+            }
             Stmt::Mutate { target, value, .. } => {
                 let actual = infer_expr(value, symbols, call_results, unknown_names_allowed)?;
                 if let ExprKind::Var(name) = &target.kind {
@@ -762,7 +766,7 @@ fn validate_root_statements(
 // Lifecycle bodies can bind world resources before authored root views read
 // them. Admit those names, not arbitrary unknown names or callable locals.
 // Their value/type remains runtime-checked; this does not initialize a resource.
-fn collect_world_bindings(
+pub(crate) fn collect_world_bindings(
     statements: &[Stmt],
     locals: &BTreeSet<String>,
     names: &mut BTreeSet<String>,
@@ -847,6 +851,7 @@ fn validate_minimal_root_program(program: &CanonProgram) -> Result<(), StaticDia
     let mut world_names = BTreeSet::new();
     for statement in &program.root_stmts {
         match statement {
+            Stmt::DerivedBinding{name,..}=>{world_names.insert(name.clone());},
             Stmt::Hook { body, .. } | Stmt::HookWhenBecomes { body, .. }
             | Stmt::HookWhile { body, .. } =>
                 collect_world_bindings(&body.stmts, &BTreeSet::new(), &mut world_names),

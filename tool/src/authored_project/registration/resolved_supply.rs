@@ -154,7 +154,7 @@ fn scan_sum_syntax(mut jobs:Vec<SyntaxJob<'_>>)->(Vec<(&Stmt,Span)>,Vec<&Stmt>) 
                 if let Some(body)=default_body {jobs.push(Job::Body(&body.stmts,body.span));}
             },
             Stmt::DeclBlock{items,..}=>for item in items {if let Some(value)=&item.value {jobs.push(Job::Expr(value,scope));}},
-            Stmt::Definition{value,..}|Stmt::Return{value,..}=>jobs.push(Job::Expr(value,scope)),
+            Stmt::Definition{value,..}|Stmt::DerivedBinding{value,..}|Stmt::Return{value,..}=>jobs.push(Job::Expr(value,scope)),
             Stmt::Mutate{target,value,..}=>{jobs.push(Job::Expr(target,scope));jobs.push(Job::Expr(value,scope));},
             Stmt::ResultFlow{producer,destination,..}=>{jobs.push(Job::Expr(producer,scope));jobs.push(Job::Expr(destination,scope));},
             Stmt::Expr{expr,..}|Stmt::Show{expr,..}|Stmt::Inspect{expr,..}=>jobs.push(Job::Expr(expr,scope)),

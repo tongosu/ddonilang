@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>셈그림 결정적 작업대 · 1.0.0-beta.1 · 개발 후보</title>
+    <title>셈그림 결정적 작업대 · 1.0.0-beta.3 · 개발 중</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./workbench.css" />
   </head>
@@ -14,7 +14,7 @@
           <span class="brand-mark" aria-hidden="true">DDN</span>
           <span>
             <strong>셈그림 작업대</strong>
-            <small data-testid="product-version" style="display: block">1.0.0-beta.1 · 개발 후보</small>
+            <small data-testid="product-version" style="display: block">1.0.0-beta.3 · 개발 중</small>
           </span>
         </div>
         <nav class="global-nav" aria-label="전역 탐색">
@@ -88,10 +88,10 @@
                 </section>
               </details>
               <button type="button" class="panel-action icon-label-action" data-testid="portable-project-export" title="휴대형 프로젝트 내보내기" aria-label="휴대형 프로젝트 내보내기">⇩ 내보내기</button>
-              <button type="button" class="panel-action icon-label-action" data-testid="portable-project-import" title="휴대형 프로젝트 가져오기" aria-label="휴대형 프로젝트 가져오기">⇧ 가져오기</button>
+              <button type="button" class="panel-action icon-label-action" data-testid="portable-project-import" title="작품 자료 또는 휴대형 프로젝트 가져오기" aria-label="작품 자료 가져오기">⇧ 가져오기</button>
               <input type="file" class="hidden-file-input" data-testid="portable-project-import-input" accept=".json,.seamgrim-project.json,application/json" aria-label="휴대형 프로젝트 파일 선택" />
               <button type="button" class="panel-action" data-testid="project-save" title="프로젝트 저장" aria-label="프로젝트 저장">저장</button>
-              <button type="button" class="panel-action" data-testid="project-reopen" title="프로젝트 재열기" aria-label="프로젝트 재열기">재열기</button>
+              <button type="button" class="panel-action" data-testid="project-reopen" title="마지막으로 저장한 작품 자료 다시 열기" aria-label="저장 자료 다시 열기">다시 열기</button>
               <span data-testid="project-save-status">아직 저장하지 않음</span>
               <span class="portable-status" data-testid="portable-project-export-status" aria-live="polite"></span>
               <button type="button" class="panel-action" data-testid="project-verification-open">오류·진단</button>
@@ -280,6 +280,12 @@
           <div class="file-tabs" data-testid="file-tabs" role="tablist" aria-label="열린 파일"></div>
           <p data-testid="example-guide" role="note"></p>
           <p data-testid="host-stop-notice" role="status" hidden></p>
+          <div data-testid="edit-recovery-notice" role="status" hidden>
+            <span data-testid="edit-recovery-message"></span>
+            <button type="button" data-testid="edit-recovery-restore">편집 복구</button>
+            <button type="button" data-testid="edit-recovery-open" hidden>저장 자료 다시 열기</button>
+            <button type="button" data-testid="edit-recovery-dismiss">나중에</button>
+          </div>
 
           <div class="workbench-layout" data-testid="workbench-layout" data-mode="ddn-main">
             <section class="panel source-panel" data-testid="source-panel" aria-label="DDN 원문">
@@ -501,6 +507,7 @@
         <button type="button" data-authored-create>현재 작품에 정체 만들기</button>
         <button type="button" data-authored-save>이 기기에 저장</button>
         <button type="button" data-authored-reopen>저장 자료 다시 열기</button>
+        <button type="button" data-authored-compare-saved>저장 결과 대조</button>
         <button type="button" data-authored-runtime-save>실행 상태 저장</button>
         <button type="button" data-authored-runtime-reopen>실행 상태 다시 열기</button>
         <button type="button" data-authored-runtime-export>저장 실행 파일 내보내기</button>

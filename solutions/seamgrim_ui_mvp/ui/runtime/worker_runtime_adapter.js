@@ -1,6 +1,7 @@
 const SESSION_METHODS = ["updateLogic", "reset", "getStateJson", "step", "setParam", "exportSavedProjectArtifact", "saveNativeCheckpoint", "close"];
 const ADAPTER_METHODS = [
   "authoredProjectOperation",
+  "compareGeneralOriginalRecording",
   "bindLogicalSource",
   "canonMaegimPlan", "sourceAnalysis", "moduleDirectiveAnalysis", "sharedCompletion",
   "runSummaryWithSourceProfile", "planGajiExtraction", "projectSourceSha256",
@@ -88,6 +89,7 @@ export class WorkerRuntimeAdapter {
       getExecutionModeDecision: () => metadata.executionModeDecision,
       getConfiguredMadi: () => metadata.configuredMadi,
       hasNativeSource: () => metadata.nativeSourceBound === true,
+      nativeSourceSelection: () => metadata.nativeSourceSelection ?? null,
     };
     for (const operation of SESSION_METHODS) {
       session[operation] = async (...args) => {
@@ -103,6 +105,7 @@ export class WorkerRuntimeAdapter {
     const generation = this.generation;
     const created = await this.request(operationName, [options], null, generation);
     const operations = { step:"logicalStep", summary:"logicalSummary", seal:"logicalSeal", stopRecording:"logicalStopRecordingV3", abort:"logicalAbort", close:"logicalClose", exportSavedProjectArtifact:"logicalExportSavedProjectArtifact", exportProjectCheckpoint:"logicalExportProjectCheckpoint" };
+    Object.assign(operations,{registerInputProducer:"logicalRegisterInputProducer",finishPending:"logicalFinishPending",finishNotice:"logicalFinishNotice",previewFinishPending:"logicalPreviewFinishPending",resultIdentity:"logicalResultIdentity"});
     return Object.fromEntries(Object.entries(operations).map(([method, operation]) => [method,
       (...args) => this.request(operation, args, created.sessionId, generation),
     ]));

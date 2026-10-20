@@ -1,0 +1,20 @@
+{
+  "schema": "ddn.public_source_origin.v1",
+  "version": "1.0.0-beta.3",
+  "candidate": "r88",
+  "reviewed_source_commit": "edfa274f27c399e398e0296bfd605b0f85f6fbd5",
+  "reviewed_source_tree": "169793ccddb272726f6aa4fc7e52614a963bf8d0",
+  "compiled_runtime_source": "159382b5793770549a0817ecbab61b9a57ef9717",
+  "runtime": "r86 bytes reused; UI successor reviewed",
+  "reviewed_original_zip_sha256": "4b1d32f278be1fbf204b7bef8b56f676e14b436719d033ab99d18166e5753dbe",
+  "download_zip_sha256": "ac93da7bce2acf84243e9c5fca447d8ac448dafeb2b813fcd9453cf1294df00c",
+  "public_package_kind": "documentation and metadata projection; executable and WASM bytes unchanged",
+  "public_spec": "v0.8.1",
+  "internal_design_status": "26/28; P5/P6 open",
+  "human": "NOT_CLAIMED",
+  "known_limits": [
+    "interrupted-finish recovery deferred; notice only",
+    "existing test failures and ignored cases preserved",
+    "I-drive timeout not resolved; performance improvement not measured"
+  ]
+}

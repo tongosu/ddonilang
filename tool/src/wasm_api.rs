@@ -102,9 +102,10 @@ impl DdnLogicalInputVm {
     pub fn new(source: &str, binding_json: &str) -> Result<DdnLogicalInputVm, JsValue> {
         let binding = serde_json::from_str(binding_json)
             .map_err(|_| JsValue::from_str("E_LOGICAL_INPUT_BINDING: 논리 입력 결속 필드가 올바르지 않습니다"))?;
-        let session = crate::logical_input_tape::LogicalInputSession::new(source, binding)
+        let mut session = crate::logical_input_tape::LogicalInputSession::new(source, binding)
             .map_err(|reason| JsValue::from_str(&reason))?;
-        Ok(Self { execution:LogicalVmExecution::SingleFile(session),recording:Default::default() })
+        let recording=crate::input_tape_v3::LiveRecording::for_logical(&mut session).map_err(|reason|JsValue::from_str(&reason))?;
+        Ok(Self { execution:LogicalVmExecution::SingleFile(session),recording })
     }
 
     /// Explicit project admission preserves modules and the named Start.
@@ -112,9 +113,11 @@ impl DdnLogicalInputVm {
     pub fn from_authored_project(authored: &str,binding_json: &str)->Result<DdnLogicalInputVm,JsValue> {
         let binding=serde_json::from_str(binding_json)
             .map_err(|_|JsValue::from_str("E_LOGICAL_INPUT_BINDING: 논리 입력 결속 필드가 올바르지 않습니다"))?;
-        let run=runtime_surface::fresh_authored_logical_run(authored,binding)
+        let mut run=runtime_surface::fresh_authored_logical_run(authored,binding)
             .map_err(|reason|JsValue::from_str(&reason))?;
-        Ok(Self {execution:LogicalVmExecution::Authored(run),recording:Default::default()})
+        let recording=crate::input_tape_v3::LiveRecording::for_logical(run.session_mut_for_recording())
+            .map_err(|reason|JsValue::from_str(&reason))?;
+        Ok(Self {execution:LogicalVmExecution::Authored(run),recording})
     }
 
     pub fn bind_authored_project_json(authored: &str,binding_json: &str)->Result<String,JsValue> {
@@ -219,9 +222,44 @@ impl DdnLogicalInputVm {
         Ok(json!({"outcome":"ABORTED","tape_bytes":bytes,"summary":summary}).to_string())
     }
 
-    pub fn seal_json(&self) -> Result<String, JsValue> {
-        self.recording.ensure_running().map_err(|e|JsValue::from_str(&e))?;
-        Err(JsValue::from_str("E_INPUT_V3_FINITE_PLAN_REQUIRED: live 실행에는 완료 계획이 없습니다. 명시 중단으로 미완 기록을 저장하세요."))
+    pub fn register_input_producer_json(&mut self)->Result<String,JsValue> {
+        let session=match &mut self.execution {
+            LogicalVmExecution::SingleFile(session)=>session,
+            LogicalVmExecution::Authored(run)=>run.session_mut_for_recording(),
+        };
+        self.recording.register_frontend_logical(session).map(|value|value.to_string()).map_err(|e|JsValue::from_str(&e))
+    }
+    pub fn preview_finish_pending_json(&mut self,packet:&str)->Result<String,JsValue> {
+        let session=match &mut self.execution {
+            LogicalVmExecution::SingleFile(session)=>session,
+            LogicalVmExecution::Authored(run)=>run.session_mut_for_recording(),
+        };
+        let (bytes,summary)=self.recording.preview_logical_finish(session,packet).map_err(|e|JsValue::from_str(&e))?;
+        Ok(json!({"tape_bytes":bytes,"summary":summary}).to_string())
+    }
+    pub fn result_identity_json(&self)->Result<String,JsValue>{
+        let result=self.session().borrow_result_boundary()
+            .and_then(crate::replay_evidence::ResultPreimageV1::capture).map_err(|e|JsValue::from_str(&e))?;
+        Ok(json!({"result_identity":result.digest_label()}).to_string())
+    }
+    pub fn finish_pending_json(&mut self,packet:&str)->Result<String,JsValue> {
+        let session=match &mut self.execution {
+            LogicalVmExecution::SingleFile(session)=>session,
+            LogicalVmExecution::Authored(run)=>run.session_mut_for_recording(),
+        };
+        let (bytes,summary)=self.recording.finish_logical(session,Some(packet)).map_err(|e|JsValue::from_str(&e))?;
+        Ok(json!({"tape_bytes":bytes,"summary":summary}).to_string())
+    }
+    pub fn finish_notice_json(&self)->Result<String,JsValue> {
+        self.recording.finish_notice().map(|value|value.to_string()).map_err(|e|JsValue::from_str(&e))
+    }
+    pub fn seal_json(&mut self) -> Result<String, JsValue> {
+        let session=match &mut self.execution {
+            LogicalVmExecution::SingleFile(session)=>session,
+            LogicalVmExecution::Authored(run)=>run.session_mut_for_recording(),
+        };
+        let (bytes,summary)=self.recording.finish_logical(session,None).map_err(|e|JsValue::from_str(&e))?;
+        Ok(json!({"tape_bytes":bytes,"summary":summary}).to_string())
     }
 }
 
@@ -239,16 +277,20 @@ pub fn authored_logical_input_record_v3(authored:&str,request_json:&str)->Result
     let (bytes,summary)=crate::input_tape_v3::record_authored_logical(authored,&request).map_err(|e|JsValue::from_str(&e))?;
     Ok(json!({"tape_bytes":bytes,"summary":summary}).to_string())
 }
+fn input_replay_mode(allow_partial: Option<bool>) -> crate::input_tape_v3::ReplayMode {
+    if allow_partial == Some(true) { crate::input_tape_v3::ReplayMode::RecordedPrefix }
+    else { crate::input_tape_v3::ReplayMode::CompleteOnly }
+}
 #[wasm_bindgen]
-pub fn authored_logical_input_replay_v3(authored:&str,tape:&[u8],binding_json:&str)->Result<String,JsValue> {
+pub fn authored_logical_input_replay_v3(authored:&str,tape:&[u8],binding_json:&str,allow_partial:Option<bool>)->Result<String,JsValue> {
     let binding=serde_json::from_str(binding_json).map_err(|_|JsValue::from_str("E_INPUT_TAPE_V3: 작품 기대 입력 계약 오류"))?;
-    crate::input_tape_v3::replay_authored_logical(authored,tape,&binding)
+    crate::input_tape_v3::replay_authored_logical_with_mode(authored,tape,&binding,input_replay_mode(allow_partial))
         .map(|summary|crate::unit_wire::SnapshotJsonOwner::from_value(summary).compact_text()).map_err(|e|JsValue::from_str(&e))
 }
 #[wasm_bindgen]
-pub fn logical_input_replay_v3(source:&str,tape:&[u8],binding_json:&str)->Result<String,JsValue> {
+pub fn logical_input_replay_v3(source:&str,tape:&[u8],binding_json:&str,allow_partial:Option<bool>)->Result<String,JsValue> {
     let binding=serde_json::from_str(binding_json).map_err(|_|JsValue::from_str("E_INPUT_TAPE_V3: 기대 입력 계약 오류"))?;
-    crate::input_tape_v3::replay(source,tape,crate::input_tape_v3::ExpectedBinding::Logical(&binding))
+    crate::input_tape_v3::replay_with_mode(source,tape,crate::input_tape_v3::ExpectedBinding::Logical(&binding),input_replay_mode(allow_partial))
         .map(|summary|crate::unit_wire::SnapshotJsonOwner::from_value(summary).compact_text()).map_err(|e|JsValue::from_str(&e))
 }
 #[wasm_bindgen]
@@ -258,9 +300,9 @@ pub fn manipulation_input_record_v3(source:&str,request_json:&str)->Result<Strin
     Ok(json!({"tape_bytes":bytes,"summary":summary}).to_string())
 }
 #[wasm_bindgen]
-pub fn manipulation_input_replay_v3(source:&str,tape:&[u8],binding_json:&str)->Result<String,JsValue> {
+pub fn manipulation_input_replay_v3(source:&str,tape:&[u8],binding_json:&str,allow_partial:Option<bool>)->Result<String,JsValue> {
     let binding=serde_json::from_str(binding_json).map_err(|_|JsValue::from_str("E_INPUT_TAPE_V3: 기대 조작 입력 계약 오류"))?;
-    crate::input_tape_v3::replay(source,tape,crate::input_tape_v3::ExpectedBinding::Manipulation(&binding))
+    crate::input_tape_v3::replay_with_mode(source,tape,crate::input_tape_v3::ExpectedBinding::Manipulation(&binding),input_replay_mode(allow_partial))
         .map(|summary|crate::unit_wire::SnapshotJsonOwner::from_value(summary).compact_text()).map_err(|e|JsValue::from_str(&e))
 }
 #[wasm_bindgen]
@@ -293,8 +335,9 @@ impl DdnManipulationVm {
     #[wasm_bindgen(constructor)]
     pub fn new(source: &str, binding_json: &str) -> Result<DdnManipulationVm, JsValue> {
         let binding = serde_json::from_str(binding_json).map_err(|error| JsValue::from_str(&format!("E_MANIPULATION_BINDING_JSON: {error}")))?;
-        let session = crate::manipulation_input::ManipulationSession::new(source,binding).map_err(|error| JsValue::from_str(&error))?;
-        Ok(Self {session,recording:Default::default()})
+        let mut session = crate::manipulation_input::ManipulationSession::new(source,binding).map_err(|error| JsValue::from_str(&error))?;
+        let recording=crate::input_tape_v3::LiveRecording::for_manipulation(&mut session).map_err(|error|JsValue::from_str(&error))?;
+        Ok(Self {session,recording})
     }
     pub fn step_json(&mut self, snapshot_json: &str) -> Result<String, JsValue> {
         self.recording.ensure_running().map_err(|e|JsValue::from_str(&e))?;
@@ -316,9 +359,20 @@ impl DdnManipulationVm {
         let (bytes,summary)=crate::input_tape_v3::failed_prefix_manipulation(&self.session).map_err(|e|JsValue::from_str(&e))?;
         Ok(json!({"outcome":"ABORTED","tape_bytes":bytes,"summary":summary}).to_string())
     }
-    pub fn seal_json(&self) -> Result<String, JsValue> {
-        self.recording.ensure_running().map_err(|e|JsValue::from_str(&e))?;
-        Err(JsValue::from_str("E_INPUT_V3_FINITE_PLAN_REQUIRED: live 실행에는 완료 계획이 없습니다. 명시 중단으로 미완 기록을 저장하세요."))
+    pub fn register_input_producer_json(&mut self)->Result<String,JsValue> {
+        self.recording.register_frontend_manipulation(&mut self.session)
+            .map(|value|value.to_string()).map_err(|e|JsValue::from_str(&e))
+    }
+    pub fn finish_pending_json(&mut self,packet:&str)->Result<String,JsValue> {
+        let (bytes,summary)=self.recording.finish_manipulation(&mut self.session,Some(packet)).map_err(|e|JsValue::from_str(&e))?;
+        Ok(json!({"tape_bytes":bytes,"summary":summary}).to_string())
+    }
+    pub fn finish_notice_json(&self)->Result<String,JsValue> {
+        self.recording.finish_notice().map(|value|value.to_string()).map_err(|e|JsValue::from_str(&e))
+    }
+    pub fn seal_json(&mut self) -> Result<String, JsValue> {
+        let (bytes,summary)=self.recording.finish_manipulation(&mut self.session,None).map_err(|e|JsValue::from_str(&e))?;
+        Ok(json!({"tape_bytes":bytes,"summary":summary}).to_string())
     }
 }
 #[wasm_bindgen]
@@ -911,6 +965,14 @@ pub fn wasm_project_run_summary_json(
         })
 }
 
+/// Product-private original ordinary recording comparison. Native custody
+/// must be checked separately; no VM, End, restore, or ReplayVerified leaks.
+#[wasm_bindgen]
+pub fn wasm_compare_general_original_recording_json(bundle_bytes:&[u8])->Result<String,JsValue>{
+    crate::unit_wire::resumable_complete_state::ReadOnlyGeneralReplayV1::check_running(bundle_bytes)
+        .map(|checked|checked.report_json()).map_err(|cause|JsValue::from_str(&cause))
+}
+
 /// RuntimeBridge/Workbench local-project variant of the same shared
 /// host-resource invocation algorithm used by the native product frontdoor.
 #[wasm_bindgen]
@@ -1155,7 +1217,7 @@ fn append_wasm_public_observation_surface(
     })
 }
 
-struct NativeSourceBinding {authored:String,checkpoint_tick:u64,first_frame_pending:bool,first_input_receipt:Option<crate::unit_wire::SnapshotJsonOwner>,initial_reset_pending:bool}
+struct NativeSourceBinding {authored:String,checkpoint_tick:u64,first_frame_pending:bool,first_input_receipt:Option<crate::unit_wire::SnapshotJsonOwner>,initial_reset_pending:bool,authoring_selection:String}
 
 // Fixed same-origin Native transport only. There is deliberately no public
 // constructor accepting a caller-supplied frame, permit flag or HTTP URL.
@@ -1213,6 +1275,9 @@ impl DdnWasmVm {
     /// checkpoint. Standalone/Node source readback cannot take this route.
     fn from_native_project_connected(authored:&str)->Result<DdnWasmVm,JsValue>{
         let reply=native_source_exchange(&json!({"operation":"connect","authored_project_json_utf8":authored}),None)?;
+        Self::from_native_project_reply(authored,reply)
+    }
+    fn from_native_project_reply(authored:&str,reply:crate::unit_wire::SnapshotJsonOwner)->Result<DdnWasmVm,JsValue>{
         let text=|key:&str|reply[key].as_str().ok_or_else(||JsValue::from_str("E_NATIVE_SOURCE_RESPONSE_FIELDS"));
         let artifact=text("saved_artifact_json_utf8")?;
         let parent=decode_storage_lineage(text("parent_hex")?,false)?;
@@ -1246,7 +1311,7 @@ impl DdnWasmVm {
             Some(crate::unit_wire::SnapshotJsonOwner::clone_from_value(receipt))
         }else{None};
         candidate.native_source_binding=Some(NativeSourceBinding{authored:authored.into(),checkpoint_tick:candidate.tick_id,
-            first_frame_pending,first_input_receipt,initial_reset_pending:true});
+            first_frame_pending,first_input_receipt,initial_reset_pending:true,authoring_selection:reply["authoring_selection"].to_string()});
         Ok(candidate)
     }
     fn clear_retained_observation_json(&mut self) {
@@ -1605,6 +1670,18 @@ fn decode_storage_lineage(text:&str,allow_empty:bool) -> Result<Vec<u8>,JsValue>
 #[wasm_bindgen]
 impl DdnWasmVm {
     pub fn from_native_project_json(authored:&str)->Result<DdnWasmVm,JsValue>{Self::from_native_project_connected(authored)}
+    /// Only an explicit Run action requests consumption. Selection JSON is
+    /// untrusted locator data; the Native protected owner issues the permit.
+    pub fn from_native_project_json_for_new_run(authored:&str,selection_json:&str)->Result<DdnWasmVm,JsValue>{
+        let selection:crate::runtime_surface::NativeAuthoringSelection=serde_json::from_str(selection_json)
+            .map_err(|_|JsValue::from_str("E_NATIVE_SOURCE_SELECTION_FIELDS"))?;
+        let reply=native_source_exchange(&json!({"operation":"new_run","authored_project_json_utf8":authored,
+            "authoring_selection":selection,"seed":"0"}),None)?;
+        Self::from_native_project_reply(authored,reply)
+    }
+    pub fn native_source_selection_json(&self)->String{
+        self.native_source_binding.as_ref().map(|binding|binding.authoring_selection.clone()).unwrap_or_else(||"null".into())
+    }
     /// Explicit project execution retains exactly the captures that this VM
     /// executes. Saving does not reread source or allocate replacement ordinals.
     pub fn from_authored_project_json(artifact_json:&str) -> Result<DdnWasmVm,JsValue> {
@@ -2672,6 +2749,10 @@ impl DdnWasmVm {
         .map_err(|err| JsValue::from_str(&format!("restore_state: {err}")))?;
         self.runner.validate_persisted_records(staged.world.world())
             .map_err(|err| JsValue::from_str(&format!("restore_state: {err}")))?;
+        if staged.tick_id>0 {
+            self.runner.validate_restored_derived_world(staged.world.world())
+                .map_err(|err|JsValue::from_str(&format!("restore_state: {err}")))?;
+        }
         crate::input_receipt::validate_alpha_host_dt(staged.input.dt)
             .map_err(|message| JsValue::from_str(&message))?;
         let state_hash = current_state_hash(&staged.world, &self.view_prefixes);

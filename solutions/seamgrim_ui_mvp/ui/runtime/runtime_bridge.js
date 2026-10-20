@@ -5,6 +5,7 @@ export const RUNTIME_BRIDGE_V1_SCHEMA = "seamgrim.runtime_bridge.v1";
 
 export const RUNTIME_BRIDGE_V1_OPERATIONS = Object.freeze([
   "authoredProjectOperation",
+  "compareGeneralOriginalRecording",
   "createSession",
   "createLogicalSession",
   "createManipulationSession",
@@ -70,6 +71,7 @@ class RuntimeSessionV1 {
     return this.#adapterSession.exportSavedProjectArtifact(parentHex, revisionHex);
   }
   hasNativeSource() { return this.#adapterSession.hasNativeSource?.() === true; }
+  nativeSourceSelection() { return this.#adapterSession.nativeSourceSelection?.() ?? null; }
   saveNativeCheckpoint(authoredText) { return this.#adapterSession.saveNativeCheckpoint(authoredText); }
 
   close() { return this.#adapterSession.close(); }
@@ -126,6 +128,11 @@ export class WasmRuntimeAdapter {
         return result;
       },
       seal: () => JSON.parse(vm.seal_json()),
+      registerInputProducer: () => JSON.parse(requireExport(vm,'register_input_producer_json','E_MISSING_PENDING_SUPPLY: 입력 생산자 실행기가 필요합니다.').call(vm)),
+      finishPending: packet => JSON.parse(requireExport(vm,'finish_pending_json','E_MISSING_PENDING_SUPPLY: queue 종료 실행기가 필요합니다.').call(vm,JSON.stringify(packet))),
+      previewFinishPending: packet => JSON.parse(requireExport(vm,'preview_finish_pending_json','E_INPUT_FINISH_NOT_READY: 종료 사전 확인 실행기가 필요합니다.').call(vm,JSON.stringify(packet))),
+      resultIdentity: () => JSON.parse(requireExport(vm,'result_identity_json','E_INPUT_FINISH_NOT_READY: 원 형식 결과 확인이 필요합니다.').call(vm)),
+      finishNotice: () => JSON.parse(requireExport(vm,'finish_notice_json','E_MISSING_PENDING_SUPPLY: 종료 확인 실행기가 필요합니다.').call(vm)),
       stopRecording: () => JSON.parse(requireExport(vm,'stop_recording_v3_json','E_INPUT_V3_UNSUPPORTED: 통합 기록 실행기가 필요합니다.').call(vm)),
       exportSavedProjectArtifact: (parent, revision) =>
         requireExport(vm, "export_saved_project", "E_PROJECT_RUNTIME_LOGICAL: 프로젝트 저장 기능이 필요합니다.").call(vm, parent, revision),
@@ -149,6 +156,9 @@ export class WasmRuntimeAdapter {
     const vm=new Constructor(sourceText,bindingJson);
     return {step:snapshot=>{const result=JSON.parse(vm.step_json(JSON.stringify(snapshot)));result.view_meta=JSON.parse(vm.view_json());return result;},
       summary:()=>JSON.parse(vm.summary_json()),seal:()=>JSON.parse(vm.seal_json()),
+      registerInputProducer:()=>JSON.parse(requireExport(vm,'register_input_producer_json','E_MISSING_PENDING_SUPPLY: 조작 입력 생산자 실행기가 필요합니다.').call(vm)),
+      finishPending:packet=>JSON.parse(requireExport(vm,'finish_pending_json','E_MISSING_PENDING_SUPPLY: 조작 queue 종료 실행기가 필요합니다.').call(vm,JSON.stringify(packet))),
+      finishNotice:()=>JSON.parse(requireExport(vm,'finish_notice_json','E_MISSING_PENDING_SUPPLY: 조작 종료 확인 실행기가 필요합니다.').call(vm)),
       stopRecording:()=>JSON.parse(requireExport(vm,'stop_recording_v3_json','E_INPUT_V3_UNSUPPORTED: 통합 기록 실행기가 필요합니다.').call(vm)),
       abort:message=>vm.abort_input(String(message)),close:()=>vm.free()};
   }
@@ -160,9 +170,10 @@ export class WasmRuntimeAdapter {
     const module = await this.ensureProjectModule();
     return requireExport(module, 'manipulation_value_raw')(String(text));
   }
-  async replayManipulationInput({sourceText,tapeBytes,bindingJson}) {
+  async replayManipulationInput({sourceText,tapeBytes,bindingJson,allowPartial=false}) {
+    if(typeof allowPartial!=='boolean')throw new Error('E_INPUT_REPLAY_MODE: 부분 재생 선택은 참·거짓이어야 합니다.');
     const module=await this.ensureProjectModule();
-    return JSON.parse(requireExport(module,'manipulation_input_replay_v3')(sourceText,new Uint8Array(tapeBytes),bindingJson));
+    return JSON.parse(requireExport(module,'manipulation_input_replay_v3')(sourceText,new Uint8Array(tapeBytes),bindingJson,allowPartial));
   }
 
   async recordFiniteInput({sourceText,requestJson,bindingJson,authoredProjectJson=null,manipulation=false}) {
@@ -180,10 +191,11 @@ export class WasmRuntimeAdapter {
     return {tape_bytes:record.tape_bytes,summary};
   }
 
-  async replayLogicalInput({ sourceText, tapeBytes, bindingJson, authoredProjectJson = null }) {
+  async replayLogicalInput({ sourceText, tapeBytes, bindingJson, authoredProjectJson = null, allowPartial = false }) {
+    if(typeof allowPartial!=='boolean')throw new Error('E_INPUT_REPLAY_MODE: 부분 재생 선택은 참·거짓이어야 합니다.');
     const module = await this.ensureProjectModule();
     const replay = requireExport(module, authoredProjectJson === null ? "logical_input_replay_v3" : "authored_logical_input_replay_v3");
-    return JSON.parse(replay(authoredProjectJson === null ? sourceText : authoredProjectJson, new Uint8Array(tapeBytes), bindingJson));
+    return JSON.parse(replay(authoredProjectJson === null ? sourceText : authoredProjectJson, new Uint8Array(tapeBytes), bindingJson, allowPartial));
   }
 
   async ensureProjectModule() {
@@ -293,6 +305,15 @@ export class WasmRuntimeAdapter {
     const wasmModule = await this.ensureProjectModule();
     return String(requireExport(wasmModule, "authored_project_operation",
       "E_AUTHORED_PROJECT_WASM_REQUIRED: 새 작품자료 WASM이 필요합니다")(String(operation), String(text)));
+  }
+  async compareGeneralOriginalRecording({bundleHex}) {
+    if(typeof bundleHex!=="string"||!bundleHex.length||bundleHex.length%2||bundleHex.length>16*1024*1024||!/^[0-9a-f]+$/u.test(bundleHex))
+      throw new Error("E_GENERAL_RECORDING_BYTES: 원 기록의 전송 형식이나 크기가 맞지 않습니다");
+    const bytes=new Uint8Array(bundleHex.length/2);
+    for(let i=0;i<bytes.length;i++)bytes[i]=Number.parseInt(bundleHex.slice(i*2,i*2+2),16);
+    const wasmModule=await this.ensureProjectModule();
+    return String(requireExport(wasmModule,"wasm_compare_general_original_recording_json",
+      "E_GENERAL_RECORDING_WASM_REQUIRED: 원 기록을 대조하는 새 WASM이 필요합니다")(bytes));
   }
 
   async exportInputTapeV1({ inputReceipts, madiHz }) {
@@ -409,6 +430,7 @@ export class RuntimeBridgeV1 {
   planGajiExtraction(request) { return this.#adapter.planGajiExtraction(request); }
   projectSourceSha256(source) { return this.#adapter.projectSourceSha256(source); }
   authoredProjectOperation(request) { return this.#adapter.authoredProjectOperation(request); }
+  compareGeneralOriginalRecording(request) { return this.#adapter.compareGeneralOriginalRecording(request); }
   buildLocalGajiArtifact(request) { return this.#adapter.buildLocalGajiArtifact(request); }
   planGajiLifecycle(request) { return this.#adapter.planGajiLifecycle(request); }
   projectGraph(source) { return this.#adapter.projectGraph(source); }

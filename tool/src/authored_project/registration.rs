@@ -9,6 +9,39 @@ use sha2::{Digest,Sha256};
 pub(crate) mod temporary;
 mod resolved_supply;
 
+/// Only the actual registration/source owner constructs this witness. It is
+/// neither decoded from RESULT bytes nor inferred from a runtime Value.
+#[derive(Clone,Debug)]
+pub(crate) struct ResolvedRegisteredAtomResultTypeV1 {
+    local_sites:BTreeSet<ddonirang_lang::NodeId>,
+    origin_sha256:[u8;32],
+    contracts:Vec<RecordedAtomContract>,
+}
+impl ResolvedRegisteredAtomResultTypeV1 {
+    pub(crate) fn matches_program(&self,program:&ddonirang_lang::CanonProgram)->bool {
+        self.origin_sha256==<[u8;32]>::from(Sha256::digest(program.origin.source.as_bytes()))
+    }
+    pub(crate) fn supplies(&self,program:&ddonirang_lang::CanonProgram,node:ddonirang_lang::NodeId)->bool {
+        self.local_sites.contains(&node)
+            && program.origin.atom_value_occurrences.get(&node).is_some_and(|site|
+                matches!(site.role,ddonirang_lang::ast::AtomValueRole::LocalValue))
+    }
+    pub(crate) fn verify_value(&self,value:&ddonirang_core::platform::RegisteredAtomValueV1,
+        current:&[RecordedAtomContract])->Result<(),String>{
+        crate::registered_atom_contract::verify_recorded_atom(value,&self.contracts).map_err(contract_error)?;
+        crate::registered_atom_contract::verify_recorded_atom(value,current).map_err(contract_error)
+    }
+}
+pub(crate) struct BoundAtomValuesV1 {
+    values:BTreeMap<ddonirang_lang::NodeId,ddonirang_core::platform::RegisteredAtomValueV1>,
+    output_type:ResolvedRegisteredAtomResultTypeV1,
+}
+impl BoundAtomValuesV1 {
+    pub(crate) fn into_parts(self)->(BTreeMap<ddonirang_lang::NodeId,ddonirang_core::platform::RegisteredAtomValueV1>,ResolvedRegisteredAtomResultTypeV1){
+        (self.values,self.output_type)
+    }
+}
+
 // Borrowed source facts, not a saved Project/PESI or an admission constructor.
 // Saved and temporary producers retain their distinct private authority.
 trait RegistrationSourceView {
@@ -166,11 +199,11 @@ impl RegistrationDraft {
     /// Resolve linked constructor nodes through the actual original source
     /// map and recorded declaration span, never through an ambient label map.
     pub(crate) fn bind_atom_values(&self,owned:&Project,program:&ddonirang_lang::CanonProgram)
-        ->Result<BTreeMap<ddonirang_lang::NodeId,ddonirang_core::platform::RegisteredAtomValueV1>,String>{
+        ->Result<BoundAtomValuesV1,String>{
         self.bind_atom_values_from(&SavedRegistrationSource::finalized(owned),program)
     }
     fn bind_atom_values_from(&self,source:&impl RegistrationSourceView,program:&ddonirang_lang::CanonProgram)
-        ->Result<BTreeMap<ddonirang_lang::NodeId,ddonirang_core::platform::RegisteredAtomValueV1>,String>{
+        ->Result<BoundAtomValuesV1,String>{
         source.verify(self)?;
         let candidate=wire::Candidate::parse(&self.descriptor).map_err(contract_error)?;
         let mut bindings=BTreeMap::new();
@@ -191,7 +224,12 @@ impl RegistrationDraft {
             let atom=contract.admitted_value(registry.identity,entry.identity).map_err(contract_error)?;
             values.insert(*node,atom);
         }
-        Ok(values)
+        let output_type=ResolvedRegisteredAtomResultTypeV1{
+            local_sites:values.keys().copied().collect(),
+            origin_sha256:Sha256::digest(program.origin.source.as_bytes()).into(),
+            contracts:self.contracts.clone(),
+        };
+        Ok(BoundAtomValuesV1{values,output_type})
     }
     pub(crate) fn bind_constructors(&self,owned:&Project,program:&ddonirang_lang::CanonProgram)
         ->Result<BTreeMap<ddonirang_lang::NodeId,ResolvedConstructorV1>,String> {

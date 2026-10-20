@@ -430,6 +430,7 @@ pub fn decode(bytes: &[u8]) -> Result<Tape, String> {
 }
 
 pub struct ManipulationSession {
+    result_emissions:crate::replay_evidence::ResultEmissionSinkV1,
     binding: ManipulationBinding,
     runner: crate::ddn_runtime::DdnRunner,
     world: ddonirang_core::platform::DetNuri,
@@ -444,6 +445,14 @@ pub struct ManipulationSession {
     last_table: Option<serde_json::Value>,
 }
 impl ManipulationSession {
+    pub(crate) fn recording_generation(&self)->crate::replay_evidence::ExecutionGenerationV1 {
+        self.result_emissions.generation()
+    }
+    pub(crate) fn check_live_recording_end(&self)->Result<(),String> {
+        if self.failure.is_some(){return Err(error("E_MANIPULATION_ABORTED","실패한 기록은 정상 마칠 수 없습니다"));}
+        if !self.active.is_empty(){return Err(error("E_INPUT_FINISH_NOT_READY","시작한 조작이 끝나지 않았습니다. 미처리 끝 사건을 자동 실행하지 않습니다"));}
+        Ok(())
+    }
     pub(crate) fn accepted_prefix_v3(&self) -> (&ManipulationBinding, &[Frame], Option<&str>) {
         (&self.binding, &self.frames, self.failure.as_deref())
     }
@@ -488,6 +497,7 @@ impl ManipulationSession {
         .map_err(|diagnostic| format!("{}: {}", diagnostic.code, diagnostic.message))?;
         Ok(Self {
             held: binding.initial_held.clone(),
+            result_emissions:Default::default(),
             binding,
             runner: crate::ddn_runtime::DdnRunner::new(program, "매마디").with_bogae_activation(),
             world,
@@ -549,6 +559,9 @@ impl ManipulationSession {
             &HashMap::new(),
             Some(&self.held),
         )?;
+        self.world.world().validate_typed_resource_patch(&output.patch)
+            .map_err(|reason|format!("E_RESULT_WORLD_PATCH_REJECTED: {reason}"))?;
+        let pending_outputs=self.result_emissions.prepare_madi(output.result_emissions,input.madi)?;
         let mut candidate = ddonirang_core::platform::DetNuri::new();
         *candidate.world_mut() = self.world.world().clone();
         candidate.apply_patch(
@@ -597,6 +610,7 @@ impl ManipulationSession {
         let mut result = serde_json::json!({"frame":frame,"state_hash":frame.accepted_world_digest,"input_receipt":receipt,
             "resources":crate::runtime_surface::serialize_world_resources(candidate.world()),"public_observation_table_projection":table});
         crate::bogae_projection::attach(&mut result, projection.as_ref());
+        self.result_emissions.commit_madi(pending_outputs)?;
         self.display_outputs.extend(output.display_outputs);
         crate::output_display::retain_current(&mut self.display_outputs, &result["resources"]);
         crate::output_display::attach(&mut result, &self.display_outputs);

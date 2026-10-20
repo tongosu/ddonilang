@@ -37,6 +37,13 @@ pub(crate) struct CompleteStateValueTablesV1 {
     pub(crate) subjects:BTreeMap<[u8;32],super::complete_state_tables::SubjectValueCandidateV1>,
 }
 impl CompleteStateFrameV1<'_> {
+    /// Existing eight owner payloads for SEED1; this grants no restore right.
+    pub(crate) fn replay_seed_world_payloads(&self)->Result<[Vec<u8>;8],Failure> {
+        self.encode_canonical()?;
+        Ok([self.pesi.to_vec(),self.resources.to_vec(),self.parameters.to_vec(),
+            self.next_tick.to_be_bytes().to_vec(),self.subjects.to_vec(),
+            self.atom_evidence.to_vec(),self.subject_custody.to_vec(),vec![0]])
+    }
     pub(crate) fn decode_value_tables(&self)->Result<CompleteStateValueTablesV1,Failure> {
         self.decode_value_tables_with_catalog(None)
     }

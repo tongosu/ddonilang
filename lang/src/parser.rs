@@ -17,6 +17,7 @@ pub struct Parser {
     nid: u64,
     root_hide: bool,
     beat_depth: usize,
+    body_depth: usize,
     chaebi_forbidden_depth: usize,
     declared_scopes: Vec<DeclaredNames>,
     declared_type_scopes: Vec<HashMap<String, TypeRef>>,
@@ -89,6 +90,7 @@ impl Parser {
             nid: 1,
             root_hide: false,
             beat_depth: 0,
+            body_depth: 0,
             chaebi_forbidden_depth: 0,
             declared_scopes: vec![DeclaredNames::default()],
             declared_type_scopes: vec![HashMap::new()],
@@ -522,6 +524,7 @@ impl Parser {
         self.source = source.clone();
         self.root_hide = false;
         self.beat_depth = 0;
+        self.body_depth = 0;
         self.chaebi_forbidden_depth = 0;
         self.declared_scopes.clear();
         self.declared_scopes.push(DeclaredNames::default());
@@ -1462,6 +1465,12 @@ impl Parser {
         }
     }
     fn parse_body(&mut self) -> Result<Body, ParseError> {
+        self.body_depth+=1;
+        let result=self.parse_body_inner();
+        self.body_depth=self.body_depth.saturating_sub(1);
+        result
+    }
+    fn parse_body_inner(&mut self) -> Result<Body, ParseError> {
         let s = self.current_span();
         self.expect(&TokenKind::LBrace, "{")?;
         self.enter_scope();
@@ -1726,10 +1735,19 @@ impl Parser {
         }
 
         if self.check(&TokenKind::PersistentDependencyArrow) {
-            return Err(ParseError {
-                span: self.current_span(),
-                message: "E_PERSISTENT_DEPENDENCY_PRODUCT_OPEN: `<<-`는 지속 파생 선언으로 예약되어 있지만 베타1에서는 아직 지원하지 않습니다. 실제 파생 실행은 베타2 대상이며, `<-` 다시결속으로 대신 실행하지 않습니다".to_string(),
-            });
+            if self.peek_kind_n_is(1,|kind|matches!(kind,TokenKind::Gt)) {
+                return Err(ParseError {span:self.current_span(),message:"E_BIDIRECTIONAL_BINDING_UNSUPPORTED: `<<->>` 양방향 맞춤은 베타2에서 지원하지 않습니다. 두 `<<-`로 대신하지 않습니다".into()});
+            }
+            let ExprKind::Var(name)=&e.kind else {
+                return Err(ParseError {span:e.span,message:"E_DERIVED_TARGET: 지속 파생 대상은 맨 바깥 이름 하나여야 합니다. 칸·선택 자리는 지원하지 않습니다".into()});
+            };
+            if explicit_sender.is_some() || !self.seed_kind_stack.is_empty() || self.body_depth!=0 {
+                return Err(ParseError {span:e.span,message:"E_DERIVED_SCOPE: 지속 파생은 맨 바깥 이름·채비에만 선언합니다. 셈씨·움직씨 안에서는 지원하지 않습니다".into()});
+            }
+            let name=name.clone();self.advance();
+            let value=self.parse_expr()?;
+            let mood=self.consume_stmt_terminator()?;
+            return Ok(Stmt::DerivedBinding {id:self.next_id(),span:s.merge(&self.previous_span()),mood,name,value});
         }
 
         let mut sender = explicit_sender;
@@ -4681,6 +4699,7 @@ impl Parser {
             | Stmt::SumMatch { span, .. }
             | Stmt::DeclBlock { span, .. }
             | Stmt::Definition { span, .. }
+            | Stmt::DerivedBinding { span, .. }
             | Stmt::Mutate { span, .. }
             | Stmt::ResultFlow { span, .. }
             | Stmt::Expr { span, .. }
@@ -5328,7 +5347,7 @@ impl Parser {
                     .map_or(false, |expr| self.expr_has_mutation(expr))
             }),
             Stmt::Definition { value, .. } => self.expr_has_mutation(value),
-            Stmt::Mutate { .. } | Stmt::ResultFlow { .. } => true,
+            Stmt::Mutate { .. } | Stmt::ResultFlow { .. } | Stmt::DerivedBinding {..} => true,
             Stmt::Expr { expr, .. } => self.expr_has_mutation(expr),
             Stmt::Receive {
                 condition, body, ..
@@ -5430,7 +5449,7 @@ impl Parser {
                     .as_ref()
                     .map_or(false, |expr| self.expr_has_eval_do(expr))
             }),
-            Stmt::Definition { value, .. } => self.expr_has_eval_do(value),
+            Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} => self.expr_has_eval_do(value),
             Stmt::ResultFlow {
                 producer,
                 destination,
@@ -5537,7 +5556,7 @@ impl Parser {
                     .as_ref()
                     .map_or(false, |expr| self.expr_has_random(expr))
             }),
-            Stmt::Definition { value, .. } => self.expr_has_random(value),
+            Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} => self.expr_has_random(value),
             Stmt::ResultFlow {
                 producer,
                 destination,
@@ -5645,7 +5664,7 @@ impl Parser {
                     .as_ref()
                     .map_or(false, |expr| self.expr_has_show(expr))
             }),
-            Stmt::Definition { value, .. } => self.expr_has_show(value),
+            Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} => self.expr_has_show(value),
             Stmt::ResultFlow {
                 producer,
                 destination,
@@ -7200,7 +7219,7 @@ impl Parser {
                 self.infer_expr_dim(destination)?;
                 Ok(())
             }
-            Stmt::Definition { value, .. } => {
+            Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} => {
                 self.infer_expr_dim(value)?;
                 Ok(())
             }
@@ -7555,7 +7574,7 @@ impl Parser {
                         }
                     }
                 }
-                Stmt::Definition { value, .. } => {
+                Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} => {
                     self.apply_defaults_in_expr(value, signatures, known_seeds)?;
                 }
                 Stmt::Mutate { target, value, .. } => {
@@ -8837,7 +8856,7 @@ fn validate_field_body(
                     env.insert(item.name.clone(), shape);
                 }
             }
-            Stmt::Definition { name, value, .. } => {
+            Stmt::Definition { name, value, .. } | Stmt::DerivedBinding {name,value,..} => {
                 let shape = validate_field_expr(value, env)?;
                 env.insert(name.clone(), shape);
             }

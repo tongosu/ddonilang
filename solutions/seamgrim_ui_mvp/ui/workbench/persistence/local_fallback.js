@@ -89,6 +89,9 @@ export function describePersistenceStatus(status = null) {
   if (!status) {
     return "저장 전";
   }
+  if(status.mode==='local_fallback') {
+    return '이 기기에만 임시 저장 · Native 저장·영수증 재현 아님. Native 실행에서 작성 자료를 가져와 저장하세요.';
+  }
   if (status.mode === "server_restore" && status.user_label) {
     return status.user_label;
   }

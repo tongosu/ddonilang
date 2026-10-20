@@ -13,6 +13,7 @@ pub mod bogae_composition;
 pub mod bogae_projection;
 pub mod bogae_time;
 pub mod output_display;
+pub(crate) mod replay_evidence;
 pub mod bogae_recipe;
 pub mod scene_value;
 pub mod authored_project;

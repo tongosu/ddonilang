@@ -2,6 +2,7 @@
 use sha2::{Digest, Sha256};
 
 pub(crate) mod source_binding;
+pub(crate) mod output_evidence;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ContractFailure {

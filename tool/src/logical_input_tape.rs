@@ -346,6 +346,9 @@ pub struct LogicalRecordRequest {
 /// A rejected madi leaves the preceding accepted world intact and permanently
 /// aborts this session; it cannot subsequently mint a complete success seal.
 pub struct LogicalInputSession {
+    result_emissions:crate::replay_evidence::ResultEmissionSinkV1,
+    result_evidence_required:bool,
+    result_original_start:Option<OriginalLogicalResultStartV1>,
     binding: LogicalInputBinding,
     runner: crate::ddn_runtime::DdnRunner,
     world: ddonirang_core::platform::DetNuri,
@@ -359,6 +362,28 @@ pub struct LogicalInputSession {
     display_outputs: Vec<crate::output_display::OutputDisplay>,
     last_observation_table: Option<serde_json::Value>,
     observation_frames: Vec<serde_json::Value>,
+}
+
+// Issued at this source-admission constructor, never deserialized from a
+// checkpoint. A saved reconstruction cannot backfill original result evidence.
+struct OriginalLogicalResultStartV1 { binding:LogicalInputBinding }
+
+pub(crate) struct CommittedLogicalResultBoundary<'a> {session:&'a LogicalInputSession}
+impl CommittedLogicalResultBoundary<'_> {
+    pub(crate) fn content_parts(&self)->Result<(Vec<u8>,Vec<u8>,Vec<u8>,u64),String> {
+        use ddonirang_core::Nuri;
+        let session=self.session;
+        let original=session.result_original_start.as_ref().ok_or(
+            "E_MISSING_RESULT_EVIDENCE: 원 시작의 결과 증거가 없습니다")?;
+        if original.binding!=session.binding {
+            return Err("E_RESULT_SOURCE_MISMATCH: 원 시작과 현재 입력 계약이 다릅니다".into());
+        }
+        let next=session.frames.len() as u64;
+        let outputs=session.accepted_output_content()?;
+        let rng=crate::unit_wire::resumable_complete_state::encode_logical_accepted_rng_content(session)
+            .map_err(|_|"E_RESULT_RNG_MISMATCH: 실제 확정 입력의 난수 경계가 다릅니다")?;
+        Ok((crate::runtime_surface::result_world_canonical_bytes(session.world.world()),outputs,rng,next))
+    }
 }
 
 impl Drop for LogicalInputSession {
@@ -415,7 +440,10 @@ impl LogicalInputSession {
         source, "logical-input.ddn", &program,
     ).map_err(|diagnostic| format!("{}: {}", diagnostic.code, diagnostic.message))?;
         Ok(Self {
+            result_original_start:Some(OriginalLogicalResultStartV1{binding:binding.clone()}),
             settled: binding.initial_held.clone(), binding,
+            result_emissions:Default::default(),
+            result_evidence_required:false,
             runner: crate::ddn_runtime::DdnRunner::new(program, "매마디").with_bogae_activation(),
             world, frames: Vec::new(), core_inputs: Vec::new(), receipts: Vec::new(), failure: None,
             last_bogae_projection: None, last_observation_table: None,
@@ -457,6 +485,9 @@ impl LogicalInputSession {
             return Err(error("E_LOGICAL_INPUT_BINDING_MISMATCH", "저장 원문 또는 초기 세계 결속이 다릅니다"));
         }
         Ok(Self {settled:binding.initial_held.clone(),binding,runner:runner.with_bogae_activation(),world,
+            result_emissions:Default::default(),
+            result_evidence_required:false,
+            result_original_start:None,
             frames:Vec::new(),core_inputs:Vec::new(),receipts:Vec::new(),failure:None,
             last_bogae_projection:None,display_outputs:Vec::new(),last_observation_table:None,observation_frames:Vec::new()})
     }
@@ -529,6 +560,10 @@ impl LogicalInputSession {
         }
         let (output, receipt, core_input) =
             self.runner.run_update_logical_retaining_input(self.world.world(), &self.binding, input, &std::collections::HashMap::new(), Some(&self.settled))?;
+        self.world.world().validate_typed_resource_patch(&output.patch)
+            .map_err(|reason|format!("E_RESULT_WORLD_PATCH_REJECTED: {reason}"))?;
+        let pending_outputs=self.result_emissions.prepare_madi(output.result_emissions,input.madi)?;
+        if self.result_evidence_required {self.result_emissions.require_exact(&pending_outputs)?;}
         // Patch publication is delayed until both the runtime and replay hash
         // comparison succeed. No external signal sink is called while staged.
         let mut candidate = ddonirang_core::platform::DetNuri::new();
@@ -571,6 +606,7 @@ impl LogicalInputSession {
             "public_observation_table_projection":table,
         });
         crate::bogae_projection::attach(&mut result, bogae_projection.as_ref());
+        self.result_emissions.commit_madi(pending_outputs)?;
         self.display_outputs.extend(output.display_outputs);
         crate::output_display::retain_current(&mut self.display_outputs, &result["resources"]);
         crate::output_display::attach(&mut result, &self.display_outputs);
@@ -585,6 +621,71 @@ impl LogicalInputSession {
         self.receipts.push(receipt);
         self.observation_frames.push(observation_frame);
         Ok(result)
+    }
+
+    /// Actual accepted output content only; not a seed, restore or end proof.
+    pub(crate) fn accepted_output_content(&self)->Result<Vec<u8>,String> {
+        if self.result_emissions.next_madi()!=self.frames.len() as u64 {
+            return Err("E_RESULT_EMISSION_ORDER: 출력과 확정 입력 경계가 다릅니다".into());
+        }
+        self.result_emissions.content_bytes()
+    }
+
+    pub(crate) fn borrow_result_boundary(&self)->Result<CommittedLogicalResultBoundary<'_>,String> {
+        if self.result_original_start.is_none() {
+            return Err("E_MISSING_RESULT_EVIDENCE: 원 시작의 결과 증거가 없습니다".into());
+        }
+        Ok(CommittedLogicalResultBoundary{session:self})
+    }
+
+    pub(crate) fn recording_generation(&self)->crate::replay_evidence::ExecutionGenerationV1 {
+        self.result_emissions.generation()
+    }
+    pub(crate) fn require_result_evidence_from_start(&mut self)->Result<(),String> {
+        if !self.frames.is_empty() || self.failure.is_some() || self.result_original_start.is_none() {
+            return Err("E_RESULT_FRESH_START_REQUIRED: 새 원 실행에서만 정확 출력 검증을 선택합니다".into());
+        }
+        self.result_evidence_required=true;Ok(())
+    }
+    pub(crate) fn committed_input_receipts(&self)->&[serde_json::Value] {&self.receipts}
+    pub(crate) fn initial_execution_contract_supply(&self,owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1)
+        ->Result<Vec<u8>,String> {
+        if !self.frames.is_empty() || self.result_original_start.is_none()
+            || self.resume_boundary_next_tick(owned.sources().entry_declaration().name())?!=0 {
+            return Err("E_REPLAY_SEED_INITIAL_BOUNDARY: 실제 원 시작 경계가 아닙니다".into());
+        }
+        crate::unit_wire::resumable_complete_state::encode_logical_execution_contract_supply(owned,&self.runner)
+            .map_err(|cause|format!("E_REPLAY_SEED_EXECUTION_CONTRACT: {cause:?}"))
+    }
+
+    pub(crate) fn bind_original_result_start(&mut self,
+        _admission:crate::unit_wire::resumable_complete_state::FreshLogicalResultAdmissionV1)->Result<(),String> {
+        self.bind_initial_result_content()
+    }
+    pub(crate) fn bind_readonly_seed_result_start(&mut self,
+        _admission:crate::unit_wire::resumable_complete_state::ReadOnlyLogicalSeedAdmissionV1)->Result<(),String>{
+        self.bind_initial_result_content()
+    }
+    fn bind_initial_result_content(&mut self)->Result<(),String>{
+        use ddonirang_core::Nuri;
+        if self.result_original_start.is_some() || !self.frames.is_empty() || !self.core_inputs.is_empty()
+            || !self.receipts.is_empty() || self.failure.is_some() || self.result_emissions.next_madi()!=0
+            || crate::runtime_surface::current_state_hash(self.world.world())!=self.binding.initial_world {
+            return Err("E_RESULT_FRESH_START_REQUIRED: 실제 새 시작 경계에서만 원 결과 공급을 결속합니다".into());
+        }
+        self.result_original_start=Some(OriginalLogicalResultStartV1{binding:self.binding.clone()});
+        Ok(())
+    }
+    #[cfg(windows)]
+    pub(crate) fn bind_native_recording_progress(&mut self,
+        proof:&crate::unit_wire::resumable_complete_state::CurrentRecordingProgressProofV1)->Result<(),String>{
+        proof.check_session(self)?;
+        if self.result_original_start.is_some() || self.result_evidence_required {
+            return Err("E_NATIVE_RECORDING_PROGRESS_OWNER: 이미 결속된 실행입니다".into());
+        }
+        self.accepted_output_content()?;
+        self.result_original_start=Some(OriginalLogicalResultStartV1{binding:self.binding.clone()});
+        self.result_evidence_required=true;Ok(())
     }
 
     pub fn summary(&self) -> serde_json::Value {
@@ -692,6 +793,9 @@ impl LogicalInputSession {
         })
     }
 
+    /// Read-only accepted content; never grants continuation after a failure.
+    pub(crate) fn accepted_core_input_content(&self)->&[ddonirang_core::InputSnapshot] {&self.core_inputs}
+
     /// Supply an accepted prefix only; an aborted session cannot supply resume evidence.
     pub(crate) fn retained_core_inputs(&self) -> Result<&[ddonirang_core::InputSnapshot], String> {
         if self.failure.is_some() {
@@ -745,6 +849,84 @@ mod tests {
         }).unwrap().join().unwrap();
     }
     use super::*;
+
+    #[test]
+    fn b3_result_identity_is_not_a_state_hash_alias() {
+        use crate::replay_evidence::ResultPreimageV1;
+        let capture=|source:&str|{
+            let input=request(source,false);
+            let mut session=LogicalInputSession::new(source,input.binding).unwrap();
+            session.step(&input.snapshots[0]).unwrap();
+            let result=ResultPreimageV1::capture(session.borrow_result_boundary().unwrap()).unwrap();
+            assert!(result.canonical_bytes().starts_with(b"DDN-WO23-RESULT-V1\0\0\x01\x04"));
+            (crate::runtime_surface::current_state_hash(session.committed_world()),result.digest_label())
+        };
+        let integer=capture("(매마디)마다 { 1 보여주기. }.");
+        let approximate=capture("(매마디)마다 { 1.0 보여주기. }.");
+        assert_eq!(integer.0,approximate.0,"same legacy output/world content");
+        assert_ne!(integer.1,approximate.1,"the original result types differ");
+    }
+
+    #[test]
+    fn b3_result_capture_requires_original_start_and_actual_rng_prefix() {
+        use crate::replay_evidence::ResultPreimageV1;
+        let source="(매마디)마다 { 1 보여주기. }.";
+        let input=request(source,false);
+        let mut session=LogicalInputSession::new(source,input.binding).unwrap();
+        session.step(&input.snapshots[0]).unwrap();
+        let original=ResultPreimageV1::capture(session.borrow_result_boundary().unwrap()).unwrap();
+        assert!(original.digest_label().starts_with("sha256:"));
+        session.core_inputs[0].rng_seed^=1;
+        assert!(ResultPreimageV1::capture(session.borrow_result_boundary().unwrap()).is_err());
+        session.result_original_start=None;
+        assert!(session.borrow_result_boundary().is_err(),"no backfill from reconstructed state");
+    }
+
+    #[test]
+    fn b3_typed_outputs_commit_in_actual_madi_order() {
+        let source="(매마디)마다 { 1 보여주기. 1.0 보여주기. }.";
+        let input=request(source,false);
+        let mut session=LogicalInputSession::new(source,input.binding).unwrap();
+        session.step(&input.snapshots[0]).unwrap();
+        let first=session.accepted_output_content().unwrap();
+        assert_eq!(&first[..8],&2u64.to_be_bytes());
+        let second=LogicalSnapshot{madi:1,events:Vec::new(),held:session.settled.clone()};
+        session.step(&second).unwrap();
+        let after=session.accepted_output_content().unwrap();
+        assert_eq!(&after[..8],&4u64.to_be_bytes());
+        assert_eq!(&after[8..first.len()],&first[8..]);
+        assert_eq!(session.result_emissions.next_madi(),2);
+    }
+
+    #[test]
+    fn b3_later_handler_failure_keeps_the_accepted_typed_prefix() {
+        let source="채비 { 값:바른수 := 0. }. (매마디)마다 { 값 <- 값 + 1. 값 보여주기. (1 / (2 - 값)) 보여주기. }.";
+        let input=request(source,false);
+        let mut session=LogicalInputSession::new(source,input.binding).unwrap();
+        session.step(&input.snapshots[0]).unwrap();
+        let prefix=session.accepted_output_content().unwrap();
+        let world=crate::runtime_surface::current_state_hash(session.committed_world());
+        let second=LogicalSnapshot{madi:1,events:Vec::new(),held:session.settled.clone()};
+        assert!(session.step(&second).is_err());
+        assert_eq!(session.accepted_output_content().unwrap(),prefix);
+        assert_eq!(crate::runtime_surface::current_state_hash(session.committed_world()),world);
+        assert_eq!(session.frames.len(),1);
+    }
+
+    #[test]
+    fn b3_replay_mismatch_cannot_publish_typed_output_candidates() {
+        let source="(매마디)마다 { 1 보여주기. }.";
+        let input=request(source,false);
+        let mut session=LogicalInputSession::new(source,input.binding).unwrap();
+        let frame=LogicalFrame{input:input.snapshots[0].clone(),
+            input_digest:snapshot_digest(&input.snapshots[0]).unwrap(),
+            accepted_world_digest:format!("blake3:{}","00".repeat(32))};
+        let world=crate::runtime_surface::current_state_hash(session.committed_world());
+        assert!(session.step_expected(&input.snapshots[0],Some(&frame)).is_err());
+        assert_eq!(session.accepted_output_content().unwrap(),0u64.to_be_bytes());
+        assert_eq!(crate::runtime_surface::current_state_hash(session.committed_world()),world);
+        assert!(session.frames.is_empty());
+    }
 
     #[test]
     fn saved_named_start_prefix_reconstruction_continues_actual_execution() {
@@ -1450,7 +1632,9 @@ mod tests {
 
     #[test]
     fn live_failed_madi_preserves_accepted_prefix_but_cannot_continue_or_seal() {
-        let source = "(매마디)마다 { 값 <- 6. 사건들 <- () 입력사상.사건들. 사건들마다 { { 사건들.채널 == \"곱함\" }이면 { 값 <- 1 / 0. }. }. }. 짜임 := (관계들=차림[(보기=(() 표준보기.결과표)) 표준보개.으뜸]) 표준보개.짜임. (값:값) 보임.";
+        // Keep both branches in the same explicit numeric family so the
+        // intended second-madi division failure reaches the runtime owner.
+        let source = "(매마디)마다 { 값 <- 6.0. 사건들 <- () 입력사상.사건들. 사건들마다 { { 사건들.채널 == \"곱함\" }이면 { 값 <- 1.0 / 0.0. }. }. }. 짜임 := (관계들=차림[(보기=(() 표준보기.결과표)) 표준보개.으뜸]) 표준보개.짜임. (값:값) 보임.";
         let mut request = request(source, false);
         request.snapshots[0].events.truncate(1);
         request.snapshots[0].held.insert("곱함".into(), false);

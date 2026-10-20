@@ -1,7 +1,8 @@
 // Persistent IDs are supplied only by the common Rust codec after an explicit
 // user operation. Local storage keys and download names are locators, not IDs.
 import {createAuthoredSourceStorage} from './persistence/authored_source_save.js';
-export function installAuthoredProjectPanel({root, bridge, host, capture, apply, saveRuntime, reopenRuntime, exportRuntime}) {
+import {nativeSourceAvailable,nativeSourceRequest,sourceStorageErrorMessage} from '../runtime/native_source_transport.js';
+export function installAuthoredProjectPanel({root, bridge, host, capture, apply, saveRuntime, reopenRuntime, exportRuntime,saveProject,reopenProject,ownsLogicalSource=()=>false}) {
   const status=root.querySelector('[data-authored-status]');
   const identity=root.querySelector('[data-authored-identity]');
   const contents=root.querySelector('[data-authored-contents]');
@@ -45,13 +46,13 @@ export function installAuthoredProjectPanel({root, bridge, host, capture, apply,
     }
     root.querySelectorAll('button').forEach(button=>button.disabled=true);
     try { return await action(); }
-    catch(error) { status.textContent=`저장 자료 오류: ${String(error?.message ?? error)}`;if(propagate)throw error; }
+    catch(error) { status.textContent=`저장 자료 오류: ${sourceStorageErrorMessage(error)}`;if(propagate)throw error; }
     finally {busy=false;root.querySelectorAll('button').forEach(button=>button.disabled=false);fileInput.value='';}
   }
-  async function openText(text, message, token) {
+  async function openText(text, message, token,projectContext) {
     const admitted=await operate('open',text);
     unchanged(token);
-    const expected=await apply(JSON.parse(admitted)); // Admission first; no execution on open.
+    const expected=await apply(JSON.parse(admitted),projectContext); // Admission first; no execution on open.
     const expectedToken=JSON.stringify(expected);
     unchanged(expectedToken);
     baseline=expectedToken;
@@ -78,18 +79,35 @@ export function installAuthoredProjectPanel({root, bridge, host, capture, apply,
     const sourceSaved=await sourceStorage.save(text,()=>unchanged(token),{previousArtifactText:artifactText,retainedLocator:localStorage.getItem(key)??''});
     unchanged(token);
     localStorage.setItem(key,sourceSaved?.locator??text);
-    baseline=token;
+    if(sourceSaved&&(sourceSaved.requires_new_run||text!==artifactText)){
+      // Only an acknowledged source CAS invalidates the current VM. A failed
+      // save never applies a new project or clears the running world's view.
+      const expected=await apply(JSON.parse(text));
+      baseline=JSON.stringify(expected);unchanged(baseline);
+    }else baseline=token;
     sourceContextActive=Boolean(sourceSaved);
     show(text,sourceSaved?.message??'이 기기에 작성 자료를 저장했습니다. 다시 열어도 같은 ID를 사용합니다.');
     return sourceSaved;
   }
   root.querySelector('[data-authored-save]').onclick=()=>perform(saveSourceAction);
   for(const [selector,operation] of [['[data-authored-runtime-save]',saveRuntime],['[data-authored-runtime-reopen]',reopenRuntime],['[data-authored-runtime-export]',exportRuntime]]) {
-    root.querySelector(selector)?.addEventListener('click',()=>perform(async()=>{
+    root.querySelector(selector)?.addEventListener('click',async()=>{
+      // Native source and world use the same top-level storage owner. Do not
+      // send the drawer's buttons to a separate IndexedDB runtime history.
+      try {
+        const logicalResume=selector==='[data-authored-runtime-reopen]'&&ownsLogicalSource();
+        if(selector!=='[data-authored-runtime-export]'&&await nativeSourceAvailable()&&!logicalResume) {
+          const result=await (selector==='[data-authored-runtime-save]'?saveProject:reopenProject)?.();
+          status.textContent=result?.message??'상단 저장·다시 열기와 같은 경로로 처리했습니다.';
+          return;
+        }
+      }catch(error){status.textContent=`저장 자료 오류: ${sourceStorageErrorMessage(error)}`;return;}
+      return perform(async()=>{
       if(!artifactText || JSON.stringify(capture())!==baseline)throw new Error('먼저 현재 작품 원문을 갱신 저장하세요.');
       if(!operation)throw new Error('E_PROJECT_RUNTIME_UI_UNSUPPORTED');
       status.textContent=await operation(artifactText);
-    }));
+      });
+    });
   }
   root.querySelector('[data-authored-register]').onclick=()=>perform(async()=>{
     if(!artifactText) throw new Error('먼저 작품 정체를 만들거나 저장 자료를 여세요.');
@@ -117,12 +135,37 @@ export function installAuthoredProjectPanel({root, bridge, host, capture, apply,
     if((Object.keys(locator).length===1 && typeof locator.source_project_id==='string')||typeof locator.native_source_project_id==='string') {
       const admitted=await sourceStorage.reopen(locator.source_project_id??locator.native_source_project_id,()=>unchanged(token),locator);
       await openText(admitted,'저장 원문과 등록 자료를 다시 읽어 열었습니다. 실행하지 않았습니다.',token);sourceContextActive=true;
+      localStorage.setItem(key,JSON.stringify(locator));
       return {message:'저장 원문과 등록 자료를 다시 읽었습니다. 실행하지 않았습니다.'};
     }
     await openText(text,'저장 자료를 다시 열었습니다. 실행은 직접 시작하세요.',token);
     return null;
   }
   root.querySelector('[data-authored-reopen]').onclick=()=>perform(reopenSourceAction);
+  root.querySelector('[data-authored-compare-saved]')?.addEventListener('click',()=>perform(async()=>{
+    if(!artifactText)throw new Error('먼저 이 작품을 Native에 저장하고 실행하세요.');
+    if(ownsLogicalSource())throw new Error('논리 입력의 완료 기록은 입력 기록에서 재현 확인하세요.');
+    const token=JSON.stringify(capture()),source=artifactText;
+    if(token!==baseline)throw new Error('원문이 바뀌었습니다. 저장된 원문을 연 뒤 결과를 대조하세요.');
+    if(!await nativeSourceAvailable())throw new Error('이 대조는 Native 실행 프로그램의 실제 저장본이 필요합니다.');
+    unchanged(token);status.textContent='저장된 원 시작·입력·출력을 확인하는 중입니다. 아직 대조가 끝나지 않았습니다.';
+    const checked=await nativeSourceRequest('general_recording_content',source);
+    unchanged(token);
+    if(artifactText!==source||checked.kind!=='native_general_recording_content'||checked.authored_project_json_utf8!==source)
+      throw new Error('E_GENERAL_RECORDING_SOURCE_CHANGED: 대조할 저장 원문이 바뀌었습니다.');
+    const replay=JSON.parse(await bridge.compareGeneralOriginalRecording({bundleHex:checked.recording_bundle_hex}));
+    unchanged(token);if(artifactText!==source)throw new Error('E_GENERAL_RECORDING_SOURCE_CHANGED');
+    const fields=['accepted_count_decimal','result_identity','source_pesi','status'];
+    for(const value of [checked.comparison,replay]){
+      if(!value||Object.keys(value).sort().join('|')!==fields.join('|')||fields.some(key=>typeof value[key]!=='string'))
+        throw new Error('E_GENERAL_RECORDING_REPORT: 결과 대조 응답이 맞지 않습니다.');
+    }
+    if(replay.status!=='RUNNING_RESULT_COMPARED'||!/^\d{1,20}$/u.test(replay.accepted_count_decimal)||fields.some(key=>replay[key]!==checked.comparison[key]))
+      throw new Error('E_GENERAL_RECORDING_RESULT_MISMATCH: 원 입력으로 대조한 결과가 다릅니다.');
+    const count=BigInt(replay.accepted_count_decimal);
+    const position=count===0n?'아직 실행한 마디 없음(0마디)':`마디 ${count-1n}까지(${count}마디)`;
+    status.textContent=`저장한 ${position}의 세계와 출력이 일치합니다. 진행 중인 기록의 대조이며 정상 종료 영수증 확인은 아닙니다.`;
+  }));
   root.querySelector('[data-authored-clone]').onclick=()=>perform(async()=>{
     if(!artifactText) throw new Error('복제할 작성 자료가 없습니다.');
     const token=JSON.stringify(capture());
@@ -180,15 +223,42 @@ export function installAuthoredProjectPanel({root, bridge, host, capture, apply,
     if(!old_path || !new_path || old_path===new_path) throw new Error('이전 경로와 새 경로를 명시하세요. 얽음의 경로 참조는 먼저 수정하세요.');
     await changeIdentityLocator('relocate',{old_path,new_path});
   }));
-  fileInput.onchange=()=>perform(async()=>{
-    const file=fileInput.files[0];if(!file) return;
+  const importFile=file=>perform(async()=>{
+    if(!file) return;
     if(file.size>64*1024*1024) throw new Error('저장 자료가 64MiB를 넘습니다.');
     const token=JSON.stringify(capture());
     // ignoreBOM=true preserves the character: Rust rejects it, never strips it.
     const text=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(await file.arrayBuffer());
     await openText(text,'파일을 열었습니다. 영구 ID는 보존했고 실행하지 않았습니다.',token);
-  });
+  },{propagate:true});
+  fileInput.onchange=()=>importFile(fileInput.files[0]).catch(()=>{});
   return {
+    importFile,
+    reopenNativeLocator:(text,projectContext)=>perform(async()=>{
+      const token=JSON.stringify(capture()),locator=JSON.parse(text);
+      if(typeof locator.native_source_project_id!=='string'||typeof locator.authored_project_json_utf8!=='string')throw new Error('E_NATIVE_SOURCE_LOCATOR_REQUIRED');
+      if(projectContext?.expectedNativeProjectId&&locator.native_source_project_id!==projectContext.expectedNativeProjectId)
+        throw new Error('E_NATIVE_WORK_LOCATOR_MISMATCH: 목록과 저장 위치의 작품 ID가 다릅니다. 다른 작품으로 대체하지 않습니다.');
+      const admitted=await sourceStorage.reopen(locator.native_source_project_id,()=>unchanged(token),locator);
+      await openText(admitted,'Native 저장 원문을 다시 열었습니다. 실행하지 않았습니다.',token,projectContext);
+      sourceContextActive=true;localStorage.setItem(key,JSON.stringify(locator));return {message:'Native 저장 원문을 다시 열었습니다. 실행하지 않았습니다.'};
+    },{propagate:true}),
+    createAndSaveSource:projectContext=>perform(async()=>{
+      if(!await nativeSourceAvailable())throw new Error('E_NATIVE_SOURCE_HOST_REQUIRED: Native 시작 프로그램에서 저장하세요.');
+      const captured=capture(),token=JSON.stringify(captured);
+      if(!captured.source_snapshot.root_path)throw new Error('E_PROJECT_RUNTIME_ROOT_REQUIRED: 공식 저장 작품의 명시 뿌리가 필요합니다.');
+      const text=await operate('create',JSON.stringify({source_profile:captured.source_profile,source_snapshot:captured.source_snapshot,module_name:''}));
+      unchanged(token);
+      const saved=await sourceStorage.save(text,()=>unchanged(token));unchanged(token);
+      if(!saved?.locator||!JSON.parse(saved.locator).native_source_project_id)throw new Error('E_NATIVE_SOURCE_SAVE_READBACK');
+      // Publish a new work only after the Native owner acknowledges the exact
+      // source. No old world, browser checkpoint or grant is migrated.
+      const expected=await apply(JSON.parse(text),projectContext);
+      baseline=JSON.stringify(expected);unchanged(baseline);
+      localStorage.setItem(key,saved.locator);sourceContextActive=true;
+      const message='내 작업으로 저장했습니다. 새 ID의 원문을 Native에서 확인했습니다. ▶로 실행하세요.';
+      show(text,message);return {...saved,message};
+    },{propagate:true}),
     saveIfRegisteredSource:async()=>{
       if(!artifactText)return null;
       const current=capture(),prior=JSON.parse(baseline);
@@ -196,18 +266,36 @@ export function installAuthoredProjectPanel({root, bridge, host, capture, apply,
       const token=JSON.stringify(current);
       const updated=await operate('update',JSON.stringify({original_json:artifactText,source_snapshot:current.source_snapshot}));unchanged(token);
       const required=await operate('source_probe',JSON.stringify({artifact_json_utf8:updated}));unchanged(token);
-      if(required!=='true'&&!sourceContextActive)return null;
+      if(required!=='true'&&!sourceContextActive&&!(await nativeSourceAvailable()))return null;
+      unchanged(token);
       return perform(saveSourceAction,{propagate:true});
     },
-    reopenIfRegisteredSource:async(projectIdentity='')=>{
+    reopenIfRegisteredSource:async(projectIdentity='',{allowLast=false}={})=>{
       let locator;try{locator=JSON.parse(localStorage.getItem(key)??'null');}catch{return null;}
       const savedId=locator?.source_project_id??locator?.native_source_project_id;
       if(typeof savedId!=='string')return null;
       const sameCurrent=sourceContextActive&&baseline&&capture().selected_project===JSON.parse(baseline).selected_project;
-      if(!sameCurrent&&projectIdentity!==savedId)return null;
+      if(!allowLast&&!sameCurrent&&projectIdentity!==savedId)return null;
       return perform(reopenSourceAction,{propagate:true});
     },
     getArtifactText:()=>artifactText,
+    hasSourceEdits:()=>Boolean(artifactText&&baseline&&capture().selected_project===JSON.parse(baseline).selected_project&&JSON.stringify(capture())!==baseline),
+    nativeSourceRunOptions:()=>{
+      let locator;try{locator=JSON.parse(localStorage.getItem(key)??'null');}catch{return {};}
+      if(!artifactText||locator?.native_source_project_id!==JSON.parse(artifactText).authored_identity.logical_dependency_id)return {};
+      return {nativeSourceNewRun:locator.requires_new_run===true,nativeSourceSelectionJson:JSON.stringify(locator.authoring_selection??null)};
+    },
+    rememberNativeSelection:selection=>{
+      if(!selection||!artifactText||JSON.stringify(capture())!==baseline)return;
+      let locator;try{locator=JSON.parse(localStorage.getItem(key)??'null');}catch{return;}
+      if(locator?.native_source_project_id!==JSON.parse(artifactText).authored_identity.logical_dependency_id)return;
+      localStorage.setItem(key,JSON.stringify({...locator,authoring_selection:selection,requires_new_run:false}));
+    },
+    hasNativeSourceContext:()=>{
+      if(!sourceContextActive||!artifactText)return false;
+      try{return JSON.parse(localStorage.getItem(key)??'null')?.native_source_project_id===JSON.parse(artifactText).authored_identity.logical_dependency_id;}
+      catch{return false;}
+    },
     getRunProjectArtifact:()=>{
       if(!artifactText) return '';
       const artifact=JSON.parse(artifactText), current=capture(), prior=JSON.parse(baseline);

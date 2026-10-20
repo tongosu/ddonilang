@@ -469,6 +469,10 @@ impl Normalizer {
                 self.normalize_expr(value);
                 self.write_stmt_terminator(stmt);
             }
+            Stmt::DerivedBinding {name,value,..} => {
+                self.write(name);self.write(" <<- ");self.normalize_expr(value);
+                self.write_stmt_terminator(stmt);
+            }
             Stmt::Mutate {
                 target,
                 value,
@@ -1421,7 +1425,7 @@ impl Normalizer {
             Stmt::SumDefinition { mood, .. } | Stmt::SumMatch { mood, .. } => mood,
             Stmt::DeclBlock { mood, .. } => mood,
             Stmt::Definition { mood, .. } => mood,
-            Stmt::Mutate { mood, .. } => mood,
+            Stmt::Mutate { mood, .. } | Stmt::DerivedBinding {mood,..} => mood,
             Stmt::ResultFlow { mood, .. } => mood,
             Stmt::Expr { mood, .. } => mood,
             Stmt::Receive { mood, .. } => mood,

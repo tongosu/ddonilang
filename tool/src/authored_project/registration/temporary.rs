@@ -2,7 +2,6 @@
 use super::*;
 use crate::source_snapshot_admission::{SourceCapture,EpochSupply};
 use ddonirang_lang::{CanonProgram,NodeId,Span,SeedKind,TopLevelItem};
-use ddonirang_core::platform::RegisteredAtomValueV1;
 use std::sync::Arc;
 
 pub(super) struct DirectSourceActivation {
@@ -162,7 +161,7 @@ impl TemporaryRegisteredSource {
     pub(crate) fn bind_constructors(&self,program:&CanonProgram)->Result<BTreeMap<NodeId,ResolvedConstructorV1>,String>{
         self.registration.bind_constructors_from(self.activation.as_ref(),program)
     }
-    pub(crate) fn bind_atoms(&self,program:&CanonProgram)->Result<BTreeMap<NodeId,RegisteredAtomValueV1>,String>{
+    pub(crate) fn bind_atoms(&self,program:&CanonProgram)->Result<super::BoundAtomValuesV1,String>{
         self.registration.bind_atom_values_from(self.activation.as_ref(),program)
     }
     pub(crate) fn catalog(&self,program:&CanonProgram)->Result<SavedNominalCatalogV1,String>{

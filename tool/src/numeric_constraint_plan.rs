@@ -31,6 +31,9 @@ impl NumericKind {
 
 #[derive(Clone, Debug)]
 enum Shape {
+    // Output-only source projection. No public TypeRef or assignability rule
+    // is issued from this leaf; only an admitted local-atom source enables it.
+    RegisteredAtom,
     // Private projection of the admitted input-event producer, not a public
     // record type, saved tag, or inference from a runtime Pack's field names.
     InputEvent,
@@ -127,6 +130,11 @@ fn admitted_collection_signature_kind(kind:&TypeRef)->bool {
         _=>return false,
     }}
     true
+}
+
+fn source_collection_owner(shape:&Shape)->bool {
+    matches!(shape,Shape::Collection(_)|Shape::CollectionSlice(_)|Shape::CollectionFlow(_)|Shape::BagPreview(_))
+        || matches!(shape,Shape::Declared(TypeRef::Applied{name,args}) if name=="차림" && args.len()==1)
 }
 
 /// The existing sealed numeric constructor and its signature own the result.
@@ -235,6 +243,7 @@ pub(crate) struct NumericConstraintPlan {
 
 struct Projection<'a> {
     program: &'a CanonProgram,
+    output_atoms:Option<&'a crate::authored_project::registration::ResolvedRegisteredAtomResultTypeV1>,
     graph: NumericConstraints,
     bags:BagConstraints,
     shapes: BTreeMap<NodeId, Shape>,
@@ -269,8 +278,17 @@ impl NumericConstraintPlan {
     }
 
     pub(crate) fn compile_with_host(program:&CanonProgram,world_decls:&HashSet<String>,host:Option<&crate::runtime_surface::BogaeHostNumericSupply>)->Result<Self,String> {
+        Self::compile_projection(program,world_decls,host,None)
+    }
+    pub(crate) fn compile_output_with_atoms(program:&CanonProgram,world_decls:&HashSet<String>,host:Option<&crate::runtime_surface::BogaeHostNumericSupply>,
+        atoms:&crate::authored_project::registration::ResolvedRegisteredAtomResultTypeV1)->Result<Self,String>{
+        if !atoms.matches_program(program){return Err("E_UNSUPPORTED_RESULT_EVIDENCE: 원자 출력 원문 증거가 다릅니다".into());}
+        Self::compile_projection(program,world_decls,host,Some(atoms))
+    }
+    fn compile_projection<'a>(program:&'a CanonProgram,world_decls:&HashSet<String>,host:Option<&crate::runtime_surface::BogaeHostNumericSupply>,
+        output_atoms:Option<&'a crate::authored_project::registration::ResolvedRegisteredAtomResultTypeV1>)->Result<Self,String>{
         let mut projection = Projection {
-            program, graph: NumericConstraints::default(), bags:BagConstraints::default(), shapes: BTreeMap::new(),
+            program, output_atoms, graph: NumericConstraints::default(), bags:BagConstraints::default(), shapes: BTreeMap::new(),
             literal_sites: BTreeMap::new(), exact_integer_literals:BTreeMap::new(), bindings: BTreeMap::new(), callables: BTreeMap::new(),
             literal_trees: BTreeSet::new(), records: BTreeMap::new(), payload_fields:BTreeMap::new(),nominal_fields:BTreeMap::new(),
             sums:program.root_stmts.iter().filter_map(|stmt|match stmt {
@@ -349,6 +367,15 @@ impl NumericConstraintPlan {
             projection.callable_globals.insert("프레임수".into(),(owner,shape));
         }
         for start in [true,false] {
+            if start {
+                let derived=crate::ddn_runtime::persistent_dependencies::DerivedPlan::compile(program)?;
+                for binding in &derived.bindings {
+                    let statement=program.root_stmts.iter().find(|statement|matches!(statement,Stmt::DerivedBinding{id,..} if *id==binding.id))
+                        .ok_or("E_DERIVED_SOURCE_OWNER: 파생 선언의 원문 소유자가 없습니다")?;
+                    projection.statements(program.id,&mut globals,std::slice::from_ref(statement),None)?;
+                }
+                projection.callable_globals.extend(globals.clone());
+            }
             for statement in &program.root_stmts {
                 if matches!(statement,Stmt::Hook{kind,..} if (*kind==ddonirang_lang::HookKind::Start)==start) {
                     projection.statements(program.id,&mut globals,std::slice::from_ref(statement),None)?;
@@ -498,6 +525,11 @@ impl NumericConstraintPlan {
             }
             for (site,shape,_) in &projection.consumed_conditionals {
                 if Projection::finish_shape_in(shape,&independent,&projection.bags).as_ref().and_then(NumericKind::from_type).is_none() {
+                    if let Shape::DeferredSelection{target,index:Some(index)}=shape {
+                        if projection.source_index_always_outside(target,*index,&mut BTreeSet::new()) {
+                            return Err(format!("E_SELECTION_BOUNDS: CHARIM_INDEX_OUT_OF_RANGE: 원문의 모든 차림 공급에서 위치 {index}가 범위 밖입니다"));
+                        }
+                    }
                     let detail=match shape {
                         Shape::BagElement(id)=>{let root=projection.bags.root(*id);let node=&projection.bags.nodes[root];format!("가방 원후보 owner={root}, 공급 {}개, 미해소={}",node.seeds.len(),node.unknown)},
                         Shape::SelectionCandidates(items)=>format!("선택 원후보 {}개",items.len()),
@@ -672,6 +704,24 @@ impl Projection<'_> {
 
     fn source_selections(&self,target:&Shape,index:Option<usize>,active:&mut BTreeSet<usize>)->Option<Vec<Shape>> {
         self.source_selections_for(target,index,active,false)
+    }
+
+    // Only refine an already failing deferred-owner diagnostic. Unknown
+    // length, collection signatures and cyclic/opaque producers prove no
+    // bounds. No missing element is replaced or assigned a guessed type.
+    fn source_index_always_outside(&self,target:&Shape,index:usize,active:&mut BTreeSet<usize>)->bool {
+        match target {
+            Shape::Collection(items)=>index>=items.len(),
+            Shape::CollectionFlow(owner)=>{
+                let root=self.bags.root(*owner);let node=&self.bags.nodes[root];
+                if node.unknown || node.collection_signature || node.seeds.is_empty() || !active.insert(root) {return false;}
+                let outside=node.seeds.iter().all(|seed|self.source_index_always_outside(seed,index,active));
+                active.remove(&root);outside
+            },
+            Shape::DeferredSelection{target,index:Some(previous)}=>self.source_selections(target,Some(*previous),&mut BTreeSet::new())
+                .is_some_and(|values|!values.is_empty() && values.iter().all(|value|self.source_index_always_outside(value,index,active))),
+            _=>false,
+        }
     }
 
     fn source_selections_for(&self,target:&Shape,index:Option<usize>,active:&mut BTreeSet<usize>,scene:bool)->Option<Vec<Shape>> {
@@ -962,15 +1012,17 @@ impl Projection<'_> {
     }
     fn declaration_item(&mut self, scope_id:NodeId, scope:&mut Scope, item:&ddonirang_lang::DeclItem) -> Result<(),String> {
         let actual=item.value.as_ref().map(|value|self.expression(scope_id,scope,value)).transpose()?;
+        let source_collection=matches!(&item.type_ref,TypeRef::Named(name) if name=="차림")
+            && actual.as_ref().is_some_and(source_collection_owner);
         let mut shape=if matches!(item.type_ref,TypeRef::Infer) {actual.unwrap_or(Shape::Unknown(item.id))}
             else {
                 let expected=self.declared(&item.type_ref,item.id)?;
-                if let Some(actual)=actual {self.same_shape(&expected,&actual,item.id)?;}
-                expected
+                if let Some(actual)=&actual {self.same_shape(&expected,actual,item.id)?;}
+                if source_collection {actual.unwrap()}else{expected}
             };
         let owner=scope.get(&item.name).filter(|(owner,_)|owner.declaration==item.id).map(|(owner,_)|*owner)
             .unwrap_or(BindingOwner{scope:scope_id,declaration:item.id});
-        if matches!(item.type_ref,TypeRef::Infer) {shape=self.collection_binding(owner,shape);}
+        if matches!(item.type_ref,TypeRef::Infer) || source_collection {shape=self.collection_binding(owner,shape);}
         if matches!(item.type_ref,TypeRef::Infer) && matches!(&shape,Shape::Declared(TypeRef::Named(name)) if name=="없음") {
             self.inferred_absences.insert(owner);
         }
@@ -1178,7 +1230,7 @@ impl Projection<'_> {
                 kind.map(|kind|if matches!(shape,Shape::BagPreview(_)){TypeRef::Applied{name:"차림".into(),args:vec![kind]}}else{kind})
             }
             Shape::Tuple(items) => Some(TypeRef::Tuple(items.iter().map(|item|Self::finish_shape_inner(item,graph,bags,active)).collect::<Option<_>>()?)),
-            Shape::Unit(_) | Shape::Unknown(_) |Shape::Bag(_)|Shape::BagDraw(_) | Shape::InputEvent => None,
+            Shape::Unit(_) | Shape::Unknown(_) |Shape::Bag(_)|Shape::BagDraw(_) | Shape::InputEvent | Shape::RegisteredAtom => None,
         }
     }
 
@@ -1207,6 +1259,12 @@ impl Projection<'_> {
 
     fn finish_descriptor(&self, shape: &Shape) -> Option<RecordFieldType> {
         match shape {
+            Shape::RegisteredAtom => Some(RecordFieldType::RegisteredAtomV1),
+            Shape::SelectionCandidates(items) if self.output_atoms.is_some()=>{
+                let mut kinds=items.iter().map(|item|self.finish_descriptor(item));
+                let first=kinds.next()??;
+                kinds.all(|kind|kind.as_ref()==Some(&first)).then_some(first)
+            },
             Shape::Tuple(items) => Some(RecordFieldType::Tuple {
                 items: items.iter().map(|item| self.finish_descriptor(item)).collect::<Option<_>>()?,
             }),
@@ -1245,6 +1303,7 @@ impl Projection<'_> {
             ExprKind::Literal(Literal::Bool(_)) => Shape::Declared(TypeRef::Named("참거짓".into())),
             ExprKind::Literal(Literal::String(_)) => Shape::Declared(TypeRef::Named("글".into())),
             ExprKind::Literal(Literal::None) => Shape::Declared(TypeRef::Named("없음".into())),
+            ExprKind::Literal(Literal::Atom(_)) if self.output_atoms.is_some_and(|proof|proof.supplies(self.program,expression.id))=>Shape::RegisteredAtom,
             ExprKind::SumBranchValue{owner,applied_owner,branch,payload}=>{
                 let schema=self.sum_payload(owner,applied_owner,branch,expression.span);
                 for arg in payload {
@@ -1256,6 +1315,14 @@ impl Projection<'_> {
                 }
                 if schema.is_some() {Shape::Declared(applied_owner.clone().unwrap_or_else(||TypeRef::Named(owner.clone())))}
                 else {Shape::Unknown(expression.id)}
+            }
+            // Match the runtime result-place frame rule before numeric
+            // inference reports an unrelated missing operand owner. The
+            // actual active SeedDef, not a matching global spelling, owns it.
+            ExprKind::Var(name) if self.program.items.iter().any(|TopLevelItem::SeedDef(seed)|
+                self.active_callables.contains(&seed.id) && seed.canonical_name==*name
+                && (seed.result_type.is_some() || matches!(seed.seed_kind,ddonirang_lang::SeedKind::ValueFunc))) => {
+                return Err(format!("E_RESULTPLACE_READ_FORBIDDEN: '{}' 결과 자리는 쓰기 전용입니다",name));
             }
             ExprKind::Var(name) => scope.get(name).or_else(||self.callable_globals.get(name)).map(|(_, shape)| shape.clone()).unwrap_or_else(|| match name.as_str() {
                 "참" | "거짓" => Shape::Declared(TypeRef::Named("참거짓".into())),
@@ -1696,6 +1763,14 @@ impl Projection<'_> {
     fn statements(&mut self, scope_id: NodeId, scope: &mut Scope, statements: &[Stmt], callable: Option<&SeedDef>) -> Result<(), String> {
         for statement in statements {
             match statement {
+                Stmt::DerivedBinding {id,name,value,..} => {
+                    let actual=self.expression(scope_id,scope,value)?;
+                    if let Some((_,expected))=scope.get(name).cloned() {self.same_shape(&expected,&actual,*id)?;}
+                    let owner=BindingOwner {scope:scope_id,declaration:*id};
+                    self.bindings.insert(owner,actual.clone());
+                    scope.insert(name.clone(),(owner,actual.clone()));
+                    if scope_id==self.program.id {self.callable_globals.insert(name.clone(),(owner,actual));}
+                }
                 Stmt::SumDefinition{name,branches,..}=>{self.sums.insert(name.clone(),branches.clone());}
                 Stmt::Definition { id, name, type_ref, value, reaction, .. } => {
                     let actual = if let (Some(registration),ExprKind::Thunk(body))=(reaction,&value.kind) {
@@ -1711,13 +1786,20 @@ impl Projection<'_> {
                         self.statements(body.id,&mut nested,&body.stmts,None)?;
                         Shape::Unknown(value.id)
                     }else{self.expression(scope_id, scope, value)?};
+                    // Bare 차림 validates the collection category; it must
+                    // not erase the element owners supplied by authored AST.
+                    // Use the same source-binding path as inferred lists and
+                    // bare collection parameters, never runtime value shape.
+                    let source_collection=matches!(type_ref,TypeRef::Named(name) if name=="차림")
+                        && source_collection_owner(&actual);
                     let mut shape = if matches!(type_ref, TypeRef::Infer) { actual } else {
                         let expected = self.declared(type_ref, *id)?;
-                        self.same_shape(&expected, &actual, *id)?; expected
+                        self.same_shape(&expected, &actual, *id)?;
+                        if source_collection {actual}else{expected}
                     };
                     let owner = scope.get(name).filter(|(owner,_)|owner.declaration==*id).map(|(owner,_)|*owner)
                         .unwrap_or(BindingOwner { scope: scope_id, declaration: *id });
-                    if matches!(type_ref,TypeRef::Infer) {shape=self.collection_binding(owner,shape);}
+                    if matches!(type_ref,TypeRef::Infer) || source_collection {shape=self.collection_binding(owner,shape);}
                     if matches!(type_ref,TypeRef::Infer) && matches!(&shape,Shape::Declared(TypeRef::Named(name)) if name=="없음") {
                         self.inferred_absences.insert(owner);
                     }

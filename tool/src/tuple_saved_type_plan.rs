@@ -5,7 +5,7 @@ use ddonirang_core::platform::RecordFieldType;
 use ddonirang_lang::{CanonProgram, Expr, ExprKind, Literal, NodeId, Stmt, TensorAxisSelector, TypeRef};
 use ddonirang_lang::runtime::{record_type_identity, RecordSchemas};
 
-fn resolve_nominal_type(kind:&RecordFieldType,nominals:&BTreeMap<String,(u8,[u8;32])>)->RecordFieldType {
+pub(crate) fn resolve_nominal_type(kind:&RecordFieldType,nominals:&BTreeMap<String,(u8,[u8;32])>)->RecordFieldType {
     enum Job<'a>{Type(&'a RecordFieldType),Tuple(usize),Applied(&'a str,usize),Record(Vec<String>)}
     let mut jobs=vec![Job::Type(kind)];let mut built=Vec::new();
     while let Some(job)=jobs.pop(){match job {
@@ -13,6 +13,7 @@ fn resolve_nominal_type(kind:&RecordFieldType,nominals:&BTreeMap<String,(u8,[u8;
             RecordFieldType::ResolvedNominalV1{category:*category,name_type_identity:*id}
         }else{RecordFieldType::Named{name:name.clone()}}),
         Job::Type(RecordFieldType::ResolvedNominalV1{category,name_type_identity})=>built.push(RecordFieldType::ResolvedNominalV1{category:*category,name_type_identity:*name_type_identity}),
+        Job::Type(RecordFieldType::RegisteredAtomV1)=>built.push(RecordFieldType::RegisteredAtomV1),
         Job::Type(RecordFieldType::Tuple{items})=>{jobs.push(Job::Tuple(items.len()));jobs.extend(items.iter().rev().map(Job::Type));},
         Job::Type(RecordFieldType::Applied{name,args})=>{jobs.push(Job::Applied(name,args.len()));jobs.extend(args.iter().rev().map(Job::Type));},
         Job::Type(RecordFieldType::Record{fields})=>{jobs.push(Job::Record(fields.keys().cloned().collect()));jobs.extend(fields.values().rev().map(Job::Type));},
@@ -97,6 +98,16 @@ impl TupleSavedTypePlan {
                     if item.value.is_some() { result.write(item.id, &item.name, &binding); }
                     if let Some(expr) = &item.value { reject_nested_writes(expr, &mut result.rejected); }
                 },
+                Stmt::DerivedBinding {id,name,value,..}=>{
+                    let kind=expression_type(value,&bindings,&call_results);
+                    let binding=if let Some(previous)=bindings.get(name) {
+                        if previous.kind!=kind {result.rejected.insert(name.clone());}
+                        previous.clone()
+                    }else{Binding{root:*id,kind}};
+                    bindings.insert(name.clone(),binding.clone());
+                    result.write(*id,name,&binding);
+                    reject_nested_writes(value,&mut result.rejected);
+                }
                 Stmt::Definition { id, name, type_ref, value, .. } => {
                     let kind = if matches!(type_ref, TypeRef::Infer) { expression_type(value, &bindings, &call_results) }
                         else { record_type_identity(type_ref, records).ok().map(|kind|resolve_nominal_type(&kind,nominals)) };
@@ -330,7 +341,7 @@ fn reject_writes(root: Scan<'_>, rejected: &mut BTreeSet<String>) {
                 pending.extend(else_body.stmts.iter().map(Scan::Stmt));
                 if let Some(body) = then_body { pending.extend(body.stmts.iter().map(Scan::Stmt)); }
             }
-            Stmt::Definition { value, .. } | Stmt::Expr { expr: value, .. }
+            Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} | Stmt::Expr { expr: value, .. }
             | Stmt::Show { expr: value, .. } | Stmt::Inspect { expr: value, .. }
             | Stmt::Return { value, .. } => pending.push(Scan::Expr(value)),
             Stmt::DeclBlock { items, .. } => for item in items {

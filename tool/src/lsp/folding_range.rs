@@ -170,6 +170,7 @@ fn collect_nested_candidates(body: &Body, candidates: &mut Vec<Candidate>) {
             }
             Stmt::DeclBlock { .. }
             | Stmt::Definition { .. }
+            | Stmt::DerivedBinding {..}
             | Stmt::Mutate { .. }
             | Stmt::ResultFlow { .. }
             | Stmt::Expr { .. }
@@ -205,6 +206,7 @@ fn statement_span(statement: &Stmt) -> ddonirang_lang::Span {
         | Stmt::SumDefinition {span,..}
         | Stmt::SumMatch {span,..}
         | Stmt::Definition { span, .. }
+        | Stmt::DerivedBinding {span,..}
         | Stmt::Mutate { span, .. }
         | Stmt::ResultFlow { span, .. }
         | Stmt::Expr { span, .. }

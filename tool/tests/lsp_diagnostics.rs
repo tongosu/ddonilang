@@ -10,7 +10,9 @@ use serde_json::{json, Value};
 const URI: &str = "file:///lsp-diagnostics.ddn";
 const VALID: &str = "첫함수:셈씨 := { 1 돌려줘. }\n둘함수:셈씨 := { 첫함수. }";
 const LEGACY_EQUALS: &str = "검산:움직씨 = {\n}\n";
-const SYNTAX_ERROR: &str = "검산:움직씨 := {\n    값:(수, 글) := 1.\n}\n";
+// A well-formed Tuple type is supported by VC13; a missing position keeps
+// this fixture a parser error, not a runtime Tuple/value mismatch.
+const SYNTAX_ERROR: &str = "검산:움직씨 := {\n    값:(수,, 글) := 1.\n}\n";
 
 fn init(server: &mut LspServer) -> ServerEvent {
     server

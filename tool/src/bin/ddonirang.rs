@@ -33,12 +33,14 @@ fn usage() -> &'static str {
   논리/조작 기록·재생의 기본 운반 형식은 통합 V3 후보입니다. --format=v3를 명시해도 같습니다. 최종 이름 동결은 별도입니다.\n\
   V3 읽기는 옛 기록을 자동 탐지·변환하지 않습니다. 기대 입력 계약을 별도로 전달해야 합니다.\n\
   여러 파일 작품은 논리 기록·재생에 --authored를 명시하고 원문 대신 작품 자료 JSON을 전달합니다.\n\
-  ddonilang 논리입력재생 <파일.ddn> <기록파일> <입력계약.json>  (technical: logical-replay)\n\
+  ddonilang 논리입력재생 <파일.ddn> <기록파일> <입력계약.json> [--부분재생]  (technical: logical-replay)\n\
+  조작입력재생도 --부분재생을 지원합니다. 중단된 기록의 실제 끝까지만 재생하며 완전한 기록으로 바꾸지 않습니다. 실패 기록은 거부합니다.\n\
   ddonilang 작품자료 <만들기|열기|복제|갱신|보개등록|이름변경|경로변경> <파일.json>  (technical: authored-project)\n\
   ddonilang 작품자료 실행 <파일.json> [--마디수 N]: 저장된 보개 정체로 실행\n\
   Native 원문 저장: 작품자료 원문저장 <작품.json> --판 <정체hex> --저장소 <새폴더>\n\
-  Native 첫 실행: 작품자료 첫실행 <원문저장보고.json> --판 <새정체hex> --저장소 <폴더> --마디수 N\n\
-  Native 원문 이어 실행: 작품자료 원문이어실행 <저장.json> --부모 <정체hex> --판 <정체hex> --저장소 <폴더> --허가 <locator> --마디수 N\n\
+  Native 첫 실행: 작품자료 첫실행 <원문저장보고.json> --판 <새정체hex> --저장소 <폴더> --마디수 N [--저장파일 <새파일>]\n\
+  Native 원문 이어 실행: 작품자료 원문이어실행 <저장.json> --부모 <정체hex> --판 <정체hex> --저장소 <폴더> --허가 <locator> --마디수 N [--저장판 <다음정체hex> --저장파일 <새파일>]\n\
+  저장파일은 시도 전 보관하는 복원 준비 자료이며 완료 증명은 아닙니다. 재열기 때 Native 저장소 검증을 거치며 기존 파일은 덮어쓰지 않습니다.\n\
   Native 일반 저장: 위 명령 뒤 --마디수 N --저장소 <폴더> --부모 <처음|정체hex> --판 <정체hex> [--저장소-초기화] [--이전-영수증 <영수증.hex>]\n\
   잠정 저장소 허가: 작품자료 저장소허가 <등록|확인|폐기> <저장.json> --부모 <처음|정체hex> --판 <정체hex> --저장소 <폴더> [--허가 <locator>] (복구 영수증 아님)\n\
   잠정 Native 복구 기록 저장: 작품자료 내구기록 <작품.json> --마디수 N --판 <정체hex> --저장소 <새폴더> --저장소-초기화 --복구자료 <별도 새폴더> (일반 실행·첫 저장만)\n\
@@ -79,10 +81,10 @@ enum Command {
     ProjectRun(ProjectRunCommand),
     CurrentlineRun(CurrentlineCommand),
     Workbench(WorkbenchCommand),
-    LogicalRecord { source: PathBuf, request: PathBuf, output: PathBuf, v3:bool, authored:bool },
-    LogicalReplay { source: PathBuf, tape: PathBuf, binding: PathBuf, v3:bool, authored:bool },
+    LogicalRecord { source: PathBuf, request: PathBuf, output: PathBuf, v3:bool, authored:bool, finish_live:bool },
+    LogicalReplay { source: PathBuf, tape: PathBuf, binding: PathBuf, v3:bool, authored:bool, partial:bool },
     ManipulationRecord { source: PathBuf, request: PathBuf, output: PathBuf, v3:bool },
-    ManipulationReplay { source: PathBuf, tape: PathBuf, binding: PathBuf, v3:bool },
+    ManipulationReplay { source: PathBuf, tape: PathBuf, binding: PathBuf, v3:bool, partial:bool },
     AuthoredProject { operation: String, input: PathBuf },
     AuthoredRun { input: PathBuf, madi: Option<u32>, native:Option<NativeGeneralSave> },
     AuthoredResume { input: PathBuf, parent: Vec<u8>, revision: Vec<u8>, madi: u32, native:Option<NativeResume> },
@@ -90,9 +92,10 @@ enum Command {
     NativeRootGrant { operation:String, input:PathBuf, parent:Vec<u8>, revision:Vec<u8>, root:PathBuf, locator:Option<String> },
     NativeCustodyRecord { input:PathBuf, input_mode:NativeCustodyInput, revision:Vec<u8>, root:PathBuf, recovery:PathBuf },
     NativeCustodyResume { input:PathBuf, input_mode:NativeCustodyInput, revision:Vec<u8>, root:PathBuf, locator:String, request:PathBuf, token:[u8;33] },
+    NativeSourceOperation {input:PathBuf},
     NativeSourceSave {input:PathBuf,revision:Vec<u8>,root:PathBuf},
-    NativeSourceRun {input:PathBuf,revision:Vec<u8>,root:PathBuf,madi:u32},
-    NativeSourceResume {input:PathBuf,parent:Vec<u8>,revision:Vec<u8>,root:PathBuf,locator:String,madi:u32},
+    NativeSourceRun {input:PathBuf,revision:Vec<u8>,root:PathBuf,madi:u32,prepare_output:Option<PathBuf>,record_original_private:bool},
+    NativeSourceResume {input:PathBuf,parent:Vec<u8>,revision:Vec<u8>,root:PathBuf,locator:String,madi:u32,save_revision:Option<Vec<u8>>,prepare_output:Option<PathBuf>,evidence_output:Option<PathBuf>},
 }
 
 /// Locator data only. The Native owner must reopen and verify protected
@@ -1143,22 +1146,35 @@ fn command_help_requested(command: &str, rest: &[String]) -> bool {
         )
 }
 
-fn input_transport_args(args:&[String])->Result<(&[String],bool,bool),String> {
+fn input_transport_args(args:&[String])->Result<(&[String],bool,bool,bool),String> {
     let split=args.iter().position(|arg|arg.starts_with("--")).unwrap_or(args.len());
-    let mut v3=false;let mut authored=false;
+    let mut v3=false;let mut authored=false;let mut partial=false;
     for flag in &args[split..] {match flag.as_str() {
         "--format=v3" if !v3=>v3=true,
         "--authored" if !authored=>authored=true,
+        "--부분재생" if !partial=>partial=true,
         _=>return Err("E_CLI_INPUT_FORMAT: 입력 기록 형식·작품 선택을 명시하고 중복 없이 전달하세요".into()),
     }}
     // One default transport; never infer V1/V2 from bytes or a file name.
     // Keep the old codecs for their existing internal semantic suppliers,
     // not as a second normal CLI reader/writer or a compatibility fallback.
-    Ok((&args[..split],true,authored))
+    Ok((&args[..split],true,authored,partial))
 }
 
 #[cfg(test)]
 mod input_transport_tests {
+    #[test]
+    fn partial_replay_requires_explicit_unique_replay_option() {
+        let args=|command:&str,flags:&[&str]| [command,"raw.ddn","input.bin","binding.json"].into_iter()
+            .chain(flags.iter().copied()).map(str::to_string).collect();
+        assert!(matches!(super::parse_args(args("logical-replay",&[])).unwrap(),super::Command::LogicalReplay{partial:false,..}));
+        assert!(matches!(super::parse_args(args("logical-replay",&["--부분재생"])).unwrap(),super::Command::LogicalReplay{partial:true,..}));
+        assert!(matches!(super::parse_args(args("manipulation-replay",&["--부분재생"])).unwrap(),super::Command::ManipulationReplay{partial:true,..}));
+        for command in ["logical-record","manipulation-record"] {
+            assert!(super::parse_args(args(command,&["--부분재생"])).is_err());
+        }
+        assert!(super::parse_args(args("logical-replay",&["--부분재생","--부분재생"])).is_err());
+    }
     #[test]
     fn input_transport_format_is_explicit_not_detected_from_file() {
         for command in ["logical-record","logical-replay","manipulation-record","manipulation-replay"] {
@@ -1176,6 +1192,16 @@ mod input_transport_tests {
         assert!(super::parse_args(args(&["--format=v3","--authored","--authored"])).is_err());
         assert!(matches!(super::parse_args(args(&["--authored","--format=v3"])).unwrap(),super::Command::LogicalRecord{v3:true,authored:true,..}));
     }
+    #[test]
+    fn b3_private_live_finish_is_explicit_and_not_a_replay_mode(){
+        let args=|command:&str,flags:&[&str]|[command,"raw.ddn","input.json","out.bin"].into_iter()
+            .chain(flags.iter().copied()).map(str::to_string).collect();
+        assert!(matches!(super::parse_args(args("logical-record",&[])).unwrap(),super::Command::LogicalRecord{finish_live:false,..}));
+        assert!(matches!(super::parse_args(args("logical-record",&["--authored","--finish-live-private"])).unwrap(),super::Command::LogicalRecord{finish_live:true,authored:true,..}));
+        assert!(super::parse_args(args("logical-record",&["--finish-live-private","--finish-live-private"])).is_err());
+        assert!(super::parse_args(args("logical-record",&["--부분재생","--finish-live-private"])).is_err());
+        assert!(super::parse_args(args("logical-replay",&["--finish-live-private"])).is_err());
+    }
 }
 
 fn parse_args(args: Vec<String>) -> Result<Command, String> {
@@ -1187,6 +1213,10 @@ fn parse_args(args: Vec<String>) -> Result<Command, String> {
     }
     match command.as_str() {
         "작품자료" | "authored-project" => {
+            if rest.first().map(String::as_str)==Some("원문전이"){
+                if rest.len()!=2{return Err("작품자료 원문전이 <Native요청.json> — 같은 Native 작업대 저장 입구".into());}
+                return Ok(Command::NativeSourceOperation{input:PathBuf::from(&rest[1])});
+            }
             if rest.first().map(String::as_str)==Some("원문저장") {
                 if rest.len()!=6||rest[2]!="--판"||rest[4]!="--저장소"{
                     return Err("작품자료 원문저장 <작품.json> --판 <정체hex> --저장소 <새폴더>".into());
@@ -1194,18 +1224,30 @@ fn parse_args(args: Vec<String>) -> Result<Command, String> {
                 return Ok(Command::NativeSourceSave{input:PathBuf::from(&rest[1]),revision:parse_storage_identity(&rest[3])?,root:PathBuf::from(&rest[5])});
             }
             if rest.first().map(String::as_str)==Some("첫실행") {
-                if rest.len()!=8||rest[2]!="--판"||rest[4]!="--저장소"||rest[6]!="--마디수"{
+                // Private product evidence opt-in, not a language surface or
+                // a normal-End claim. Existing command defaults are unchanged.
+                let record_original_private=rest.last().map(String::as_str)==Some("--record-original-private");
+                let rest=if record_original_private{&rest[..rest.len()-1]}else{rest};
+                if !matches!(rest.len(),8|10)||rest[2]!="--판"||rest[4]!="--저장소"||rest[6]!="--마디수"||(rest.len()==10&&rest[8]!="--저장파일"){
                     return Err("작품자료 첫실행 <원문저장보고.json> --판 <새정체hex> --저장소 <폴더> --마디수 N".into());
                 }
                 let NativeCustodyInput::General(madi)=parse_native_custody_input(&rest[6],&rest[7])? else{unreachable!()};
-                return Ok(Command::NativeSourceRun{input:PathBuf::from(&rest[1]),revision:parse_storage_identity(&rest[3])?,root:PathBuf::from(&rest[5]),madi});
+                return Ok(Command::NativeSourceRun{input:PathBuf::from(&rest[1]),revision:parse_storage_identity(&rest[3])?,root:PathBuf::from(&rest[5]),madi,
+                    prepare_output:if rest.len()==10{Some(PathBuf::from(&rest[9]))}else{None},record_original_private});
             }
             if rest.first().map(String::as_str)==Some("원문이어실행") {
-                if rest.len()!=12||rest[2]!="--부모"||rest[4]!="--판"||rest[6]!="--저장소"||rest[8]!="--허가"||rest[10]!="--마디수"{
-                    return Err("작품자료 원문이어실행 <저장.json> --부모 <정체hex> --판 <정체hex> --저장소 <폴더> --허가 <locator> --마디수 N".into());
+                let evidence_output=if rest.len()>=2&&rest[rest.len()-2]=="--recording-evidence-private"{Some(PathBuf::from(rest.last().unwrap()))}else{None};
+                let rest=if evidence_output.is_some(){&rest[..rest.len()-2]}else{rest};
+                if !matches!(rest.len(),12|16)||rest[2]!="--부모"||rest[4]!="--판"||rest[6]!="--저장소"||rest[8]!="--허가"||rest[10]!="--마디수"
+                    ||(rest.len()==16&&(rest[12]!="--저장판"||rest[14]!="--저장파일")){
+                    return Err("작품자료 원문이어실행 <저장.json> --부모 <정체hex> --판 <정체hex> --저장소 <폴더> --허가 <locator> --마디수 N [--저장판 <다음정체hex> --저장파일 <새파일>]".into());
                 }
-                let NativeCustodyInput::General(madi)=parse_native_custody_input(&rest[10],&rest[11])? else{unreachable!()};
-                return Ok(Command::NativeSourceResume{input:PathBuf::from(&rest[1]),parent:parse_storage_identity(&rest[3])?,revision:parse_storage_identity(&rest[5])?,root:PathBuf::from(&rest[7]),locator:rest[9].clone(),madi});
+                let madi=if evidence_output.is_some(){
+                    if rest.len()!=12||rest[11]!="0"{return Err("E_GENERAL_RECORDING_READONLY: 증거 읽기는 --마디수 0이며 저장판을 만들지 않습니다".into());}0
+                }else{let NativeCustodyInput::General(madi)=parse_native_custody_input(&rest[10],&rest[11])? else{unreachable!()};madi};
+                return Ok(Command::NativeSourceResume{input:PathBuf::from(&rest[1]),parent:parse_storage_identity(&rest[3])?,revision:parse_storage_identity(&rest[5])?,root:PathBuf::from(&rest[7]),locator:rest[9].clone(),madi,
+                    save_revision:if rest.len()==16{Some(parse_storage_identity(&rest[13])?)}else{None},
+                    prepare_output:if rest.len()==16{Some(PathBuf::from(&rest[15]))}else{None},evidence_output});
             }
             if rest.first().map(String::as_str)==Some("내구기록") {
                 if rest.len()!=11 || rest[4]!="--판" || rest[6]!="--저장소" || rest[8]!="--저장소-초기화" || rest[9]!="--복구자료" {
@@ -1343,30 +1385,37 @@ fn parse_args(args: Vec<String>) -> Result<Command, String> {
             Ok(Command::AuthoredProject { operation: operation.into(), input: PathBuf::from(&rest[1]) })
         }
         "manipulation-record" | "조작입력기록" => {
-            let (rest,v3,authored)=input_transport_args(rest)?;
+            let (rest,v3,authored,partial)=input_transport_args(rest)?;
+            if partial{return Err("E_CLI_INPUT_REPLAY_MODE: --부분재생은 기록 생성에 사용할 수 없습니다".into());}
             if authored{return Err("E_MANIPULATION_PROJECT_UNSUPPORTED: 여러 파일 조작 입력은 지원하지 않습니다".into());}
             if rest.len()!=3 || rest.iter().any(|value|value.starts_with("--")) { return Err("E_CLI_MANIPULATION_ARGUMENTS: 원문·입력요청·출력기록 경로가 필요합니다".into()); }
             Ok(Command::ManipulationRecord {source:PathBuf::from(&rest[0]),request:PathBuf::from(&rest[1]),output:PathBuf::from(&rest[2]),v3})
         }
         "manipulation-replay" | "조작입력재생" => {
-            let (rest,v3,authored)=input_transport_args(rest)?;
+            let (rest,v3,authored,partial)=input_transport_args(rest)?;
             if authored{return Err("E_MANIPULATION_PROJECT_UNSUPPORTED: 여러 파일 조작 입력은 지원하지 않습니다".into());}
             if rest.len()!=3 || rest.iter().any(|value|value.starts_with("--")) { return Err("E_CLI_MANIPULATION_ARGUMENTS: 원문·기록·입력계약 경로가 필요합니다".into()); }
-            Ok(Command::ManipulationReplay {source:PathBuf::from(&rest[0]),tape:PathBuf::from(&rest[1]),binding:PathBuf::from(&rest[2]),v3})
+            Ok(Command::ManipulationReplay {source:PathBuf::from(&rest[0]),tape:PathBuf::from(&rest[1]),binding:PathBuf::from(&rest[2]),v3,partial})
         }
         "logical-record" | "논리입력기록" => {
-            let (rest,v3,authored)=input_transport_args(rest)?;
+            // Product-private physical command; no new language surface or
+            // finite-plan end proof. Unknown/duplicate flags still reject.
+            let finish_count=rest.iter().filter(|arg|arg.as_str()=="--finish-live-private").count();
+            if finish_count>1{return Err("E_CLI_INPUT_FORMAT: 기록 마치기 선택을 중복할 수 없습니다".into());}
+            let selected:Vec<String>=rest.iter().filter(|arg|arg.as_str()!="--finish-live-private").cloned().collect();
+            let (rest,v3,authored,partial)=input_transport_args(&selected)?;
+            if partial{return Err("E_CLI_INPUT_REPLAY_MODE: --부분재생은 기록 생성에 사용할 수 없습니다".into());}
             if rest.len() != 3 || rest.iter().any(|value| value.starts_with("--")) {
                 return Err("E_CLI_LOGICAL_ARGUMENTS: 원문·입력요청·출력기록 경로가 필요합니다".into());
             }
-            Ok(Command::LogicalRecord { source: PathBuf::from(&rest[0]), request: PathBuf::from(&rest[1]), output: PathBuf::from(&rest[2]),v3,authored })
+            Ok(Command::LogicalRecord { source: PathBuf::from(&rest[0]), request: PathBuf::from(&rest[1]), output: PathBuf::from(&rest[2]),v3,authored,finish_live:finish_count==1 })
         }
         "logical-replay" | "논리입력재생" => {
-            let (rest,v3,authored)=input_transport_args(rest)?;
+            let (rest,v3,authored,partial)=input_transport_args(rest)?;
             if rest.len() != 3 || rest.iter().any(|value| value.starts_with("--")) {
                 return Err("E_CLI_LOGICAL_ARGUMENTS: 원문·기록·입력계약 경로가 필요합니다".into());
             }
-            Ok(Command::LogicalReplay { source: PathBuf::from(&rest[0]), tape: PathBuf::from(&rest[1]), binding: PathBuf::from(&rest[2]),v3,authored })
+            Ok(Command::LogicalReplay { source: PathBuf::from(&rest[0]), tape: PathBuf::from(&rest[1]), binding: PathBuf::from(&rest[2]),v3,authored,partial })
         }
         "help" | "도움" | "--help" | "--도움" | "-h" => {
             if rest.is_empty() {
@@ -1572,6 +1621,11 @@ fn execute_control_input(command: &SourceCommand, source: &str) -> Result<(Strin
 
 fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
     match command {
+        Command::NativeSourceOperation{input}=>{
+            let raw=String::from_utf8(read_logical_input(&input)?).map_err(|_|ExecutionError::input("E_SOURCE_UTF8_INVALID"))?;
+            let result=ddonirang_tool::workbench_host::native_source_operation(&raw).map_err(ExecutionError::runtime)?;
+            Ok((result+"\n",0))
+        },
         Command::NativeSourceSave{input,revision,root}=>{
             #[cfg(not(windows))]
             {let _=(input,revision,root);Err(ExecutionError::runtime("E_SOURCE_FIRST_USE_UNSUPPORTED: 보호된 Native 원문 실행은 이 환경에서 지원하지 않습니다"))}
@@ -1587,9 +1641,9 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
                 Ok((serde_json::to_string(&report).map_err(|error|ExecutionError::runtime(error.to_string()))?+"\n",0))
             }
         },
-        Command::NativeSourceRun{input,revision,root,madi}=>{
+        Command::NativeSourceRun{input,revision,root,madi,prepare_output,record_original_private}=>{
             #[cfg(not(windows))]
-            {let _=(input,revision,root,madi);Err(ExecutionError::runtime("E_SOURCE_FIRST_USE_UNSUPPORTED: 보호된 Native 원문 실행은 이 환경에서 지원하지 않습니다"))}
+            {let _=(input,revision,root,madi,prepare_output,record_original_private);Err(ExecutionError::runtime("E_SOURCE_FIRST_USE_UNSUPPORTED: 보호된 Native 원문 실행은 이 환경에서 지원하지 않습니다"))}
             #[cfg(windows)]
             {
                 let report:NativeSourceLocatorReport=serde_json::from_slice(&read_logical_input(&input)?)
@@ -1604,19 +1658,43 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
                     .try_into().map_err(|_|ExecutionError::input("E_SOURCE_LOCATOR_IDENTITY: 원문 무결성 길이가 다릅니다"))?;
                 let session=ddonirang_tool::runtime_surface::begin_first_authored_source_native(&root,&project,&report.grant_locator,&parent,&integrity)
                     .map_err(ExecutionError::runtime)?;
-                let retained=session.execute(madi,0,None,None).and_then(|run|run.prepare(&revision))
-                    .and_then(|prepared|prepared.write_prepared()).and_then(|prepared|prepared.commit())
-                    .map_err(ExecutionError::runtime)?;
+                let execution=session.execute(madi,0,None,None).map_err(ExecutionError::runtime)?;
+                if record_original_private{
+                    let prepared=execution.prepare_recording(&revision).map_err(ExecutionError::runtime)?;
+                    if let Some(path)=prepare_output{prepared.stage_restore_cache(|text,_|stage_native_source_artifact(&path,text)).map_err(ExecutionError::runtime)?;}
+                    let retained=prepared.commit().map_err(ExecutionError::runtime)?;
+                    return Ok((retained.report_json().map_err(ExecutionError::runtime)?+"\n",0));
+                }
+                let prepared=execution.prepare(&revision).map_err(ExecutionError::runtime)?;
+                if let Some(path)=prepare_output{prepared.stage_restore_cache(|text,_|stage_native_source_artifact(&path,text)).map_err(ExecutionError::runtime)?;}
+                let retained=prepared.write_prepared().and_then(|prepared|prepared.commit()).map_err(ExecutionError::runtime)?;
                 Ok((retained.report_json().map_err(ExecutionError::runtime)?+"\n",0))
             }
         },
-        Command::NativeSourceResume{input,parent,revision,root,locator,madi}=>{
+        Command::NativeSourceResume{input,parent,revision,root,locator,madi,save_revision,prepare_output,evidence_output}=>{
             #[cfg(not(windows))]
-            {let _=(input,parent,revision,root,locator,madi);Err(ExecutionError::runtime("E_SOURCE_FIRST_USE_UNSUPPORTED: 보호된 Native 원문 실행은 이 환경에서 지원하지 않습니다"))}
+            {let _=(input,parent,revision,root,locator,madi,save_revision,prepare_output,evidence_output);Err(ExecutionError::runtime("E_SOURCE_FIRST_USE_UNSUPPORTED: 보호된 Native 원문 실행은 이 환경에서 지원하지 않습니다"))}
             #[cfg(windows)]
             {
                 let artifact=String::from_utf8(read_logical_input(&input)?)
                     .map_err(|_|ExecutionError::input("E_SOURCE_UTF8_INVALID: 저장 작품은 UTF-8이어야 합니다"))?;
+                if let Some(output)=evidence_output{
+                    let evidence=ddonirang_tool::runtime_surface::read_current_general_recording_content(&artifact,&parent,&revision,&root,&locator).map_err(ExecutionError::runtime)?;
+                    stage_native_source_artifact(&output,evidence.bundle_bytes()).map_err(ExecutionError::runtime)?;
+                    return Ok((evidence.report_json()+"\n",0));
+                }
+                if let Some(next)=save_revision {
+                    // A staged artifact is observer data only. Nothing is
+                    // written to stdout until the common Rust retained/current
+                    // owner and cold readback have admitted the committed Wn.
+                    let mut candidate=None;
+                    let path=prepare_output.ok_or_else(||ExecutionError::input("E_SOURCE_WORLD_NEXT_FILE_REQUIRED: --저장파일로 복원 준비 자료를 보관하세요"))?;
+                    let summary=ddonirang_tool::runtime_surface::save_continued_source_world_native(&artifact,&parent,&revision,&next,&root,&locator,madi,
+                        |text,_|{stage_native_source_artifact(&path,text)?;candidate=Some(text.to_owned());Ok(())}).map_err(ExecutionError::runtime)?;
+                    let artifact=candidate.ok_or_else(||ExecutionError::runtime("E_SOURCE_WORLD_NEXT_ARTIFACT_MISSING"))?;
+                    let result=serde_json::json!({"saved_artifact_json_utf8":artifact,"summary":summary,"continued_state_saved":true});
+                    return Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(result))?,0));
+                }
                 let result=ddonirang_tool::runtime_surface::resume_first_saved_source_world_native(&artifact,&parent,&revision,&root,&locator,madi)
                     .map_err(ExecutionError::runtime)?;
                 Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(result))?,0))
@@ -1798,15 +1876,17 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
             ddonirang_tool::artifact_output::write_binary_artifact_atomic(&output,&bytes).map_err(ExecutionError::runtime)?;
             Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(summary))?+"\n",0))
         }
-        Command::ManipulationReplay {source,tape,binding,v3} => {
+        Command::ManipulationReplay {source,tape,binding,v3,partial} => {
+            let mode=if partial{ddonirang_tool::input_tape_v3::ReplayMode::RecordedPrefix}else{ddonirang_tool::input_tape_v3::ReplayMode::CompleteOnly};
+            if partial&&!v3{return Err(ExecutionError::input("E_CLI_INPUT_REPLAY_MODE: 부분 재생은 명시 V3 기록만 지원합니다"));}
             let source=String::from_utf8(read_logical_input(&source)?).map_err(|_|ExecutionError::input("E_SOURCE_UTF8_INVALID: 원문이 UTF-8이 아닙니다"))?;
             let binding=ddonirang_tool::serde_json::from_slice(&read_logical_input(&binding)?).map_err(|_|ExecutionError::input("E_MANIPULATION_BINDING_JSON: 입력 계약이 올바르지 않습니다"))?;
             let bytes=read_logical_input(&tape)?;
-            let summary=if v3 {ddonirang_tool::input_tape_v3::replay(&source,&bytes,ddonirang_tool::input_tape_v3::ExpectedBinding::Manipulation(&binding))}
+            let summary=if v3 {ddonirang_tool::input_tape_v3::replay_with_mode(&source,&bytes,ddonirang_tool::input_tape_v3::ExpectedBinding::Manipulation(&binding),mode)}
                 else {ddonirang_tool::manipulation_input::replay_source(&source,&bytes,&binding)}.map_err(ExecutionError::runtime)?;
             Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(summary))?+"\n",0))
         }
-        Command::LogicalRecord { source, request, output, v3, authored } => {
+        Command::LogicalRecord { source, request, output, v3, authored, finish_live } => {
             if existing_input_output_alias(&source, &output) || existing_input_output_alias(&request, &output) {
                 return Err(ExecutionError::input("E_CLI_OUTPUT_ALIASES_INPUT: 기록으로 입력을 덮어쓸 수 없습니다"));
             }
@@ -1816,7 +1896,8 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
             let source = String::from_utf8(source).map_err(|_| ExecutionError::input("E_SOURCE_UTF8_INVALID: 원문이 UTF-8이 아닙니다"))?;
             let request = ddonirang_tool::serde_json::from_slice(&read_logical_input(&request)?)
                 .map_err(|_| ExecutionError::input("E_LOGICAL_INPUT_REQUEST: 입력 요청 필드가 올바르지 않습니다"))?;
-            let (bytes, summary) = if authored {ddonirang_tool::input_tape_v3::record_authored_logical(&source,&request)}
+            let (bytes, summary) = if finish_live {ddonirang_tool::input_tape_v3::finish_live_logical(&source,&request,authored)}
+                else if authored {ddonirang_tool::input_tape_v3::record_authored_logical(&source,&request)}
                 else if v3 {ddonirang_tool::input_tape_v3::record_logical(&source,&request)}
                 else {ddonirang_tool::logical_input_tape::record_source(&source, &request)}
                 .map_err(ExecutionError::runtime)?;
@@ -1824,14 +1905,16 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
                 .map_err(ExecutionError::runtime)?;
             Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(summary))? + "\n", 0))
         }
-        Command::LogicalReplay { source, tape, binding, v3, authored } => {
+        Command::LogicalReplay { source, tape, binding, v3, authored, partial } => {
+            let mode=if partial{ddonirang_tool::input_tape_v3::ReplayMode::RecordedPrefix}else{ddonirang_tool::input_tape_v3::ReplayMode::CompleteOnly};
+            if partial&&!v3{return Err(ExecutionError::input("E_CLI_INPUT_REPLAY_MODE: 부분 재생은 명시 V3 기록만 지원합니다"));}
             let source = String::from_utf8(read_logical_input(&source)?)
                 .map_err(|_| ExecutionError::input("E_SOURCE_UTF8_INVALID: 원문이 UTF-8이 아닙니다"))?;
             let expected = ddonirang_tool::serde_json::from_slice(&read_logical_input(&binding)?)
                 .map_err(|_| ExecutionError::input("E_LOGICAL_INPUT_BINDING: 입력 계약 필드가 올바르지 않습니다"))?;
             let bytes=read_logical_input(&tape)?;
-            let summary = if authored {ddonirang_tool::input_tape_v3::replay_authored_logical(&source,&bytes,&expected)}
-                else if v3 {ddonirang_tool::input_tape_v3::replay(&source,&bytes,ddonirang_tool::input_tape_v3::ExpectedBinding::Logical(&expected))}
+            let summary = if authored {ddonirang_tool::input_tape_v3::replay_authored_logical_with_mode(&source,&bytes,&expected,mode)}
+                else if v3 {ddonirang_tool::input_tape_v3::replay_with_mode(&source,&bytes,ddonirang_tool::input_tape_v3::ExpectedBinding::Logical(&expected),mode)}
                 else {ddonirang_tool::logical_input_tape::replay_source(&source,&bytes,&expected)}
                 .map_err(ExecutionError::runtime)?;
             Ok((pretty_json(&ddonirang_tool::runtime_surface::RuntimeJsonOutput::new(summary))? + "\n", 0))
@@ -2180,6 +2263,43 @@ fn read_native_recovery_request(path:&Path)->Result<Vec<u8>,ExecutionError> {
     Ok(raw)
 }
 
+fn stage_native_source_artifact(path:&Path,content:impl AsRef<[u8]>)->Result<(),String>{
+    use std::io::Read;
+    let bytes=content.as_ref();
+    // Caller-selected untrusted restore material, not a recovery record,
+    // token or receipt. Never overwrite a previously selected file.
+    let mut file=fs::OpenOptions::new().create_new(true).write(true).open(path)
+        .map_err(|e|format!("E_SOURCE_PREPARE_FILE_CREATE: {e}"))?;
+    file.write_all(bytes).and_then(|_|file.sync_all()).map_err(|e|format!("E_SOURCE_PREPARE_FILE_SYNC: {e}"))?;
+    drop(file);
+    let mut actual=Vec::new();
+    fs::File::open(path).map_err(|e|format!("E_SOURCE_PREPARE_FILE_READ: {e}"))?.take(bytes.len() as u64+1)
+        .read_to_end(&mut actual).map_err(|e|format!("E_SOURCE_PREPARE_FILE_READ: {e}"))?;
+    if actual!=bytes{return Err("E_SOURCE_PREPARE_FILE_MISMATCH".into());}
+    Ok(())
+}
+
+#[cfg(test)]
+mod wo22_restore_file_tests {
+    #[test]
+    fn prepared_file_never_overwrites_existing_material(){
+        let nonce=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let root=std::env::temp_dir().join(format!("ddn-wo22-file-{}-{nonce}",std::process::id()));
+        std::fs::create_dir(&root).unwrap();let path=root.join("복원준비.json");
+        super::stage_native_source_artifact(&path,"처음 자료").unwrap();
+        assert!(super::stage_native_source_artifact(&path,"덮어쓸 자료").unwrap_err().contains("E_SOURCE_PREPARE_FILE_CREATE"));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(),"처음 자료");
+        assert!(super::stage_native_source_artifact(&root.join("없는부모/자료.json"),"자료").is_err());
+        let binary=root.join("원기록.bundle");let bytes=[0,255,128,0,1];
+        super::stage_native_source_artifact(&binary,bytes).unwrap();
+        assert_eq!(std::fs::read(&binary).unwrap(),bytes);
+        assert!(super::stage_native_source_artifact(&binary,[9]).is_err());
+        assert_eq!(std::fs::read(&binary).unwrap(),bytes);
+        // No cleanup/deletion: the exact original and failed target remain
+        // available for inspection; this file is never a recovery authority.
+    }
+}
+
 fn read_logical_input(path: &Path) -> Result<Vec<u8>, ExecutionError> {
     let size = fs::metadata(path).map_err(|error| ExecutionError::input(format!("E_LOGICAL_INPUT_READ: {error}")))?.len();
     if size > 67_108_864 + 64 {
@@ -2234,9 +2354,18 @@ mod tests {
         assert_eq!(parse(vec!["작품자료","원문저장","project.json","--판","01","--저장소","store"]).unwrap(),
             Command::NativeSourceSave{input:PathBuf::from("project.json"),revision:vec![1],root:PathBuf::from("store")});
         assert_eq!(parse(vec!["작품자료","첫실행","source.json","--판","02","--저장소","store","--마디수","1"]).unwrap(),
-            Command::NativeSourceRun{input:PathBuf::from("source.json"),revision:vec![2],root:PathBuf::from("store"),madi:1});
+            Command::NativeSourceRun{input:PathBuf::from("source.json"),revision:vec![2],root:PathBuf::from("store"),madi:1,prepare_output:None,record_original_private:false});
+        assert_eq!(parse(vec!["작품자료","첫실행","source.json","--판","02","--저장소","store","--마디수","3","--저장파일","first.json","--record-original-private"]).unwrap(),
+            Command::NativeSourceRun{input:PathBuf::from("source.json"),revision:vec![2],root:PathBuf::from("store"),madi:3,prepare_output:Some(PathBuf::from("first.json")),record_original_private:true});
+        assert!(parse(vec!["작품자료","첫실행","source.json","--판","02","--저장소","store","--마디수","3","--record-original-private","--record-original-private"]).is_err());
         assert_eq!(parse(vec!["작품자료","원문이어실행","saved.json","--부모","01","--판","02","--저장소","store","--허가","locator","--마디수","1"]).unwrap(),
-            Command::NativeSourceResume{input:PathBuf::from("saved.json"),parent:vec![1],revision:vec![2],root:PathBuf::from("store"),locator:"locator".into(),madi:1});
+            Command::NativeSourceResume{input:PathBuf::from("saved.json"),parent:vec![1],revision:vec![2],root:PathBuf::from("store"),locator:"locator".into(),madi:1,save_revision:None,prepare_output:None,evidence_output:None});
+        assert_eq!(parse(vec!["작품자료","원문이어실행","saved.json","--부모","01","--판","02","--저장소","store","--허가","locator","--마디수","1","--저장판","03","--저장파일","next.json"]).unwrap(),
+            Command::NativeSourceResume{input:PathBuf::from("saved.json"),parent:vec![1],revision:vec![2],root:PathBuf::from("store"),locator:"locator".into(),madi:1,save_revision:Some(vec![3]),prepare_output:Some(PathBuf::from("next.json")),evidence_output:None});
+        assert_eq!(parse(vec!["작품자료","원문이어실행","saved.json","--부모","01","--판","02","--저장소","store","--허가","locator","--마디수","0","--recording-evidence-private","original.bundle"]).unwrap(),
+            Command::NativeSourceResume{input:PathBuf::from("saved.json"),parent:vec![1],revision:vec![2],root:PathBuf::from("store"),locator:"locator".into(),madi:0,save_revision:None,prepare_output:None,evidence_output:Some(PathBuf::from("original.bundle"))});
+        assert!(parse(vec!["작품자료","원문이어실행","saved.json","--부모","01","--판","02","--저장소","store","--허가","locator","--마디수","1","--recording-evidence-private","original.bundle"]).is_err());
+        assert!(parse(vec!["작품자료","원문이어실행","saved.json","--부모","01","--판","02","--저장소","store","--허가","locator","--마디수","0"]).is_err());
         for args in [vec!["작품자료","첫실행","source.json","--판","02","--저장소","store","--마디수","0"],
             vec!["작품자료","원문저장","project.json","--판","01","--저장소","store","--허가","fake"],
             vec!["작품자료","첫실행","source.json","--판","02","--저장소","store","--허가","fake"]] {

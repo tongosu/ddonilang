@@ -3,6 +3,7 @@
 //! separate producer; no public constructor or persisted semantic ID exists.
 use super::Failure;
 mod first_use;
+pub(super) mod source_transition;
 
 const MAGIC: &[u8] = b"DDN-NATIVE-ROOT-GRANT-V1\0";
 const LENGTHS: [usize; 10] = [32, 32, 32, 32, 24, 16, 24, 16, 1, 8];
@@ -168,6 +169,48 @@ pub(crate) struct AdmittedSourceGrantV2 {
     pinned:std::sync::Arc<PinnedNativeRootV1>,
     lease:std::sync::Arc<std::fs::File>,
 }
+
+/// Child evidence scope, not a new first-use/restore/world capability. Its
+/// owned pin/lease permits the real world transaction to consume its permit.
+#[cfg(windows)]
+pub(crate) struct ReplayArchiveRootScopeV1 {
+    record:GrantRecord,
+    pinned:std::sync::Arc<PinnedNativeRootV1>,
+    lease:std::sync::Arc<std::fs::File>,
+}
+/// Untrusted selection data; admission below compares every field to the
+/// actual protected root and same SQLite head. Not a grant or receipt.
+#[cfg(windows)]
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub(crate) struct AuthoringHeadV1 {
+    pub project:Vec<u8>,pub revision:Vec<u8>,pub integrity:[u8;32],pub key:[u8;32],pub kind:u8,
+}
+#[cfg(windows)]
+pub(crate) struct AdmittedAuthoringBaseV1 {
+    grant:AdmittedSourceGrantV2,attempt:AttemptRecord,transition:Option<source_transition::Record>,
+    head:AuthoringHeadV1,source:crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnlyRevision,
+    history:super::source_world::CheckedMixedRevisionHistory,
+}
+#[cfg(windows)]
+pub(crate) struct PreparedAuthoringSourceV1 {
+    base:AdmittedAuthoringBaseV1,source:crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnlyRevision,
+    prepared:source_transition::Record,
+}
+#[cfg(windows)]
+pub(crate) struct DurablySavedAuthoringSourceV1 {
+    grant:AdmittedSourceGrantV2,attempt:AttemptRecord,ready:source_transition::Record,
+    source:crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnlyRevision,
+}
+#[cfg(windows)]
+pub(crate) struct NewSourceRunPermitV1 {
+    grant:AdmittedSourceGrantV2,anchor_attempt:AttemptRecord,consumed:source_transition::Record,
+    source:crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnlyRevision,
+}
+#[cfg(windows)]
+pub(crate) struct RestartSourceWorldAttemptV1 {
+    permit:NewSourceRunPermitV1,attempt:AttemptRecord,
+    request:crate::snapshot_v2_durable_transaction::ActualPreparedRequestV1,
+}
 #[cfg(not(windows))]
 pub(crate) enum AdmittedSourceGrantV2 {}
 #[cfg(windows)]
@@ -190,6 +233,7 @@ pub(crate) struct NextSourceWorldAttemptStartV1 {
     attempt:AttemptRecord,
     request:crate::snapshot_v2_durable_transaction::ActualPreparedRequestV1,
     previous:super::StoredHeadV1,
+    restart:Option<source_transition::Record>,
 }
 /// Fresh cold admission of an existing first-world witness, not first-use or
 /// retry authority. Its source grant remains leased/pinned for the consumer.
@@ -199,6 +243,47 @@ pub(crate) struct ReadmittedFirstSourceWorldV2 {
     _attempt:AttemptRecord,
     payload:super::StoredPayloadV1,
     history:Vec<[u8;32]>,
+    restart:Option<RestartSourceHistoryV1>,
+}
+/// Issued only after the actual cold source/world owner has revalidated its
+/// full current history. This child proof carries no Run/save capability.
+#[cfg(windows)]
+pub(crate) struct VerifiedExecutionFirstCheckpointV1 {
+    pub(in crate::snapshot_v2_durable_transaction::native) scope:ReplayArchiveRootScopeV1,
+    pub(in crate::snapshot_v2_durable_transaction::native) first_tx:[u8;32],
+    pub(in crate::snapshot_v2_durable_transaction::native) checkpoint_tx:[u8;32],
+    pub(in crate::snapshot_v2_durable_transaction::native) receipt:Vec<u8>,
+    pub(in crate::snapshot_v2_durable_transaction::native) pesi:[u8;32],
+    checkpoint_next_madi:u64,
+}
+#[cfg(windows)]
+#[derive(Clone,Copy)]
+pub(crate) enum ReplayArchiveReadKindV1 {Running,Finished,TerminalForNewRecord}
+#[cfg(windows)]
+impl ReplayArchiveReadKindV1 {
+    pub(in crate::snapshot_v2_durable_transaction::native) fn accepts_state(self,state:u8)->bool{
+        match self{Self::Running=>state==0,Self::Finished=>state==1,Self::TerminalForNewRecord=>(1..=3).contains(&state)}
+    }
+    pub(in crate::snapshot_v2_durable_transaction::native) fn accepts_end(self,state:u8,kind:u8)->bool{
+        self.accepts_state(state)&&match state{0=>kind==2,1=>kind<=1,2|3=>kind==2,_=>false}
+    }
+    pub(in crate::snapshot_v2_durable_transaction::native) fn accepts_count(self,state:u8,count:u64,anchor:u64)->bool{
+        self.accepts_state(state)&&if state<=1{count==anchor}else{count>=anchor}
+    }
+}
+/// Physical write/flush/fresh-read proof, not a decoded Ready candidate.
+#[cfg(windows)]
+pub(crate) struct ProtectedReplayReadyV1 {scope:ReplayArchiveRootScopeV1,bytes:Vec<u8>,first_tx:[u8;32]}
+#[cfg(windows)]
+pub(crate) enum ReplayLifecycleWriteFailureV1 {Before(Failure),Uncertain(Failure)}
+#[cfg(windows)]
+impl ReplayLifecycleWriteFailureV1 {
+    fn cause(self)->Failure{match self{Self::Before(cause)|Self::Uncertain(cause)=>cause}}
+}
+#[cfg(windows)]
+struct RestartSourceHistoryV1 {
+    source:crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnlyRevision,
+    record:source_transition::Record,
 }
 #[cfg(windows)]
 #[derive(Debug)]
@@ -337,9 +422,11 @@ mod windows {
     use std::ffi::c_void;
     use std::ptr::{null, null_mut};
     include!("root_grant/source_first_use_windows.rs");
+    include!("root_grant/source_authoring_windows.rs");
+    include!("root_grant/replay_windows.rs");
 
     #[derive(Clone, Copy, PartialEq, Eq)]
-    enum Namespace { Grant, RootSlot, Attempt }
+    enum Namespace { Grant, RootSlot, Attempt, SourceTransition }
     #[cfg(test)]
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum IoStep { Set, Flush, FreshRead }
@@ -357,10 +444,10 @@ mod windows {
     }
     impl Namespace {
         fn prefix(&self) -> &'static str { match self {
-            Self::Grant | Self::Attempt => "Software\\DDonilang\\NativeRecoveryGrantV1\\",
+            Self::Grant | Self::Attempt | Self::SourceTransition => "Software\\DDonilang\\NativeRecoveryGrantV1\\",
             Self::RootSlot => "Software\\DDonilang\\NativeRecoveryRootSlotV1\\",
         } }
-        fn value_name(self) -> &'static str { if self==Self::Attempt {"Attempt"}else{"Record"} }
+        fn value_name(self) -> &'static str { match self {Self::Attempt=>"Attempt",Self::SourceTransition=>"SourceTransition",_=>"Record"} }
     }
     type Handle = *mut c_void;
     #[repr(C)]
@@ -676,10 +763,10 @@ mod windows {
         fn write_plaintext(namespace: Namespace, locator: &[u8; 32], plaintext: &[u8], require_new: bool) -> Result<(), Failure> {
             let ciphertext = protect(plaintext)?;
             let namespace_for_read = namespace;
-            let key = if namespace==Namespace::Attempt {
+            let key = if matches!(namespace,Namespace::Attempt|Namespace::SourceTransition) {
                 if require_new {return Err(Failure::InvalidInput);}
-                // Attempt lives under an existing grant. Never create/heal a
-                // missing grant namespace while updating its attempt value.
+                // Auxiliary records live under an existing grant. Never
+                // create/heal a missing grant namespace to write either one.
                 let path=utf16(&format!("{}{}",namespace.prefix(),hex::encode(locator)));
                 let mut handle=null_mut();
                 if unsafe {RegOpenKeyExW(hkcu(),path.as_ptr(),0,0x103,&mut handle)}!=0 || handle.is_null() {

@@ -231,6 +231,8 @@ where F:FnOnce(&TransactionEvidenceV1)->Result<(),SnapshotV2DurabilityFailureV1>
     let mut evidence = TransactionEvidenceV1::prepared(payload.binding.clone())?;
     let result = (|| {
         if adapter.capability()?.as_bytes() != expected_profile { return Err(Failure::UnsupportedDurability); }
+        #[cfg(all(windows,feature="beta2-crash-probe"))]
+        native::crash_probe::checkpoint("before_prepared");
         let mut handle = adapter.write_prepared(payload)?;
         #[cfg(test)]
         pause_native_owner_test_process("before_prepared_commit");
@@ -241,6 +243,8 @@ where F:FnOnce(&TransactionEvidenceV1)->Result<(),SnapshotV2DurabilityFailureV1>
             return Err(cause);
         }
         evidence.synced()?;
+        #[cfg(all(windows,feature="beta2-crash-probe"))]
+        native::crash_probe::checkpoint("after_prepared");
         #[cfg(test)]
         pause_native_owner_test_process("after_prepared_commit");
         verify_commit_native_from_synced(adapter,payload,expected,&mut evidence,queue_verified)
@@ -276,6 +280,8 @@ where F:FnOnce(&TransactionEvidenceV1)->Result<(),SnapshotV2DurabilityFailureV1>
     #[cfg(test)]
     pause_native_owner_test_process("after_head_commit");
     evidence.container_confirmation(adapter.confirm_container_durable())?;
+    #[cfg(all(windows,feature="beta2-crash-probe"))]
+    native::crash_probe::checkpoint("after_confirmation");
     #[cfg(test)]
     pause_native_owner_test_process("after_container_confirmation");
     let chain=adapter.reread_committed(&payload.digest,&payload.binding.project,&payload.binding.new_revision)?;

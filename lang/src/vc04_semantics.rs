@@ -77,7 +77,7 @@ fn scan(program:&CanonProgram,body:Option<&Body>,root:&[Stmt],params:&[ParamPin]
                 if transient(value,&transient_values,program){return Err(reject(value.span,"E_VC04_READ_SNAPSHOT_ESCAPE","채비에는 임자 읽기값을 보존할 수 없습니다"));}
                 jobs.push(Job::Expr(value,false));
             }},
-            Stmt::Definition{name,value,..}=>{
+            Stmt::Definition{name,value,..}|Stmt::DerivedBinding{name,value,..}=>{
                 if body.is_none()&&transient(value,&transient_values,program){return Err(reject(value.span,"E_VC04_READ_SNAPSHOT_ESCAPE","최상위 정의에 임자 읽기값을 보존할 수 없습니다"));}
                 jobs.push(Job::BindLocal(name,value));jobs.push(Job::Expr(value,false));
             },

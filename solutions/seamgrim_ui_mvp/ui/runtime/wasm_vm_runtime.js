@@ -566,6 +566,11 @@ export class WasmVmHandle {
     return this.client?.vm?.is_native_source_bound?.() === true;
   }
 
+  nativeSourceSelection() {
+    const text=this.client?.vm?.native_source_selection_json?.();
+    return text ? JSON.parse(text) : null;
+  }
+
   async saveNativeCheckpoint(authoredText) {
     if (!this.hasNativeSource()) return null;
     return JSON.parse(this.client.vm.save_native_source_checkpoint(authoredText));
@@ -643,6 +648,9 @@ export async function createWasmVm({
   bogaeEntryName = "",
   authoredArtifactText = "",
   projectRuntimeArtifactText = "",
+  nativeSourceRequested = false,
+  nativeSourceNewRun = false,
+  nativeSourceSelectionJson = '',
   savedProjectArtifactText = "",
   expectedParentRevisionHex = "",
   historyRevisionHex = "",
@@ -661,8 +669,14 @@ export async function createWasmVm({
   }
   const sourceBoundProject = Boolean(projectRuntimeArtifactText || savedProjectArtifactText);
   const vmFactory = !sourceBoundProject ? null : (module) => {
-    if(projectRuntimeArtifactText&&module.authored_project_operation?.('source_probe',JSON.stringify({artifact_json_utf8:projectRuntimeArtifactText}))==='true'){
+    // A saved Native locator chooses a transport, never a VM permission. The
+    // shared Rust/Native source owner still admits the actual project/frame.
+    if(projectRuntimeArtifactText&&(nativeSourceRequested||module.authored_project_operation?.('source_probe',JSON.stringify({artifact_json_utf8:projectRuntimeArtifactText}))==='true')){
       if(typeof module.DdnWasmVm?.from_native_project_json!=='function')throw new Error('E_NATIVE_SOURCE_RUNTIME_MISSING');
+      if(nativeSourceNewRun){
+        if(typeof module.DdnWasmVm.from_native_project_json_for_new_run!=='function')throw new Error('E_NATIVE_SOURCE_NEW_RUN_API_MISSING');
+        return module.DdnWasmVm.from_native_project_json_for_new_run(projectRuntimeArtifactText,nativeSourceSelectionJson);
+      }
       return module.DdnWasmVm.from_native_project_json(projectRuntimeArtifactText);
     }
     const name = savedProjectArtifactText ? "from_saved_project_artifact_json" : "from_authored_project_json";

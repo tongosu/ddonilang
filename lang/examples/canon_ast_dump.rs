@@ -22,6 +22,24 @@ struct ArgDet {
     expr: String,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn derived_rhs_calls_are_traversed_instead_of_silently_omitted() {
+        let program=ddonirang_lang::parse_v25(
+            "원천 <- 1. 결과 <<- (원천) 두배.","derived-dump.ddn").unwrap();
+        let statement=program.root_stmts.iter().find(|stmt|
+            matches!(stmt,Stmt::DerivedBinding{..})).unwrap();
+        let mut calls=Vec::new();
+        collect_calls_from_stmt(statement,&mut calls);
+        assert_eq!(calls.len(),1);
+        assert_eq!(calls[0].func,"두배");
+        assert_eq!(calls[0].args.len(),1);
+    }
+}
+
 fn main() {
     if let Err(err) = run() {
         eprintln!("{}", err);
@@ -289,7 +307,9 @@ fn collect_calls_from_stmt(stmt: &Stmt, out: &mut Vec<CallDet>) {
                 }
             }
         }
-        Stmt::Definition { value, .. } => collect_calls_from_expr(value, out),
+        Stmt::Definition { value, .. } | Stmt::DerivedBinding { value, .. } => {
+            collect_calls_from_expr(value, out)
+        }
         Stmt::Mutate { target, value, .. } => {
             collect_calls_from_expr(target, out);
             collect_calls_from_expr(value, out);
@@ -553,7 +573,7 @@ mod tensor_dump_tests {
     use ddonirang_lang::ast::{MultiAxisSelection, Span, TensorAxisSelector};
 
     fn expr(kind: ExprKind) -> Expr {
-        Expr { id: 0, span: Span::new(0, 0), kind }
+        Expr::new(0, Span::new(0, 0), kind)
     }
 
     fn call(name: &str) -> Expr {
@@ -569,6 +589,7 @@ mod tensor_dump_tests {
         };
         let product = expr(ExprKind::ProductConstruction {
             owner: "좌표".into(), definition: 7,
+            category: None,
             fields: vec![field("가로", call("가로값")), field("세로", call("세로값"))],
         });
         let mut calls = vec![];

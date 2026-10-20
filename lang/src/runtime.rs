@@ -1559,6 +1559,7 @@ pub fn validate_record_value(value: &Value) -> Result<(), TypeMismatchDetail> {
                 pending.extend(items.iter().rev().map(Job::Type));
             }
             Job::Type(R::ResolvedNominalV1 {..})=>return Err(type_mismatch_detail("등록 정본에 결속된 명목 필드씨",value)),
+            Job::Type(R::RegisteredAtomV1)=>return Err(type_mismatch_detail("출력 전용 원자씨는 저장 필드씨가 아닙니다",value)),
             Job::Type(R::Named { name }) => projected.values.push(TypeRef::Named(name.clone())),
             Job::Type(R::Applied { name, args }) => {
                 pending.push(Job::Applied(name, args.len()));

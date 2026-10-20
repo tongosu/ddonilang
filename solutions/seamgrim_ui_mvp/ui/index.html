@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>셈그림</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles.css?v=20260711-korean-manim-wave1-audit2" />
+  </head>
+  <body>
+    <div id="app">
+      <section id="screen-browse" class="screen">
+        <header class="topbar">
+          <span class="brand">셈그림</span>
+          <nav class="main-shell-tabs" aria-label="메인 탭">
+            <button class="main-shell-tab active" data-main-tab-target="browse" data-shell-space="learn" type="button">배우기</button>
+            <button class="main-shell-tab" data-main-tab-target="studio" data-shell-space="lab" type="button">실험실</button>
+            <button class="main-shell-tab" data-main-tab-target="studio" data-shell-space="create" type="button">만들기</button>
+            <button class="main-shell-tab" data-main-tab-target="publish" data-shell-space="publish" type="button">배포</button>
+          </nav>
+          <button id="btn-advanced-browse" class="ghost" type="button">⚙</button>
+        </header>
+
+        <div class="browse-tabs">
+          <button class="browse-tab active" data-tab="official" type="button">대표 교과</button>
+          <button class="browse-tab" data-tab="examples" type="button">샘플 교과</button>
+          <button class="browse-tab" data-tab="search" type="button">전체 검색</button>
+          <button id="btn-learning-spine" class="ghost" type="button" aria-controls="learning-spine-panel" aria-expanded="false">배움길</button>
+        </div>
+
+        <section id="numeric-track-result-timeline-panel" class="numeric-track-timeline-panel hidden" aria-label="수치 결과 흐름">
+          <div class="numeric-track-timeline-header">
+            <strong>수치 결과 흐름</strong>
+            <span>최근 저장된 수업 실행 결과</span>
+            <button id="btn-compare-numeric-track-results" class="ghost" type="button">최근 2개 비교</button>
+            <button id="btn-show-numeric-track-result-compare-history" class="ghost" type="button">비교 이력</button>
+          </div>
+          <ol id="numeric-track-result-timeline-list" class="numeric-track-timeline-list"></ol>
+          <div id="numeric-track-result-compare-panel" class="numeric-track-compare-panel hidden"></div>
+          <div id="numeric-track-result-compare-history-panel" class="numeric-track-compare-history-panel hidden"></div>
+        </section>
+
+        <section id="learning-spine-panel" class="learning-spine-panel hidden" aria-label="또니랑 배움길" aria-hidden="true"></section>
+
+        <div class="browse-filters">
+          <select id="filter-grade">
+            <option value="">학년: 전체</option>
+          </select>
+          <select id="filter-subject">
+            <option value="">과목: 전체</option>
+          </select>
+          <input id="filter-query" type="text" placeholder="교과명, 과목, 활동 검색" />
+        </div>
+
+        <div id="browse-legacy-guide-hint" class="hint browse-legacy-guide-hint hidden"></div>
+        <div class="catalog-body">
+          <div id="lesson-card-grid" class="card-grid" data-testid="lesson-catalog" data-lesson-catalog></div>
+          <aside id="catalog-detail-panel" class="catalog-detail-panel hidden">
+            <div id="detail-subject-badge" class="detail-subject-badge"></div>
+            <h3 id="detail-title" class="detail-title">교과 선택</h3>
+            <p id="detail-desc" class="detail-desc">카드를 선택하면 상세 설명이 표시됩니다.</p>
+            <div id="detail-keywords" class="detail-keywords"></div>
+            <div id="detail-curriculum" class="detail-curriculum"></div>
+            <div class="detail-actions">
+              <button id="btn-open-in-studio" class="btn-primary" type="button">수업 열기</button>
+              <button id="btn-open-in-studio-teacher" class="ghost" type="button">실험실에서 바꾸기</button>
+              <button id="btn-copy-numeric-track-report" class="ghost hidden" type="button">수치 보고서 복사</button>
+              <button id="btn-detail-close" class="ghost" type="button">닫기</button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="screen-publish" class="screen hidden" data-publish-screen>
+        <header class="topbar">
+          <span class="brand">셈그림</span>
+          <nav class="main-shell-tabs" aria-label="메인 탭">
+            <button class="main-shell-tab" data-main-tab-target="browse" data-shell-space="learn" type="button">배우기</button>
+            <button class="main-shell-tab" data-main-tab-target="studio" data-shell-space="lab" type="button">실험실</button>
+            <button class="main-shell-tab" data-main-tab-target="studio" data-shell-space="create" type="button">만들기</button>
+            <button class="main-shell-tab active" data-main-tab-target="publish" data-shell-space="publish" type="button">배포</button>
+          </nav>
+        </header>
+        <section id="publish-panel" class="browse-publish-panel" data-publish-panel aria-label="배포 공간" aria-hidden="false">
+          <div class="browse-publish-copy">
+            <span class="browse-publish-kicker">배포</span>
+            <h2>수업 묶음 열기와 전달 준비</h2>
+            <p>배우기 탐색과 분리된 공간에서 받은 배포를 열고, 대표 묶음을 복사하거나 저장합니다.</p>
+          </div>
+          <div class="browse-publish-actions">
+            <button id="btn-open-local-package" class="ghost" type="button">배포 열기</button>
+            <button id="btn-paste-local-package" class="ghost" type="button" aria-controls="local-package-paste-panel" aria-expanded="false">붙여넣기 열기</button>
+            <button id="btn-copy-current-lesson-bundle" class="ghost" type="button">현재 수업 복사</button>
+            <button id="btn-download-current-lesson-bundle" class="ghost" type="button">현재 수업 저장</button>
+            <button id="btn-copy-course-package" class="ghost" type="button">대표 묶음 복사</button>
+            <button id="btn-download-course-package" class="ghost" type="button">대표 묶음 저장</button>
+            <input id="input-local-package-file" type="file" accept=".json,application/json" class="hidden" />
+          </div>
+          <div class="browse-publish-boundary" data-publish-boundary>공개 업로드와 deployment profile 완성은 후속 범위입니다.</div>
+        </section>
+        <section class="deployment-profile-editor" data-deployment-profile-editor aria-label="배포 프로필">
+          <div class="deployment-profile-head">
+            <span class="browse-publish-kicker">deployment_profile.v0</span>
+            <strong>학생 실행 프로필</strong>
+            <output data-deployment-profile-hash>profile_hash: -</output>
+          </div>
+          <div class="deployment-profile-grid">
+            <label>
+              preset_ref
+              <select id="deployment-profile-preset" data-deployment-profile-field="preset_ref">
+                <option value="guided_student_default">guided_student_default</option>
+                <option value="focused_practice">focused_practice</option>
+              </select>
+            </label>
+            <label>
+              default_view
+              <select id="deployment-profile-default-view" data-deployment-profile-field="default_view">
+                <option value="space2d">space2d</option>
+                <option value="graph">graph</option>
+                <option value="table">table</option>
+                <option value="text">text</option>
+              </select>
+            </label>
+            <label>
+              answer policy
+              <select id="deployment-profile-answer-policy" data-deployment-profile-field="answer_display_policy">
+                <option value="after_run">after_run</option>
+                <option value="hidden">hidden</option>
+              </select>
+            </label>
+            <label>
+              explanation policy
+              <select id="deployment-profile-explanation-policy" data-deployment-profile-field="explanation_display_policy">
+                <option value="always">always</option>
+                <option value="after_run">after_run</option>
+              </select>
+            </label>
+            <label>
+              control
+              <input id="deployment-profile-control-name" data-deployment-profile-field="control_name" value="theta0" />
+            </label>
+            <label>
+              min
+              <input id="deployment-profile-control-min" data-deployment-profile-field="control_min" type="number" step="0.01" value="-1.2" />
+            </label>
+            <label>
+              max
+              <input id="deployment-profile-control-max" data-deployment-profile-field="control_max" type="number" step="0.01" value="1.2" />
+            </label>
+            <label>
+              step
+              <input id="deployment-profile-control-step" data-deployment-profile-field="control_step" type="number" step="0.01" value="0.05" />
+            </label>
+          </div>
+          <div class="deployment-profile-options" aria-label="허용 보기">
+            <label><input type="checkbox" data-deployment-profile-view="space2d" checked /> space2d</label>
+            <label><input type="checkbox" data-deployment-profile-view="graph" checked /> graph</label>
+            <label><input type="checkbox" data-deployment-profile-view="table" checked /> table</label>
+            <label><input type="checkbox" data-deployment-profile-view="text" checked /> text</label>
+            <label><input type="checkbox" data-deployment-profile-run="allow_run" checked /> run</label>
+            <label><input type="checkbox" data-deployment-profile-run="allow_restart" checked /> restart</label>
+          </div>
+        </section>
+        <div id="local-package-import-status" class="local-package-import-status hidden" data-local-package-import-status data-state="idle" role="status" aria-live="polite" aria-atomic="true"></div>
+        <div id="course-package-export-status" class="course-package-export-status hidden" data-course-package-export-status data-state="idle" role="status" aria-live="polite" aria-atomic="true"></div>
+        <div id="local-package-paste-panel" class="local-package-paste-panel hidden" data-local-package-paste-panel aria-hidden="true">
+          <label class="local-package-paste-label" for="local-package-paste-text">배포 JSON 붙여넣기</label>
+          <textarea id="local-package-paste-text" class="local-package-paste-text" rows="5" placeholder="교사가 보낸 배포 JSON을 붙여넣습니다."></textarea>
+          <div class="local-package-paste-preview hidden" data-local-package-paste-preview data-state="idle" role="status" aria-live="polite" aria-atomic="true"></div>
+          <div class="local-package-paste-actions">
+            <button id="btn-local-package-paste-open" type="button">붙여넣은 배포 열기</button>
+            <button id="btn-local-package-paste-cancel" class="ghost" type="button">닫기</button>
+          </div>
+        </div>
+        <section class="student-submission-archive" data-student-submission-archive aria-label="학생 제출 보관함">
+          <div class="student-submission-archive-head">
+            <span class="browse-publish-kicker">결과 보관함</span>
+            <strong>학생 제출 회수와 비교</strong>
+            <button id="btn-student-submission-archive-export" class="ghost" type="button" disabled>목록 저장</button>
+          </div>
+          <label class="local-package-paste-label" for="student-submission-paste-text">학생 제출 JSON</label>
+          <textarea id="student-submission-paste-text" class="local-package-paste-text" rows="4" placeholder="학생이 보낸 student_submission JSON을 붙여넣습니다."></textarea>
+          <div class="local-package-paste-actions">
+            <button id="btn-student-submission-add" type="button">제출 추가</button>
+            <button id="btn-student-submission-clear" class="ghost" type="button">보관함 비우기</button>
+          </div>
+          <div class="student-submission-archive-status hidden" data-student-submission-archive-status data-state="idle" role="status" aria-live="polite" aria-atomic="true"></div>
+          <div class="student-submission-archive-summary" data-student-submission-archive-summary>제출 0건 · 원본 수업 대기</div>
+          <div class="student-submission-archive-list" data-student-submission-archive-list></div>
+        </section>
+      </section>
+
+      <section id="screen-editor" class="screen hidden">
+        <header class="topbar">
+          <button id="btn-back-to-browse" class="ghost" type="button">← 탐색</button>
+          <span class="brand">셈그림</span>
+          <nav class="main-shell-tabs" aria-label="메인 탭">
+            <button class="main-shell-tab" data-main-tab-target="browse" data-shell-space="learn" type="button">배우기</button>
+            <button class="main-shell-tab" data-main-tab-target="studio" data-shell-space="lab" type="button">실험실</button>
+            <button class="main-shell-tab active" data-main-tab-target="studio" data-shell-space="create" type="button">만들기</button>
+            <button class="main-shell-tab" data-main-tab-target="publish" data-shell-space="publish" type="button">배포</button>
+          </nav>
+          <div class="shell-status-rail" data-shell-status-rail aria-label="작업 상태">
+            <span class="shell-status-chip" data-shell-current-screen>만들기</span>
+            <span class="shell-status-chip" data-shell-source-label>새 작업</span>
+            <span class="shell-status-chip" data-shell-save-status>저장 대기</span>
+            <span class="shell-status-chip" data-shell-session-status>세션 대기</span>
+          </div>
+          <span class="screen-title" id="editor-title">교과 원문</span>
+          <div class="editor-actions">
+            <label class="project-save-name-label" for="project-name-input">
+              <span>프로젝트 이름</span>
+              <input id="project-name-input" class="project-save-name-input" type="text" value="나의 셈그림" autocomplete="off" />
+            </label>
+            <button id="btn-project-save" class="btn-primary" type="button" data-project-save>이름 붙여 저장</button>
+            <button id="btn-editor-expand" class="ghost" type="button" title="편집 영역 확장" aria-label="편집 영역 확장">⛶</button>
+            <button id="btn-run-from-editor" class="btn-primary" type="button">▶ 수업 실행</button>
+            <button id="btn-load-ddn" class="ghost" type="button">↑ 불러오기</button>
+            <span id="editor-run-gate-reason" class="editor-run-gate-reason">입력 준비됨</span>
+            <button id="btn-save-ddn" class="ghost" type="button">↓ 저장</button>
+            <button id="btn-advanced-editor" class="ghost" type="button">⚙</button>
+          </div>
+        </header>
+
+        <div id="ddn-editor-area">
+          <div class="editor-mode-tabs" role="tablist" aria-label="만들기 작업">
+            <button id="btn-editor-world-code" class="editor-mode-tab active" type="button" role="tab" aria-selected="true" data-editor-mode="world-code">세계 코드</button>
+            <button id="btn-editor-lesson-plan" class="editor-mode-tab" type="button" role="tab" aria-selected="false" data-editor-mode="lesson-plan">수업 구성</button>
+          </div>
+          <div id="editor-readiness-card" class="editor-readiness-card" data-stage="ready">
+            <div class="editor-readiness-head">
+              <span id="editor-readiness-stage" class="editor-readiness-stage">입력 준비됨</span>
+              <button id="btn-editor-readiness-action" class="ghost" type="button">수업 실행</button>
+            </div>
+            <div id="editor-readiness-cause" class="editor-readiness-cause">현재 입력으로 실행할 수 있습니다.</div>
+            <div id="editor-readiness-diagnostic" class="editor-readiness-diagnostic" data-diagnostic-layer-panel data-ready="true" aria-label="실행 전 진단">
+              <div class="editor-readiness-diagnostic-row">
+                <span>무엇</span>
+                <strong data-diagnostic-layer="what">현재 입력으로 실행할 수 있습니다.</strong>
+              </div>
+              <div class="editor-readiness-diagnostic-row">
+                <span>어디</span>
+                <strong data-diagnostic-layer="where">세계 코드 입력</strong>
+              </div>
+              <div class="editor-readiness-diagnostic-row">
+                <span>어떻게</span>
+                <strong data-diagnostic-layer="how">수업 실행을 누르세요.</strong>
+              </div>
+            </div>
+          </div>
+          <div id="editor-fixit-card" class="editor-fixit-card hidden" data-ready="false">
+            <div class="editor-fixit-head">
+              <span id="editor-fixit-title" class="editor-fixit-title">수정 제안</span>
+              <button id="btn-editor-fixit-apply" class="ghost" type="button">수정 적용</button>
+            </div>
+            <div id="editor-fixit-summary" class="editor-fixit-summary">수정 후보 없음</div>
+          </div>
+          <div id="editor-focus-bar" class="editor-focus-bar hidden">
+            <span id="editor-focus-summary" class="editor-focus-summary"></span>
+            <button id="editor-focus-warning" class="editor-focus-warning" type="button"></button>
+            <div class="editor-focus-actions">
+              <select id="editor-focus-select" class="editor-focus-select"></select>
+              <button id="btn-editor-focus-prev" class="ghost" type="button">↑ 이전 후보</button>
+              <button id="btn-editor-focus-next" class="ghost" type="button">↓ 다음 후보</button>
+            </div>
+          </div>
+          <input id="input-editor-ddn-file" type="file" accept=".ddn,.txt,.md,text/plain,text/markdown" class="hidden" />
+          <section id="project-workbench-panel" class="project-workbench-panel" data-project-workbench-panel data-testid="project-workbench" aria-label="로컬 프로젝트 파일">
+            <div class="project-workbench-head">
+              <div>
+                <strong>프로젝트 파일</strong>
+                <span id="project-current-file" data-project-current-file data-testid="project-current-file">한 파일</span>
+              </div>
+              <span id="project-entry-file" data-project-entry-file data-testid="project-entry-file">entry: app/main.ddn</span>
+            </div>
+            <div class="project-workbench-actions" aria-label="프로젝트 파일 작업">
+              <button id="btn-project-enable" class="ghost" type="button" data-testid="project-enable">프로젝트 모드</button>
+              <button id="btn-project-file-create" class="ghost" type="button" data-testid="project-file-create">파일 추가</button>
+              <button id="btn-project-file-rename" class="ghost" type="button" data-testid="project-file-rename">이름 바꾸기</button>
+              <button id="btn-project-file-delete" class="ghost" type="button" data-testid="project-file-delete">삭제</button>
+              <button id="btn-project-run-summary" class="btn-primary" type="button" data-testid="project-run">프로젝트 실행</button>
+            </div>
+            <div id="project-file-navigator" class="project-file-navigator" data-project-file-navigator data-testid="project-file-navigator" aria-label="프로젝트 파일 목록"></div>
+            <div id="project-dependency-status" class="project-dependency-status" data-project-dependency-status data-testid="project-dependency-status">단일 파일 편집</div>
+            <section id="project-run-lifecycle" class="project-run-lifecycle" data-project-run-lifecycle data-testid="project-run-lifecycle" data-runtime-status="idle" data-active-run-id="" aria-label="프로젝트 실행 생애주기">
+              <div class="project-run-lifecycle-head">
+                <span data-project-run-status data-testid="project-run-status">idle</span>
+                <span data-project-active-run-id data-testid="project-active-run-id">run 없음</span>
+                <span data-project-run-archive-count data-testid="project-run-archive-count">archive 0</span>
+              </div>
+              <ol data-project-run-history data-testid="project-run-history" aria-label="프로젝트 실행 이력"></ol>
+            </section>
+            <section id="project-observation-trace" class="project-observation-trace" data-project-observation-trace data-testid="project-observation-trace" data-row-count="0" data-trace-sha256="" aria-label="프로젝트 관찰 trace">
+              <div class="project-observation-trace-head">
+                <strong>관찰 trace</strong>
+                <span data-project-observation-trace-hash data-testid="project-observation-trace-hash">trace 없음</span>
+              </div>
+              <ol data-project-observation-rows data-testid="project-observation-rows" aria-label="프로젝트 관찰값"></ol>
+            </section>
+            <pre id="project-run-result" class="project-run-result" data-project-run-result data-testid="project-run-result">프로젝트 실행 대기</pre>
+          </section>
+          <textarea id="ddn-textarea" spellcheck="false"></textarea>
+          <section id="lesson-plan-authoring-area" class="lesson-plan-authoring-area hidden" data-lesson-plan-authoring aria-label="수업 구성 편집">
+            <div class="lesson-plan-authoring-empty">
+              <strong>수업 구성</strong>
+              <span>활동 순서 편집은 같은 만들기 공간에서 다룹니다. 세부 편집기는 Wave 2A G5에서 제품 loader와 함께 연결됩니다.</span>
+            </div>
+          </section>
+        </div>
+
+        <div id="editor-smoke-result" class="hint"></div>
+        <section class="project-save-panel" data-project-save-panel aria-label="프로젝트 저장">
+          <div id="project-save-status" class="project-save-status" data-project-save-status data-state="idle" role="status" aria-live="polite">서버 저장 대기</div>
+          <div class="project-save-links">
+            <a id="project-edit-link" href="#" data-project-edit-link aria-disabled="true">편집 링크 없음</a>
+            <a id="project-view-link" href="#" data-project-view-link aria-disabled="true">보기 링크 없음</a>
+            <button id="btn-project-clone" class="ghost" type="button" data-project-clone disabled>내 버전 만들기</button>
+          </div>
+          <div class="project-recent-work">
+            <strong>내 작업</strong>
+            <div id="project-recent-list" class="project-recent-list" data-project-recent-list>저장된 서버 작업 없음</div>
+          </div>
+          <section id="project-conflict-panel" class="project-conflict-panel hidden" data-project-conflict-panel aria-label="저장 충돌">
+            <strong>저장 충돌</strong>
+            <p id="project-conflict-message">다른 창에서 먼저 저장되었습니다.</p>
+            <div class="project-conflict-grid">
+              <span>서버판</span>
+              <code id="project-conflict-server">-</code>
+              <span>내판</span>
+              <code id="project-conflict-local">-</code>
+            </div>
+            <button id="btn-project-conflict-copy-local" class="ghost" type="button" data-project-conflict-copy-local>로컬 꾸러미 보존</button>
+            <textarea id="project-conflict-local-package" class="project-conflict-local-package" readonly aria-label="보존된 로컬 꾸러미"></textarea>
+          </section>
+          <section class="project-revision-panel" data-project-revision-panel aria-label="리비전 기록">
+            <div class="project-revision-header">
+              <strong>리비전</strong>
+              <button id="btn-project-revisions-refresh" class="ghost" type="button" data-project-revisions-refresh>새로고침</button>
+            </div>
+            <div id="project-revision-list" class="project-revision-list" data-project-revision-list>저장 후 리비전을 볼 수 있습니다.</div>
+          </section>
+        </section>
+        <section id="editor-canon-panel" class="editor-canon-panel">
+          <div id="editor-canon-summary" class="hint">구성: -</div>
+          <div class="editor-canon-grid">
+            <div class="editor-canon-card">
+              <div class="editor-canon-label">Topo</div>
+              <div id="editor-canon-topo" class="editor-canon-value">-</div>
+            </div>
+            <div class="editor-canon-card">
+              <div class="editor-canon-label">Instances</div>
+              <ul id="editor-canon-instances" class="editor-canon-list">
+                <li>-</li>
+              </ul>
+            </div>
+            <div class="editor-canon-card">
+              <div class="editor-canon-label">Links</div>
+              <ul id="editor-canon-links" class="editor-canon-list">
+                <li>-</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section id="screen-run" class="screen hidden" data-main-visual-mode="none">
+        <div class="run-main">
+          <div class="run-topbar">
+            <span class="brand">셈그림</span>
+            <nav class="main-shell-tabs" aria-label="메인 탭">
+              <button class="main-shell-tab" data-main-tab-target="browse" data-shell-space="learn" type="button">배우기</button>
+              <button class="main-shell-tab active" data-main-tab-target="studio" data-shell-space="lab" type="button">실험실</button>
+              <button class="main-shell-tab" data-main-tab-target="studio" data-shell-space="create" type="button">만들기</button>
+              <button class="main-shell-tab" data-main-tab-target="publish" data-shell-space="publish" type="button">배포</button>
+            </nav>
+            <div class="shell-status-rail" data-shell-status-rail aria-label="작업 상태">
+              <span class="shell-status-chip" data-shell-current-screen>수업</span>
+              <span class="shell-status-chip" data-shell-source-label>새 작업</span>
+              <span class="shell-status-chip" data-shell-save-status>저장 대기</span>
+              <span class="shell-status-chip" data-shell-session-status>세션 대기</span>
+            </div>
+            <span id="run-lesson-title" class="lesson-title-display">-</span>
+            <label class="run-package-lesson-switch hidden" data-run-package-lesson-switch>
+              <span>배포 수업</span>
+              <select id="run-package-lesson-select" aria-label="배포 묶음 수업 선택"></select>
+            </label>
+            <button id="btn-advanced-run" class="ghost" type="button">⚙</button>
+          </div>
+          <div class="run-control-bar">
+            <div class="run-context-group" data-run-context-group>
+              <span id="studio-source-label" class="studio-source-label">새 작업</span>
+              <div id="run-preset-rail" class="run-preset-rail" data-run-preset-rail data-testid="lesson-run-preset" data-lesson-run-preset aria-label="실행 프리셋">
+                <span class="run-preset-chip" data-run-preset-launch-kind>수동</span>
+                <span class="run-preset-chip" data-run-preset-onboarding>기본 시작</span>
+                <span class="run-preset-chip" data-run-preset-layout>화면: 나눠 보기</span>
+                <span class="run-preset-chip" data-run-preset-views>결과 확인: 실행 화면</span>
+                <span class="run-preset-chip hidden" data-run-preset-numeric-track>결과 기록: -</span>
+                <span class="run-preset-chip hidden" data-run-result-numeric-link>결과기록: -</span>
+              </div>
+            </div>
+            <div class="run-file-group" data-run-file-group>
+              <button id="btn-studio-new" class="ghost" type="button">+ 새로 만들기</button>
+              <span class="run-control-sep"></span>
+              <button id="btn-ddn-open" type="button">↑ 열기</button>
+              <input id="input-ddn-file" type="file" accept=".ddn,.txt,.md,text/plain,text/markdown" class="hidden" />
+              <button id="btn-ddn-save" type="button">↓ 저장</button>
+              <span id="run-local-save-status" class="run-local-save-status" data-status="idle">저장 대기</span>
+            </div>
+            <div class="run-command-group" data-run-command-group aria-label="실행 명령">
+              <button id="btn-run" class="btn-primary" type="button" data-testid="lesson-run-button" data-lesson-run-button>▶ 수업 실행</button>
+              <button id="btn-pause" class="ghost" type="button" data-testid="lesson-pause-button" disabled>⏸ 일시정지</button>
+              <button id="btn-reset" class="ghost bogae-ctrl-secondary" type="button" data-testid="lesson-reset-button" title="초기화" aria-label="초기화">↺ 초기화</button>
+              <button id="btn-step" class="ghost bogae-ctrl-secondary" type="button" data-testid="lesson-step-button" title="한 단계씩" aria-label="한 단계씩">▷ 한 단계씩</button>
+              <span id="run-madi-status" class="run-madi-status" data-testid="lesson-madi-status" title="현재 단계 / 전체 단계">0/-단계</span>
+            </div>
+            <div class="run-view-group" data-run-view-group aria-label="보기 도구">
+              <label class="view-plan-camera-control hidden" data-view-plan-camera-control>
+                <span>카메라</span>
+                <select id="select-view-plan-camera-policy" data-testid="lesson-camera-policy" title="보기 카메라 정책">
+                  <option value="fit">맞춤</option>
+                </select>
+              </label>
+              <label class="view-plan-angle-control hidden" data-view-plan-angle-control>
+                <input id="chk-view-plan-angle-measure" type="checkbox" checked data-testid="lesson-angle-measure-toggle" />
+                <span>각도</span>
+              </label>
+              <label class="view-plan-measure-control hidden" data-view-plan-measure-control="length">
+                <input id="chk-view-plan-length-measure" type="checkbox" checked data-testid="lesson-length-measure-toggle" />
+                <span>길이</span>
+              </label>
+              <label class="view-plan-measure-control hidden" data-view-plan-measure-control="vector">
+                <input id="chk-view-plan-vector-measure" type="checkbox" checked data-testid="lesson-vector-measure-toggle" />
+                <span>벡터</span>
+              </label>
+              <label class="view-plan-measure-control hidden" data-view-plan-measure-control="axes">
+                <input id="chk-view-plan-axes-measure" type="checkbox" checked data-testid="lesson-axes-measure-toggle" />
+                <span>축</span>
+              </label>
+              <label class="view-plan-measure-control hidden" data-view-plan-measure-control="trail">
+                <input id="chk-view-plan-trail-measure" type="checkbox" checked data-testid="lesson-trail-measure-toggle" />
+                <span>궤적</span>
+              </label>
+              <div class="run-view-mode-group" role="tablist" aria-label="수업 보기 모드">
+                <button id="btn-run-view-basic" class="run-view-mode-btn active" data-run-view-mode="basic" type="button">기본</button>
+                <button id="btn-run-view-analyze" class="run-view-mode-btn" data-run-view-mode="analyze" type="button">확대</button>
+                <button id="btn-run-view-full" class="run-view-mode-btn" data-run-view-mode="full" type="button">전체</button>
+              </div>
+            </div>
+            <div class="run-delivery-tool-group" data-run-delivery-tool-group>
+              <button id="btn-run-teacher-report-copy" class="ghost" type="button" title="수업 리포트 복사" disabled>리포트 복사</button>
+              <button id="btn-run-teacher-package-copy" class="ghost" type="button" title="교사용 배포 묶음 복사" disabled>배포 복사</button>
+              <button id="btn-run-teacher-package-download" class="ghost" type="button" title="교사용 배포 파일 저장" disabled>배포 저장</button>
+            </div>
+            <button id="btn-run-mobile-ddn-toggle" class="ghost run-mobile-ddn-toggle" type="button" data-testid="lesson-ddn-toggle" aria-expanded="false">DDN</button>
+            <span class="run-control-spacer"></span>
+            <span id="bogae-warn-badge" class="warn-badge hidden" title="">⚠</span>
+          </div>
+          <div id="run-delivery-status" class="run-delivery-status hidden" data-run-delivery-status role="status" aria-live="polite" aria-atomic="true"></div>
+          <div id="run-delivery-result" class="run-delivery-result hidden" data-run-delivery-result>
+            <label class="run-delivery-student-name-field" for="run-delivery-student-name">
+              <span>이름</span>
+              <input id="run-delivery-student-name" type="text" autocomplete="name" placeholder="학생 이름" />
+            </label>
+            <button id="btn-run-delivery-result-copy" class="studio-cta-button studio-cta-button--quiet" type="button" disabled>결과 복사</button>
+            <button id="btn-run-delivery-result-download" class="studio-cta-button studio-cta-button--quiet" type="button" disabled>결과 저장</button>
+            <button id="btn-run-student-submission-copy" class="studio-cta-button studio-cta-button--quiet" type="button" disabled>제출 JSON 복사</button>
+            <button id="btn-run-student-submission-download" class="studio-cta-button studio-cta-button--quiet" type="button" disabled>제출 JSON 저장</button>
+            <button id="btn-run-student-version-save" class="studio-cta-button studio-cta-button--quiet" type="button" disabled>내 버전 저장</button>
+            <span class="run-student-version-status" data-run-student-version-status data-status="idle">내 버전 대기</span>
+            <span class="run-delivery-result-help">교사에게 보낼 수업 결과를 복사하거나 저장합니다.</span>
+          </div>
+          <div id="run-delivery-instructions" class="run-delivery-instructions hidden" data-run-delivery-instructions aria-label="받은 수업 안내"></div>
+          <div id="run-lesson-brief" class="run-lesson-brief" data-run-lesson-brief>수업을 선택하면 DDN 실행 목표가 표시됩니다.</div>
+          <section id="run-lesson-plan-panel" class="run-lesson-plan-panel hidden" data-lesson-plan-panel aria-label="수업 구성 활동" aria-hidden="true">
+            <div class="run-lesson-plan-head">
+              <strong data-lesson-plan-title>수업 구성</strong>
+              <span data-lesson-plan-progress>0/0</span>
+            </div>
+            <div class="run-lesson-plan-body">
+              <span data-lesson-plan-kind>활동</span>
+              <p data-lesson-plan-prompt>활동 안내 대기</p>
+              <div data-lesson-plan-meta class="run-lesson-plan-meta"></div>
+            </div>
+            <div class="run-lesson-plan-actions">
+              <button type="button" data-lesson-plan-prev>이전</button>
+              <button type="button" data-lesson-plan-next>다음</button>
+              <button type="button" data-lesson-plan-complete>완료</button>
+            </div>
+          </section>
+          <section id="run-curriculum-inquiry-panel" class="run-curriculum-inquiry-panel hidden" data-curriculum-inquiry-panel aria-label="교과 탐구 기록" aria-hidden="true">
+            <div class="run-curriculum-inquiry-head">
+              <strong data-curriculum-inquiry-title>교과 탐구</strong>
+              <span data-curriculum-inquiry-status>카드 대기</span>
+            </div>
+            <div class="run-curriculum-inquiry-card" data-curriculum-inquiry-card></div>
+            <div class="run-curriculum-inquiry-grid">
+              <label class="run-curriculum-inquiry-field" for="curriculum-inquiry-prediction">
+                <span>예상</span>
+                <textarea id="curriculum-inquiry-prediction" data-curriculum-inquiry-prediction rows="2" spellcheck="true"></textarea>
+              </label>
+              <label class="run-curriculum-inquiry-field" for="curriculum-inquiry-explanation">
+                <span>설명</span>
+                <textarea id="curriculum-inquiry-explanation" data-curriculum-inquiry-explanation rows="2" spellcheck="true"></textarea>
+              </label>
+            </div>
+            <div class="run-curriculum-inquiry-artifact" data-curriculum-inquiry-artifact data-curriculum-artifact-bundle>artifact 대기</div>
+          </section>
+          <section id="run-semantic-cursor-panel" class="run-semantic-cursor-panel hidden" data-semantic-cursor-panel aria-label="진자 뜻 커서" aria-hidden="true">
+            <div class="run-semantic-cursor-head">
+              <strong>뜻 커서</strong>
+              <span data-semantic-cursor-status>anchor 대기</span>
+            </div>
+            <div class="run-semantic-anchor-list" data-semantic-anchor-list role="list"></div>
+            <div class="run-semantic-source-panel" data-semantic-source-panel role="status" aria-live="polite">원문 위치 대기</div>
+          </section>
+          <div class="run-layout">
+            <div class="run-editor-panel">
+              <label for="run-ddn-preview" class="run-editor-label">교과 원문</label>
+              <textarea id="run-ddn-preview" class="run-ddn-preview" title="교과 원문" spellcheck="false"></textarea>
+              <div id="studio-inline-warn" class="studio-inline-warn hidden">
+                <span id="studio-inline-warn-text"></span>
+                <button id="btn-inline-autofix" class="studio-cta-button" type="button">자동수정 적용</button>
+              </div>
+              <details class="run-advanced-meta hidden">
+                <summary>고급 메타</summary>
+                <div id="run-onboarding-status" class="run-onboarding-status">온보딩: 첫 인사 -> 움직임 -> 매김 조절 -> 되돌려보기/거울 순서로 보세요.</div>
+                <div id="run-lesson-summary" class="run-lesson-summary">교과 정보 없음</div>
+              </details>
+            </div>
+            <div id="run-layout-splitter" class="run-layout-splitter" role="separator" aria-label="실행 화면 분할 조절" aria-orientation="vertical"></div>
+
+            <div class="run-visual-column">
+              <div id="run-error-banner" class="run-error-banner hidden" data-testid="lesson-error-panel" data-lesson-error-panel>
+                <span id="run-error-text"></span>
+                <button id="btn-run-error-action" class="studio-cta-button studio-cta-button--quiet hidden" type="button">원인 확인</button>
+                <button id="btn-run-warning-platform-login" class="studio-cta-button studio-cta-button--quiet hidden" type="button">로그인</button>
+                <button id="btn-run-warning-platform-request-access" class="studio-cta-button studio-cta-button--quiet hidden" type="button">권한 요청</button>
+                <button id="btn-run-warning-platform-open-local-save" class="studio-cta-button studio-cta-button--quiet hidden" type="button">로컬 저장</button>
+                <button id="btn-run-error-dismiss" type="button" aria-label="실행 오류 닫기">✕</button>
+              </div>
+              <div class="bogae-area">
+                <div class="bogae-frame">
+                  <div id="run-main-graph-host" class="run-main-visual-host run-main-graph-host hidden"></div>
+                  <div id="run-main-console-host" class="run-main-visual-host run-main-console-host hidden"></div>
+                  <canvas id="canvas-bogae" data-testid="lesson-space2d-canvas"></canvas>
+                  <div id="overlay-description" class="overlay-desc hidden"></div>
+                </div>
+              </div>
+
+              <div class="dotbogi-panel subpanel">
+                <div id="subpanel-tab-strip" class="run-tab-strip subpanel-tab-strip" role="tablist" aria-label="수업 결과 탭 패널">
+                  <button id="run-tab-btn-console" class="run-tab-btn" data-run-tab="console" type="button">조절</button>
+                  <button id="run-tab-btn-output" class="run-tab-btn" data-run-tab="output" type="button">결과표</button>
+                  <button id="run-tab-btn-mirror" class="run-tab-btn" data-run-tab="mirror" type="button">검증</button>
+                  <button id="run-tab-btn-graph" class="run-tab-btn active" data-run-tab="graph" type="button">그래프</button>
+                  <button id="run-tab-btn-overlay" class="run-tab-btn" data-run-tab="overlay" type="button">설명</button>
+                </div>
+
+                <div id="subpanel-tab-panel" class="subpanel-tab-panel">
+                <section id="run-tab-panel-console" class="run-tab-panel hidden">
+                  <div id="run-slider-area" class="run-slider-area hidden" data-testid="lesson-control-panel">
+                    <div id="slider-status" class="hint">값 조절: -</div>
+                    <div id="slider-list"></div>
+                  </div>
+                  <section id="run-representation-pair" class="run-representation-pair hidden" data-testid="lesson-representation-pair" aria-label="표현판 비교">
+                    <div class="run-representation-pair-head">
+                      <strong>같은 세계, 두 표현</strong>
+                      <span id="run-representation-pair-class">가르침 짝</span>
+                    </div>
+                    <div class="run-representation-pair-grid">
+                      <div class="run-representation-column">
+                        <div class="run-representation-column-head">
+                          <strong id="run-representation-left-title">마디별 계산</strong>
+                          <span id="run-representation-left-status">실행됨</span>
+                        </div>
+                        <pre id="run-representation-left-source"></pre>
+                      </div>
+                      <div class="run-representation-column">
+                        <div class="run-representation-column-head">
+                          <strong id="run-representation-right-title">세움 선언</strong>
+                          <span id="run-representation-right-status">풀이계획만</span>
+                        </div>
+                        <pre id="run-representation-right-source"></pre>
+                      </div>
+                    </div>
+                    <div class="run-representation-boundary">
+                      <span id="run-representation-plan-summary"></span>
+                      <span id="run-representation-equivalence">관측 동등성: 미검증</span>
+                    </div>
+                  </section>
+                  <section id="run-world-diff-review" class="run-world-diff-review hidden" data-testid="world-diff-review" aria-label="뜻 단위 변경 검토"></section>
+                </section>
+
+                <section id="run-tab-panel-output" class="run-tab-panel hidden" data-testid="lesson-run-result" data-lesson-run-result>
+                  <div id="run-console-warning-summary" class="run-console-warning-summary" data-level="ok">경고 없음</div>
+                  <div id="run-observe-summary" class="run-observe-summary" data-level="none">
+                    <span id="run-observe-summary-text" class="run-observe-summary-text">관찰 출력 대기</span>
+                  </div>
+                  <div id="run-numeric-kernel-panel" class="run-numeric-kernel-panel" data-status="idle">
+                    <div class="run-numeric-kernel-head">
+                      <span class="run-numeric-kernel-title">수 작업</span>
+                      <span id="run-numeric-kernel-status" class="run-numeric-kernel-status">대기</span>
+                    </div>
+                    <div id="run-numeric-kernel-body" class="run-numeric-kernel-body">
+                      긴 곱수 분해 작업이 생기면 여기에서 진행률과 이어하기 상태를 보여줍니다.
+                    </div>
+                  </div>
+                  <div id="run-observe-output-panel" class="run-observe-output-panel">
+                    <div class="run-observe-output-head">
+                      <span class="run-observe-output-title">보임표 행 출력</span>
+                      <span id="run-observe-output-meta" class="run-observe-output-meta">0행</span>
+                    </div>
+                    <div id="run-observe-output-body" class="run-observe-output-body" data-testid="lesson-observe-output-body">
+                      <div class="runtime-table-empty">관찰 출력행 없음</div>
+                    </div>
+                  </div>
+                </section>
+
+                <section id="run-tab-panel-mirror" class="run-tab-panel hidden">
+                  <div class="run-mirror-hash-row run-mirror-badge-strip">
+                    <div id="run-mirror-hash" class="run-mirror-hash">상태 기록: -</div>
+                    <span id="run-view-source-badge" class="run-view-source-badge" data-status="unknown">보기 원본: -</span>
+                    <button id="btn-run-copy-hash" class="studio-cta-button studio-cta-button--quiet" type="button" disabled>복사</button>
+                  </div>
+                  <div id="run-manager-panel-anchor"></div>
+                  <details id="run-mirror-world" class="run-mirror-world">
+                    <summary id="run-mirror-world-summary">world 상태 · 0개</summary>
+                    <div id="run-mirror-kv" class="run-mirror-kv"></div>
+                  </details>
+                  <details id="run-mirror-diagnostics" class="run-mirror-diagnostics">
+                    <summary id="run-mirror-diagnostics-summary">
+                      <span class="run-mirror-summary-label">진단 상세</span>
+                      <span id="run-mirror-diagnostics-chips" class="run-mirror-summary-chips"></span>
+                    </summary>
+                    <pre id="run-mirror-diagnostics-body" class="run-mirror-diagnostics-body"></pre>
+                  </details>
+                  <details id="run-exec-tech" class="run-exec-tech">
+                    <summary id="run-exec-tech-summary">기술 상세</summary>
+                    <pre id="run-exec-tech-body" class="run-exec-tech-body"></pre>
+                  </details>
+                  <details id="run-inspector-meta" class="run-inspector-meta">
+                    <summary id="run-inspector-meta-summary">
+                      <span class="run-mirror-summary-label">검증 정보</span>
+                      <span id="run-inspector-meta-chips" class="run-mirror-summary-chips"></span>
+                    </summary>
+                    <pre id="run-inspector-meta-body" class="run-inspector-meta-body">검증 정보 없음</pre>
+                  </details>
+                  <details id="run-inspector-tools" class="run-inspector-tools">
+                    <summary>저장/내보내기</summary>
+                    <div class="run-inspector-actions">
+                      <button id="btn-save-snapshot-v0" type="button">결과 저장</button>
+                      <button id="btn-save-session-v0" type="button">세션 저장</button>
+                      <span id="run-inspector-status" class="run-inspector-status">저장 작업 대기</span>
+                    </div>
+                    <div class="run-classroom-report-export" data-run-classroom-report-export aria-label="수업 리포트 내보내기">
+                      <div class="run-classroom-report-head">
+                        <span class="run-classroom-report-title">수업 리포트</span>
+                        <span class="run-classroom-report-meta" data-run-classroom-report-meta>기본 시작 · run 전</span>
+                        <button id="btn-run-classroom-report-copy" type="button">리포트 복사</button>
+                      </div>
+                      <pre class="run-classroom-report-text" data-run-classroom-report-text>수업 코드	수업 제목	배포 상태	실행 결과	확인 필요	비고</pre>
+                    </div>
+                    <div class="run-local-package-export" data-run-local-package-export aria-label="교사용 배포 묶음 내보내기">
+                      <div class="run-local-package-head">
+                        <span class="run-local-package-title">교사용 배포 묶음</span>
+                        <span class="run-local-package-meta" data-run-local-package-meta>기본 시작 · 파일 0개</span>
+                        <button id="btn-run-local-package-copy" type="button">패키지 복사</button>
+                        <button id="btn-run-local-package-download" type="button">패키지 저장</button>
+                      </div>
+                      <label class="run-local-package-session-field" for="run-local-package-session-input">
+                        수업 세션
+                        <input id="run-local-package-session-input" type="text" placeholder="예: 2학년 3반 4교시" />
+                      </label>
+                      <div class="run-local-package-guide-row">
+                        <div class="run-local-package-guide" data-run-local-package-code>배포 코드: -</div>
+                        <button id="btn-run-local-package-code-copy" type="button">코드 복사</button>
+                      </div>
+                      <div class="run-local-package-guide-row">
+                        <div class="run-local-package-guide" data-run-local-package-guide>학생 배포 안내문: 배포 열기 → 받은 수업 실행 → 결과 확인</div>
+                        <button id="btn-run-local-package-guide-copy" type="button">안내 복사</button>
+                        <button id="btn-run-local-package-guide-download" type="button">안내 저장</button>
+                      </div>
+                      <div class="run-local-package-guide-row">
+                        <div class="run-local-package-guide" data-run-local-package-checklist>교사용 준비: 배포 파일, 학생 안내문, 학생 명단 양식을 확인합니다.</div>
+                        <button id="btn-run-local-package-checklist-copy" type="button">체크리스트 복사</button>
+                        <button id="btn-run-local-package-checklist-download" type="button">체크리스트 저장</button>
+                      </div>
+                      <div class="run-local-package-materials" data-run-local-package-materials>포함 자료: 수업 파일, 수업 리포트, 교사용 준비 체크리스트, 학생 명단 양식</div>
+                      <div id="seulgi-proposal-ui" class="seulgi-proposal-ui" data-seulgi-proposal-ui aria-label="AI 제안 UI"></div>
+                      <div id="seulgi-replay-safe-workflow" class="seulgi-replay-safe-workflow" data-seulgi-replay-safe-workflow aria-label="Replay-safe AI workflow"></div>
+                      <div class="run-student-result-review" data-run-student-result-review>
+                        <label class="run-student-result-label" for="run-student-result-input">학생 결과 확인</label>
+                        <label class="run-student-roster-label" for="run-student-roster-input">
+                          학생 명단 대조
+                          <textarea id="run-student-roster-input" class="run-student-roster-input" rows="2" placeholder="선택: 학생 이름, 번호+이름, 표에서 복사한 명단을 붙여넣으면 미제출을 함께 표시합니다."></textarea>
+                        </label>
+                        <input id="input-run-student-roster-file" type="file" accept=".txt,.tsv,.csv,text/plain,text/tab-separated-values,text/csv" class="hidden" multiple />
+                        <textarea id="run-student-result-input" class="run-student-result-input" rows="4" placeholder="학생이 보낸 결과 텍스트를 붙여넣습니다."></textarea>
+                        <input id="input-run-student-result-file" type="file" accept=".txt,.tsv,text/plain,text/tab-separated-values" class="hidden" multiple />
+                        <div class="run-student-result-actions">
+                          <button id="btn-run-student-roster-file-open" type="button">명단 파일 열기</button>
+                          <button id="btn-run-student-roster-template-copy" type="button">명단 양식 복사</button>
+                          <button id="btn-run-student-roster-template-download" type="button">명단 양식 저장</button>
+                          <button id="btn-run-student-result-file-open" type="button">결과 파일 열기</button>
+                          <button id="btn-run-student-result-review" type="button" disabled>결과 확인</button>
+                          <button id="btn-run-student-roster-only-clear" type="button">명단만 비우기</button>
+                          <button id="btn-run-student-result-only-clear" type="button">결과만 비우기</button>
+                          <button id="btn-run-student-result-clear" type="button">입력 비우기</button>
+                          <button id="btn-run-student-result-report-copy" type="button" disabled>결과표 복사</button>
+                          <button id="btn-run-student-result-report-download" type="button" disabled>결과표 저장</button>
+                          <button id="btn-run-student-missing-reminder-copy" type="button" disabled>미제출 안내 복사</button>
+                          <button id="btn-run-student-missing-reminder-download" type="button" disabled>미제출 안내 저장</button>
+                          <button id="btn-run-student-review-reminder-copy" type="button" disabled>확인 필요 안내 복사</button>
+                          <button id="btn-run-student-review-reminder-download" type="button" disabled>확인 필요 안내 저장</button>
+                          <span class="run-student-result-status" data-run-student-result-status role="status" aria-live="polite">결과 대기</span>
+                        </div>
+                        <div class="run-student-result-summary hidden" data-run-student-result-summary></div>
+                        <div class="run-student-result-table hidden" data-run-student-result-table></div>
+                      </div>
+                      <pre class="run-local-package-text" data-run-local-package-text>구분	경로	제목	크기</pre>
+                    </div>
+                  </details>
+                </section>
+
+                <section id="run-tab-panel-graph" class="run-tab-panel">
+                  <div id="dotbogi-graph" class="panel-content">
+                    <div class="graph-toolbar">
+                      <label class="graph-tool-field" for="select-x-axis">
+                        <span class="graph-tool-label">가로</span>
+                        <select id="select-x-axis"></select>
+                      </label>
+                      <label class="graph-tool-field" for="select-y-axis">
+                        <span class="graph-tool-label">세로</span>
+                        <select id="select-y-axis"></select>
+                      </label>
+                      <label class="graph-tool-field" for="select-graph-range">
+                        <span class="graph-tool-label">범위</span>
+                        <select id="select-graph-range">
+                          <option value="500">최근 500</option>
+                          <option value="2000">최근 2000</option>
+                          <option value="all">전체 보기</option>
+                        </select>
+                      </label>
+                      <label class="graph-tool-field" for="select-graph-kind">
+                        <span class="graph-tool-label">보기</span>
+                        <select id="select-graph-kind">
+                          <option value="line">선</option>
+                          <option value="point">점</option>
+                          <option value="step">계단</option>
+                        </select>
+                      </label>
+                      <button id="btn-graph-autoscale" type="button">자동 맞춤</button>
+                    </div>
+                    <canvas id="canvas-graph"></canvas>
+                  </div>
+
+                  <div id="runtime-table-panel" class="runtime-table-panel hidden">
+                    <details class="runtime-graph-support">
+                      <summary class="runtime-table-head">
+                        <span class="runtime-table-title">그래프 표</span>
+                        <span id="runtime-table-meta" class="runtime-table-meta"></span>
+                      </summary>
+                      <div id="runtime-table" class="runtime-table-body"></div>
+                    </details>
+                  </div>
+
+                  <div id="runtime-text-panel" class="runtime-text-panel hidden">
+                    <details class="runtime-graph-support">
+                      <summary class="runtime-text-head">
+                        <span class="runtime-text-title">그래프 설명</span>
+                      </summary>
+                      <div id="runtime-text-body" class="runtime-text-body"></div>
+                    </details>
+                  </div>
+                </section>
+
+                <section id="run-tab-panel-overlay" class="run-tab-panel hidden">
+                  <div id="run-overlay-panel" class="run-overlay-panel">
+                    <div class="run-overlay-head">
+                      <span class="run-overlay-title">설명</span>
+                      <span id="run-overlay-meta" class="run-overlay-meta">설명 대기</span>
+                    </div>
+                    <div id="run-overlay-body" class="run-overlay-body">
+                      <div class="runtime-text-empty">설명 없음</div>
+                    </div>
+                  </div>
+                </section>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="run-view-dock" class="run-view-dock hidden">
+            <div class="view-dock-group">
+              <span class="view-dock-label">표시 범위</span>
+              <span id="dock-space-range" class="view-dock-range">그림: -</span>
+              <span id="dock-graph-range" class="view-dock-range">그래프: -</span>
+              <button id="btn-dock-space-autoscale" type="button">그림 자동 맞춤</button>
+              <button id="btn-dock-graph-autoscale" type="button">그래프 오토스케일</button>
+              <button id="btn-bogae-fullscreen" type="button">그림 전체화면</button>
+            </div>
+
+            <div class="view-dock-group">
+              <span class="view-dock-label">줌/팬</span>
+              <select id="select-dock-target" title="줌/팬 대상">
+                <option value="space2d">그림</option>
+                <option value="graph">그래프</option>
+              </select>
+              <button id="btn-dock-pan-left" type="button">←</button>
+              <button id="btn-dock-pan-right" type="button">→</button>
+              <button id="btn-dock-pan-up" type="button">↑</button>
+              <button id="btn-dock-pan-down" type="button">↓</button>
+              <button id="btn-dock-zoom-in" type="button">+</button>
+              <button id="btn-dock-zoom-out" type="button">-</button>
+            </div>
+
+            <div class="view-dock-group">
+              <span class="view-dock-label">오버레이</span>
+              <label class="view-dock-check"><input id="chk-dock-grid" type="checkbox" />격자</label>
+              <label class="view-dock-check"><input id="chk-dock-axis" type="checkbox" />축</label>
+              <label class="view-dock-check"><input id="chk-dock-x-ticks" type="checkbox" />x눈금</label>
+              <label class="view-dock-check"><input id="chk-dock-highlight" type="checkbox" />강조</label>
+            </div>
+
+            <div class="view-dock-group">
+              <span class="view-dock-label">시간(보기)</span>
+              <label class="view-dock-check"><input id="chk-dock-loop" type="checkbox" checked />루프</label>
+              <select id="select-dock-speed" title="재생 속도">
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1.0x</option>
+                <option value="1.5">1.5x</option>
+                <option value="2">2.0x</option>
+              </select>
+              <button id="btn-dock-play" type="button" title="보기 재생">재생</button>
+              <button id="btn-dock-pause" type="button" title="보기 멈춤">멈춤</button>
+              <button id="btn-dock-next" type="button" title="다음 보기 마디">다음</button>
+              <input id="range-dock-time-cursor" type="range" title="시간 커서" min="0" max="100" value="0" />
+              <span id="text-dock-time" class="view-dock-time">t=- / 틱=-</span>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+
+    <script type="module" src="./app.js?v=20260711-korean-manim-wave1-audit2"></script>
+  </body>
+</html>

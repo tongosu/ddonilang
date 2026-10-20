@@ -3289,6 +3289,10 @@ fn build_linked_project_with_options(
                     if !names.insert(name.clone()) {
                         return Err(LocalProjectError::with_path("E_PROJECT_DEFINITION_DUPLICATE", path, name));
                     }
+                } else if let Stmt::DerivedBinding {name,..}=statement {
+                    // A world relation owns a destination, not a callable or
+                    // exported DefinitionIdentity. It may refine a typed slot.
+                    names.insert(name.clone());
                 } else if let Stmt::DeclBlock { items, .. } = statement {
                     names.extend(items.iter().map(|item| item.name.clone()));
                 } else {
@@ -6323,7 +6327,7 @@ pub(crate) fn resolve_work_project_module_directives(
             }
         }
         for statement in program.root_stmts {
-            if let Stmt::Definition { name, .. } = statement { definitions.insert(name); }
+            if let Stmt::Definition { name, .. } | Stmt::DerivedBinding {name,..} = statement { definitions.insert(name); }
             else if let Stmt::DeclBlock { items, .. } = statement {
                 definitions.extend(items.into_iter().map(|item| item.name));
             }
@@ -6762,6 +6766,7 @@ fn collect_alias_show_requests_from_body(
             }
             Stmt::DeclBlock { .. }
             | Stmt::Definition { .. }
+            | Stmt::DerivedBinding {..}
             | Stmt::Mutate { .. }
             | Stmt::ResultFlow { .. }
             | Stmt::Expr { .. }

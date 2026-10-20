@@ -98,7 +98,7 @@ fn collect_stmt(stmt: &Stmt, source: &str, out: &mut Vec<HistoricalAsyncMigratio
             collect_expr(producer, source, out);
             collect_expr(destination, source, out);
         }
-        Stmt::Definition { value, .. } => collect_expr(value, source, out),
+        Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} => collect_expr(value, source, out),
         Stmt::Mutate { target, value, .. } => {
             collect_expr(target, source, out);
             collect_expr(value, source, out);

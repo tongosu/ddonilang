@@ -1,13 +1,21 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+pub(crate) mod general_result;
+use general_result::{GeneralExecutionCollector,GeneralResultCollectorV1,GeneralEvidenceSourceV1};
 #[cfg(windows)]
-mod native_source_world;
+pub(crate) mod native_source_world;
 #[cfg(windows)]
-pub use native_source_world::{NativeFirstSourceWorldExecution,NativeFirstSourceWorldPrepared,NativeFirstSourceWorldDurablyPrepared,NativeFirstSourceWorldRetained};
+pub use native_source_world::{NativeFirstSourceWorldExecution,NativeFirstSourceWorldPrepared,NativeFirstSourceWorldDurablyPrepared,NativeFirstSourceWorldRetained,NativeGeneralRecordingPrepared};
 #[cfg(windows)]
-pub use native_source_world::resume_first_saved_source_world_native;
+pub use native_source_world::{resume_first_saved_source_world_native,save_continued_source_world_native};
 #[cfg(windows)]
-pub(crate) use native_source_world::{native_source_browser_snapshot,native_source_current_digest,save_continued_source_world_native};
+pub use native_source_world::{NativeGeneralReplayContentV1,read_current_general_recording_content};
+#[cfg(windows)]
+pub(crate) use native_source_world::{native_source_browser_snapshot,native_source_current_digest};
+#[cfg(windows)]
+pub(crate) use native_source_world::{resume_logical_source_world,save_continued_logical_source_world,verify_native_logical_current_receipt};
+#[cfg(windows)]
+pub(crate) use native_source_world::NativeLogicalFinishSessionV1;
 
 use blake3::hash as blake3_hash;
 pub use ddonirang_core::platform::InputSource;
@@ -524,6 +532,11 @@ pub fn current_state_hash(world: &ddonirang_core::platform::NuriWorld) -> String
     )
 }
 
+/// D1 content uses the existing world owner's exact bytes and exclusions.
+pub(crate) fn result_world_canonical_bytes(world:&ddonirang_core::platform::NuriWorld)->Vec<u8> {
+    world.encode_canonical_with_filter(DEFAULT_VIEW_PREFIXES)
+}
+
 /// Resume the existing RD-686 source-bound artifact, not an input recording.
 pub(crate) fn fresh_authored_logical_run(
     authored:&str,binding:crate::logical_input_tape::LogicalInputBinding,
@@ -801,6 +814,68 @@ pub fn update_authored_source_native(artifact:&str,revision:&[u8],storage_root:&
     let mut result=source_readback_projection(saved.source())?;
     result.grant_locator=Some(grant.locator());Ok(result)
 }
+
+/// Physical selected-head data, never a root/source/Run capability. Native
+/// admission rechecks this against the actual protected root and complete DB.
+#[derive(Clone,Debug,PartialEq,Eq,serde::Serialize,serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NativeAuthoringSelection {
+    pub project:Vec<u8>,pub revision:Vec<u8>,pub integrity:[u8;32],pub key:[u8;32],pub kind:u8,
+}
+#[cfg(windows)]
+pub use native_source_world::{begin_new_authored_source_native,NativeRestartSourceWorldSession,NativeRestartSourceWorldExecution,NativeRestartSourceWorldPrepared};
+#[cfg(windows)]
+pub(crate) fn native_authoring_selection_from_adapter(adapter:&mut crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1,
+    project:&[u8],locator:&str,artifact:&str)->Result<NativeAuthoringSelection,String>{
+    let head=adapter.selected_authoring_head(project).map_err(|e|format!("E_SOURCE_AUTHORING_HEAD: {e:?}"))?;
+    let base=adapter.admit_authoring_base(locator,&head,artifact).map_err(|e|format!("E_SOURCE_AUTHORING_ADMISSION: {e:?}"))?;
+    let h=base.head();Ok(NativeAuthoringSelection{project:h.project.clone(),revision:h.revision.clone(),integrity:h.integrity,key:h.key,kind:h.kind})
+}
+#[cfg(windows)]
+pub fn native_authoring_selection(storage_root:&std::path::Path,project:&[u8],locator:&str,artifact:&str)->Result<NativeAuthoringSelection,String>{
+    let mut adapter=crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1::open_source_revision(storage_root).map_err(|e|format!("E_SOURCE_REVISION_OPEN: {e:?}"))?;
+    native_authoring_selection_from_adapter(&mut adapter,project,locator,artifact)
+}
+#[cfg(windows)]
+pub fn save_changed_authored_source_native(artifact:&str,original_artifact:&str,revision:&[u8],storage_root:&std::path::Path,
+    locator:&str,selection:&NativeAuthoringSelection)->Result<NativeSourceRevisionReadback,String>{
+    use crate::snapshot_v2_durable_transaction::native::{SqliteAdapterV1,AuthoringHeadV1,source_revision::SourceSaveFailure};
+    if selection.project.len()!=32||selection.revision.is_empty()||selection.revision.len()>4096||selection.kind>1{return Err("E_SOURCE_AUTHORING_SELECTION".into());}
+    let mut adapter=SqliteAdapterV1::open_source_revision(storage_root).map_err(|e|format!("E_SOURCE_REVISION_OPEN: {e:?}"))?;
+    save_changed_authored_source_with_adapter(&mut adapter,artifact,original_artifact,revision,locator,selection)
+}
+#[cfg(windows)]
+pub(crate) fn save_changed_authored_source_with_adapter(adapter:&mut crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1,
+    artifact:&str,original_artifact:&str,revision:&[u8],locator:&str,selection:&NativeAuthoringSelection)->Result<NativeSourceRevisionReadback,String>{
+    use crate::snapshot_v2_durable_transaction::native::{AuthoringHeadV1,source_revision::SourceSaveFailure};
+    if selection.project.len()!=32||selection.revision.is_empty()||selection.revision.len()>4096||selection.kind>1{return Err("E_SOURCE_AUTHORING_SELECTION".into());}
+    let head=AuthoringHeadV1{project:selection.project.clone(),revision:selection.revision.clone(),integrity:selection.integrity,key:selection.key,kind:selection.kind};
+    let base=adapter.admit_authoring_base(locator,&head,original_artifact).map_err(|e|format!("E_SOURCE_AUTHORING_ADMISSION: {e:?}"))?;
+    let prepared=base.prepare(&adapter,artifact,revision)?;
+    let saved=adapter.save_authoring_source(prepared).map_err(|e|match e{SourceSaveFailure::BeforeCommit(cause)=>format!("E_SOURCE_AUTHORING_BEFORE_COMMIT: {cause:?}"),
+        SourceSaveFailure::AfterCommitUnconfirmed(cause)=>format!("E_SOURCE_AUTHORING_RECOVERY_REQUIRED: {cause:?}")})?;
+    let mut result=source_readback_projection(saved.source())?;result.grant_locator=Some(saved.locator());Ok(result)
+}
+#[cfg(windows)]
+pub(crate) fn current_authoring_source_with_adapter(adapter:&mut crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1,
+    project:&[u8],locator:&str)->Result<Option<(NativeSourceRevisionReadback,NativeAuthoringSelection)>,String>{
+    let Some(base)=adapter.current_authoring_source_if_ready(locator,project).map_err(|e|format!("E_SOURCE_AUTHORING_CURRENT: {e:?}"))? else{return Ok(None);};
+    let mut source=source_readback_projection(base.source())?;source.grant_locator=Some(locator.into());let h=base.head();
+    let selection=NativeAuthoringSelection{project:h.project.clone(),revision:h.revision.clone(),integrity:h.integrity,key:h.key,kind:h.kind};Ok(Some((source,selection)))
+}
+#[cfg(windows)]
+pub fn current_authoring_source_native(root:&std::path::Path,project:&[u8],locator:&str)->Result<Option<(NativeSourceRevisionReadback,NativeAuthoringSelection)>,String>{
+    let mut adapter=crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1::open_source_revision(root).map_err(|e|format!("E_SOURCE_REVISION_OPEN: {e:?}"))?;
+    current_authoring_source_with_adapter(&mut adapter,project,locator)
+}
+#[cfg(windows)]
+pub fn read_changed_authored_source_native(storage_root:&std::path::Path,project:&[u8],locator:&str,artifact:&str)->Result<NativeSourceRevisionReadback,String>{
+    let mut adapter=crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1::open_source_revision(storage_root).map_err(|e|format!("E_SOURCE_REVISION_OPEN: {e:?}"))?;
+    let head=adapter.selected_authoring_head(project).map_err(|e|format!("E_SOURCE_AUTHORING_HEAD: {e:?}"))?;
+    if head.kind!=0{return Err("E_SOURCE_AUTHORING_NOT_READY: 현재 머리는 원문 저장 판이 아닙니다".into());}
+    let base=adapter.admit_authoring_base(locator,&head,artifact).map_err(|e|format!("E_SOURCE_AUTHORING_ADMISSION: {e:?}"))?;
+    let mut result=source_readback_projection(base.source())?;result.grant_locator=Some(locator.into());Ok(result)
+}
 #[cfg(windows)]
 pub fn read_authored_source_native(storage_root:&std::path::Path,project:&[u8],locator:&str)
     ->Result<NativeSourceRevisionReadback,String>{
@@ -873,6 +948,8 @@ fn persist_initial_custody_actual(
     let binding=crate::snapshot_v2_host_bridge::check_resumable_request_candidate_v2(&recovery_request,source.pesi().as_raw()).map_err(reject)?.binding;
     let receipt=crate::snapshot_v2_host_bridge::encode_committed_receipt_candidate(&binding,profile.as_bytes()).map_err(reject)?;
     retained.owner().evidence().check_committed_receipt_evidence(&receipt,profile.as_bytes()).map_err(reject)?;
+    #[cfg(feature="beta2-crash-probe")]
+    durable::native::crash_probe::checkpoint("after_receipt");
     Ok(NativeCustodyCommitParts{receipt,digest,locator:grant_locator,request:recovery_request,token:recovery_token})
 }
 
@@ -1165,6 +1242,16 @@ fn rebuild_general_native_history_with_source(
     context:&crate::unit_wire::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>,
     source_history:Option<&dyn Fn(usize)->Result<crate::snapshot_v2_durable_transaction::native::StoredPayloadV1,String>>,
 )->Result<(VerifiedGeneralNativeRun,String),String> {
+    rebuild_general_native_history_with_evidence(adapter,current,context,source_history,None)
+}
+#[cfg(not(target_arch="wasm32"))]
+fn rebuild_general_native_history_with_evidence(
+    adapter:&crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1,
+    current:&crate::snapshot_v2_durable_transaction::native::StoredPayloadV1,
+    context:&crate::unit_wire::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>,
+    source_history:Option<&dyn Fn(usize)->Result<crate::snapshot_v2_durable_transaction::native::StoredPayloadV1,String>>,
+    evidence:Option<GeneralEvidenceSourceV1<'_>>,
+)->Result<(VerifiedGeneralNativeRun,String),String> {
     use crate::unit_wire::{project_runtime_attachment as attachment,resumable_complete_state as complete};
     use crate::snapshot_v2_host_bridge as bridge;
     let reject=|failure|format!("E_PROJECT_RUNTIME_NATIVE: 일반 저장 이력 확인 실패 ({failure:?})");
@@ -1216,12 +1303,13 @@ fn rebuild_general_native_history_with_source(
             let previous_layout=previous_frame.as_ref().map(|p|crate::unit_wire::check_resumable_complete_state_layout_v2(&p.snapshot,pesi)).transpose().map_err(reject)?;
             // Source history carries the actual complete lifetime tables. The
             // ordinary JSON-only restore path remains unchanged and denied.
-            let (_,execution,rows)=resume_saved_project_artifact_from_runner_with_frame(&previous_artifact,&previous_parent,
-                &previous_revision,u32::try_from(suffix).map_err(|_|"E_PROJECT_RUNTIME_GENERAL_COUNT")?,Some((run.execution.runner,run.age)),previous_layout.as_ref().map(|l|l.world))?;
+            let result=run.execution.result.take();
+            let (_,execution,rows)=resume_saved_project_artifact_with_general_result(&previous_artifact,&previous_parent,
+                &previous_revision,u32::try_from(suffix).map_err(|_|"E_PROJECT_RUNTIME_GENERAL_COUNT")?,Some((run.execution.runner,run.age)),previous_layout.as_ref().map(|l|l.world),result)?;
             run.rows.extend(rows);run.execution=execution;run
         } else {
             let authored=owned.project().save()?;
-            let prefix=run_general_input_prefix_from_owned_with_subject(owned.clone(),&authored,count,candidate.base_rng_seed,None,None,candidate.age,subject_bootstrap.as_ref())?;
+            let prefix=run_general_input_prefix_with_evidence(owned.clone(),&authored,count,candidate.base_rng_seed,None,None,candidate.age,subject_bootstrap.as_ref(),evidence)?;
             previous_artifact=prefix.export_saved_artifact_native_complete(&payload.binding.expected_parent,&payload.binding.new_revision)?;
             VerifiedGeneralNativeRun {owned:owned.clone(),execution:prefix.execution,rows:prefix.rows,
                 base:candidate.base_rng_seed,age:candidate.age,receipts:Vec::new()}
@@ -1357,6 +1445,12 @@ fn resume_saved_project_artifact_from_runner_with_frame(
     artifact:&str,expected_parent:&[u8],revision:&[u8],ticks:u32,admitted_runner:Option<(DdnRunner,AgeTarget)>,
     frame:Option<crate::unit_wire::CompleteStateFrameV1<'_>>,
 )->Result<(JsonValue,GeneralCompletedExecution,Vec<crate::unit_wire::resumable_complete_state::GeneralProcessedInputRow>),String>{
+    resume_saved_project_artifact_with_general_result(artifact,expected_parent,revision,ticks,admitted_runner,frame,None)
+}
+fn resume_saved_project_artifact_with_general_result(
+    artifact:&str,expected_parent:&[u8],revision:&[u8],ticks:u32,admitted_runner:Option<(DdnRunner,AgeTarget)>,
+    frame:Option<crate::unit_wire::CompleteStateFrameV1<'_>>,mut result_collector:Option<GeneralResultCollectorV1>,
+)->Result<(JsonValue,GeneralCompletedExecution,Vec<crate::unit_wire::resumable_complete_state::GeneralProcessedInputRow>),String>{
     use crate::unit_wire::project_runtime_attachment as attachment;
     let bytes=attachment::check_bytes(artifact.as_bytes())?;
     let owned=attachment::restore_saved_runtime_payload(&bytes)?;
@@ -1388,6 +1482,7 @@ fn resume_saved_project_artifact_from_runner_with_frame(
     source_runner.configure_project_entry(sources.entry_declaration().name())?;
     let tuple_plan = source_runner.saved_tuple_restore_plan();
     let staged=crate::unit_wire::runtime_checkpoint::stage_runtime_state_with_complete_frame(&runtime,source_path,&source_hash,&canonical_hash,tuple_plan.as_ref(),catalog.as_ref(),context.world_frame())?;
+    if staged.tick_id>0 {source_runner.validate_restored_derived_world(staged.world.world())?;}
     let mut next_tick=staged.tick_id;
     next_tick.checked_add(u64::from(ticks)).ok_or("E_WASM_STATE_TICK_INVALID: 마디 순번 넘침")?;
     let params=staged.param_overrides;
@@ -1440,9 +1535,13 @@ fn resume_saved_project_artifact_from_runner_with_frame(
         let output=runner.run_update_diagnostic_with_control_edges(world.world(),&frame,&defaults,None,Some(&params))
             .map_err(|error|execution_error_diagnostic(error,&sources.preparation().target_path).to_json_value().to_string())?;
         let receipt=crate::input_receipt::receipt(&frame,&output.input_reads);
+        let prepared_result=if let Some(collector)=result_collector.as_mut(){
+            Some(collector.prepare(output.result_emissions,next_tick,&receipt)?)
+        }else{None};
         let observations=public_observation_events_json(&output.public_observations)?;
         let mut sink=ddonirang_core::signals::VecSignalSink::default();
         world.apply_patch(&output.patch,next_tick,&mut sink);
+        if let (Some(collector),Some(prepared))=(result_collector.as_mut(),prepared_result){collector.commit(prepared)?;}
         display_outputs.extend(output.display_outputs);
         crate::output_display::retain_current(&mut display_outputs,&serialize_world_resources(world.world()));
         public_observation_frames.value_mut().as_array_mut().unwrap().push(json!({"committed_madi":next_tick,"state_hash":current_state_hash(world.world()),
@@ -1486,7 +1585,7 @@ fn resume_saved_project_artifact_from_runner_with_frame(
         "consumed_keys_decimal":runner.consumed_keys_pressed().to_string()});
     crate::bogae_projection::attach(saved_runtime.value_mut(),bogae_projection.as_deref());
     crate::output_display::attach(saved_runtime.value_mut(),&display_outputs);
-    Ok((result.into_parent_value(),GeneralCompletedExecution {runner,world,next_tick,saved_runtime:Some(saved_runtime)},actual_inputs))
+    Ok((result.into_parent_value(),GeneralCompletedExecution {runner,world,next_tick,result:result_collector,saved_runtime:Some(saved_runtime)},actual_inputs))
 }
 
 pub fn execution_envelope_from_source(
@@ -1949,6 +2048,7 @@ pub(crate) struct GeneralSuccessfulInputPrefix {
 }
 struct GeneralCompletedExecution {
     runner: DdnRunner, world: DetNuri, next_tick: u64,
+    result:Option<GeneralResultCollectorV1>,
     /// Actual continuation projection, not a reconstructed fresh-run summary.
     saved_runtime:Option<crate::unit_wire::SnapshotJsonOwner>,
 }
@@ -2079,7 +2179,7 @@ impl GeneralSuccessfulInputPrefix {
     pub(crate) fn check_reconstructed_prefix(&self)->Result<(),String> {
         let artifact=self.owned.project().save()?;
         let replayed=run_general_input_prefix_from_owned_with_subject(self.owned.clone(),&artifact,self.construction.requested_ticks,
-            self.base_seed,self.construction.snapshots.as_deref(),self.construction.tape.as_ref(),self.construction.age,self.construction.subject_bootstrap.as_ref())?;
+            self.base_seed,self.construction.snapshots.as_deref(),self.construction.tape.as_ref(),self.construction.age,self.construction.subject_bootstrap.as_ref(),None)?;
         let reject=|section|format!("E_PROJECT_RUNTIME_GENERAL_REPLAY: 실제 성공 이력과 원 실행 문맥이 다릅니다 ({section})");
         let checks=[
             ("input",self.input_supply().map_err(|error|reject(format!("input:{error:?}")))?
@@ -2181,13 +2281,24 @@ fn run_general_input_prefix_from_owned(
     artifact:&str,requested_ticks:u32,base_seed:u64,input_snapshots:Option<&[InputSnapshot]>,
     input_tape:Option<&InputTape>,age:AgeTarget,
 )->Result<GeneralSuccessfulInputPrefix,String> {
-    run_general_input_prefix_from_owned_with_subject(owned,artifact,requested_ticks,base_seed,input_snapshots,input_tape,age,None)
+    run_general_input_prefix_from_owned_with_subject(owned,artifact,requested_ticks,base_seed,input_snapshots,input_tape,age,None,None)
 }
 fn run_general_input_prefix_from_owned_with_subject(
     owned:crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
     artifact:&str,requested_ticks:u32,base_seed:u64,input_snapshots:Option<&[InputSnapshot]>,
     input_tape:Option<&InputTape>,age:AgeTarget,
     subject_bootstrap:Option<&crate::unit_wire::subject_execution::SubjectExecutionStage>,
+    replay_source:Option<&crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnlyRevision>,
+)->Result<GeneralSuccessfulInputPrefix,String> {
+    run_general_input_prefix_with_evidence(owned,artifact,requested_ticks,base_seed,input_snapshots,input_tape,age,
+        subject_bootstrap,replay_source.map(GeneralEvidenceSourceV1::Original))
+}
+fn run_general_input_prefix_with_evidence(
+    owned:crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
+    artifact:&str,requested_ticks:u32,base_seed:u64,input_snapshots:Option<&[InputSnapshot]>,
+    input_tape:Option<&InputTape>,age:AgeTarget,
+    subject_bootstrap:Option<&crate::unit_wire::subject_execution::SubjectExecutionStage>,
+    replay_source:Option<GeneralEvidenceSourceV1<'_>>,
 )->Result<GeneralSuccessfulInputPrefix,String> {
     let preparation = owned.sources().preparation();
     let profile = resolve_supported_source_profile(Some("v1-core-v25")).map_err(|error|error.message)?;
@@ -2196,7 +2307,7 @@ fn run_general_input_prefix_from_owned_with_subject(
     let summary = run_summary_with_general_input_supplier(
         &preparation.source,&preparation.target_path,Some(requested_ticks),None,None,Some(age),
         Some(profile),input_tape,base_seed,owned.sources().entry_declaration().name(),
-        None,true,input_snapshots,None,None,Some(artifact),Some(&mut rows),Some(&owned),Some(&mut execution),subject_bootstrap,
+        None,true,input_snapshots,None,None,Some(artifact),Some(&mut rows),Some(&owned),Some(GeneralExecutionCollector{destination:&mut execution,source:replay_source}),subject_bootstrap,
     ).map_err(|error|error.to_json_value().to_string())?;
     let result = GeneralSuccessfulInputPrefix { owned, rows, base_seed, summary:RuntimeJsonOutput::new(summary),
         execution:execution.ok_or("E_PROJECT_RUNTIME_GENERAL_BOUNDARY: 성공 실행 상태가 없습니다")?,
@@ -2549,7 +2660,7 @@ fn run_summary_with_general_input_supplier(
     authored_artifact: Option<&str>,
     successful_inputs: Option<&mut Vec<crate::unit_wire::resumable_complete_state::GeneralProcessedInputRow>>,
     general_saved_owner: Option<&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1>,
-    completed_execution: Option<&mut Option<GeneralCompletedExecution>>,
+    completed_execution: Option<GeneralExecutionCollector<'_>>,
     subject_bootstrap:Option<&crate::unit_wire::subject_execution::SubjectExecutionStage>,
 ) -> Result<JsonValue, ExecutionDiagnostic> {
     let mut staged_inputs = Vec::new();
@@ -2850,6 +2961,15 @@ fn run_summary_with_general_input_supplier(
             work_cost_failure_diagnostic(failure, file_path, "resource_preflight")
         })?;
 
+    // Capture only here, before the first actual input, from the original
+    // source-only owner. A legacy/cold prefix never manufactures this proof.
+    let mut result_collector=match completed_execution.as_ref().and_then(|collector|collector.source){
+        Some(original)=>Some(GeneralResultCollectorV1::from_source(general_saved_owner.ok_or_else(||
+            run_summary_diagnostic("E_GENERAL_REPLAY_SEED_SOURCE","원 실행의 원문 소유자가 없습니다",file_path,"result_evidence"))?,
+            &runner,original,rng_base_seed,effective_age_target)
+            .map_err(|message|run_summary_diagnostic("E_GENERAL_REPLAY_SEED",message,file_path,"result_evidence"))?),
+        None=>None,
+    };
     for tick_index in 0..effective_ticks {
         let tick_seed = rng_base_seed ^ tick_id;
         let keys_pressed = match live_next_mask.as_mut() {
@@ -2896,6 +3016,12 @@ fn run_summary_with_general_input_supplier(
         let output = runner
             .run_update_diagnostic_with_control_edges(world.world(), &input, &defaults, control_edges, param_overrides)
             .map_err(|error| execution_error_diagnostic(error, file_path))?;
+        let actual_receipt=crate::input_receipt::receipt(&input,&output.input_reads);
+        let prepared_result=match result_collector.as_mut(){
+            Some(collector)=>Some(collector.prepare(output.result_emissions,tick_id,&actual_receipt)
+                .map_err(|message|run_summary_diagnostic("E_GENERAL_RESULT_OUTPUT",message,file_path,"result_evidence"))?),
+            None=>None,
+        };
         if input_tape.is_some_and(|tape| tape.version == 1) {
             crate::input_receipt::validate_tape_v1_reads(&output.input_reads)
                 .map_err(|message| run_summary_diagnostic(
@@ -2917,7 +3043,7 @@ fn run_summary_with_general_input_supplier(
             crate::output_display::retain_current(&mut display_outputs, &serialize_world_resources(world.world()));
         }
         let input_json = serialize_input_snapshot(&input, Some(rng_base_seed));
-        input_receipts.push(crate::input_receipt::receipt(&input, &output.input_reads));
+        input_receipts.push(actual_receipt);
         if successful_inputs.is_some() {
             staged_inputs.try_reserve(1).map_err(|_|run_summary_diagnostic(
                 "E_PROJECT_RUNTIME_INPUT_SUPPLY", "실제 처리 입력을 보존할 공간이 없습니다",
@@ -2938,6 +3064,9 @@ fn run_summary_with_general_input_supplier(
         last_patch = output.patch;
         last_bogae_projection = output.bogae_projection;
         last_input = serialize_input_snapshot(&input, Some(rng_base_seed));
+        if let (Some(collector),Some(prepared))=(result_collector.as_mut(),prepared_result){
+            collector.commit(prepared).map_err(|message|run_summary_diagnostic("E_GENERAL_RESULT_OUTPUT",message,file_path,"result_evidence"))?;
+        }
         tick_id = tick_id.saturating_add(1);
     }
 
@@ -3183,7 +3312,7 @@ fn run_summary_with_general_input_supplier(
     }
     let summary = finalize_run_summary_result_artifact(summary, &mut runner, file_path)?;
     if let Some(destination) = successful_inputs { *destination = staged_inputs; }
-    if let Some(destination) = completed_execution { *destination = Some(GeneralCompletedExecution { runner, world, next_tick:tick_id,saved_runtime:None }); }
+    if let Some(collector) = completed_execution { *collector.destination = Some(GeneralCompletedExecution { runner, world, next_tick:tick_id,result:result_collector,saved_runtime:None }); }
     Ok(summary)
 }
 

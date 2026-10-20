@@ -216,7 +216,7 @@ fn collect_stmt(statement: &Stmt, candidates: &mut Vec<ByteRange>) {
                 }
             }
         }
-        Stmt::Definition { value, .. } => collect_expr(value, candidates),
+        Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} => collect_expr(value, candidates),
         Stmt::Mutate { target, value, .. } => {
             collect_expr(target, candidates);
             collect_expr(value, candidates);
@@ -411,6 +411,7 @@ fn statement_span(statement: &Stmt) -> ddonirang_lang::Span {
         | Stmt::SumDefinition {span,..}
         | Stmt::SumMatch {span,..}
         | Stmt::Definition { span, .. }
+        | Stmt::DerivedBinding {span,..}
         | Stmt::Mutate { span, .. }
         | Stmt::ResultFlow { span, .. }
         | Stmt::Expr { span, .. }

@@ -6,6 +6,9 @@
 use crate::snapshot_v2_durable_transaction::SnapshotV2DurabilityFailureV1 as Failure;
 use crate::work_cost::{StandardResourceLimitsV1, WorkCostCounters, WorkCostReceipt};
 use super::complete_state_frame::ResumableCompleteStateLayoutV2;
+mod replay_seed;
+mod general_readonly;
+pub(crate) use general_readonly::{ReadOnlyGeneralReplayV1,GeneralReadOnlyBoundaryV1};
 
 struct Cursor<'a> { bytes: &'a [u8], offset: usize }
 impl<'a> Cursor<'a> {
@@ -189,6 +192,17 @@ struct VerifiedRunCheckpointProvenance {
     local_restored: bool,
 }
 
+/// A source-parent world is admitted by its protected source/Witness owner,
+/// never by relaxing the legacy INITIAL empty-parent contract.
+#[cfg(not(target_arch="wasm32"))]
+enum NativeLogicalHistory<'a> {
+    Legacy,
+    #[cfg(windows)]
+    Source(&'a crate::snapshot_v2_durable_transaction::native::ReadmittedFirstSourceWorldV2),
+    #[cfg(not(windows))]
+    _Lifetime(std::marker::PhantomData<&'a ()>),
+}
+
 /// Existing field12 construction grammar, supplied from verified fresh source
 /// and the actual runner. These comparison bytes do not issue fresh provenance;
 /// the caller must be the retained fresh-run owner (never a restored capsule).
@@ -210,17 +224,7 @@ pub(crate) fn encode_general_fresh_source_descriptor(
         &preparation.source,&preparation.target_path,&program,
     ).map_err(|_|Failure::InvalidInput)?;
     let canonical=program.canonical_ddn();let decision=program.execution_mode_decision();
-    let issued=crate::project_snapshot_identity::current::issue_saved_local_project(owned)
-        .map_err(|_|Failure::InvalidInput)?;
-    let empty=[0;8];
-    let subject_initial=runner.saved_initial_subject_world().map_err(|_|Failure::SubjectCustodyInvalid)?;
-    let atom_evidence=recorded_source_atom_evidence(owned)?;
-    let catalog=owned.registration().map(|registration|registration.saved_nominal_catalog(owned)).transpose().map_err(|_|Failure::CustodyConflict)?;
-    let initial=super::complete_state_frame::CompleteStateFrameV1 {
-        pesi:issued.pesi().as_raw(),resources:&empty,parameters:&empty,next_tick:0,
-        subjects:subject_initial.as_ref().map(|world|world.subject_values.as_slice()).unwrap_or(&empty),
-        atom_evidence:&atom_evidence,subject_custody:subject_initial.as_ref().map(|world|world.subject_custody.as_slice()).unwrap_or(&[]),
-    }.encode_canonical_with_catalog(catalog.as_ref())?;
+    let initial=encode_general_original_initial_world(owned,runner)?;
     let mut out=vec![0,2];
     append_bytes32(&mut out,b"ddn.resume.source-rebuild-descriptor.v1")?;
     append_bytes32(&mut out,b"v1-core-v25")?;
@@ -248,6 +252,25 @@ pub(crate) fn encode_general_fresh_source_descriptor(
         return Err(Failure::CustodyConflict);
     }
     Ok(out)
+}
+
+/// The existing descriptor's original zero-world owner, shared with SEED1.
+/// This never creates a fresh Subject nonce or a normal restore permission.
+pub(crate) fn encode_general_original_initial_world(
+    owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
+    runner:&crate::ddn_runtime::DdnRunner,
+)->Result<Vec<u8>,Failure>{
+    let issued=crate::project_snapshot_identity::current::issue_saved_local_project(owned)
+        .map_err(|_|Failure::InvalidInput)?;
+    let empty=[0;8];
+    let subject_initial=runner.saved_initial_subject_world().map_err(|_|Failure::SubjectCustodyInvalid)?;
+    let atom_evidence=recorded_source_atom_evidence(owned)?;
+    let catalog=owned.registration().map(|registration|registration.saved_nominal_catalog(owned)).transpose().map_err(|_|Failure::CustodyConflict)?;
+    super::complete_state_frame::CompleteStateFrameV1 {
+        pesi:issued.pesi().as_raw(),resources:&empty,parameters:&empty,next_tick:0,
+        subjects:subject_initial.as_ref().map(|world|world.subject_values.as_slice()).unwrap_or(&empty),
+        atom_evidence:&atom_evidence,subject_custody:subject_initial.as_ref().map(|world|world.subject_custody.as_slice()).unwrap_or(&[]),
+    }.encode_canonical_with_catalog(catalog.as_ref())
 }
 
 /// Exact existing fields 0e/0f/10, supplied from the actual retained general
@@ -304,7 +327,25 @@ pub(crate) fn encode_general_predecessor(receipts:&[Vec<u8>])->Result<Vec<u8>,Fa
 pub(crate) struct CheckpointedLogicalRunV1 {
     session: crate::logical_input_tape::LogicalInputSession,
     provenance: VerifiedRunCheckpointProvenance,
+    replay_seed:Option<crate::replay_evidence::ReplaySeedV1>,
 }
+/// Only this actual fresh run can create the zero-input boundary borrow.
+/// The source envelope remains data; no RootGrant/restore right is issued.
+pub(crate) struct InitialLogicalReplaySeedBoundaryV1<'a> {
+    run:&'a CheckpointedLogicalRunV1,
+    source:&'a super::project_runtime_attachment::source_only::PreparedSourceOnlyRevision,
+}
+
+/// Created only by the actual fresh saved-source execution factory below.
+/// Not a Native storage/restore permit, and never decoded from saved bytes.
+pub(crate) struct FreshLogicalResultAdmissionV1 { _private:() }
+pub(crate) struct ReadOnlyLogicalSeedAdmissionV1 { _private:() }
+mod readonly_replay;
+pub(crate) use readonly_replay::{ReadOnlyLogicalReplayV1,ReadOnlyCompletedLogicalReplayV1};
+#[cfg(windows)]
+mod recording_resume;
+#[cfg(windows)]
+pub(crate) use recording_resume::{CurrentRecordingProgressProofV1,NativeRecordingProgressOwnerV1,NewRecordAdmissionProofV1};
 
 impl CheckpointedLogicalRunV1 {
     /// Create a genuinely new execution from verified saved sources. No API
@@ -356,10 +397,12 @@ impl CheckpointedLogicalRunV1 {
         append_bytes32(&mut prefix,authored.as_bytes())?;append_bytes32(&mut prefix,&initial)?;
         append_supply(&mut prefix,&0u64.to_be_bytes())?;
         append_supply(&mut prefix,&binding.initial_rng.to_be_bytes())?;
-        let session = crate::logical_input_tape::LogicalInputSession::from_saved_runner(
+        let mut session = crate::logical_input_tape::LogicalInputSession::from_saved_runner(
             owned,binding.clone(),runner,
         ).map_err(|_|Failure::InvalidInput)?;
-        Ok(Self {session,provenance:VerifiedRunCheckpointProvenance {
+        session.bind_original_result_start(FreshLogicalResultAdmissionV1{_private:()})
+            .map_err(|_|Failure::CustodyConflict)?;
+        Ok(Self {session,replay_seed:None,provenance:VerifiedRunCheckpointProvenance {
             source_owner:owned.clone(),initial_binding:binding,execution_instance,
             pesi:*issued.pesi().as_raw(),source_descriptor_prefix:prefix,prior_durable_receipts:Vec::new(),local_restored:false,
         }})
@@ -493,6 +536,9 @@ impl CheckpointedLogicalRunV1 {
     pub(crate) fn session(&self)->&crate::logical_input_tape::LogicalInputSession {
         &self.session
     }
+    pub(crate) fn session_mut_for_recording(&mut self)->&mut crate::logical_input_tape::LogicalInputSession {
+        &mut self.session
+    }
 
     /// Browser/local storage only: reconstruct the original source and full
     /// processed input prefix. The independently selected input contract is
@@ -510,7 +556,7 @@ impl CheckpointedLogicalRunV1 {
             return Err(Failure::CustodyConflict);
         }
         let session=replay_complete_state_candidate(&request.layout,context,expected)?;
-        let restored=Self {session,provenance:VerifiedRunCheckpointProvenance {
+        let restored=Self {session,replay_seed:None,provenance:VerifiedRunCheckpointProvenance {
             source_owner:context.owned().clone(),initial_binding:expected.clone(),
             execution_instance:candidate.execution_instance.to_vec(),pesi:*context.pesi().as_raw(),
             source_descriptor_prefix:candidate.source_descriptor_prefix.to_vec(),
@@ -530,14 +576,44 @@ impl CheckpointedLogicalRunV1 {
         context:&super::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>,
         expected:&crate::logical_input_tape::LogicalInputBinding,
     ) -> Result<Self,Failure> {
+        Self::restore_native_checkpoint_from_history(adapter,digest,revision,context,expected,NativeLogicalHistory::Legacy)
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn restore_native_source_checkpoint(
+        adapter:&crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1,
+        admitted:&crate::snapshot_v2_durable_transaction::native::ReadmittedFirstSourceWorldV2,
+        context:&super::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>,
+        expected:&crate::logical_input_tape::LogicalInputBinding,
+    )->Result<Self,Failure> {
+        let payload=admitted.payload();
+        Self::restore_native_checkpoint_from_history(adapter,&payload.digest,&payload.binding.new_revision,
+            context,expected,NativeLogicalHistory::Source(admitted))
+    }
+
+    #[cfg(not(target_arch="wasm32"))]
+    fn restore_native_checkpoint_from_history(
+        adapter:&crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1,
+        digest:&[u8;32],revision:&[u8],
+        context:&super::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>,
+        expected:&crate::logical_input_tape::LogicalInputBinding,
+        history:NativeLogicalHistory<'_>,
+    )->Result<Self,Failure> {
         use crate::snapshot_v2_durable_transaction::TransactionEvidenceV1;
         use crate::snapshot_v2_host_bridge as bridge;
         let owned=context.owned();
         let project=hex::decode(owned.project().authored_identity.logical_dependency_id.as_str())
             .map_err(|_|Failure::InvalidInput)?;
         let profile=adapter.capability()?;
-        let chain=adapter.reread_committed(digest,&project,revision)?;
-        let payload=chain.payload.as_ref().ok_or(Failure::ArtifactMismatch)?;
+        let current=match &history {
+            #[cfg(windows)]
+            NativeLogicalHistory::Source(source)=>{
+                source.current_receipt(adapter,context)?;
+                source.payload().clone()
+            },
+            _=>adapter.reread_committed(digest,&project,revision)?.payload.ok_or(Failure::ArtifactMismatch)?,
+        };
+        let payload=&current;
         if payload.digest!=*digest || payload.binding.project!=project || payload.binding.new_revision!=revision {
             return Err(Failure::CustodyConflict);
         }
@@ -562,9 +638,17 @@ impl CheckpointedLogicalRunV1 {
             let parsed=bridge::check_committed_receipt_payload_v1(raw)?;
             let head=parsed.native_head()?;
             if head.project!=project {return Err(Failure::CustodyConflict);}
-            let old_chain=adapter.reread_committed(&head.digest,&project,&head.revision)?;
-            let old=old_chain.payload.as_ref().ok_or(Failure::ArtifactMismatch)?;
-            if old_chain.revision.as_ref()!=Some(&head) || old.digest!=head.digest
+            let old_payload=match &history {
+                #[cfg(windows)]
+                NativeLogicalHistory::Source(source)=>source.historical_payload(adapter,i,context)?,
+                _=>{
+                    let chain=adapter.reread_committed(&head.digest,&project,&head.revision)?;
+                    if chain.revision.as_ref()!=Some(&head){return Err(Failure::CustodyConflict);}
+                    chain.payload.ok_or(Failure::ArtifactMismatch)?
+                },
+            };
+            let old=&old_payload;
+            if old.binding.new_revision!=head.revision || old.binding.project!=head.project || old.digest!=head.digest
                 || old.binding.transaction_digest()?!=head.digest {return Err(Failure::CustodyConflict);}
             parsed.check_binding(&old.binding,profile.as_bytes())?;
             let old_layout=super::complete_state_frame::check_resumable_complete_state_layout_v2(
@@ -596,14 +680,24 @@ impl CheckpointedLogicalRunV1 {
             receipts.push(raw.to_vec());
         }
         let receipt=bridge::encode_committed_receipt_candidate(&payload.binding,profile.as_bytes())?;
-        let mut evidence=TransactionEvidenceV1::prepared(payload.binding.clone())?;
-        evidence.synced()?;evidence.verified(&payload.snapshot,&payload.snapshot)?;evidence.head_changed()?;
-        evidence.container_confirmation(adapter.confirm_container_durable())?;
-        let fresh=adapter.reread_committed(digest,&project,revision)?;
-        evidence.committed_native_chain(payload,&fresh)?;
-        evidence.check_committed_receipt_evidence(&receipt,profile.as_bytes())?;
+        match &history {
+            #[cfg(windows)]
+            NativeLogicalHistory::Source(source)=>{
+                // Fresh protected root/Attempt and the complete S->W chain
+                // are rechecked by this typed owner before issuing provenance.
+                if source.current_receipt(adapter,context)?!=receipt{return Err(Failure::CustodyConflict);}
+            },
+            _=>{
+                let mut evidence=TransactionEvidenceV1::prepared(payload.binding.clone())?;
+                evidence.synced()?;evidence.verified(&payload.snapshot,&payload.snapshot)?;evidence.head_changed()?;
+                evidence.container_confirmation(adapter.confirm_container_durable())?;
+                let fresh=adapter.reread_committed(digest,&project,revision)?;
+                evidence.committed_native_chain(payload,&fresh)?;
+                evidence.check_committed_receipt_evidence(&receipt,profile.as_bytes())?;
+            },
+        }
         receipts.push(receipt);
-        Ok(Self {session,provenance:VerifiedRunCheckpointProvenance {
+        Ok(Self {session,replay_seed:None,provenance:VerifiedRunCheckpointProvenance {
             source_owner:owned.clone(),initial_binding:expected.clone(),
             execution_instance:candidate.execution_instance.to_vec(),pesi:*context.pesi().as_raw(),
             source_descriptor_prefix:candidate.source_descriptor_prefix.to_vec(),prior_durable_receipts:receipts,local_restored:false,
@@ -689,19 +783,13 @@ impl CheckpointedLogicalRunV1 {
         let next=self.session.resume_boundary_next_tick(
             self.provenance.source_owner.sources().entry_declaration().name())
             .map_err(|_|Failure::InvalidInput)?;
-        let seed=self.provenance.initial_binding.initial_rng;
         let inputs=self.session.retained_core_inputs().map_err(|_|Failure::InvalidInput)?;
-        if u64::try_from(inputs.len()).map_err(|_|Failure::LimitExceeded)?!=next {
+        let (binding,_,_)=self.session.accepted_prefix_v3();
+        if u64::try_from(inputs.len()).map_err(|_|Failure::LimitExceeded)?!=next
+            || binding.initial_rng!=self.provenance.initial_binding.initial_rng {
             return Err(Failure::CustodyConflict);
         }
-        for (i,input) in inputs.iter().enumerate() {
-            if input.tick_id!=u64::try_from(i).map_err(|_|Failure::LimitExceeded)? || input.rng_seed!=seed {
-                return Err(Failure::CustodyConflict);
-            }
-        }
-        let mut out=vec![0,1,3];append_bytes32(&mut out,LOGICAL_FIXED_SEED_PROFILE)?;
-        for value in [seed,next,seed,0] {append_supply(&mut out,&value.to_be_bytes())?;}
-        Ok(out)
+        encode_logical_accepted_rng_content(&self.session)
     }
 
     /// Field11 is supplied only by this private owner. A failed/aborted run
@@ -972,6 +1060,26 @@ pub(crate) fn encode_execution_contract_supply(
         append_supply(&mut out, &value.to_be_bytes())?;
     }
     append_supply(&mut out, &[u8::from(receipt.rd206_resource_capability)])?;
+    Ok(out)
+}
+
+/// Reuses the exact field0e owner for read-only accepted result content.
+/// This includes an aborted owner's accepted prefix, but issues no resume
+/// permission. The saved supplier above still requires its original gates.
+pub(crate) fn encode_logical_accepted_rng_content(session:&crate::logical_input_tape::LogicalInputSession)
+    ->Result<Vec<u8>,Failure> {
+    let (binding,frames,_)=session.accepted_prefix_v3();
+    if binding.source_profile!=crate::logical_input_tape::LOGICAL_INPUT_PROFILE {return Err(Failure::InvalidInput);}
+    let inputs=session.accepted_core_input_content();
+    let next=u64::try_from(frames.len()).map_err(|_|Failure::LimitExceeded)?;
+    if inputs.len()!=frames.len(){return Err(Failure::CustodyConflict);}
+    for (i,input) in inputs.iter().enumerate() {
+        if input.tick_id!=u64::try_from(i).map_err(|_|Failure::LimitExceeded)? || input.rng_seed!=binding.initial_rng {
+            return Err(Failure::CustodyConflict);
+        }
+    }
+    let mut out=vec![0,1,3];append_bytes32(&mut out,LOGICAL_FIXED_SEED_PROFILE)?;
+    for value in [binding.initial_rng,next,binding.initial_rng,0] {append_supply(&mut out,&value.to_be_bytes())?;}
     Ok(out)
 }
 
@@ -1277,6 +1385,12 @@ pub(crate) fn check_execution_position_supply(
 pub(crate) fn check_replayed_work_supply(
     work:&[u8],expected:&WorkCostReceipt,
 ) -> Result<(WorkCostCounters,StandardResourceLimitsV1,bool),Failure> {
+    let (counters,limits,rd206_resource_capability)=decode_work_supply(work)?;
+    if counters.call_depth_current!=0||counters!=expected.counters||limits!=expected.limits
+        ||rd206_resource_capability!=expected.rd206_resource_capability{return Err(Failure::CustodyConflict);}
+    Ok((counters,limits,rd206_resource_capability))
+}
+fn decode_work_supply(work:&[u8])->Result<(WorkCostCounters,StandardResourceLimitsV1,bool),Failure>{
     if work.len()>2_000_000 {return Err(Failure::LimitExceeded);}
     let mut work=Cursor{bytes:work,offset:0};work.version()?;
     if work.byte()?!=15{return Err(Failure::InvalidInput);}
@@ -1296,11 +1410,20 @@ pub(crate) fn check_replayed_work_supply(
         result_artifact_bytes:work.u64()?,replay_capsule_bytes:work.u64()?,
     };
     let rd206_resource_capability=work.boolean()?;work.finish()?;
-    if counters.call_depth_current!=0||counters!=expected.counters||limits!=expected.limits
-        ||rd206_resource_capability!=expected.rd206_resource_capability{
+    Ok((counters,limits,rd206_resource_capability))
+}
+
+/// Only the original zero-run sealed-input count may initialize staging.
+/// No work counter, limits, consumed state or Root authority is reset here.
+fn restore_general_original_work(work:&[u8],runner:&mut crate::ddn_runtime::DdnRunner)->Result<(),Failure>{
+    let (mut counters,limits,capability)=decode_work_supply(work)?;
+    let expected=runner.work_cost_receipt();let sealed=counters.sealed_input_bytes;
+    counters.sealed_input_bytes=expected.counters.sealed_input_bytes;
+    if expected.counters.committed_madi!=0||counters!=expected.counters||limits!=expected.limits||capability!=expected.rd206_resource_capability{
         return Err(Failure::CustodyConflict);
     }
-    Ok((counters,limits,rd206_resource_capability))
+    runner.set_sealed_input_bytes(usize::try_from(sealed).map_err(|_|Failure::LimitExceeded)?).map_err(|_|Failure::LimitExceeded)?;
+    check_replayed_work_supply(work,&runner.work_cost_receipt())?;Ok(())
 }
 
 pub(crate) fn encode_replayed_work_supply(
@@ -1350,6 +1473,9 @@ mod tests{
         let mut original=CheckpointedLogicalRunV1::fresh(&owned,binding.clone(),crate::ddn_runtime::default_age_target()).unwrap();
         let input=|madi|serde_json::from_value(serde_json::json!({"madi":madi,"events":[],"held":binding.initial_held})).unwrap();
         for madi in 0..2 {original.step(&input(madi)).unwrap();}
+        let result=crate::replay_evidence::ResultPreimageV1::capture(
+            original.session().borrow_result_boundary().unwrap()).unwrap();
+        assert!(result.digest_label().starts_with("sha256:"));
         let saved=original.export_saved_artifact(&[],&[9]).unwrap();
         let checked=attachment::check_bytes(saved.as_bytes()).unwrap();
         let saved_owner=attachment::restore_saved_runtime_payload(&checked).unwrap();
@@ -1364,6 +1490,8 @@ mod tests{
         assert_eq!(original.session().summary(),before);
         let mut restored=CheckpointedLogicalRunV1::restore_local_checkpoint(&raw,&context,&binding).unwrap();
         assert!(restored.provenance.local_restored);
+        assert!(restored.session().borrow_result_boundary().is_err(),
+            "the old checkpoint does not contain original result/seed evidence");
         assert_eq!(restored.require_native_checkpoint_provenance(),Err(Failure::CustodyConflict));
         #[cfg(not(target_arch="wasm32"))]
         assert!(matches!(crate::snapshot_v2_durable_transaction::ActualPreparedRequestV1::from_logical(

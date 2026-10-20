@@ -2,6 +2,15 @@
 //! These live owners are not Committed/restore/receipt authority.
 use super::*;
 use crate::snapshot_v2_durable_transaction::ActualPreparedRequestV1;
+mod logical;
+pub(crate) mod general_recording;
+pub use general_recording::NativeGeneralRecordingPrepared;
+pub use general_recording::{NativeGeneralReplayContentV1,read_current_general_recording_content};
+mod recording_finish;
+pub(crate) use recording_finish::NativeLogicalFinishSessionV1;
+mod restart;
+pub use restart::{begin_new_authored_source_native,NativeRestartSourceWorldSession,NativeRestartSourceWorldExecution,NativeRestartSourceWorldPrepared};
+pub(crate) use logical::{resume_logical_source_world,save_continued_logical_source_world,verify_native_logical_current_receipt};
 
 /// Consumes the real Native session. Not Clone, serde, or constructible from
 /// a successful JSON response; failed VM execution never resets Started.
@@ -42,6 +51,15 @@ impl NativeFirstSourceWorldDurablyPrepared {
     }
 }
 impl NativeFirstSourceWorldRetained {
+    pub(crate) fn authoring_selection(&mut self,project:&[u8],locator:&str,artifact:&str)->Result<NativeAuthoringSelection,String>{
+        native_authoring_selection_from_adapter(&mut self._adapter,project,locator,artifact)
+    }
+    pub(crate) fn current_authoring_source(&mut self,project:&[u8],locator:&str)->Result<Option<(NativeSourceRevisionReadback,NativeAuthoringSelection)>,String>{
+        current_authoring_source_with_adapter(&mut self._adapter,project,locator)
+    }
+    pub(crate) fn save_changed_source(&mut self,artifact:&str,original:&str,revision:&[u8],locator:&str,selection:&NativeAuthoringSelection)->Result<NativeSourceRevisionReadback,String>{
+        save_changed_authored_source_with_adapter(&mut self._adapter,artifact,original,revision,locator,selection)
+    }
     pub(crate) fn browser_snapshot(&mut self,parent:&[u8],revision:&[u8],locator:&str)->Result<Vec<u8>,String>{
         self.saved_runtime_artifact()?;
         native_source_browser_snapshot_with_adapter(&self.artifact,parent,revision,&mut self._adapter,locator)
@@ -68,6 +86,10 @@ impl NativeFirstSourceWorldRetained {
     pub(crate) fn current_digest(&mut self,project:&[u8],locator:&str)->Result<[u8;32],String>{
         self._adapter.current_source_world_digest(locator,project).map_err(|cause|format!("E_SOURCE_WORLD_CURRENT: {cause:?}"))
     }
+    pub(crate) fn recording_content(&mut self,parent:&[u8],revision:&[u8],locator:&str)->Result<NativeGeneralReplayContentV1,String>{
+        self.saved_runtime_artifact()?;
+        general_recording::read_current_general_recording_content_with_adapter(&self.artifact,parent,revision,&mut self._adapter,locator)
+    }
     /// CLI/host projection only; neither this text nor its locator is a lease.
     pub fn report_json(&self)->Result<String,String>{
         let artifact=self.saved_runtime_artifact()?;
@@ -81,7 +103,7 @@ pub(crate) fn native_source_current_digest(root:&std::path::Path,project:&[u8],l
     let mut adapter=crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1::open_source_revision(root).map_err(|cause|format!("E_SOURCE_WORLD_CURRENT: {cause:?}"))?;
     adapter.current_source_world_digest(locator,project).map_err(|cause|format!("E_SOURCE_WORLD_CURRENT: {cause:?}"))
 }
-pub(crate) fn save_continued_source_world_native(artifact:&str,parent:&[u8],revision:&[u8],next:&[u8],root:&std::path::Path,locator:&str,ticks:u32,
+pub fn save_continued_source_world_native(artifact:&str,parent:&[u8],revision:&[u8],next:&[u8],root:&std::path::Path,locator:&str,ticks:u32,
     stage:impl FnOnce(&str,&[u8;32])->Result<(),String>)->Result<JsonValue,String>{
     let mut adapter=crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1::open_source_revision(root).map_err(|cause|format!("E_SOURCE_WORLD_COLD_OPEN: {cause:?}"))?;
     save_continued_source_world_with_adapter(artifact,parent,revision,next,&mut adapter,locator,ticks,stage).map(|(_,_,summary)|summary)
@@ -98,6 +120,14 @@ fn save_continued_source_world_with_adapter(artifact:&str,parent:&[u8],revision:
     let payload=admitted.payload().clone();
     let layout=crate::unit_wire::check_resumable_complete_state_layout_v2(&payload.snapshot,source.pesi().as_raw()).map_err(reject)?;
     let context=attachment::check_saved_revision_context_with_frame(&bytes,&owned,parent,revision,layout.world)?;
+    let progress=admitted.replay_checkpoint_proof(adapter,&context).map_err(reject)?;
+    let has_progress=progress.replay_progress_present(adapter).map_err(reject)?;
+    drop(progress);
+    if has_progress{
+        drop(admitted);
+        let current=general_recording::NativeGeneralRecordingCurrentV1::restore(artifact,parent,revision,adapter,locator)?;
+        return current.save_next(artifact,parent,revision,next,adapter,ticks,stage);
+    }
     let history=|index|admitted.historical_payload(adapter,index,&context).map_err(reject);
     let (mut run,_)=rebuild_general_native_history_with_source(adapter,&payload,&context,Some(&history))?;
     run.receipts.push(admitted.current_receipt(adapter,&context).map_err(reject)?);
@@ -110,6 +140,8 @@ fn save_continued_source_world_with_adapter(artifact:&str,parent:&[u8],revision:
     let next_bytes=attachment::check_bytes(artifact.as_bytes())?;
     let next_context=attachment::check_saved_revision_context_with_frame(&next_bytes,&owned,revision,next,frame)?;
     let request=ActualPreparedRequestV1::from_general_continuation(&run,&next_context,revision,next)?;
+    #[cfg(feature="beta2-crash-probe")]
+    crate::snapshot_v2_durable_transaction::native::crash_probe::capture_candidate(&artifact,&summary,&JsonValue::Null)?;
     // Cache bytes are data, never a published checkpoint. Stage them before
     // changing Pending/head so a cache failure leaves the old Witness intact.
     stage(&artifact,&request.payload().digest)?;
@@ -135,7 +167,7 @@ fn native_source_browser_snapshot_with_adapter(artifact:&str,parent:&[u8],revisi
     let owned=attachment::restore_saved_runtime_payload(&checked)?;
     let source=attachment::check_saved_source_context(&checked,&owned,parent,revision)?;
     let actual=adapter.readmit_current_source_world_source_context(locator,&source)
-        .map_err(|cause|format!("E_SOURCE_WORLD_COLD_ADMISSION: {cause:?}"))?;
+        .map_err(|cause|format!("E_SOURCE_WORLD_COLD_ADMISSION: 복구 필요 — 저장 자료를 검증하지 못했습니다. 기존 저장본을 보존했습니다. cause={cause:?}"))?;
     let layout=crate::unit_wire::check_resumable_complete_state_layout_v2(&actual.payload().snapshot,source.pesi().as_raw())
         .map_err(|cause|format!("E_SOURCE_WORLD_COLD_FRAME: {cause:?}"))?;
     attachment::check_saved_revision_context_with_frame(&checked,&owned,parent,revision,layout.world)?;
@@ -156,7 +188,7 @@ fn resume_first_saved_source_world_with_adapter(artifact:&str,parent:&[u8],revis
     let owned=attachment::restore_saved_runtime_payload(&checked)?;
     let source=attachment::check_saved_source_context(&checked,&owned,parent,revision)?;
     let admitted=adapter.readmit_current_source_world_source_context(locator,&source)
-        .map_err(|cause|format!("E_SOURCE_WORLD_COLD_ADMISSION: {cause:?}"))?;
+        .map_err(|cause|format!("E_SOURCE_WORLD_COLD_ADMISSION: 복구 필요 — 저장 자료를 검증하지 못했습니다. 기존 저장본을 보존했습니다. cause={cause:?}"))?;
     let layout=crate::unit_wire::check_resumable_complete_state_layout_v2(&admitted.payload().snapshot,source.pesi().as_raw())
         .map_err(|cause|format!("E_SOURCE_WORLD_COLD_FRAME: {cause:?}"))?;
     let context=attachment::check_saved_revision_context_with_frame(&checked,&owned,parent,revision,layout.world)?;
@@ -178,7 +210,7 @@ impl NativeFirstSourceWorldSession {
         let artifact=owned.project().save()?;
         let subject_bootstrap=crate::unit_wire::subject_execution::SubjectExecutionStage::fresh_for_permitted_source(&owned)?;
         let run=run_general_input_prefix_from_owned_with_subject(owned,&artifact,ticks,base_seed,input_snapshots,input_tape,
-            crate::ddn_runtime::default_age_target(),subject_bootstrap.as_ref())?;
+            crate::ddn_runtime::default_age_target(),subject_bootstrap.as_ref(),Some(self.permit.source()))?;
         self.permit.verify_before_world(&self.adapter)
             .map_err(|cause|format!("E_SOURCE_FIRST_WORLD_AFTER_VM: {cause:?}"))?;
         Ok(NativeFirstSourceWorldExecution{session:self,run})
@@ -217,12 +249,33 @@ impl NativeFirstSourceWorldExecution {
     }
 }
 impl NativeFirstSourceWorldPrepared {
+    /// Untrusted host restore material, never a success publication or permit.
+    /// Stage before the first SQL attempt just like subsequent-W caches.
+    /// Reopening still requires the protected Pending/Witness and exact frame.
+    pub fn stage_restore_cache(&self,stage:impl FnOnce(&str,&[u8;32])->Result<(),String>)->Result<(),String>{
+        self.session.permit.verify_before_world(&self.session.adapter)
+            .map_err(|cause|format!("E_SOURCE_FIRST_WORLD_CACHE_CURRENT: {cause:?}"))?;
+        stage(&self.artifact,&self.request.payload().digest)
+    }
     /// Candidate inspection is test-private; the public Native pipeline must
     /// not expose world output before the retained Committed/Witness gate.
     #[cfg(test)]
     fn snapshot_bytes(&self)->&[u8] {&self.request.payload().snapshot}
     pub fn write_prepared(self)->Result<NativeFirstSourceWorldDurablyPrepared,String>{
         let Self{session,run,artifact,request}=self;
+        #[cfg(feature="beta2-crash-probe")]
+        if std::env::var_os("DDN_B2_CRASH_CAPTURE").is_some() {
+            // A development-only independent continuous reference, from the
+            // same recorded source/initial subject owner and actual seed.
+            // No observed prefix is converted into a logical input plan.
+            if run.construction.snapshots.is_some()||run.construction.tape.is_some(){
+                return Err("E_B2_PROBE_REFERENCE: 이 시험 경로의 명시 입력 기준은 아직 연결되지 않았습니다".into());
+            }
+            let ticks=run.construction.requested_ticks.checked_add(1).ok_or("E_B2_PROBE_REFERENCE: 마디 한도")?;
+            let reference=run_general_input_prefix_from_owned_with_subject(run.owned.clone(),&run.owned.project().save()?,
+                ticks,run.base_seed,None,None,run.construction.age,run.construction.subject_bootstrap.as_ref(),None)?;
+            crate::snapshot_v2_durable_transaction::native::crash_probe::capture_candidate(&artifact,&run.summary,&reference.summary)?;
+        }
         let checked=crate::unit_wire::project_runtime_attachment::check_bytes(artifact.as_bytes())?;
         let b=request.binding();
         let snapshot=request.payload().snapshot.clone();
@@ -242,7 +295,7 @@ impl NativeFirstSourceWorldPrepared {
 mod tests {
     use super::*;
     use crate::authored_project::{ProjectArtifact,SourceSnapshot,SourceFile};
-    fn fixture(source:&str)->(std::path::PathBuf,String,NativeSourceRevisionReadback){
+    pub(super) fn fixture(source:&str)->(std::path::PathBuf,String,NativeSourceRevisionReadback){
         let mut nonce=[0;32];getrandom::fill(&mut nonce).unwrap();
         let root=std::env::temp_dir().join(format!("ddn-r5-first-world-{}",hex::encode(nonce)));
         std::fs::create_dir(&root).unwrap();
@@ -255,6 +308,27 @@ mod tests {
         (root,artifact,saved)
     }
     #[test]
+    fn wo22_first_restore_cache_never_grants_success_before_commit(){
+        let (root,_,saved)=fixture("채비 { 횟수:바른수 := 0. }. 실행:움직씨 := { (매마디)마다 { 횟수 <- 횟수 + 1. 횟수 보여주기. }. }.");
+        let locator=saved.grant_locator.as_deref().unwrap();
+        let prepared=begin_first_authored_source_native(&root,&saved.project_identity,locator,
+            &saved.revision_identity,&saved.revision_integrity).unwrap().execute(1,0,None,None).unwrap().prepare(&[2]).unwrap();
+        let mut observed=None;
+        prepared.stage_restore_cache(|artifact,digest|{
+            assert!(!artifact.is_empty());observed=Some((artifact.to_owned(),*digest));Ok(())
+        }).unwrap();
+        let db=rusqlite::Connection::open_with_flags(root.join("vc04_snapshot_v2.sqlite3"),rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        let (kind,head):(i64,Vec<u8>)=db.query_row("SELECT payload_kind,history_revision_identity FROM vc04_project_heads",[],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+        assert_eq!((kind,head),(0,vec![1]));
+        assert_eq!(db.query_row("SELECT count(*) FROM vc04_recovery_custody_v1",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        drop(db);
+        let retained=prepared.write_prepared().unwrap().commit().unwrap();
+        assert_eq!(retained.saved_runtime_artifact().unwrap(),observed.as_ref().unwrap().0);
+        let expected=retained.summary().unwrap()["state_hash"].clone();drop(retained);
+        let cold=resume_first_saved_source_world_native(&observed.unwrap().0,&[1],&[2],&root,locator,0).unwrap();
+        assert_eq!(cold["state_hash"],expected);
+    }
+    #[test]
     fn vc04_subject_and_fraction_tuple_continued_candidate_preserves_actual_world(){
         use crate::unit_wire::{project_runtime_attachment as attachment,resumable_complete_state as complete};
         let source="명찰:이름씨 := { 이름:글. }. 병사:임자 := { 이름:글. }. 채비 { 이름표:(나눔수,명찰) := (1 / 3,(이름=\"처음\")인 명찰). 횟수:바른수 := 0. }. 실행:움직씨 := { (매마디)마다 { 횟수 <- 횟수 + 1. 표적 <- (이름=\"철수\")인 병사. 이름표 보여주기. }. }.";
@@ -262,7 +336,7 @@ mod tests {
         let execution=begin_first_authored_source_native(&root,&saved.project_identity,locator,&saved.revision_identity,&saved.revision_integrity).unwrap()
             .execute(1,0,None,None).unwrap();
         let baseline=run_general_input_prefix_from_owned_with_subject(execution.run.owned.clone(),&execution.run.owned.project().save().unwrap(),2,0,None,None,
-            crate::ddn_runtime::default_age_target(),execution.run.construction.subject_bootstrap.as_ref()).unwrap();
+            crate::ddn_runtime::default_age_target(),execution.run.construction.subject_bootstrap.as_ref(),None).unwrap();
         let mut retained=execution.prepare(&[2]).unwrap().write_prepared().unwrap().commit().unwrap();
         let artifact=retained.saved_runtime_artifact().unwrap().to_owned();
         let bytes=attachment::check_bytes(artifact.as_bytes()).unwrap();
@@ -377,7 +451,7 @@ mod tests {
         let (root,_,saved)=fixture(raw);let locator=saved.grant_locator.as_deref().unwrap();
         let execution=begin_first_authored_source_native(&root,&saved.project_identity,locator,&saved.revision_identity,&saved.revision_integrity).unwrap().execute(1,0,None,None).unwrap();
         let baseline=run_general_input_prefix_from_owned_with_subject(execution.run.owned.clone(),&execution.run.owned.project().save().unwrap(),3,0,None,None,
-            crate::ddn_runtime::default_age_target(),execution.run.construction.subject_bootstrap.as_ref()).unwrap();
+            crate::ddn_runtime::default_age_target(),execution.run.construction.subject_bootstrap.as_ref(),None).unwrap();
         let mut retained=execution.prepare(&[2]).unwrap().write_prepared().unwrap().commit().unwrap();
         let original=retained.artifact.clone();
         assert!(retained.save_continuation(&[1],&[2],&[3],locator,1,|_,_|Err("TEST_CACHE_WRITE_FAILED".into())).is_err());
@@ -501,7 +575,7 @@ mod tests {
         let recorded_bootstrap=crate::unit_wire::subject_execution::SubjectExecutionStage::from_recorded_initial(owned,&rebuilt.initial_world).unwrap();
         let authored=owned.project().save().unwrap();
         let replayed=run_general_input_prefix_from_owned_with_subject(owned.clone(),&authored,1,53,None,None,
-            crate::ddn_runtime::default_age_target(),recorded_bootstrap.as_ref()).unwrap();
+            crate::ddn_runtime::default_age_target(),recorded_bootstrap.as_ref(),None).unwrap();
         assert_eq!(replayed.execution.world.state_hash(),before_hash,"binary initial custody must preserve actual World/Subject IDs");
         assert_eq!(replayed.encode_world_frame().unwrap(),encoded);
         let empty=[0;8];
@@ -513,7 +587,7 @@ mod tests {
         assert!(crate::unit_wire::subject_execution::SubjectExecutionStage::from_recorded_initial(owned,&unrelated_initial).unwrap().is_none(),
             "Subject bootstrap must not impose tick zero on an unrelated existing profile");
         assert!(run_general_input_prefix_from_owned_with_subject(owned.clone(),&authored,1,53,None,None,
-            crate::ddn_runtime::default_age_target(),None).is_err(),"missing initial custody cannot trigger fresh identity repair");
+            crate::ddn_runtime::default_age_target(),None,None).is_err(),"missing initial custody cannot trigger fresh identity repair");
         let not_initial=crate::unit_wire::CompleteStateFrameV1{
             pesi:initial_pesi.as_raw(),resources:&empty,parameters:&empty,next_tick:0,
             subjects:&snapshot.subject_values,atom_evidence:&[],subject_custody:&snapshot.subject_custody};
@@ -575,7 +649,7 @@ mod tests {
             .execute(1,53,None,None).unwrap();
         let owned=execution.run.owned.clone();let authored=owned.project().save().unwrap();
         let baseline=run_general_input_prefix_from_owned_with_subject(owned,&authored,2,53,None,None,
-            crate::ddn_runtime::default_age_target(),execution.run.construction.subject_bootstrap.as_ref()).unwrap();
+            crate::ddn_runtime::default_age_target(),execution.run.construction.subject_bootstrap.as_ref(),None).unwrap();
         let before_resources=execution.run.summary["engine_state"]["resources"].clone();
         let before_hash=execution.run.summary["state_hash"].clone();
         let retained=execution.prepare(&[2]).unwrap().write_prepared().unwrap().commit().unwrap();
@@ -617,7 +691,7 @@ mod tests {
             .execute(1,53,None,None).unwrap();
         let owned=execution.run.owned.clone();let authored=owned.project().save().unwrap();
         let baseline=run_general_input_prefix_from_owned_with_subject(owned,&authored,2,53,None,None,
-            crate::ddn_runtime::default_age_target(),execution.run.construction.subject_bootstrap.as_ref()).unwrap();
+            crate::ddn_runtime::default_age_target(),execution.run.construction.subject_bootstrap.as_ref(),None).unwrap();
         let baseline_bytes=baseline.encode_world_frame().unwrap();
         let pesi=crate::project_snapshot_identity::current::issue_saved_local_project(&baseline.owned).unwrap();
         let baseline_catalog=baseline.owned.registration().unwrap().saved_nominal_catalog(&baseline.owned).unwrap();
@@ -900,3 +974,8 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod wo22_crash_tests;
+#[cfg(all(test,windows))]
+mod authoring_crash_tests;

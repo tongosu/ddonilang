@@ -234,10 +234,17 @@ impl<'a> Reader<'a> {
     }
 
     fn record_type(&mut self,_depth:usize,budget:&mut ValueDecodeBudget)->Result<RecordFieldType,Failure> {
+        self.record_type_context(budget,false)
+    }
+    fn record_type_context(&mut self,budget:&mut ValueDecodeBudget,output_atoms:bool)->Result<RecordFieldType,Failure>{
         let mut frames: Vec<TypeFrame> = Vec::new();
         loop {
             budget.charge(std::mem::size_of::<RecordFieldType>())?;
             let mut kind = match self.take(1)?[0] {
+                5 if output_atoms=>{
+                    if self.take(2)?!=[1,0]{return Err(Failure::InvalidInput);}
+                    RecordFieldType::RegisteredAtomV1
+                },
                 4=>{
                     if self.take(2)?!=[1,0]{return Err(Failure::InvalidInput);}
                     let category=self.take(1)?[0];
@@ -512,6 +519,7 @@ pub(crate) fn check_saved_type(value: &ResourceValue, kind: &RecordFieldType) ->
     let mut pending = vec![(value, kind)];
     while let Some((value, kind)) = pending.pop() {
         match kind {
+            RecordFieldType::RegisteredAtomV1=>return Err(Failure::InvalidInput),
             RecordFieldType::ResolvedNominalV1{category,name_type_identity}=>{
                 // Type equality only. This helper does not admit a catalog,
                 // saved handle, Subject payload or a registration context.
@@ -659,9 +667,17 @@ pub(crate) fn decode_saved_resource_value(bytes:&[u8])->Result<ResourceValue,Fai
 /// Shared canonical type decoder for the VC04 descriptor's existing-type
 /// field. It issues no value, nominal identity, or schema admission.
 pub(crate) fn decode_recorded_field_type(bytes:&[u8])->Result<RecordFieldType,Failure> {
+    decode_field_type_context(bytes,false)
+}
+/// Output-evidence data only. This parser issues no source/registration proof
+/// and is deliberately not used by existing saved-slot/value admissions.
+pub(crate) fn decode_result_output_field_type(bytes:&[u8])->Result<RecordFieldType,Failure>{
+    decode_field_type_context(bytes,true)
+}
+fn decode_field_type_context(bytes:&[u8],output_atoms:bool)->Result<RecordFieldType,Failure>{
     if bytes.is_empty() || bytes.len()>4096 {return Err(Failure::LimitExceeded);}
     let mut reader=Reader{bytes,at:0,contracts:&[],references:None};
-    let value=reader.record_type(0,&mut ValueDecodeBudget::new())?;
+    let value=reader.record_type_context(&mut ValueDecodeBudget::new(),output_atoms)?;
     let mut canonical=Vec::new();value.encode_canon(&mut canonical);
     if reader.at!=bytes.len() || canonical!=bytes {
         value.drop_stack_safe();return Err(Failure::InvalidInput);

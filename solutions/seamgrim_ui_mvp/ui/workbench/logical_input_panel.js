@@ -1,5 +1,7 @@
 import { createRuntimeBridgeV1 } from '../runtime/runtime_bridge.js';
 import { LogicalActionInput } from '../runtime/logical_action_input.js';
+import { createNativeLogicalFinishBarrier } from '../runtime/native_recording_finish.js';
+import { nativeSourceAvailable,nativeSourceRequest,sourceStorageErrorMessage } from '../runtime/native_source_transport.js';
 import { renderSpace2dCanvas2d } from '../wasm_page_common.js';
 import { createAuthoredCompositionHost, renderAuthoredBogae } from './authored_bogae_renderer.js';
 
@@ -15,7 +17,7 @@ export function committedLogicalSpace2d(value) {
 
 // Explicit, run-local Alpha2 contract intake. No source sniffing, project
 // metadata defaults, new persisted schema, or Alpha1 execution replacement.
-export function installLogicalInputPanel({ parent, readSource, readAuthoredProject = () => null, openExample, onStateChange = () => {}, playbackControls = [], inputRegion = null, viewControls = [], onPresentation = null, valueControlsParent = null }) {
+export function installLogicalInputPanel({ parent, readSource, readAuthoredProject = () => null, prepareNativeNewRun = async () => null, prepareNativeNewRecord = null, onNativeCheckpoint = () => {}, openExample, onStateChange = () => {}, playbackControls = [], inputRegion = null, viewControls = [], onPresentation = null, valueControlsParent = null }) {
   const panel = document.createElement('details');
   panel.id = 'logical-input-panel';
   panel.style.cssText = 'margin:12px;padding:12px;border:1px solid #888;border-radius:8px';
@@ -25,7 +27,7 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
       <button data-action="step">한 마디</button>
       <button data-action="play">60마디/초 재생</button>
       <button data-action="pause">일시정지</button>
-      <button data-action="seal">기록 중단·저장</button>
+      <button data-action="seal">기록 마치기·저장</button>
       <button data-action="stop">실행 닫기</button>
       <p>이 영역 안에서 지정한 키를 누르세요. 영역 밖으로 초점을 옮기면 입력 손실로 중단됩니다.</p>
       <div class="authored-view-toolbar" data-field="view-toolbar"></div>
@@ -35,11 +37,15 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
       <div data-field="view-list" hidden></div>
     </div>
     <label>기록 불러오기 <input data-field="replay" type="file"></label>
+    <label><input data-field="partial-replay" type="checkbox"> 중단된 기록 끝까지만 재생</label>
     <p data-field="feedback" role="status"></p>
     <div data-field="value-controls" hidden></div>
     <details data-field="advanced"><summary>고급 설정</summary>
       <p>입력 계약·키 배치·실행 증거를 확인하거나 바꿉니다. 변경하면 현재 실행을 닫습니다.
-      통합 V3 후보로 저장합니다. live 중단은 미완 기록이며 정상 재생은 할 수 없습니다. 옛 형식의 자동 변환과 글자 입력은 지원하지 않습니다.</p>
+      통합 V3 후보로 저장합니다. 기록 마치기는 성공한 마디까지만 정상 기록으로 남깁니다. 별도 중단은 미완 기록이며 정상 재생은 할 수 없습니다. 옛 형식의 자동 변환과 글자 입력은 지원하지 않습니다.</p>
+      <button data-action="stop-recording">미완 기록으로 중단·저장</button>
+      <button data-action="verify-receipt" hidden>저장한 완료 기록 재현 확인</button>
+      <button data-action="new-record" hidden>저장한 시점에서 새 기록</button>
       <label>미리 정한 입력 요청으로 기록 <input data-field="finite-request" type="file" accept=".json,application/json"></label>
       <p>현재 원문·입력 계약에 맞는 요청 JSON의 모든 마디를 실행해 정상 V3 기록을 저장합니다. 실시간 중단 기록을 완료로 바꾸는 기능은 아닙니다.</p>
       <button data-action="open-tetris" ${typeof openExample==='function'?'':'hidden'}>새 테트리스 작업</button>
@@ -72,6 +78,8 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
   const typedBinding = json => JSON.parse(json).source_profile==='v1-core-v25-manipulation-alpha4-provisional';
   let valueIntake = Promise.resolve();
   function renderValueControls(binding) {
+    panel.querySelector('[data-action="verify-receipt"]').hidden=!boundAuthoredSource||typedBinding(JSON.stringify(binding));
+    panel.querySelector('[data-action="new-record"]').hidden=!boundAuthoredSource||typedBinding(JSON.stringify(binding))||typeof prepareNativeNewRecord!=='function';
     const controls=field('value-controls');controls.replaceChildren();
     controls.hidden=binding.source_profile!=='v1-core-v25-manipulation-alpha4-provisional';
     if(controls.hidden)return;
@@ -142,12 +150,21 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
   }
   const show = value => {
     field('result').textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-    field('feedback').textContent = typeof value === 'string' ? value
+    field('feedback').textContent = typeof value === 'string' ? sourceStorageErrorMessage(value)
+      : value?.replay_notice ? value.replay_notice
       : value?.frame ? `마디 ${value.frame.input.madi} 계산을 마쳤습니다.`
       : `실행 상태: ${value?.outcome ?? '준비'} · 계산한 마디 ${value?.madi_count ?? 0}`;
     const acceptedSummary = value?.madi_count > 0 && value?.outcome !== 'ABORTED'
       && (value?.bogae_projection || committedLogicalSpace2d(value));
     if (value?.frame || acceptedSummary) { committedView = value; renderView(value); }
+    else if(committedView&&Number.isSafeInteger(value?.madi_count)&&value.madi_count>0
+      &&Number.isSafeInteger(committedView.frame?.input?.madi)&&value.madi_count===committedView.frame.input.madi+1
+      &&typeof value.state_hash==='string'&&value.state_hash===(committedView.state_hash??committedView.frame?.state_hash)) {
+      // A finish summary has no drawing projection. Its matching accepted
+      // count/hash confirms the already displayed frame; do not erase it or
+      // invent a replacement world just to show the recording receipt.
+      renderView(committedView);
+    }
     else if (committedView && (typeof value === 'string' || value?.outcome === 'ABORTED')) {
       // A diagnostic is not a replacement committed frame. Keep the last
       // successful world projection while reporting the abort above. Explicit
@@ -179,6 +196,7 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
     valueControls.replaceChildren(); valueControls.hidden = true;
     compositionHost.reset(); committedView = null;
     onPresentation?.(null, generation);
+    await host?.finishBarrier?.close?.();
     host?.detach?.(); host = null;
     const old = session; session = null;
     if (old) await old.close();
@@ -207,6 +225,7 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
     if (action === 'pause') { await pauseAndSettle(); return; }
     if (busy) throw new Error('E_LOGICAL_INPUT_STEP_BUSY: 앞 작업이 끝난 뒤 다시 누르세요.');
     busy = true;
+    onStateChange(); // Disable execution before the asynchronous contract bind.
     try {
       if (action === 'tetris-contract' || action === 'bind-source' || action === 'open-tetris') {
         const readAsset = async name => {
@@ -257,14 +276,34 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
         const typed=typedBinding(bindingJson);
         if(authoredSource!==boundAuthoredSource)throw new Error('E_LOGICAL_INPUT_BINDING_CHANGED: 작품 원문을 다시 결속하세요.');
         if(typed && authoredSource)throw new Error('E_MANIPULATION_PROJECT_UNSUPPORTED: 여러 파일 조작 입력은 아직 지원하지 않습니다.');
+        // Native consumes the protected once-permit before a fresh WASM VM.
+        // It records the explicit initial empty-input tick, not an old run.
+        const nativeSummary=!typed&&authoredSource ? await prepareNativeNewRun(authoredSource,binding) : null;
+        unchanged();
         session = await bridge[typed?'createManipulationSession':'createLogicalSession']({ sourceText:source, bindingJson, authoredProjectJson:authoredSource });
         try {
           unchanged();
+          if(nativeSummary){
+            if(nativeSummary.outcome==='ABORTED'||nativeSummary.madi_count!==1||nativeSummary.frames?.length!==1)
+              throw new Error('E_NATIVE_SOURCE_NEW_LOGICAL_INPUTS');
+            await session.step(nativeSummary.frames[0].input);unchanged();
+            const stable=value=>JSON.stringify(value,(_key,part)=>part&&typeof part==='object'&&!Array.isArray(part)
+              ?Object.fromEntries(Object.entries(part).sort(([a],[b])=>a<b?-1:a>b?1:0)):part);
+            if(stable(await session.summary())!==stable(nativeSummary))throw new Error('E_NATIVE_SOURCE_LOGICAL_REPLAY_MISMATCH');
+          }
           const channels=typed?Object.fromEntries(Object.entries(binding.channels).filter(([,value])=>value.kind==='Control').map(([name])=>[name,'Control'])):binding.channels;
-          host = new LogicalActionInput({ session, channels, initialHeld:binding.initial_held, actionMap, maxEvents, valueChannels:typed?binding.channels:null });
+          const finishGeneration=generation,finishSession=session;
+          const finishUnchanged=()=>{unchanged();if(generation!==finishGeneration||session!==finishSession)
+            throw new Error('E_NATIVE_FINISH_SESSION_CHANGED: 기록 생산자가 바뀌었습니다.');};
+          host = new LogicalActionInput({ session, channels, initialHeld:binding.initial_held, actionMap, maxEvents, valueChannels:typed?binding.channels:null,nextMadi:nativeSummary?1:0,
+            finishBarrier:!typed&&authoredSource?createNativeLogicalFinishBarrier({authored:authoredSource,binding,unchanged:finishUnchanged,onCheckpoint:onNativeCheckpoint,
+              onProgress:message=>{finishUnchanged();field('feedback').textContent=message;}}):null });
           renderValueControls(binding);
           host.attach(inputRegion ?? field('region'), { controls: [...playbackControls,...viewControls,
-            panel.querySelector('summary'), panel.querySelector('[data-action="seal"]'),
+            panel.querySelector('summary'), field('advanced').querySelector(':scope > summary'), panel.querySelector('[data-action="seal"]'),
+            panel.querySelector('[data-action="verify-receipt"]'),
+            panel.querySelector('[data-action="new-record"]'),
+            panel.querySelector('[data-action="stop-recording"]'),
             field('value-controls'),
             ...(inputRegion ? [field('region')] : [])] });
         } catch (error) { await close(); throw error; }
@@ -279,6 +318,71 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
         await pauseAndSettle(); await valueIntake; unchanged();
         if (!host) throw new Error('E_LOGICAL_INPUT_SESSION: 먼저 새로 시작하세요.');
         const token = generation;
+        const record = await host.seal();
+        if (token !== generation) return;
+        unchanged();
+        const url = URL.createObjectURL(new Blob([Uint8Array.from(record.tape_bytes)], {type:'application/octet-stream'}));
+        const link = document.createElement('a'); link.href = url; link.download = 'input-v3-complete.bin'; link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000); show(record.summary);
+        const count=host.finishNotice?.excluded_input_count;
+        field('feedback').textContent=count && count!=='0'
+          ?`기록을 마쳤습니다. 처리되지 않은 입력 ${count}개는 기록에 넣지 않았습니다.`
+          :'성공한 마디까지 기록을 마쳤습니다. 작품 저장은 별도입니다.';
+      } else if (action === 'new-record') {
+        await pauseAndSettle();await valueIntake;
+        // A cold source/contract selection has no live producer yet. Validate
+        // that selection, not the empty prior run's binding. An existing run
+        // still has to pass its own unchanged check before it can be closed.
+        if(host||session)unchanged();
+        if(host&&!host.stopped)throw new Error('E_NEW_RECORD_CLOSE_REQUIRED: 먼저 기록을 마치거나 실행을 닫은 뒤 선택하세요.');
+        if(typeof prepareNativeNewRecord!=='function')throw new Error('E_NEW_RECORD_UNSUPPORTED');
+        const selected=readAuthoredProject(),selectedSource=readSource();
+        const selectedBinding=field('binding').value,selectedActions=field('actions').value,selectedCapacity=field('capacity').value;
+        const binding=JSON.parse(selectedBinding);
+        if(!selected||typedBinding(selectedBinding))throw new Error('E_NEW_RECORD_UNSUPPORTED');
+        const requireSelection=()=>{
+          if(readSource()!==selectedSource||readAuthoredProject()!==selected
+            ||boundSource!==selectedSource||boundAuthoredSource!==selected
+            ||field('binding').value!==selectedBinding||field('actions').value!==selectedActions||field('capacity').value!==selectedCapacity)
+            throw new Error('E_NEW_RECORD_SOURCE_CHANGED: 선택한 원문이나 입력 계약이 바뀌었습니다.');
+        };
+        requireSelection();
+        await close();const token=generation;
+        const record=await prepareNativeNewRecord(selected,binding);
+        requireSelection();if(generation!==token)throw new Error('E_NEW_RECORD_SOURCE_CHANGED');
+        const prepared=await panel.logicalExecution.prepareStoredCheckpoint(record);
+        try{await prepared.publish();}catch(error){await prepared.close();throw error;}
+        field('feedback').textContent='끝난 기록을 보존하고 실제 저장 시점에서 새 기록을 시작했습니다. ▶로 계속하세요.';
+      } else if (action === 'verify-receipt') {
+        await pauseAndSettle();await valueIntake;
+        const selected=readAuthoredProject(),selectedSource=readSource(),token=generation,originalHost=host;
+        const selectedBinding=field('binding').value,selectedActions=field('actions').value,selectedCapacity=field('capacity').value;
+        const requireSelection=()=>{
+          // A cold reader has no live session's source/action snapshots yet.
+          // Use its explicit current binding, never synthesize a started VM.
+          if(originalHost)unchanged();
+          if(token!==generation||host!==originalHost||readAuthoredProject()!==selected||readSource()!==selectedSource
+              ||boundAuthoredSource!==selected||boundSource!==selectedSource||field('binding').value!==selectedBinding
+              ||field('actions').value!==selectedActions||field('capacity').value!==selectedCapacity)
+            throw new Error('E_NATIVE_RECEIPT_SOURCE_CHANGED: 선택한 원문이나 입력 계약이 바뀌었습니다.');
+        };
+        requireSelection();
+        if(!selected||typedBinding(selectedBinding)||!await nativeSourceAvailable())
+          throw new Error('E_NATIVE_RECEIPT_UNSUPPORTED: Native에 저장한 논리 입력 완료 기록만 확인할 수 있습니다.');
+        requireSelection();
+        const verified=originalHost?.finishBarrier?.verifyReceipt
+          ?await originalHost.finishBarrier.verifyReceipt()
+          :await nativeSourceRequest('logical_verify_receipt',selected,
+            {input_request:{binding:JSON.parse(selectedBinding),snapshots:[]}});
+        requireSelection();
+        if(verified.status!=='REPLAY_VERIFIED'||typeof verified.result_identity!=='string'||!/^sha256:[0-9a-f]{64}$/u.test(verified.result_identity))
+          throw new Error('E_NATIVE_RECEIPT_REJECTED: 완료 기록의 재현을 확인하지 못했습니다.');
+        field('feedback').textContent='재현 확인: 저장한 완료 기록과 원래 결과가 같습니다. 현재 실행·세계·입력은 바꾸지 않았습니다.';
+        field('result').textContent=JSON.stringify({status:verified.status,result_identity:verified.result_identity},null,2);
+      } else if (action === 'stop-recording') {
+        await pauseAndSettle(); await valueIntake; unchanged();
+        if (!host) throw new Error('E_LOGICAL_INPUT_SESSION: 먼저 새로 시작하세요.');
+        const token = generation;
         const record = await host.stopRecording();
         if (token !== generation) return;
         unchanged();
@@ -286,8 +390,12 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
         const link = document.createElement('a'); link.href = url; link.download = `input-v3-${record.outcome.toLowerCase()}.bin`; link.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000); show(record.summary);
         field('feedback').textContent=record.outcome==='ABORTED'
-          ?'실패 전까지 확정된 입력을 보존했습니다. 성공 기록이 아니며 정상 재생할 수 없습니다.'
-          :'기록을 명시적으로 중단해 미완 기록으로 저장했습니다. 정상 재생할 수 없습니다. 작품 저장은 별도입니다.';
+          ?host.nativeStopStored
+            ?'실패 전 입력과 Native의 실제 실패 기록을 보존했습니다. 성공 기록이 아니며 정상 재생할 수 없습니다.'
+            :'실패 전까지 확정된 입력을 파일에 보존했습니다. 성공 기록이 아니며 정상 재생할 수 없습니다. Native 실패 기록은 확인되지 않았습니다.'+(host.nativeStopFailure?' '+host.nativeStopFailure:'')
+          :host.nativeStopStored
+            ?'미완 기록과 Native 저장 경계를 보존했습니다. 정상 완료나 정상 재생 성공은 아닙니다.'
+            :'기록을 명시적으로 중단해 미완 기록 파일로 저장했습니다. 정상 재생할 수 없습니다. 작품 저장은 별도입니다.';
       } else if (action === 'stop') { await close(); show('실행을 닫았습니다.'); }
     } finally { busy = false; onStateChange(); }
   }
@@ -297,31 +405,33 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
   field('replay').addEventListener('change', async () => {
     if (busy || running) { field('replay').value = ''; show('E_LOGICAL_INPUT_STEP_BUSY: 실행을 닫고 파일을 여세요.'); return; }
     busy = true;
+    const allowPartial=field('partial-replay').checked;
+    field('partial-replay').disabled=true;
     try {
       const file = field('replay').files[0]; if (!file) return;
       if (file.size > 67108864) throw new Error('E_LOGICAL_INPUT_SIZE: 입력 기록의 크기 한도를 넘었습니다.');
       const replaySource = readSource(), replayBinding = field('binding').value, token = generation;
       const replayAuthored=readAuthoredProject()||null;
       const requireCurrent = () => {
-        if (generation !== token || readSource() !== replaySource || field('binding').value !== replayBinding || (readAuthoredProject()||null)!==replayAuthored) {
+        if (generation !== token || readSource() !== replaySource || field('binding').value !== replayBinding || (readAuthoredProject()||null)!==replayAuthored || field('partial-replay').checked!==allowPartial) {
           throw new Error('E_LOGICAL_INPUT_BINDING_CHANGED: 재생 도중 원문 또는 입력 계약이 바뀌었습니다. 다시 파일을 여세요.');
         }
       };
       const tapeBytes = Array.from(new Uint8Array(await file.arrayBuffer()));
       requireCurrent();
       if(typedBinding(replayBinding)&&replayAuthored)throw new Error('E_MANIPULATION_PROJECT_UNSUPPORTED: 여러 파일 조작 입력은 지원하지 않습니다.');
-      const summary = await bridge[typedBinding(replayBinding)?'replayManipulationInput':'replayLogicalInput']({sourceText:replaySource, bindingJson:replayBinding, tapeBytes,authoredProjectJson:replayAuthored});
+      const summary = await bridge[typedBinding(replayBinding)?'replayManipulationInput':'replayLogicalInput']({sourceText:replaySource, bindingJson:replayBinding, tapeBytes,authoredProjectJson:replayAuthored,allowPartial});
       requireCurrent();
-      // Admit in a private Rust candidate first. Invalid/Incomplete/Aborted
+      // Admit in a private Rust candidate first. Invalid/unchecked Incomplete/Aborted
       // files must not close the user's current VM or clear its scene.
       const committedGeneration=generation+1;
       await close();
-      if(generation!==committedGeneration || readSource()!==replaySource || field('binding').value!==replayBinding || (readAuthoredProject()||null)!==replayAuthored) {
+      if(generation!==committedGeneration || readSource()!==replaySource || field('binding').value!==replayBinding || (readAuthoredProject()||null)!==replayAuthored || field('partial-replay').checked!==allowPartial) {
         throw new Error('E_LOGICAL_INPUT_BINDING_CHANGED: 재생 게시 전에 작품이 바뀌었습니다.');
       }
       show(summary);
     } catch (error) { show(String(error)); }
-    finally { field('replay').value = ''; busy = false; onStateChange(); }
+    finally { field('replay').value = ''; field('partial-replay').disabled=false; busy = false; onStateChange(); }
   });
   field('finite-request').addEventListener('change',async()=>{
     if(busy||running){field('finite-request').value='';show('E_LOGICAL_INPUT_STEP_BUSY: 일시정지한 뒤 입력 요청을 여세요.');return;}
@@ -380,7 +490,17 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
         requireCurrent();const artifact=await retained.exportSavedProjectArtifact(parent,revision);requireCurrent();
         const checkpoint=await retained.exportProjectCheckpoint(parent,revision);requireCurrent();
         return {artifact,checkpoint};
-      },summary:()=>retained.summary()};
+      },summary:()=>retained.summary(),async inputRequest(){
+        requireCurrent();const summary=await retained.summary();requireCurrent();
+        if(!Array.isArray(summary.frames)||summary.outcome==='ABORTED'||summary.madi_count!==summary.frames.length)
+          throw new Error('E_NATIVE_SOURCE_LOGICAL_INPUTS: 정상 처리한 논리 입력만 저장할 수 있습니다.');
+        return {binding:JSON.parse(bindingJson),snapshots:structuredClone(summary.frames.map(frame=>frame.input))};
+      }};
+    },
+    storageInputBinding(){
+      if(!boundAuthoredSource||readAuthoredProject()!==boundAuthoredSource||readSource()!==boundSource||typedBinding(field('binding').value))
+        throw new Error('E_PROJECT_RUNTIME_LOGICAL: 현재 작품의 논리 입력 계약을 먼저 선택하세요.');
+      return JSON.parse(field('binding').value);
     },
     async prepareStoredCheckpoint(record) {
       // Expected binding belongs to the selected project, never to the capsule.
@@ -400,23 +520,43 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
           throw new Error('E_PROJECT_RUNTIME_CHANGED: 복원 중 작품이나 입력 계약이 바뀌었습니다.');
       };
       const bytes=hex=>Uint8Array.from(hex.match(/../g)??[],pair=>parseInt(pair,16));
+      const nativeSummary=record.native_logical_summary;
       const candidate=await bridge.createLogicalSession({sourceText:selectedSource,bindingJson:selectedBinding,authoredProjectJson:selectedAuthored,
-        savedCheckpoint:{artifact_text:record.artifact_text,checkpoint_bytes:record.checkpoint_bytes,
-          parent_bytes:bytes(record.parent_hex),revision_bytes:bytes(record.revision_hex)}});
+        ...(nativeSummary?{}:{savedCheckpoint:{artifact_text:record.artifact_text,checkpoint_bytes:record.checkpoint_bytes,
+          parent_bytes:bytes(record.parent_hex),revision_bytes:bytes(record.revision_hex)}})});
       try {
+        if(nativeSummary){
+          if(!Array.isArray(nativeSummary.frames)||nativeSummary.outcome==='ABORTED'||nativeSummary.frames.length!==nativeSummary.madi_count)
+            throw new Error('E_NATIVE_SOURCE_LOGICAL_INPUTS: 검증된 Native 입력 이력이 필요합니다.');
+          // This is a fresh WASM presentation replay, never a conversion of
+          // Native receipt history into a browser checkpoint/Native permit.
+          for(const frame of nativeSummary.frames){requireCurrent();await candidate.step(frame.input);}
+        }
         requireCurrent();const summary=await candidate.summary();requireCurrent();
+        if(nativeSummary){
+          const stable=value=>JSON.stringify(value,(_key,part)=>part&&typeof part==='object'&&!Array.isArray(part)
+            ?Object.fromEntries(Object.entries(part).sort(([a],[b])=>a<b?-1:a>b?1:0)):part);
+          if(stable(summary)!==stable(nativeSummary))throw new Error('E_NATIVE_SOURCE_LOGICAL_REPLAY_MISMATCH: Native와 화면의 입력·세계·출력이 다릅니다. 기존 화면을 보존했습니다.');
+        }
         const displaySummary=await candidate.summary({includeView:true});requireCurrent();
         const binding=JSON.parse(selectedBinding),last=summary.frames?.at(-1)?.input;
         if(!last||summary.outcome==='ABORTED'||last.madi+1!==summary.madi_count)
           throw new Error('E_PROJECT_RUNTIME_LOGICAL: 완료된 마디와 실제 입력이 필요합니다.');
         const nextHost=new LogicalActionInput({session:candidate,channels:binding.channels,initialHeld:last.held,
-          actionMap:JSON.parse(selectedActions),maxEvents:Number(selectedCapacity),nextMadi:summary.madi_count});
+          actionMap:JSON.parse(selectedActions),maxEvents:Number(selectedCapacity),nextMadi:summary.madi_count,
+          finishBarrier:createNativeLogicalFinishBarrier({authored:selectedAuthored,binding,onCheckpoint:onNativeCheckpoint,
+            onProgress:message=>{if(session===candidate&&host===nextHost)field('feedback').textContent=message;},unchanged:()=>{
+            unchanged();if(session!==candidate||host!==nextHost)
+              throw new Error('E_NATIVE_FINISH_SESSION_CHANGED: 다시 연 기록 생산자가 바뀌었습니다.');
+          }})});
         return {summary,close:()=>candidate.close(),publish:()=>{
           requireCurrent();
           if(running||host?.inFlight||host?.events.length)
             throw new Error('E_LOGICAL_INPUT_PENDING: 현재 실행을 일시정지하고 입력 처리를 마치세요.');
           nextHost.attach(inputRegion??field('region'),{controls:[...playbackControls,...viewControls,
-            panel.querySelector('summary'),panel.querySelector('[data-action="seal"]'),field('value-controls'),
+            panel.querySelector('summary'),field('advanced').querySelector(':scope > summary'),panel.querySelector('[data-action="seal"]'),field('value-controls'),
+            panel.querySelector('[data-action="verify-receipt"]'),
+            panel.querySelector('[data-action="new-record"]'),
             ...(inputRegion?[field('region')]:[])]});
           const old=session;host?.detach?.();pause();generation++;
           source=selectedSource;authoredSource=selectedAuthored;bindingJson=selectedBinding;
@@ -439,7 +579,11 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
       await close();
       boundSource = null; source = ''; bindingJson = ''; actionsJson = ''; capacityText = '';
       authoredSource = null; boundAuthoredSource = null;
+      panel.querySelector('[data-action="verify-receipt"]').hidden=true;
+      panel.querySelector('[data-action="new-record"]').hidden=true;
       for (const name of ['binding','actions','capacity','replay','finite-request']) field(name).value = '';
+      field('partial-replay').checked=false;
+      field('partial-replay').disabled=false;
       field('contract-summary').textContent = '입력 계약을 선택하지 않았습니다.';
       field('result').textContent = ''; field('feedback').textContent = '';
       panel.open = false;

@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use ddonirang_tool::ddn_runtime::DdnProgram;
+use ddonirang_tool::ddn_runtime::{DdnProgram,SupportedSourceProfile};
+use ddonirang_lang::ParseMode;
 
 fn collect_ddn_files(root: &Path, out: &mut Vec<PathBuf>) {
     let mut entries = fs::read_dir(root)
@@ -29,6 +30,7 @@ fn error_family(message: &str) -> String {
 
 #[test]
 fn inventory_all_workbench_lessons_by_product_source_epoch() {
+    println!("FD01_CURRENT_PROFILE=v1-core-v25 (explicit Workbench host supplier)");
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("solutions")
@@ -51,7 +53,8 @@ fn inventory_all_workbench_lessons_by_product_source_epoch() {
             .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
         let label = path.to_string_lossy();
         let pre = DdnProgram::from_source(&source, &label);
-        let current = DdnProgram::from_v25_source(&source, &label);
+        let current = DdnProgram::from_supported_source_profile_with_mode(
+            &source,&label,ParseMode::Strict,SupportedSourceProfile::V1CoreV25);
         match (&pre, &current) {
             (Ok(_), Ok(_)) => {
                 both += 1;

@@ -380,6 +380,9 @@ pub enum ResourceValue {
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", deny_unknown_fields)]
 pub enum RecordFieldType {
+    /// WO23 output-evidence leaf only. This data does not admit a saved slot,
+    /// language TypeRef, registry, or value without its source owner.
+    RegisteredAtomV1,
     /// R5 resolved nominal leaf. Data only: schema/category admission is owned
     /// by the recorded catalog; a spelling or value shape never issues this ID.
     ResolvedNominalV1 { category:u8, name_type_identity:[u8;32] },
@@ -405,6 +408,7 @@ impl Clone for RecordFieldType {
                     built.push(Self::Tuple { items });
                 }
                 Job::Type(Self::Named { name }) => built.push(Self::Named { name: name.clone() }),
+                Job::Type(Self::RegisteredAtomV1) => built.push(Self::RegisteredAtomV1),
                 Job::Type(Self::ResolvedNominalV1 {category,name_type_identity})=>built.push(Self::ResolvedNominalV1{category:*category,name_type_identity:*name_type_identity}),
                 Job::Type(Self::Applied { name, args }) => {
                     jobs.push(Job::Applied(name, args.len()));
@@ -436,6 +440,7 @@ impl PartialEq for RecordFieldType {
             match (left, right) {
                 (Self::Tuple { items: x }, Self::Tuple { items: y }) if x.len() == y.len() => pending.extend(x.iter().zip(y)),
                 (Self::Named { name: a }, Self::Named { name: b }) if a == b => {}
+                (Self::RegisteredAtomV1, Self::RegisteredAtomV1) => {}
                 (Self::ResolvedNominalV1{category:a,name_type_identity:x},Self::ResolvedNominalV1{category:b,name_type_identity:y}) if a==b&&x==y=>{},
                 (Self::Applied { name: a, args: x }, Self::Applied { name: b, args: y }) if a == b && x.len() == y.len() => pending.extend(x.iter().zip(y)),
                 (Self::Record { fields: x }, Self::Record { fields: y }) if x.keys().eq(y.keys()) => pending.extend(x.values().zip(y.values())),
@@ -467,7 +472,7 @@ impl Drop for RecordFieldType {
                 RecordFieldType::Tuple { items } => pending.extend(std::mem::take(items)),
                 RecordFieldType::Applied { args, .. } => pending.extend(std::mem::take(args)),
                 RecordFieldType::Record { fields } => pending.extend(std::mem::take(fields).into_values()),
-                RecordFieldType::Named { .. } | RecordFieldType::ResolvedNominalV1 {..} => {}
+                RecordFieldType::Named { .. } | RecordFieldType::ResolvedNominalV1 {..} | RecordFieldType::RegisteredAtomV1 => {}
             }
         }
         let mut pending = Vec::new();
@@ -711,6 +716,7 @@ impl RecordFieldType {
                 for item in items.iter().rev() { jobs.push(Job::Type(item)); }
             }
             Self::Named { name } => { out.push(0); push_str(out, name); }
+            Self::RegisteredAtomV1 => { out.push(5); out.extend_from_slice(&1u16.to_le_bytes()); }
             Self::ResolvedNominalV1{category,name_type_identity}=>{
                 out.push(4);out.extend_from_slice(&1u16.to_le_bytes());out.push(*category);out.extend_from_slice(name_type_identity);
             }

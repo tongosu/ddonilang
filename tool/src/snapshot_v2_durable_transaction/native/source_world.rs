@@ -4,6 +4,9 @@ use super::{SqliteAdapterV1,NativeSchemaProfile,Failure,SourceWorldAttemptStartV
 use crate::snapshot_v2_durable_transaction::recovery_custody::{InitialCustodyRowV1,encode_prepared_candidate};
 use crate::unit_wire::project_runtime_attachment::SourceBoundSavedRuntimeAttachment;
 use super::NextSourceWorldAttemptStartV1;
+use super::RestartSourceWorldAttemptV1;
+mod restart_history;
+pub(super) use restart_history::{check_mixed_source_world_history,CheckedMixedRevisionHistory};
 use rusqlite::{params,OptionalExtension};
 use crate::snapshot_v2_durable_transaction as owner;
 use owner::{TransactionEvidenceV1,NativeOwnerOutcomeV1,NativeOwnerOutcomeKindV1,NativeTransactionFailureV1,SnapshotV2TransactionStateV1 as State};
@@ -16,21 +19,24 @@ pub(crate) fn inject_fault(phase:u8){assert!(phase<=3);SOURCE_WORLD_FAULT.with(|
 /// Closed, actual-owner variants. Neither can be made from a JSON status or
 /// an admitted frame alone. First-S and subsequent-W predecessor guards differ.
 pub(in crate::snapshot_v2_durable_transaction) enum SourceWorldStart {
-    First(SourceWorldAttemptStartV2),Next(NextSourceWorldAttemptStartV1),
+    First(SourceWorldAttemptStartV2),Next(NextSourceWorldAttemptStartV1),Restart(RestartSourceWorldAttemptV1),
 }
 impl SourceWorldStart {
     pub(in crate::snapshot_v2_durable_transaction) fn first_is(&self,value:&SourceWorldAttemptStartV2)->bool{matches!(self,Self::First(first) if std::ptr::eq(first,value))}
     pub(in crate::snapshot_v2_durable_transaction) fn next_is(&self,value:&NextSourceWorldAttemptStartV1)->bool{matches!(self,Self::Next(next) if std::ptr::eq(next,value))}
+    pub(in crate::snapshot_v2_durable_transaction) fn restart_is(&self,value:&RestartSourceWorldAttemptV1)->bool{matches!(self,Self::Restart(next) if std::ptr::eq(next,value))}
     fn is_first(&self)->bool{matches!(self,Self::First(_))}
-    fn request(&self)->&crate::snapshot_v2_durable_transaction::ActualPreparedRequestV1{match self{Self::First(s)=>s.request(),Self::Next(s)=>s.request()}}
-    fn source(&self)->&crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnlyRevision{match self{Self::First(s)=>s.source(),Self::Next(s)=>s.source()}}
+    fn has_source_parent(&self)->bool{matches!(self,Self::First(_)|Self::Restart(_))}
+    fn request(&self)->&crate::snapshot_v2_durable_transaction::ActualPreparedRequestV1{match self{Self::First(s)=>s.request(),Self::Next(s)=>s.request(),Self::Restart(s)=>s.request()}}
+    fn source(&self)->&crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnlyRevision{match self{Self::First(s)=>s.source(),Self::Next(s)=>s.source(),Self::Restart(s)=>s.source()}}
     fn expected(&self)->super::StoredHeadV1{match self{
         Self::First(s)=>super::StoredHeadV1{project:s.source().project().to_vec(),revision:s.source().revision().to_vec(),integrity:*s.source().integrity(),digest:*s.source().integrity()},
         Self::Next(s)=>s.previous().clone(),
+        Self::Restart(s)=>super::StoredHeadV1{project:s.source().project().to_vec(),revision:s.source().revision().to_vec(),integrity:*s.source().integrity(),digest:*s.source().integrity()},
     }}
-    fn check_current(&self,adapter:&SqliteAdapterV1,context:&SourceBoundSavedRuntimeAttachment<'_>)->Result<(),Failure>{match self{Self::First(s)=>s.check_current(adapter,context),Self::Next(s)=>s.check_current(adapter,context)}}
+    fn check_current(&self,adapter:&SqliteAdapterV1,context:&SourceBoundSavedRuntimeAttachment<'_>)->Result<(),Failure>{match self{Self::First(s)=>s.check_current(adapter,context),Self::Next(s)=>s.check_current(adapter,context),Self::Restart(s)=>s.check_current(adapter,context)}}
     fn retain_source_witness(&self,adapter:&SqliteAdapterV1,context:&SourceBoundSavedRuntimeAttachment<'_>,sql:&SourceSqlRetainedV2)->Result<super::RetainedAttemptWitnessV1,Failure>{
-        match self{Self::First(s)=>s.retain_source_witness(adapter,context,sql),Self::Next(s)=>s.retain_source_witness(adapter,context,sql)}
+        match self{Self::First(s)=>s.retain_source_witness(adapter,context,sql),Self::Next(s)=>s.retain_source_witness(adapter,context,sql),Self::Restart(s)=>s.retain_source_witness(adapter,context,sql)}
     }
 }
 
@@ -40,6 +46,15 @@ pub(crate) struct RetainedFirstSourceWorldV2 {
 }
 impl RetainedFirstSourceWorldV2 {
     pub(crate) fn outcome(&self)->&NativeOwnerOutcomeV1{&self.sql.outcome}
+    pub(crate) fn replay_committed_receipt(&self,adapter:&SqliteAdapterV1)->Result<Vec<u8>,Failure>{
+        self.sql.revalidate(adapter)?;
+        if self.sql.outcome.failure().is_some(){return Err(Failure::CustodyConflict);}
+        let profile=adapter.capability()?;
+        let receipt=crate::snapshot_v2_host_bridge::encode_committed_receipt_candidate(
+            &self.sql.outcome.evidence().binding,profile.as_bytes())?;
+        self.sql.outcome.evidence().check_committed_receipt_evidence(&receipt,profile.as_bytes())?;
+        Ok(receipt)
+    }
 }
 /// Only the actual continuation below constructs this, after exact full SQL
 /// prefix readback. Not a record decoder, status BOOL, or receipt.
@@ -50,6 +65,7 @@ pub(in crate::snapshot_v2_durable_transaction) struct SourceSqlRetainedV2 {
     terminal:Vec<u8>,terminal_hash:[u8;32],ordinal:u8,
 }
 impl SourceSqlRetainedV2 {
+    pub(in crate::snapshot_v2_durable_transaction) fn outcome(&self)->&NativeOwnerOutcomeV1{&self.outcome}
     pub(in crate::snapshot_v2_durable_transaction) fn start(&self)->&SourceWorldStart{&self.prepared.start}
     pub(in crate::snapshot_v2_durable_transaction) fn record(&self)->&[u8]{&self.terminal}
     pub(in crate::snapshot_v2_durable_transaction) fn revalidate(&self,adapter:&SqliteAdapterV1)->Result<(),Failure>{
@@ -76,11 +92,25 @@ pub(crate) struct PreparedFirstSourceWorldV2 {
 impl PreparedFirstSourceWorldV2 {
     pub(crate) fn request(&self)->&owner::ActualPreparedRequestV1{self.start.request()}
     pub(crate) fn commit(self,adapter:&SqliteAdapterV1,source:&SourceBoundSavedRuntimeAttachment<'_>)->Result<RetainedFirstSourceWorldV2,String>{
+        self.commit_inner(adapter,source,None)
+    }
+    pub(crate) fn commit_with_replay(self,adapter:&SqliteAdapterV1,source:&SourceBoundSavedRuntimeAttachment<'_>,
+        plan:&crate::replay_evidence::ReplayCheckpointPlanDataV1,row:&crate::replay_evidence::PlannedReplayControlRowV1)
+        ->Result<RetainedFirstSourceWorldV2,String>{
+        plan.scope.verify_current(adapter).map_err(|e|format!("E_REPLAY_CHECKPOINT_ROOT: {e:?}"))?;
+        if self.request().binding()!=&plan.binding || plan.recording_state!=0 || plan.end_owner_kind!=2 || plan.reopen.is_some() {
+            return Err("E_REPLAY_CHECKPOINT_BINDING: 실제 진행 저장 계획이 다릅니다".into());
+        }
+        self.commit_inner(adapter,source,Some((plan,row)))
+    }
+    fn commit_inner(self,adapter:&SqliteAdapterV1,source:&SourceBoundSavedRuntimeAttachment<'_>,
+        replay:Option<(&crate::replay_evidence::ReplayCheckpointPlanDataV1,&crate::replay_evidence::PlannedReplayControlRowV1)>)
+        ->Result<RetainedFirstSourceWorldV2,String>{
         // Continue from this actual durable Prepared owner. No phase is
         // inferred from a persisted state tag or a caller-provided receipt.
         let request=self.start.request();let payload=request.payload();
         let mut evidence=TransactionEvidenceV1::prepared(payload.binding.clone()).map_err(|e|format!("E_SOURCE_WORLD_PREPARED: {e:?}"))?;
-        let continuation=SourceContinuationV2{adapter,source,prepared:&self,issued:Default::default(),committed_once:std::cell::Cell::new(false)};
+        let continuation=SourceContinuationV2{adapter,source,prepared:&self,replay,issued:Default::default(),committed_once:std::cell::Cell::new(false)};
         let result=(||->Result<(),Failure>{
             if adapter.capability()?.as_bytes()!=b"vc04.sqlite-durability.r1"{return Err(Failure::UnsupportedDurability);}
             self.check_current(adapter,source)?;evidence.synced()?;
@@ -120,6 +150,15 @@ impl PreparedFirstSourceWorldV2 {
         let sql=SourceSqlRetainedV2{prepared:self,outcome,verified,terminal,terminal_hash,ordinal};
         sql.revalidate(adapter).map_err(|e|format!("E_SOURCE_WORLD_OUTCOME_READBACK: outcome={:?}, retention={e:?}",sql.outcome.failure()))?;
         let witness=sql.start().retain_source_witness(adapter,source,&sql).map_err(|e|format!("E_SOURCE_WORLD_WITNESS: outcome={:?}, retention={e:?}",sql.outcome.failure()))?;
+        #[cfg(feature="beta2-crash-probe")]
+        if sql.outcome.failure().is_none() {
+            let profile=adapter.capability().map_err(|e|format!("E_B2_PROBE_CAPABILITY: {e:?}"))?;
+            let receipt=crate::snapshot_v2_host_bridge::encode_committed_receipt_candidate(
+                &sql.outcome.evidence().binding,profile.as_bytes()).map_err(|e|format!("E_B2_PROBE_RECEIPT: {e:?}"))?;
+            sql.outcome.evidence().check_committed_receipt_evidence(&receipt,profile.as_bytes())
+                .map_err(|e|format!("E_B2_PROBE_RECEIPT: {e:?}"))?;
+            super::crash_probe::checkpoint("after_receipt");
+        }
         Ok(RetainedFirstSourceWorldV2{sql,_witness:witness})
     }
     pub(crate) fn check_current(&self,adapter:&SqliteAdapterV1,source:&SourceBoundSavedRuntimeAttachment<'_>)->Result<(),Failure>{
@@ -140,6 +179,7 @@ impl PreparedFirstSourceWorldV2 {
 /// It uses the same common verification/CAS/confirmation loop as old INITIAL.
 struct SourceContinuationV2<'a,'s>{
     adapter:&'a SqliteAdapterV1,source:&'a SourceBoundSavedRuntimeAttachment<'s>,prepared:&'a PreparedFirstSourceWorldV2,
+    replay:Option<(&'a crate::replay_evidence::ReplayCheckpointPlanDataV1,&'a crate::replay_evidence::PlannedReplayControlRowV1)>,
     issued:std::cell::RefCell<Option<(Vec<u8>,[u8;32])>>,committed_once:std::cell::Cell<bool>,
 }
 impl SourceContinuationV2<'_,'_>{
@@ -171,13 +211,16 @@ impl owner::SnapshotV2DurabilityAdapterV1 for SourceContinuationV2<'_,'_>{
         let verified=issued.as_ref().ok_or(Failure::CustodyConflict)?;
         append_verified(self.adapter,self.prepared,verified,self.source)?;
         self.prepared.start.check_current(self.adapter,self.source)?;
-        commit_source_head(self.adapter,self.prepared,verified)
+        commit_source_head(self.adapter,self.prepared,verified,self.replay)
     }
     fn confirm_container_durable(&self)->Result<(),Failure>{
         self.prepared.start.check_current(self.adapter,self.source)?;
         #[cfg(test)]
         if SOURCE_WORLD_FAULT.with(|v|v.get())>=2{return Err(Failure::ContainerDurabilityFailed);}
-        self.adapter.confirm_container_durable()
+        self.adapter.confirm_container_durable()?;
+        #[cfg(any(test,feature="beta2-crash-probe"))]
+        super::crash_probe::checkpoint("after_confirmation");
+        Ok(())
     }
     fn reread_committed(&self,digest:&[u8;32],project:&[u8],revision:&[u8])->Result<super::RawChainV1,Failure>{
         let p=self.prepared.start.request().payload();
@@ -215,20 +258,29 @@ fn append_verified(adapter:&SqliteAdapterV1,prepared:&PreparedFirstSourceWorldV2
     let db=adapter.connect()?;db.execute_batch("BEGIN").map_err(|_|Failure::RereadFailed)?;
     check_prefix(&db,prepared,Some(verified),false)?;db.execute_batch("COMMIT").map_err(|_|Failure::RereadFailed)
 }
-fn commit_source_head(adapter:&SqliteAdapterV1,prepared:&PreparedFirstSourceWorldV2,verified:&(Vec<u8>,[u8;32]))->Result<(),Failure>{
+fn commit_source_head(adapter:&SqliteAdapterV1,prepared:&PreparedFirstSourceWorldV2,verified:&(Vec<u8>,[u8;32]),
+    replay:Option<(&crate::replay_evidence::ReplayCheckpointPlanDataV1,&crate::replay_evidence::PlannedReplayControlRowV1)>)->Result<(),Failure>{
+    #[cfg(any(test,feature="beta2-crash-probe"))]
+    super::crash_probe::checkpoint("before_cas");
     let db=adapter.connect()?;db.execute_batch("BEGIN IMMEDIATE").map_err(|_|Failure::AtomicCommitFailed)?;
     let result=(||->Result<(),Failure>{
         check_prefix(&db,prepared,Some(verified),false)?;check_source_head(&db,&prepared.start)?;
         #[cfg(test)]
         if SOURCE_WORLD_FAULT.with(|v|v.get())==1{return Err(Failure::AtomicCommitFailed);}
         let p=prepared.start.request().payload();let b=&p.binding;let old=prepared.start.expected();
+        if let Some((plan,row))=replay {
+            super::replay_archive_schema::insert_checkpoint_rows(&db,plan,row)?;
+        }
         db.execute("INSERT INTO vc04_project_revisions VALUES (?1,?2,?3,1,?4)",params![b.project,b.new_revision,b.revision_integrity.as_slice(),p.digest.as_slice()]).map_err(|_|Failure::ConflictingRetry)?;
         let changed=db.execute("UPDATE vc04_project_heads SET history_revision_identity=?1,revision_integrity_sha256=?2,payload_kind=1,payload_key=?3 WHERE project_identity=?4 AND history_revision_identity=?5 AND revision_integrity_sha256=?6 AND payload_kind=?7 AND payload_key=?8",
-            params![b.new_revision,b.revision_integrity.as_slice(),p.digest.as_slice(),b.project,old.revision,old.integrity.as_slice(),if prepared.start.is_first(){0}else{1},old.digest.as_slice()]).map_err(|_|Failure::AtomicCommitFailed)?;
+            params![b.new_revision,b.revision_integrity.as_slice(),p.digest.as_slice(),b.project,old.revision,old.integrity.as_slice(),if prepared.start.has_source_parent(){0}else{1},old.digest.as_slice()]).map_err(|_|Failure::AtomicCommitFailed)?;
         if changed!=1{return Err(Failure::StaleRevision);}Ok(())
     })();
     if let Err(cause)=result{return match db.execute_batch("ROLLBACK"){Ok(())=>Err(cause),Err(_)=>Err(Failure::RecoveryRequired)};}
-    db.execute_batch("COMMIT").map_err(|_|Failure::RecoveryRequired)
+    db.execute_batch("COMMIT").map_err(|_|Failure::RecoveryRequired)?;
+    #[cfg(any(test,feature="beta2-crash-probe"))]
+    super::crash_probe::checkpoint("after_cas");
+    Ok(())
 }
 fn read_chain(db:&rusqlite::Connection,payload:&StoredPayloadV1)->Result<super::RawChainV1,Failure>{
     fn row(db:&rusqlite::Connection,table:&str,p:&StoredPayloadV1,revision:bool)->Result<Option<super::StoredHeadV1>,Failure>{
@@ -269,6 +321,13 @@ pub(super) fn check_cold_first_world(db:&rusqlite::Connection,source:&crate::uni
 fn check_world_custody(db:&rusqlite::Connection,payload:&StoredPayloadV1,predecessor:&[u8;32],
     context:&crate::unit_wire::project_runtime_attachment::SourceEnvelopeBoundRuntimeAttachment<'_>,
     request_hash:Option<&[u8;32]>,token_hash:Option<&[u8;32]>,witness_hash:Option<&[u8;32]>)->Result<(),Failure>{
+    check_world_custody_for_recorded_source(db,payload,predecessor,context.owned(),context.pesi().as_raw(),request_hash,token_hash,witness_hash)
+}
+// Each restart segment supplies its own verified source owner. Never validate
+// a historical world with the current segment's nominal/resource catalog.
+fn check_world_custody_for_recorded_source(db:&rusqlite::Connection,payload:&StoredPayloadV1,predecessor:&[u8;32],
+    owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,pesi:&[u8;32],
+    request_hash:Option<&[u8;32]>,token_hash:Option<&[u8;32]>,witness_hash:Option<&[u8;32]>)->Result<(),Failure>{
     use sha2::{Digest,Sha256};
     use owner::recovery_custody::RecoveryRecordCandidateV1;
     let digest=&payload.digest;
@@ -303,9 +362,9 @@ fn check_world_custody(db:&rusqlite::Connection,payload:&StoredPayloadV1,predece
         }
     }
     if request_hash.is_some_and(|expected|<[u8;32]>::from(Sha256::digest(&expected_request))!=*expected){return Err(Failure::CustodyConflict);}
-    let catalog=context.owned().registration().map(|registration|registration.saved_nominal_catalog(context.owned()))
+    let catalog=owned.registration().map(|registration|registration.saved_nominal_catalog(owned))
         .transpose().map_err(|_|Failure::CustodyConflict)?;
-    let checked=crate::snapshot_v2_host_bridge::check_resumable_request_candidate_v2_with_catalog(&expected_request,context.pesi().as_raw(),catalog.as_ref())?;
+    let checked=crate::snapshot_v2_host_bridge::check_resumable_request_candidate_v2_with_catalog(&expected_request,pesi,catalog.as_ref())?;
     if checked.request_kind!=1||checked.binding!=payload.binding||checked.snapshot_bytes!=payload.snapshot
         ||checked.revision_bytes!=payload.envelope||checked.encode_canonical_with_catalog(catalog.as_ref())?!=expected_request{return Err(Failure::CustodyConflict);}
     Ok(())
@@ -364,7 +423,7 @@ pub(super) fn read_source_history_payload(db:&rusqlite::Connection,digest:&[u8;3
 fn check_source_head(db:&rusqlite::Connection,start:&SourceWorldStart)->Result<(),Failure>{
     let expected=start.expected();
     let matches:bool=db.query_row("SELECT history_revision_identity=?2 AND revision_integrity_sha256=?3 AND payload_kind=?4 AND payload_key=?5 FROM vc04_project_heads WHERE project_identity=?1",
-        params![expected.project,expected.revision,expected.integrity.as_slice(),if start.is_first(){0}else{1},expected.digest.as_slice()],|r|r.get(0)).optional()
+        params![expected.project,expected.revision,expected.integrity.as_slice(),if start.has_source_parent(){0}else{1},expected.digest.as_slice()],|r|r.get(0)).optional()
         .map_err(|_|Failure::RereadFailed)?.unwrap_or(false);
     if !matches{return Err(Failure::StaleRevision);}Ok(())
 }
@@ -377,10 +436,16 @@ impl SqliteAdapterV1 {
         context:&SourceBoundSavedRuntimeAttachment<'_>)->Result<PreparedFirstSourceWorldV2,Failure>{
         self.write_source_world_prepared(SourceWorldStart::Next(start),context)
     }
+    pub(crate) fn write_restart_source_world_prepared(&self,start:RestartSourceWorldAttemptV1,
+        context:&SourceBoundSavedRuntimeAttachment<'_>)->Result<PreparedFirstSourceWorldV2,Failure>{
+        self.write_source_world_prepared(SourceWorldStart::Restart(start),context)
+    }
     fn write_source_world_prepared(&self,start:SourceWorldStart,
         context:&SourceBoundSavedRuntimeAttachment<'_>)->Result<PreparedFirstSourceWorldV2,Failure>{
         if self.schema_profile!=NativeSchemaProfile::SourceRevision{return Err(Failure::UnsupportedDurability);}
         start.check_current(self,context)?;
+        #[cfg(any(test,feature="beta2-crash-probe"))]
+        super::crash_probe::checkpoint("before_prepared");
         let payload=start.request().payload();let b=&payload.binding;
         if payload.digest!=b.transaction_digest()?||payload.snapshot.len()>2_000_000
             ||payload.snapshot.is_empty()||payload.envelope.is_empty()||payload.envelope.len()>1_000_000{
@@ -405,6 +470,8 @@ impl SqliteAdapterV1 {
         })();
         if let Err(cause)=written{return match db.execute_batch("ROLLBACK"){Ok(())=>Err(cause),Err(_)=>Err(Failure::RecoveryRequired)};}
         db.execute_batch("COMMIT").map_err(|_|Failure::RecoveryRequired)?;drop(db);
+        #[cfg(any(test,feature="beta2-crash-probe"))]
+        super::crash_probe::checkpoint("after_prepared");
         self.confirm_container_durable()?;
         let prepared=PreparedFirstSourceWorldV2{start,record,hash};prepared.check_current(self,context)?;Ok(prepared)
     }

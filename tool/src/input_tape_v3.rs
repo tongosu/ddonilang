@@ -4,6 +4,12 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use crate::{logical_input_tape as logical, manipulation_input as manipulation};
+mod recording;
+mod pending;
+#[cfg(windows)]
+mod native_finish;
+#[cfg(windows)]
+pub(crate) use native_finish::PreparedNativeLogicalFinishV1;
 
 const MAGIC: &[u8] = b"DDN_INPUT_TAPE_V3\n";
 const DOMAIN: &[u8] = b"ddn.input_tape.v3\0";
@@ -93,6 +99,30 @@ struct Tape {
 
 /// Expected context comes from the caller's admitted owner, not the tape.
 pub enum ExpectedBinding<'a> {Logical(&'a logical::LogicalInputBinding),Manipulation(&'a manipulation::ManipulationBinding)}
+/// An explicit replay request, never a completion proof or Tape conversion.
+#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+pub enum ReplayMode {CompleteOnly,RecordedPrefix}
+
+fn replay_is_partial(tape:&Tape,mode:ReplayMode)->Result<bool,String>{
+    match tape.termination {
+        logical::Termination::Complete=>Ok(false),
+        logical::Termination::Incomplete if mode==ReplayMode::RecordedPrefix=>Ok(true),
+        logical::Termination::Incomplete=>Err(error("미완 기록은 정상 재생하지 않습니다. 중단된 기록 끝까지만 재생하는 옵션을 명시하세요")),
+        logical::Termination::Aborted=>Err(error("실패 기록은 정상·부분 재생하지 않습니다. 원래 실패 원인을 확인하세요")),
+    }
+}
+fn replay_summary(mut summary:serde_json::Value,tape:&Tape,partial:bool)->Result<serde_json::Value,String>{
+    if partial {
+        let object=summary.as_object_mut().ok_or_else(||error("재생 요약 구조가 다릅니다"))?;
+        object.insert("replay_status".into(),"incomplete_prefix".into());
+        object.insert("source_record_termination".into(),"Incomplete".into());
+        object.insert("partial_replay".into(),true.into());
+        object.insert("stopped_after_madi_count".into(),tape.accepted_madi_count.into());
+        object.insert("last_recorded_madi".into(),tape.frames.last().map(|frame|serde_json::Value::from(frame.input.madi)).unwrap_or(serde_json::Value::Null));
+        object.insert("replay_notice".into(),format!("중단된 기록, {}마디까지",tape.accepted_madi_count).into());
+    }
+    Ok(summary)
+}
 impl ExpectedBinding<'_> {
     fn binding(&self)->Binding {
         macro_rules! binding {
@@ -225,6 +255,47 @@ fn finite_tape(binding:Binding,frames:Vec<Frame>,planned:usize,failure:Option<&s
     Ok(Tape {binding,accepted_madi_count:frames.len() as u64,accepted_event_count:count,frames,
         termination:logical::Termination::Complete,failure_reason:None})
 }
+/// Explicit private archive-progress decoder. It does not weaken Complete-only
+/// public replay admission, terminate an owner, or create a normal-end proof.
+pub(crate) fn checked_running_logical_archive_prefix(contract:&[u8],evidence:&[u8],
+    binding:&logical::LogicalInputBinding)->Result<Vec<logical::LogicalFrame>,String>{
+    checked_logical_archive_prefix(contract,evidence,binding,logical::Termination::Incomplete)
+}
+pub(crate) fn checked_completed_logical_archive_prefix(contract:&[u8],evidence:&[u8],
+    binding:&logical::LogicalInputBinding)->Result<Vec<logical::LogicalFrame>,String>{
+    checked_logical_archive_prefix(contract,evidence,binding,logical::Termination::Complete)
+}
+fn decode_logical_archive_tape(contract:&[u8],evidence:&[u8],binding:&logical::LogicalInputBinding)->Result<Tape,String>{
+    let expected=ExpectedBinding::Logical(binding);
+    let wanted=logical_contract_bytes(binding)?;
+    if contract!=wanted || evidence.first()!=Some(&1){return Err(error("기록 보관 입력 계약이 다릅니다"));}
+    Tape::decode(&evidence[1..],&expected)
+}
+const LIVE_STOP_REASON:&str="사용자가 기록을 명시적으로 중단했습니다";
+pub(crate) fn checked_terminal_logical_archive_prefix(contract:&[u8],evidence:&[u8],binding:&logical::LogicalInputBinding,
+    state:u8)->Result<Vec<logical::LogicalFrame>,String>{
+    let tape=decode_logical_archive_tape(contract,evidence,binding)?;
+    let valid=match state{
+        1=>tape.termination==logical::Termination::Complete&&tape.failure_reason.is_none(),
+        2=>tape.termination==logical::Termination::Incomplete&&tape.failure_reason.as_deref()==Some(LIVE_STOP_REASON),
+        3=>tape.termination==logical::Termination::Aborted&&tape.failure_reason.as_ref().is_some_and(|v|!v.is_empty()),
+        _=>false,
+    };
+    if !valid{return Err(error("실제 종료 기록과 원 입력의 종료 종류가 다릅니다"));}
+    tape.frames.iter().map(Frame::logical).collect()
+}
+fn checked_logical_archive_prefix(contract:&[u8],evidence:&[u8],binding:&logical::LogicalInputBinding,
+    required:logical::Termination)->Result<Vec<logical::LogicalFrame>,String>{
+    let tape=decode_logical_archive_tape(contract,evidence,binding)?;
+    let correct_reason=match required {
+        logical::Termination::Incomplete=>tape.failure_reason.as_deref()==Some("진행 중인 기록의 저장 경계"),
+        logical::Termination::Complete=>tape.failure_reason.is_none(),_=>false,
+    };
+    if tape.termination!=required || !correct_reason {
+        return Err(error("요구한 기록 종료 상태와 원 저장 경계가 다릅니다"));
+    }
+    tape.frames.iter().map(Frame::logical).collect()
+}
 fn aborted_tape(binding:Binding,frames:Vec<Frame>,failure:Option<&str>)->Result<Tape,String> {
     let reason=failure.filter(|reason|!reason.is_empty()).ok_or_else(||error("실제 실패가 없는 실행을 실패 기록으로 만들 수 없습니다"))?;
     let count=frames.iter().try_fold(0u64,|count,frame|count.checked_add(frame.input.events.len() as u64)).ok_or_else(||error("사건 합계 초과"))?;
@@ -234,17 +305,113 @@ fn aborted_tape(binding:Binding,frames:Vec<Frame>,failure:Option<&str>)->Result<
 /// One recording controller belongs to one VM. A live user stop is not a
 /// finite-plan completion proof, and cannot be supplied as a host Boolean.
 #[derive(Default)]
-pub(crate) struct LiveRecording { stopped:bool }
+pub(crate) struct LiveRecording { stopped:bool,completion:Option<recording::RecordingControllerV1> }
+pub(crate) struct RunningLogicalRecordingBorrowV1<'a> {
+    _owner:&'a LiveRecording,session:&'a logical::LogicalInputSession,
+}
+pub(crate) fn logical_contract_bytes(binding:&logical::LogicalInputBinding)->Result<Vec<u8>,String>{
+    let expected=ExpectedBinding::Logical(binding);
+    let mut bytes=vec![1];bytes.extend(canonical(&expected.binding())?);Ok(bytes)
+}
+impl<'a> RunningLogicalRecordingBorrowV1<'a> {
+    pub(crate) fn transport_parts(&self)->Result<(Vec<u8>,Vec<u8>,u64,&'a [serde_json::Value]),String> {
+        let (binding,accepted,_)=self.session.accepted_prefix_v3();
+        let expected=ExpectedBinding::Logical(binding);
+        let frames=accepted.iter().map(|f|Frame::from_input(Snapshot::from(&f.input),&f.accepted_world_digest)).collect::<Result<Vec<_>,_>>()?;
+        let count=frames.iter().try_fold(0u64,|n,f|n.checked_add(f.input.events.len() as u64)).ok_or_else(||error("사건 합계 초과"))?;
+        let tape=Tape{binding:expected.binding(),accepted_madi_count:frames.len() as u64,accepted_event_count:count,frames,
+            termination:logical::Termination::Incomplete,failure_reason:Some("진행 중인 기록의 저장 경계".into())};
+        let contract=logical_contract_bytes(binding)?;
+        let mut evidence=vec![1];evidence.extend(tape.encode(&expected)?);
+        let receipts=self.session.committed_input_receipts();
+        if receipts.len()!=accepted.len(){return Err(error("실제 입력 영수증 수가 확정 마디와 다릅니다"));}
+        Ok((contract,evidence,accepted.len() as u64,receipts))
+    }
+    pub(crate) fn result_boundary(&self)->Result<crate::logical_input_tape::CommittedLogicalResultBoundary<'_>,String> {
+        self.session.borrow_result_boundary()
+    }
+}
 impl LiveRecording {
+    #[cfg(windows)]
+    pub(crate) fn from_native_running_progress(session:&mut logical::LogicalInputSession,
+        proof:&crate::unit_wire::resumable_complete_state::CurrentRecordingProgressProofV1)->Result<Self,String>{
+        Ok(Self{stopped:false,completion:Some(recording::RecordingControllerV1::for_native_running_progress(session,proof)?)})
+    }
+    pub(crate) fn for_logical(session:&mut logical::LogicalInputSession)->Result<Self,String> {
+        Ok(Self{stopped:false,completion:Some(recording::RecordingControllerV1::for_fresh_logical(session)?)})
+    }
+    pub(crate) fn for_manipulation(session:&mut manipulation::ManipulationSession)->Result<Self,String> {
+        Ok(Self{stopped:false,completion:Some(recording::RecordingControllerV1::for_fresh_manipulation(session)?)})
+    }
     pub(crate) fn ensure_running(&self)->Result<(),String> {
-        if self.stopped {Err(error("기록을 중단했습니다. 다시 시작하거나 저장된 작품을 다시 여세요"))}else{Ok(())}
+        if self.stopped {return Err(error("기록을 중단했습니다. 다시 시작하거나 저장된 작품을 다시 여세요"));}
+        match &self.completion {Some(controller)=>controller.ensure_running(),None=>Ok(())}
+    }
+    pub(crate) fn borrow_running_logical<'a>(&'a self,session:&'a logical::LogicalInputSession)
+        ->Result<RunningLogicalRecordingBorrowV1<'a>,String> {
+        self.ensure_running()?;
+        self.completion.as_ref().ok_or_else(||error("MissingReplayProgress: 원 기록 생산자가 없습니다"))?.check_owner(session)?;
+        if session.accepted_prefix_v3().2.is_some(){return Err(error("실패를 진행 중 기록으로 저장할 수 없습니다"));}
+        Ok(RunningLogicalRecordingBorrowV1{_owner:self,session})
+    }
+    pub(crate) fn register_frontend_logical(&mut self,session:&mut logical::LogicalInputSession)
+        ->Result<serde_json::Value,String> {
+        self.ensure_running()?;
+        self.completion.as_mut().ok_or_else(||error("MissingReplayProgress: 원 기록의 진행 증거가 없습니다"))?
+            .register_frontend(session)
+    }
+    pub(crate) fn check_live_logical_owner(&self,session:&logical::LogicalInputSession)->Result<(),String>{
+        self.ensure_running()?;
+        let controller=self.completion.as_ref().ok_or_else(||error("MissingReplayProgress: 원 기록 생산자가 없습니다"))?;
+        controller.ensure_running()?;controller.check_owner(session)
+    }
+    pub(crate) fn preview_logical_finish(&self,session:&mut logical::LogicalInputSession,packet:&str)
+        ->Result<(Vec<u8>,serde_json::Value),String>{
+        self.ensure_running()?;
+        let controller=self.completion.as_ref().ok_or_else(||error("MissingReplayProgress: 원 기록의 진행 증거가 없습니다"))?;
+        let candidate=controller.prepare_frontend_finish(session,packet)?;
+        let (bytes,summary)=candidate.planned_artifact_parts();
+        Ok((bytes.to_vec(),summary.clone()))
+    }
+    pub(crate) fn finish_logical(&mut self,session:&mut logical::LogicalInputSession,pending:Option<&str>)
+        ->Result<(Vec<u8>,serde_json::Value),String> {
+        if self.stopped{return Err(error("중단 기록을 정상 마치기로 바꿀 수 없습니다"));}
+        let controller=self.completion.as_mut().ok_or_else(||error("MissingReplayProgress: 원 기록의 진행 증거가 없습니다"))?;
+        controller.check_owner(session)?;
+        if let Ok(original)=controller.finished(){return Ok(original);}
+        let candidate=match pending {
+            Some(packet)=>controller.prepare_frontend_finish(session,packet)?,
+            None=>controller.prepare_direct_finish(session)?,
+        };
+        controller.commit_direct_finish(session,candidate)?;
+        controller.finished()
+    }
+    pub(crate) fn finish_notice(&self)->Result<serde_json::Value,String> {
+        let count=self.completion.as_ref().ok_or_else(||error("정상 종료 증거가 없습니다"))?.finish_excluded_count()?;
+        Ok(serde_json::json!({"excluded_input_count":count.to_string()}))
+    }
+    pub(crate) fn register_frontend_manipulation(&mut self,session:&mut manipulation::ManipulationSession)
+        ->Result<serde_json::Value,String> {
+        self.ensure_running()?;
+        self.completion.as_mut().ok_or_else(||error("MissingReplayProgress: 원 조작 기록의 증거가 없습니다"))?
+            .register_manipulation_frontend(session)
+    }
+    pub(crate) fn finish_manipulation(&mut self,session:&mut manipulation::ManipulationSession,pending:Option<&str>)
+        ->Result<(Vec<u8>,serde_json::Value),String> {
+        if self.stopped{return Err(error("중단 기록을 정상 마치기로 바꿀 수 없습니다"));}
+        let controller=self.completion.as_mut().ok_or_else(||error("MissingReplayProgress: 원 조작 기록의 증거가 없습니다"))?;
+        controller.check_manipulation_owner(session)?;
+        if let Ok(original)=controller.finished(){return Ok(original);}
+        let candidate=controller.prepare_manipulation_finish(session,pending)?;
+        controller.commit_manipulation_finish(session,candidate)?;
+        controller.finished()
     }
     fn stop(&mut self,expected:ExpectedBinding<'_>,frames:Vec<Frame>,failure:Option<&str>)->Result<Vec<u8>,String> {
         self.ensure_running()?;
         let tape=if failure.is_some() {aborted_tape(expected.binding(),frames,failure)?}else{
             let count=frames.iter().try_fold(0u64,|count,frame|count.checked_add(frame.input.events.len() as u64)).ok_or_else(||error("사건 합계 초과"))?;
             Tape {binding:expected.binding(),accepted_madi_count:frames.len() as u64,accepted_event_count:count,frames,
-                termination:logical::Termination::Incomplete,failure_reason:Some("사용자가 기록을 명시적으로 중단했습니다".into())}
+                termination:logical::Termination::Incomplete,failure_reason:Some(LIVE_STOP_REASON.into())}
         };
         let bytes=tape.encode(&expected)?;
         // Encoding/admission failure never publishes a stopped success state.
@@ -293,12 +460,32 @@ pub fn record_authored_logical(authored:&str,request:&logical::LogicalRecordRequ
     for input in &request.snapshots {run.step(input)?;}
     encode_finite_logical(run.session(),request.snapshots.len())
 }
+/// Private CLI finish frontdoor: the command owns the fresh live controller,
+/// accepts actual input frames and explicitly closes that same producer. It
+/// issues recording content only, never a Native storage/receipt permission.
+pub fn finish_live_logical(source:&str,request:&logical::LogicalRecordRequest,authored:bool)
+    ->Result<(Vec<u8>,serde_json::Value),String>{
+    if authored {
+        let mut run=crate::runtime_surface::fresh_authored_logical_run(source,request.binding.clone())?;
+        let mut recording=LiveRecording::for_logical(run.session_mut_for_recording())?;
+        for input in &request.snapshots {run.step(input)?;}
+        recording.finish_logical(run.session_mut_for_recording(),None)
+    }else{
+        let mut session=logical::LogicalInputSession::new(source,request.binding.clone())?;
+        let mut recording=LiveRecording::for_logical(&mut session)?;
+        for input in &request.snapshots {session.step(input)?;}
+        recording.finish_logical(&mut session,None)
+    }
+}
 pub fn replay_authored_logical(authored:&str,bytes:&[u8],binding:&logical::LogicalInputBinding)->Result<serde_json::Value,String> {
+    replay_authored_logical_with_mode(authored,bytes,binding,ReplayMode::CompleteOnly)
+}
+pub fn replay_authored_logical_with_mode(authored:&str,bytes:&[u8],binding:&logical::LogicalInputBinding,mode:ReplayMode)->Result<serde_json::Value,String> {
     let tape=Tape::decode(bytes,&ExpectedBinding::Logical(binding))?;
-    if tape.termination!=logical::Termination::Complete {return Err(error("미완·실패 기록을 정상 재생하지 않습니다"));}
+    let partial=replay_is_partial(&tape,mode)?;
     let mut run=crate::runtime_surface::fresh_authored_logical_run(authored,binding.clone())?;
     for frame in &tape.frames {run.replay_v3_frame(&frame.logical()?)?;}
-    Ok(run.session().summary())
+    replay_summary(run.session().summary(),&tape,partial)
 }
 pub fn record_manipulation(source:&str,request:&manipulation::RecordRequest)->Result<(Vec<u8>,serde_json::Value),String> {
     let mut session=manipulation::ManipulationSession::new(source,request.binding.clone())?;
@@ -308,25 +495,72 @@ pub fn record_manipulation(source:&str,request:&manipulation::RecordRequest)->Re
     Ok((tape.encode(&ExpectedBinding::Manipulation(&request.binding))?,session.summary()))
 }
 pub fn replay(source:&str,bytes:&[u8],expected:ExpectedBinding<'_>)->Result<serde_json::Value,String> {
+    replay_with_mode(source,bytes,expected,ReplayMode::CompleteOnly)
+}
+pub fn replay_with_mode(source:&str,bytes:&[u8],expected:ExpectedBinding<'_>,mode:ReplayMode)->Result<serde_json::Value,String> {
     let tape=Tape::decode(bytes,&expected)?;
-    if tape.termination!=logical::Termination::Complete {return Err(error("미완·실패 기록을 정상 재생하지 않습니다"));}
-    match expected {
+    let partial=replay_is_partial(&tape,mode)?;
+    let summary=match expected {
         ExpectedBinding::Logical(binding)=>{
             let mut session=logical::LogicalInputSession::new(source,binding.clone())?;
             for frame in &tape.frames {session.replay_v3_frame(&frame.logical()?)?;}
-            Ok(session.summary())
+            session.summary()
         }
         ExpectedBinding::Manipulation(binding)=>{
             let mut session=manipulation::ManipulationSession::new(source,binding.clone())?;
             for frame in &tape.frames {session.replay_v3_frame(&frame.manipulation()?)?;}
-            Ok(session.summary())
+            session.summary()
         }
-    }
+    };
+    replay_summary(summary,&tape,partial)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn b2_logical_prefix_is_explicit_and_does_not_reseal_the_record(){
+        let source="(매마디)마다 { 1 보여주기. }.";let request=logical_request(source);
+        let mut session=logical::LogicalInputSession::new(source,request.binding.clone()).unwrap();
+        session.step(&request.snapshots[0]).unwrap();let expected_hash=session.summary()["state_hash"].clone();
+        let mut controller=LiveRecording::default();let (bytes,_)=controller.stop_logical(&session).unwrap();let original=bytes.clone();
+        assert!(replay(source,&bytes,ExpectedBinding::Logical(&request.binding)).unwrap_err().contains("옵션"));
+        let result=replay_with_mode(source,&bytes,ExpectedBinding::Logical(&request.binding),ReplayMode::RecordedPrefix).unwrap();
+        assert_eq!(result["state_hash"],expected_hash);assert_eq!(result["partial_replay"],true);
+        assert_eq!(result["stopped_after_madi_count"],1);assert_eq!(result["last_recorded_madi"],0);
+        assert_eq!(result["replay_notice"],"중단된 기록, 1마디까지");assert_eq!(bytes,original);
+        assert_eq!(Tape::decode(&bytes,&ExpectedBinding::Logical(&request.binding)).unwrap().termination,logical::Termination::Incomplete);
+    }
+    #[test]
+    fn b2_manipulation_prefix_preserves_coordinates_and_order(){
+        let source="(매마디)마다 { (순서=0) 조작단계 보여주기. }.";let mut request=manipulation_request(source);request.snapshots[0].events.truncate(1);
+        let mut session=manipulation::ManipulationSession::new(source,request.binding.clone()).unwrap();session.step(&request.snapshots[0]).unwrap();
+        let before=session.summary();let mut controller=LiveRecording::default();let (bytes,_)=controller.stop_manipulation(&session).unwrap();
+        let result=replay_with_mode(source,&bytes,ExpectedBinding::Manipulation(&request.binding),ReplayMode::RecordedPrefix).unwrap();
+        assert_eq!(result["state_hash"],before["state_hash"]);assert_eq!(result["source_record_termination"],"Incomplete");
+        assert!(replay(source,&bytes,ExpectedBinding::Manipulation(&request.binding)).is_err());
+    }
+    #[test]
+    fn b2_prefix_never_admits_aborted_or_tampered_worlds(){
+        let source="(매마디)마다 { 1 보여주기. }.";let request=logical_request(source);
+        let mut session=logical::LogicalInputSession::new(source,request.binding.clone()).unwrap();session.step(&request.snapshots[0]).unwrap();
+        let mut invalid=request.snapshots[0].clone();invalid.madi=2;assert!(session.step(&invalid).is_err());
+        let (aborted,_)=failed_prefix_logical(&session).unwrap();
+        assert!(replay_with_mode(source,&aborted,ExpectedBinding::Logical(&request.binding),ReplayMode::RecordedPrefix).is_err());
+        let mut clean=logical::LogicalInputSession::new(source,request.binding.clone()).unwrap();clean.step(&request.snapshots[0]).unwrap();
+        let mut controller=LiveRecording::default();let (bytes,_)=controller.stop_logical(&clean).unwrap();
+        let mut corrupt=bytes.clone();let end=corrupt.len()-1;corrupt[end]^=1;
+        assert!(replay_with_mode(source,&corrupt,ExpectedBinding::Logical(&request.binding),ReplayMode::RecordedPrefix).is_err());
+        let mut wrong=request.binding.clone();wrong.initial_rng+=1;
+        assert!(replay_with_mode(source,&bytes,ExpectedBinding::Logical(&wrong),ReplayMode::RecordedPrefix).is_err());
+    }
+    #[test]
+    fn b2_complete_replay_output_stays_unchanged_with_prefix_option(){
+        let source="(매마디)마다 { 1 보여주기. }.";let request=logical_request(source);let (bytes,_)=record_logical(source,&request).unwrap();
+        let normal=replay(source,&bytes,ExpectedBinding::Logical(&request.binding)).unwrap();
+        let opted=replay_with_mode(source,&bytes,ExpectedBinding::Logical(&request.binding),ReplayMode::RecordedPrefix).unwrap();
+        assert_eq!(normal,opted);assert!(normal.get("partial_replay").is_none());
+    }
     fn logical_request(source:&str)->logical::LogicalRecordRequest {
         use ddonirang_core::Nuri;
         logical::LogicalRecordRequest {
@@ -341,6 +575,180 @@ mod tests {
                 ordinal:0,channel:"왼쪽".into(),event:logical::EventKind::Press,
             }],held:BTreeMap::from([("왼쪽".into(),true)])}],
         }
+    }
+    #[test]
+    fn b3_cli_live_finish_uses_the_original_owner_and_preserves_held_input(){
+        let source="(매마디)마다 { 1 보여주기. }.";let mut request=logical_request(source);
+        let finite=record_logical(source,&request).unwrap();
+        let live=finish_live_logical(source,&request,false).unwrap();
+        assert_eq!(live,finite,"live finish must preserve the whole artifact, not just the world hash");
+        let tape=Tape::decode(&live.0,&ExpectedBinding::Logical(&request.binding)).unwrap();
+        assert_eq!(tape.frames[0].input.held.get("왼쪽"),Some(&true));
+        request.snapshots.push(request.snapshots[0].clone());
+        assert!(finish_live_logical(source,&request,false).is_err(),"failed input cannot publish Complete");
+    }
+    #[cfg(windows)]
+    #[test]
+    fn b3_native_finish_prepares_without_finished_publication_and_rejects_an_interleaved_step(){
+        let source="(매마디)마다 { 1 보여주기. }.";let request=logical_request(source);
+        let mut session=logical::LogicalInputSession::new(source,request.binding.clone()).unwrap();
+        let mut recording=LiveRecording::for_logical(&mut session).unwrap();
+        session.step(&request.snapshots[0]).unwrap();
+        let candidate=recording.prepare_native_logical_finish(&mut session,None).unwrap();
+        assert_eq!(candidate.closed_count(),1);
+        let expected=record_logical(source,&request).unwrap();
+        assert_eq!(candidate.tape_bytes(),expected.0);assert_eq!(candidate.summary(),&expected.1);
+        assert!(recording.completion.as_ref().unwrap().finished().is_err());
+        assert!(recording.finish_notice().is_err());
+        let progress=recording.borrow_running_logical(&session).unwrap().transport_parts().unwrap();
+        assert!(replay(source,&progress.1[1..],ExpectedBinding::Logical(&request.binding)).is_err());
+        session.step(&logical::LogicalSnapshot{madi:1,events:vec![],held:request.snapshots[0].held.clone()}).unwrap();
+        assert!(recording.validate_native_logical_finish(&mut session,&candidate).is_err());
+        assert!(recording.completion.as_ref().unwrap().finished().is_err());
+    }
+    #[test]
+    fn b3_direct_finish_matches_original_batch_and_caches_exact_two_key_result() {
+        use recording::RecordingControllerV1;
+        let source="(매마디)마다 { 1 보여주기. }.";
+        let request=logical_request(source);
+        let mut session=logical::LogicalInputSession::new(source,request.binding.clone()).unwrap();
+        let mut controller=RecordingControllerV1::for_fresh_logical(&mut session).unwrap();
+        session.step(&request.snapshots[0]).unwrap();let before=session.summary();
+        let candidate=controller.prepare_direct_finish(&mut session).unwrap();
+        controller.commit_direct_finish(&mut session,candidate).unwrap();
+        let first=controller.finished().unwrap();let batch=record_logical(source,&request).unwrap();
+        assert_eq!(first,batch);assert_eq!(controller.finished().unwrap(),first);
+        assert_eq!(session.summary(),before);assert!(controller.ensure_running().is_err());
+        let response=serde_json::json!({"tape_bytes":first.0,"summary":first.1});
+        assert_eq!(response.as_object().unwrap().len(),2);
+        // A held key is valid in the original control codec. Do not invent
+        // a release event or impose a new all-held-false completion rule.
+        let tape=Tape::decode(&batch.0,&ExpectedBinding::Logical(&request.binding)).unwrap();
+        assert_eq!(tape.frames[0].input.held.get("왼쪽"),Some(&true));
+    }
+    #[test]
+    fn b3_direct_finish_rejects_foreign_generation_and_interleaved_step() {
+        use recording::RecordingControllerV1;
+        let source="(매마디)마다 { 1 보여주기. }.";let request=logical_request(source);
+        let mut a=logical::LogicalInputSession::new(source,request.binding.clone()).unwrap();
+        let mut b=logical::LogicalInputSession::new(source,request.binding.clone()).unwrap();
+        let mut controller=RecordingControllerV1::for_fresh_logical(&mut a).unwrap();
+        assert!(controller.prepare_direct_finish(&mut b).is_err());
+        let old=controller.prepare_direct_finish(&mut a).unwrap();
+        a.step(&request.snapshots[0]).unwrap();let before=a.summary();
+        assert!(controller.commit_direct_finish(&mut a,old).is_err());
+        controller.ensure_running().unwrap();assert_eq!(a.summary(),before);
+        assert!(controller.finished().is_err());
+    }
+    #[test]
+    fn b3_direct_finish_never_promotes_stop_or_failed_owner() {
+        use recording::RecordingControllerV1;
+        let source="(매마디)마다 { 1 보여주기. }.";let request=logical_request(source);
+        for failed in [false,true] {
+            let mut session=logical::LogicalInputSession::new(source,request.binding.clone()).unwrap();
+            let mut controller=RecordingControllerV1::for_fresh_logical(&mut session).unwrap();
+            session.step(&request.snapshots[0]).unwrap();
+            if failed {session.reject_input("E_TEST: 실제 owner 입력 실패".into());
+                assert!(controller.prepare_direct_finish(&mut session).is_err());}
+            let before=session.summary();let (bytes,_)=controller.stop_logical(&mut session).unwrap();
+            let tape=Tape::decode(&bytes,&ExpectedBinding::Logical(&request.binding)).unwrap();
+            assert_eq!(tape.termination,if failed{logical::Termination::Aborted}else{logical::Termination::Incomplete});
+            assert_eq!(session.summary(),before);assert!(controller.prepare_direct_finish(&mut session).is_err());
+            assert!(controller.finished().is_err());
+        }
+    }
+    #[test]
+    fn b3_frontend_finish_excludes_pending_release_without_tape_or_summary_change() {
+        use recording::RecordingControllerV1;
+        let source="(매마디)마다 { 1 보여주기. }.";let request=logical_request(source);
+        let mut session=logical::LogicalInputSession::new(source,request.binding.clone()).unwrap();
+        let mut controller=RecordingControllerV1::for_fresh_logical(&mut session).unwrap();
+        let registration=controller.register_frontend(&mut session).unwrap();
+        session.step(&request.snapshots[0]).unwrap();let before=session.summary();
+        assert!(controller.prepare_direct_finish(&mut session).err().unwrap().contains("MissingPendingSupply"));
+        controller.ensure_running().unwrap();assert_eq!(session.summary(),before);
+        let packet=serde_json::json!({"producer_generation":registration["producer_generation"],
+            "first_unprocessed":"1","observed_until":"2",
+            "events":[{"ordinal":0,"channel":"왼쪽","event":{"kind":"Release"}}]}).to_string();
+        let original=packet.clone();let candidate=controller.prepare_frontend_finish(&mut session,&packet).unwrap();
+        assert!(controller.finish_excluded_count().is_err());
+        controller.commit_direct_finish(&mut session,candidate).unwrap();
+        assert_eq!(controller.finished().unwrap(),record_logical(source,&request).unwrap());
+        assert_eq!(controller.finish_excluded_count().unwrap(),1);assert_eq!(packet,original);
+        assert_eq!(session.summary(),before);assert_eq!(controller.finish_excluded_count().unwrap(),1);
+    }
+    #[test]
+    fn b3_frontend_finish_rejects_stale_or_overlapping_queue_without_publication() {
+        use recording::RecordingControllerV1;
+        let source="(매마디)마다 { 1 보여주기. }.";let request=logical_request(source);
+        let mut session=logical::LogicalInputSession::new(source,request.binding.clone()).unwrap();
+        let mut controller=RecordingControllerV1::for_fresh_logical(&mut session).unwrap();
+        let registration=controller.register_frontend(&mut session).unwrap();
+        session.step(&request.snapshots[0]).unwrap();let before=session.summary();
+        let valid=serde_json::json!({"producer_generation":registration["producer_generation"],
+            "first_unprocessed":"1","observed_until":"2",
+            "events":[{"ordinal":0,"channel":"왼쪽","event":{"kind":"Release"}}]});
+        for key in ["producer_generation","first_unprocessed","observed_until"] {
+            let mut wrong=valid.clone();wrong[key]="0".into();
+            assert!(controller.prepare_frontend_finish(&mut session,&wrong.to_string()).is_err());
+            controller.ensure_running().unwrap();assert!(controller.finished().is_err());
+            assert_eq!(session.summary(),before);
+        }
+        let mut wrong=valid.clone();wrong["first_unprocessed"]="01".into();
+        assert!(controller.prepare_frontend_finish(&mut session,&wrong.to_string()).is_err());
+        assert!(controller.register_frontend(&mut session).is_err());
+        let candidate=controller.prepare_frontend_finish(&mut session,&valid.to_string()).unwrap();
+        controller.commit_direct_finish(&mut session,candidate).unwrap();
+    }
+    #[test]
+    fn b3_live_frontdoor_binds_actual_prefix_and_caches_only_for_same_owner() {
+        let source="(매마디)마다 { 1 보여주기. }.";let request=logical_request(source);
+        let mut session=logical::LogicalInputSession::new(source,request.binding.clone()).unwrap();
+        let mut recording=LiveRecording::for_logical(&mut session).unwrap();
+        session.step(&request.snapshots[0]).unwrap();
+        // The UI may attach after the source-start step, without issuing a new
+        // recording generation or pretending the accepted prefix was empty.
+        let registered=recording.register_frontend_logical(&mut session).unwrap();
+        assert_eq!(registered["accepted_event_count"],"1");
+        let packet=serde_json::json!({"producer_generation":registered["producer_generation"],
+            "first_unprocessed":"1","observed_until":"1","events":[]}).to_string();
+        let result=recording.finish_logical(&mut session,Some(&packet)).unwrap();
+        assert_eq!(result,record_logical(source,&request).unwrap());
+        assert_eq!(recording.finish_logical(&mut session,None).unwrap(),result);
+        assert_eq!(recording.finish_notice().unwrap()["excluded_input_count"],"0");
+        assert!(recording.ensure_running().is_err());
+        let mut foreign=logical::LogicalInputSession::new(source,request.binding.clone()).unwrap();
+        assert!(recording.finish_logical(&mut foreign,None).is_err());
+        let mut old=LiveRecording::default();
+        assert!(old.finish_logical(&mut session,None).err().unwrap().contains("MissingReplayProgress"));
+    }
+    #[test]
+    fn b3_original_c01_raw_source_has_exact_native_live_batch_results_for_all_rows() {
+        let script=include_str!("../../tests/beta1_determinism_native_wasm_runner.mjs");
+        assert_eq!(hex::encode(Sha256::digest(script.as_bytes())),
+            "17385629d7b4112d859e8babe03cb72831e08db84c3a6d2a7c11202a2e3c0ea9");
+        // Extract unchanged DDN bytes, with no test-only source conversion.
+        let source=script.split_once("const source=`").unwrap().1.split_once("`;").unwrap().0;
+        for reverse in [false,true] {for seed in [7,8] {
+            let mut binding=logical_request(source).binding;binding.initial_rng=seed;
+            binding.channels=BTreeMap::from([("더함".into(),logical::ChannelKind::Control),("곱함".into(),logical::ChannelKind::Control)]);
+            binding.initial_held=BTreeMap::from([("더함".into(),false),("곱함".into(),false)]);
+            let names=if reverse{["곱함","더함"]}else{["더함","곱함"]};
+            let snapshots=(0..4).map(|madi|logical::LogicalSnapshot {madi,
+                held:BTreeMap::from([("더함".into(),madi%2==0),("곱함".into(),madi%2==0)]),
+                events:names.iter().enumerate().map(|(ordinal,channel)|logical::LogicalEvent{
+                    ordinal:ordinal as u64,channel:(*channel).into(),event:if madi%2==0{logical::EventKind::Press}else{logical::EventKind::Release}}).collect(),
+            }).collect::<Vec<_>>();
+            let request=logical::LogicalRecordRequest{binding:binding.clone(),snapshots};
+            let batch=record_logical(source,&request).unwrap();
+            let mut session=logical::LogicalInputSession::new(source,binding).unwrap();
+            let mut live=LiveRecording::for_logical(&mut session).unwrap();
+            for input in &request.snapshots {live.ensure_running().unwrap();session.step(input).unwrap();}
+            let result=live.finish_logical(&mut session,None).unwrap();
+            assert_eq!(result,batch);assert_eq!(result.1["resources"]["fixed64"]["계산값"],if reverse{"5"}else{"6"});
+        }}
+        // This is the Native common-owner counterpart, not a claim that the
+        // original CLI3/WASM runner or actual Chrome has been executed.
     }
     fn manipulation_request(source:&str)->manipulation::RecordRequest {
         let old=logical_request(source).binding;
@@ -359,6 +767,45 @@ mod tests {
             manipulation::EventKind::Coordinate{raw:["2".into(),"0".into()],phase:manipulation::Phase::End},
             manipulation::EventKind::Number{raw:"3".into(),phase:manipulation::Phase::Set},
         ].into_iter().enumerate().map(|(ordinal,event)|manipulation::Event {ordinal:ordinal as u64,channel:if ordinal<3 {"좌표"}else{"수"}.into(),event}).collect()}]}
+    }
+    #[test]
+    fn b3_manipulation_finish_matches_batch_and_keeps_pending_outside_result() {
+        let source="(매마디)마다 { 사건목록 <- () 입력사상.사건들. 사건목록마다 { (순서=사건목록.순서) 조작단계 보여주기. }. }.";
+        let request=manipulation_request(source);
+        let mut session=manipulation::ManipulationSession::new(source,request.binding.clone()).unwrap();
+        let mut recording=LiveRecording::for_manipulation(&mut session).unwrap();
+        session.step(&request.snapshots[0]).unwrap();let before=session.summary();
+        let registered=recording.register_frontend_manipulation(&mut session).unwrap();
+        assert_eq!(registered["accepted_event_count"],"4");
+        let packet=serde_json::json!({"producer_generation":registered["producer_generation"],
+            "first_unprocessed":"4","observed_until":"5",
+            "events":[{"ordinal":0,"channel":"수","event":{"kind":"Number","payload":{"raw":"4","phase":"Set"}}}]}).to_string();
+        let live=recording.finish_manipulation(&mut session,Some(&packet)).unwrap();
+        assert_eq!(live,record_manipulation(source,&request).unwrap());
+        assert_eq!(session.summary(),before);assert_eq!(recording.finish_notice().unwrap()["excluded_input_count"],"1");
+        assert_eq!(recording.finish_manipulation(&mut session,None).unwrap(),live);
+        let mut foreign=manipulation::ManipulationSession::new(source,request.binding.clone()).unwrap();
+        assert!(recording.finish_manipulation(&mut foreign,None).is_err());
+    }
+    #[test]
+    fn b3_manipulation_active_end_is_not_synthesized_from_pending_queue() {
+        let source="(매마디)마다 { (순서=0) 조작단계 보여주기. }.";
+        let mut request=manipulation_request(source);request.snapshots[0].events.truncate(1);
+        let mut session=manipulation::ManipulationSession::new(source,request.binding.clone()).unwrap();
+        let mut recording=LiveRecording::for_manipulation(&mut session).unwrap();
+        let registered=recording.register_frontend_manipulation(&mut session).unwrap();
+        session.step(&request.snapshots[0]).unwrap();let before=session.summary();
+        let packet=serde_json::json!({"producer_generation":registered["producer_generation"],
+            "first_unprocessed":"1","observed_until":"2",
+            "events":[{"ordinal":0,"channel":"좌표","event":{"kind":"Coordinate","payload":{"raw":["0","0"],"phase":"End"}}}]}).to_string();
+        assert!(recording.finish_manipulation(&mut session,Some(&packet)).err().unwrap().contains("E_INPUT_FINISH_NOT_READY"));
+        recording.ensure_running().unwrap();assert_eq!(session.summary(),before);assert!(recording.finish_notice().is_err());
+        let end=manipulation::ManipulationSnapshot{madi:1,held:BTreeMap::new(),events:vec![manipulation::Event{
+            ordinal:0,channel:"좌표".into(),event:manipulation::EventKind::Coordinate{raw:["0".into(),"0".into()],phase:manipulation::Phase::End}}]};
+        session.step(&end).unwrap();request.snapshots.push(end);
+        let empty=serde_json::json!({"producer_generation":registered["producer_generation"],
+            "first_unprocessed":"2","observed_until":"2","events":[]}).to_string();
+        assert_eq!(recording.finish_manipulation(&mut session,Some(&empty)).unwrap(),record_manipulation(source,&request).unwrap());
     }
     #[test]
     fn v3_actual_typed_owners_record_and_replay_without_changing_semantic_receipts() {

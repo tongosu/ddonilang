@@ -1,7 +1,7 @@
 // Device events stay in the host. Only the admitted logical channel identities,
 // ordered Press/Repeat/Release and explicit settled held enter the world.
 export class LogicalActionInput {
-  constructor({ session, channels, initialHeld, actionMap, maxEvents, valueChannels = null, nextMadi = 0 }) {
+  constructor({ session, channels, initialHeld, actionMap, maxEvents, valueChannels = null, nextMadi = 0, finishBarrier = null }) {
     if (!session || typeof session.step !== "function" || typeof session.abort !== "function") {
       throw new Error("E_LOGICAL_INPUT_SESSION: 논리 실행이 필요합니다.");
     }
@@ -35,6 +35,7 @@ export class LogicalActionInput {
       throw new Error("E_INPUT_ACTION_MAP_INVALID: 모든 논리 채널의 사상이 필요합니다.");
     }
     this.session = session;
+    this.finishBarrier = finishBarrier;
     this.valueChannels = valueChannels;
     this.maxEvents = maxEvents;
     this.held = { ...initialHeld };
@@ -46,10 +47,36 @@ export class LogicalActionInput {
     this.detach = null;
     this.stopped = false;
     this.stopping = false;
+    this.producedEvents = 0n;
+    this.processedEvents = 0n;
+    this.inFlightDone = null;
+    this.finishedRecord = null;
+    this.finishPromise = null;
+    this.finishNotice = null;
+    this.finishedPacket = null;
+    this.finishUncertain = false;
+    this.nativeStopStored = false;
+    this.nativeStopFailure = null;
+    this.failedInput = null;
+    // The actual host queue registers before its first submitted step. An
+    // old restored VM may still run, but missing replay progress cannot finish.
+    this.producerReady = null;
+    if (typeof session.registerInputProducer === 'function') {
+      try { this.producerReady = Promise.resolve(session.registerInputProducer()).then(registration => {
+        if (typeof registration?.accepted_event_count !== 'string'
+            || !/^(0|[1-9][0-9]*)$/.test(registration.accepted_event_count))
+          throw new Error('E_MISSING_PENDING_SUPPLY: 처리된 원 입력의 위치가 필요합니다.');
+        const original = BigInt(registration.accepted_event_count);
+        this.processedEvents += original; this.producedEvents += original;
+        return registration;
+      }); }
+      catch (error) { this.producerReady = Promise.reject(error); }
+    }
+    this.producerReady?.catch(() => {});
   }
 
   loseInput(message) {
-    if (this.stopped || this.stopping) return this.abortPromise;
+    if (this.stopped || this.stopping || this.finishUncertain) return this.abortPromise;
     if (this.failure) return this.abortPromise;
     this.failure = new Error(`E_LOGICAL_INPUT_LOST: ${message}`);
     this.abortPromise = Promise.resolve().then(() => this.session.abort(message));
@@ -59,7 +86,7 @@ export class LogicalActionInput {
   }
 
   receive(event, released = false) {
-    if (this.stopped || this.stopping) throw new Error('E_INPUT_RECORDING_STOPPED: 기록을 명시적으로 중단했습니다.');
+    if (this.stopped || this.stopping || this.finishUncertain) throw new Error('E_INPUT_RECORDING_STOPPED: 기록이 끝났거나 종료 확인이 필요합니다.');
     if (this.failure) throw this.failure;
     const channel = this.keyToChannel.get(event.key);
     if (!channel) return false;
@@ -75,6 +102,7 @@ export class LogicalActionInput {
     }
     const kind = released ? "Release" : repeat ? "Repeat" : "Press";
     this.events.push({ ordinal:this.events.length, channel, event:{kind} });
+    this.producedEvents++;
     if (!repeat) this.held[channel] = !released;
     return true;
   }
@@ -82,7 +110,7 @@ export class LogicalActionInput {
   // Provisional typed host intake. Exact raw strings are produced/validated by
   // Rust. Never hide a coordinate in an action name or write world resources.
   receiveValue(channel, payload) {
-    if (this.stopped || this.stopping) throw new Error('E_INPUT_RECORDING_STOPPED: 기록을 명시적으로 중단했습니다.');
+    if (this.stopped || this.stopping || this.finishUncertain) throw new Error('E_INPUT_RECORDING_STOPPED: 기록이 끝났거나 종료 확인이 필요합니다.');
     if (this.failure) throw this.failure;
     const contract=this.valueChannels?.[channel];
     if (!contract || !['Number','Coordinate'].includes(contract.kind)
@@ -96,6 +124,7 @@ export class LogicalActionInput {
     }
     if(this.events.length>=this.maxEvents){this.loseInput('사건 용량을 넘었습니다.');throw this.failure;}
     this.events.push({ordinal:this.events.length,channel,event:{kind:contract.kind,payload:{raw:contract.kind==='Number'?raw[0]:[...raw],phase:payload.phase}}});
+    this.producedEvents++;
   }
 
   attach(target, { controls = [] } = {}) {
@@ -144,10 +173,12 @@ export class LogicalActionInput {
   }
 
   async step() {
-    if (this.stopped || this.stopping) throw new Error('E_INPUT_RECORDING_STOPPED: 기록을 명시적으로 중단했습니다.');
+    if (this.stopped || this.stopping || this.finishUncertain) throw new Error('E_INPUT_RECORDING_STOPPED: 기록이 끝났거나 종료 확인이 필요합니다.');
     if (this.failure) { await this.abortPromise; throw this.failure; }
     if (this.inFlight) throw new Error("E_LOGICAL_INPUT_STEP_BUSY: 한 마디가 아직 계산 중입니다.");
     this.inFlight = true;
+    let completeStep;
+    this.inFlightDone = new Promise(resolve => { completeStep = resolve; });
     const input = { madi:this.madi, events:this.events, held:{...this.held} };
     this.events = [];
     try {
@@ -159,17 +190,95 @@ export class LogicalActionInput {
         throw this.failure;
       }
       this.madi++;
+      this.processedEvents += BigInt(input.events.length);
       return result;
     } catch (error) {
       if (!this.failure) {
+        // Retain only the actual submitted attempt. Focus/input loss or a
+        // host-supplied outcome cannot manufacture a Native VM failure.
+        this.failedInput = structuredClone(input);
         this.loseInput(String(error?.message ?? error));
         await this.abortPromise;
       }
       throw error;
-    } finally { this.inFlight = false; }
+    } finally { this.inFlight = false; completeStep(); this.inFlightDone = null; }
   }
 
   async seal() {
+    if (this.finishedRecord !== null) {
+      // Revalidate the actual worker generation, rather than turning a stale
+      // host cache into a successful owner response after worker replacement.
+      if(this.finishBarrier)await this.finishBarrier(structuredClone(this.finishedPacket),structuredClone(this.finishedRecord),await this.session.resultIdentity());
+      const record = await this.session.finishPending(structuredClone(this.finishedPacket));
+      const notice = await this.session.finishNotice();
+      if (notice?.excluded_input_count !== this.finishNotice.excluded_input_count)
+        throw new Error('E_INPUT_FINISH_NOTICE: 원래 종료 확인과 다릅니다.');
+      return record;
+    }
+    if (this.finishPromise !== null) return this.finishPromise;
+    if (this.producerReady !== null) {
+      if (this.stopped || this.stopping) throw new Error('E_INPUT_RECORDING_STOPPED: 중단 기록을 완료 봉인으로 바꿀 수 없습니다.');
+      this.stopping = true; // fence new intake before awaiting an older step
+      this.finishPromise = (async () => {
+        let finishInvoked=false,gotComplete=false;
+        try {
+          if (this.inFlightDone) await this.inFlightDone;
+          if (this.failure) { await this.abortPromise; throw this.failure; }
+          const registration = await this.producerReady;
+          if (typeof registration?.producer_generation !== 'string'
+              || typeof this.session.finishPending !== 'function'
+              || typeof this.session.finishNotice !== 'function') {
+            throw new Error('E_MISSING_PENDING_SUPPLY: 실제 입력 생산자 연결이 필요합니다.');
+          }
+          const events = structuredClone(this.events);
+          if (this.processedEvents + BigInt(events.length) !== this.producedEvents)
+            throw new Error('E_MISSING_PENDING_SUPPLY: 처리 입력과 queue 순서가 다릅니다.');
+          const packet = {
+            producer_generation: registration.producer_generation,
+            first_unprocessed: this.processedEvents.toString(),
+            observed_until: this.producedEvents.toString(), events,
+          };
+          finishInvoked=true;this.finishUncertain=true;
+          if(this.finishBarrier){
+            if(typeof this.session.previewFinishPending!=='function')
+              throw new Error('E_INPUT_FINISH_NOT_READY: 저장 확정 전 기록 후보 확인이 필요합니다.');
+            if(typeof this.session.resultIdentity!=='function')
+              throw new Error('E_INPUT_FINISH_NOT_READY: 원 값·형식의 결과 정체 확인이 필요합니다.');
+            const preview=await this.session.previewFinishPending(structuredClone(packet));
+            const resultIdentity=await this.session.resultIdentity();
+            const confirmed=await this.finishBarrier(structuredClone(packet),structuredClone(preview),resultIdentity);
+            if(JSON.stringify(confirmed)!==JSON.stringify(preview))
+              throw new Error('E_NATIVE_FINISH_RESULT_MISMATCH: Native와 화면의 완료 기록이 다릅니다.');
+          }
+          const record = await this.session.finishPending(packet);
+          gotComplete=true;
+          const notice = await this.session.finishNotice();
+          if (notice?.excluded_input_count !== String(events.length))
+            throw new Error('E_INPUT_FINISH_NOTICE: 제외 입력의 확인 응답이 다릅니다.');
+          // Do not discard the real queue until the common owner confirms
+          // success. No Release/End, step, or receipt is synthesized.
+          this.finishedRecord = structuredClone(record);
+          this.finishNotice = structuredClone(notice);
+          this.finishedPacket = structuredClone(packet);
+          this.events = [];
+          this.stopped = true;
+          this.finishUncertain = false;
+          this.detach?.();
+          return structuredClone(this.finishedRecord);
+        } catch(error) {
+          // An encoder/typed-end rejection precedes publication; transport
+          // loss or a missing post-finish acknowledgement does not prove that.
+          const reason=String(error?.message??error);
+          if(!finishInvoked || (!gotComplete && /^(?:E_INPUT_TAPE_V3:|E_INPUT_FINISH_NOT_READY:|E_NATIVE_FINISH_BEFORE_PENDING:)/.test(reason)))
+            this.finishUncertain=false;
+          throw error;
+        } finally {
+          this.stopping = false;
+          this.finishPromise = null;
+        }
+      })();
+      return this.finishPromise;
+    }
     if (this.stopped || this.stopping) throw new Error('E_INPUT_RECORDING_STOPPED: 중단 기록을 완료 봉인으로 바꿀 수 없습니다.');
     if (this.failure) { await this.abortPromise; throw this.failure; }
     if (this.inFlight || this.events.length) {
@@ -185,7 +294,7 @@ export class LogicalActionInput {
   }
 
   async stopRecording() {
-    if (this.stopped || this.stopping) throw new Error('E_INPUT_RECORDING_STOPPED: 이미 중단한 기록입니다.');
+    if (this.stopped || this.stopping || this.finishUncertain) throw new Error('E_INPUT_RECORDING_STOPPED: 기록이 끝났거나 종료 확인이 필요합니다.');
     if (this.inFlight || (!this.failure && this.events.length)) {
       throw new Error('E_LOGICAL_INPUT_PENDING: 미전달 사건을 먼저 한 마디 처리한 뒤 기록을 중단하세요.');
     }
@@ -196,10 +305,27 @@ export class LogicalActionInput {
     this.stopping = true;
     this.detach?.(); // Explicit stop ends intake; no synthetic release/End.
     try {
+      const summary=this.finishBarrier?.stop?await this.session.summary():null;
+      let nativeStopped=null;
+      if(this.finishBarrier?.stop){
+        try{
+          const result=summary?.outcome==='ABORTED'&&!this.failedInput?null:await this.session.resultIdentity();
+          nativeStopped=await this.finishBarrier.stop(summary,result,this.failedInput);
+        }catch(error){
+          if(summary?.outcome!=='ABORTED')throw error;
+          // Preserve the actual failed file even when Native verification is
+          // unavailable. This is explicitly not Native persistence success.
+          this.nativeStopFailure=String(error?.message??error);
+          try{await this.finishBarrier.close?.();}catch(closeError){this.nativeStopFailure+=' / '+String(closeError?.message??closeError);}
+        }
+      }
       const record = await this.session.stopRecording();
       if (!['INCOMPLETE','ABORTED'].includes(record?.outcome)) {
         throw new Error('E_INPUT_RECORDING_PROOF: live 중단을 완료 기록으로 게시할 수 없습니다.');
       }
+      if(nativeStopped!==null&&JSON.stringify(nativeStopped)!==JSON.stringify(record))
+        throw new Error('E_NATIVE_NO_END_RESULT: Native와 화면의 중단 기록이 다릅니다.');
+      this.nativeStopStored=nativeStopped!==null;
       return record;
     } finally {
       // An uncertain Worker reply is not permission to continue recording.

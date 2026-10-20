@@ -7,9 +7,28 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 mod root_grant;
+mod replay_archive_schema;
+#[cfg(windows)]
+pub(crate) use replay_archive_schema::{NativeReplayProgressTransportV1,NativeReplayFinishedTransportV1,NativeReplayTerminalTransportV1};
+#[cfg(windows)]
+pub(crate) use root_grant::ReplayArchiveRootScopeV1;
+#[cfg(windows)]
+pub(crate) use root_grant::VerifiedExecutionFirstCheckpointV1;
+#[cfg(windows)]
+pub(crate) use root_grant::ProtectedReplayReadyV1;
+#[cfg(windows)]
+pub(crate) use root_grant::ReplayLifecycleWriteFailureV1;
+#[cfg(windows)]
+pub(crate) use root_grant::ReplayArchiveReadKindV1;
+#[cfg(windows)]
+pub(crate) use root_grant::{AuthoringHeadV1,AdmittedAuthoringBaseV1,PreparedAuthoringSourceV1,DurablySavedAuthoringSourceV1};
+#[cfg(windows)]
+pub(crate) use root_grant::{NewSourceRunPermitV1,RestartSourceWorldAttemptV1};
 mod source_revision_schema;
 pub(crate) mod source_revision;
 mod source_chain;
+#[cfg(all(windows,any(test,feature="beta2-crash-probe")))]
+pub(crate) mod crash_probe;
 #[cfg(windows)]
 pub(crate) use root_grant::DurableAttemptStartV1;
 #[cfg(windows)]
@@ -315,6 +334,7 @@ impl SqliteAdapterV1 {
             expected.push(("vc04_recovery_custody_v1",RECOVERY_CUSTODY));
             expected.sort_by_key(|(name,_)|*name);
         }
+        replay_archive_schema::extend_expected(&rows,self.schema_profile,&mut expected)?;
         if rows.len() != expected.len()
             || rows
                 .iter()
@@ -799,6 +819,8 @@ impl SqliteAdapterV1 {
 
     fn commit_verified_rows(&self,payload:&StoredPayloadV1,expected:Option<&StoredHeadV1>,
         custody:Option<(&super::recovery_custody::InitialCustodyRowV1,&super::recovery_custody::VerifiedCustodyRowV1)>)->Result<(),Failure> {
+        #[cfg(all(windows,feature="beta2-crash-probe"))]
+        crash_probe::checkpoint("before_cas");
         #[cfg(windows)]
         { self.fresh_container.try_borrow_mut().map_err(|_| Failure::CustodyConflict)?.take(); }
         let connection = self.connect()?;
@@ -856,7 +878,10 @@ impl SqliteAdapterV1 {
         }
         connection
             .execute_batch("COMMIT")
-            .map_err(|_| Failure::RecoveryRequired)
+            .map_err(|_| Failure::RecoveryRequired)?;
+        #[cfg(all(windows,feature="beta2-crash-probe"))]
+        crash_probe::checkpoint("after_cas");
+        Ok(())
     }
 
     pub(crate) fn confirm_container_durable(&self) -> Result<(), Failure> {

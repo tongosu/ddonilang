@@ -373,7 +373,7 @@ pub fn find_legacy_root_surface(source: &str) -> Option<(usize, &'static str)> {
                 .nth(char_index)
                 .map(|(idx, _)| idx)
                 .unwrap_or(raw.len())..];
-            if rest.starts_with("살림.") {
+            if rest.strip_prefix("살림.").and_then(|tail|tail.chars().next()).is_some_and(is_ident_char) {
                 let prev_ok = if char_index == 0 {
                     true
                 } else {
@@ -383,7 +383,7 @@ pub fn find_legacy_root_surface(source: &str) -> Option<(usize, &'static str)> {
                     return Some((line_no + 1, "살림."));
                 }
             }
-            if rest.starts_with("바탕.") {
+            if rest.strip_prefix("바탕.").and_then(|tail|tail.chars().next()).is_some_and(is_ident_char) {
                 let prev_ok = if char_index == 0 {
                     true
                 } else {
@@ -1541,6 +1541,20 @@ mod tests {
         let source = "바탕.x <- 1.";
         let err = validate_no_legacy_root_surface(source).expect_err("must fail");
         assert!(err.contains("E_BATANG_PREFIX_REMOVED"));
+    }
+
+    #[test]
+    fn legacy_root_guard_distinguishes_bare_names_from_removed_access() {
+        for source in [
+            "그림들 <- 바탕.",
+            "그림들 <- 살림. 다음값 <- 1.",
+            "(바탕:차림) 복사:차림:셈씨 := { 복사 <- 바탕. }.",
+            "바탕 := 1.\n바탕 보여주기.",
+            "\"바탕.x\" 보여주기. // 살림.x\n그림들 <- 바탕.",
+        ] { validate_no_legacy_root_surface(source).expect("bare name plus terminator is not a removed prefix"); }
+        for source in ["바탕.x <- 1.","살림.x 보여주기.","값 <- 바탕.가로.","값 <- 살림.가로."] {
+            assert!(validate_no_legacy_root_surface(source).is_err(),"real removed prefix must still be rejected: {source}");
+        }
     }
 
     #[test]

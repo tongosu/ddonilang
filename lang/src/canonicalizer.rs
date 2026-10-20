@@ -276,6 +276,10 @@ fn canonicalize_stmt(
             }
             canonicalize_expr(value, signatures, warnings)?;
         }
+        Stmt::DerivedBinding {name,value,span,..} => {
+            canonicalize_ident(name,*span,warnings)?;
+            canonicalize_expr(value,signatures,warnings)?;
+        }
         Stmt::Mutate { target, value, .. } => {
             canonicalize_expr(target, signatures, warnings)?;
             canonicalize_expr(value, signatures, warnings)?;
@@ -803,7 +807,7 @@ fn lint_tailless_body(
             }
             Stmt::MetaBlock { .. } => {}
             Stmt::Pragma { .. } => {}
-            Stmt::Definition { value, .. } => {
+            Stmt::Definition { value, .. } | Stmt::DerivedBinding {value,..} => {
                 lint_tailless_expr(value, known_seeds, stdlib_names, warnings);
             }
             Stmt::Mutate { target, value, .. } => {
