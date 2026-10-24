@@ -1,5 +1,7 @@
 # 또니랑
 
+<p><img src="publish/assets/ddonirang_wordmark.png" width="200" alt="또니랑 로고"></p>
+
 **[RC1 최소 R8 내려받기](https://github.com/tongosu/ddonilang/releases/tag/v1.0.0-rc.1) · [시작 안내](START_HERE.md) · [알려진 제한](RC1_KNOWN_LIMITATIONS.md)**
 
 **한국어로 생각하고, 정확하게 표현하고, 만든 세계를 다시 확인하는 언어**
