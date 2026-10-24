@@ -1,8 +1,0 @@
-{
-  "schema": "seamgrim.active_lessons.allowlist.v1",
-  "mode": "reps_only",
-  "lesson_ids": [
-    "rep_phys_projectile_xy_v1",
-    "rep_phys_pendulum_wave1_v1"
-  ]
-}

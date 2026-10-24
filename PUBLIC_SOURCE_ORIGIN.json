@@ -1,15 +1,9 @@
 {
   "schema": "ddn.public_source_origin.v1",
-  "version": "1.0.0-rc.1",
-  "candidate": "r142",
-  "local_product_commit": "25bc4477d66e6ef1a855c1a9f0ee148c4f3d4aa4",
-  "compiled_runtime_source": "07dd1cf390d943430a83a8e431ece84cfe3f43cf",
-  "public_parent": "4e3c6f62d678bff1a829e6af7baffc91a5019ac4",
-  "zip_sha256": "538a1e881dd81d48fa5bb8fed287dc29daa2131b566e5daf044aa83f714ecccc",
-  "source_policy": "six complete runtime crates from compiled source; shipped frontend from public package; existing public workspace membership",
-  "review": "PENDING_PUBLIC_SNAPSHOT_DELTA",
-  "human": "NOT_RUN",
-  "public_spec": "v0.8.1",
-  "zip_sha256_role": "PREDECESSOR_PUBLIC_R2_BEFORE_NOTICE_COMPLETION",
-  "notice_completion": "web-sys locked crate added; final successor ZIP bound by separate package receipt"
+  "compiled_runtime_source": "4c7760b7a9c6f6e78ef5882f7129a1f386e00276",
+  "runtime_payload_baseline": "public-r142-r4-remap",
+  "predecessor_native_tested_source": "09d54e8807edc63058fa2d44baa837eaddbf9f3f",
+  "runtime_and_native_example_bytes_unchanged": true,
+  "scope": "Native authored source and world save; browser+host close and cold reopen; explicit next-madi continuation",
+  "review": "PENDING_R8_NATIVE_SAVE_DELTA"
 }
