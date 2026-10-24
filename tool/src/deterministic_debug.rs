@@ -18,6 +18,7 @@ pub const DEBUG_DIFF_SCHEMA: &str = "seamgrim.ddn_committed_diff.candidate.v1";
 pub const DEBUG_EVIDENCE_SCHEMA: &str = "seamgrim.ddn_debug_evidence.candidate.v1";
 
 fn sha256_json(value: &JsonValue) -> String {
+    // F5-GA[DEBUG_VEC]: Compact writer handles containers iteratively and only serializes JSON scalars/string keys into Vec<u8>; allocation failure is a separate boundary.
     let canonical = crate::unit_wire::SnapshotJsonOwner::canonical_from_value(value);
     let mut bytes = Vec::new();
     crate::unit_wire::write_compact_json(&mut bytes, &canonical).expect("JSON Vec writer");
@@ -150,6 +151,7 @@ pub fn canonical_public_observation_events(
 pub fn public_observation_events_json(
     events: &[PublicObservationEvent],
 ) -> Result<Vec<JsonValue>, String> {
+    // F5-GA[DEBUG_EVENT]: Each row below is a new object; its root is not replaced before optional dataset insertion.
     canonical_public_observation_events(events.iter().map(|event| {
         let mut row = json!({
             "committed_madi": event.committed_madi,
@@ -255,6 +257,7 @@ fn canonical_frame(
     frame: &JsonValue,
     inherited: &Map<String, JsonValue>,
 ) -> Result<OwnedJson, String> {
+    // F5-GA[DEBUG_FRAME]: The result root is constructed as an object and only child fields change before as_object_mut.
     let obj = frame
         .as_object()
         .ok_or_else(|| "E_DEBUG_FRAME_BAD_ROW: committed frame은 object여야 합니다".to_string())?;
@@ -453,6 +456,7 @@ pub fn build_public_observation_trace(input: &JsonValue) -> Result<JsonValue, St
                 column_index.insert(identity_key.clone(), columns.len());
                 columns.push(column);
             }
+            // F5-GA[DEBUG_SAMPLE]: Sample is a fresh object; both present and missing branches only insert child fields.
             let mut sample = OwnedJson::from_value(json!({
                 "identity": observation_identity(&cell),
                 "status": text(cell.get("status")),
@@ -555,6 +559,7 @@ pub fn public_observation_table_projection_hash(projection: &JsonValue) -> Strin
 }
 
 fn seal_public_observation_table_projection(projection: JsonValue) -> JsonValue {
+    // F5-GA[DEBUG_SEAL]: Private callers pass constructed/validated root objects, and canonicalization preserves the root type.
     let input = crate::unit_wire::SnapshotJsonOwner::from_value(projection);
     let mut projection = crate::unit_wire::SnapshotJsonOwner::canonical_from_value(&input);
     let projection_hash = public_observation_table_projection_hash(&projection);
@@ -577,6 +582,7 @@ pub fn append_public_observation_surface(
     current_projection: &JsonValue,
     delta_input: &JsonValue,
 ) -> Result<(JsonValue, String, JsonValue), String> {
+    // F5-GA[DEBUG_DELTA]: Delta builders return root objects and constructed object rows; this does NOT validate current_projection table rows (separate open panic).
     let delta_bundle = OwnedJson::from_value(build_public_observation_trace(delta_input)?);
     let delta_trace = delta_bundle
         .get("trace")
@@ -816,6 +822,7 @@ fn trace_identity_key(row: &JsonValue) -> Result<(String, String, String), Strin
 }
 
 fn projected_table_cell(cell: &JsonValue) -> Result<OwnedJson, String> {
+    // F5-GA[DEBUG_CELL]: Projected cell is a fresh object, never an input root coerced by mutable indexing.
     let status = text(cell.get("status"));
     let mut projected = OwnedJson::from_value(json!({"status": status}));
     let out = projected.value_mut().as_object_mut().expect("projected table cell");
@@ -1049,6 +1056,7 @@ pub fn build_public_observation_table_projection(
             "cells": null,
         }));
         row.value_mut()["cells"] = JsonValue::Array(row_cells.into_iter().map(OwnedJson::into_parent_value).collect());
+        // F5-GA[DEBUG_TABLE]: Signature indices are captured at push length; existing table roots/row arrays are never replaced or removed.
         projected_tables[index].value_mut()["rows"]
             .as_array_mut()
             .expect("projection table rows")

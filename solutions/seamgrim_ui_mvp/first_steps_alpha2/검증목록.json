@@ -186,7 +186,7 @@
       "lesson": 13,
       "title": "그림과결과표",
       "file": "예제/13B_그림과결과표.ddn",
-      "source_sha256": "46b82e6ede391b1fbe151312b49f827ff6339ddc8ee6058aef53fc96f0f99d57",
+      "source_sha256": "7e2cf7dbf6033e63b0c8a9990a6e4468261fd8f9dc7e247d463d1d613d42eb19",
       "ticks": 1,
       "expected": [
         "2",

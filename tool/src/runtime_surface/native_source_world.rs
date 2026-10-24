@@ -7,7 +7,7 @@ pub(crate) mod general_recording;
 pub use general_recording::NativeGeneralRecordingPrepared;
 pub use general_recording::{NativeGeneralReplayContentV1,read_current_general_recording_content};
 mod recording_finish;
-pub(crate) use recording_finish::NativeLogicalFinishSessionV1;
+pub(crate) use recording_finish::{NativeLogicalFinishSessionV1,recover_native_logical_finish};
 mod restart;
 pub use restart::{begin_new_authored_source_native,NativeRestartSourceWorldSession,NativeRestartSourceWorldExecution,NativeRestartSourceWorldPrepared};
 pub(crate) use logical::{resume_logical_source_world,save_continued_logical_source_world,verify_native_logical_current_receipt};
@@ -100,7 +100,11 @@ impl NativeFirstSourceWorldRetained {
     }
 }
 pub(crate) fn native_source_current_digest(root:&std::path::Path,project:&[u8],locator:&str)->Result<[u8;32],String>{
+    let _total=crate::storage_observation::Span::start("current_digest.total");
+    let open=crate::storage_observation::Span::start("current_digest.db_open");
     let mut adapter=crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1::open_source_revision(root).map_err(|cause|format!("E_SOURCE_WORLD_CURRENT: {cause:?}"))?;
+    drop(open);
+    let _read=crate::storage_observation::Span::start("current_digest.read");
     adapter.current_source_world_digest(locator,project).map_err(|cause|format!("E_SOURCE_WORLD_CURRENT: {cause:?}"))
 }
 pub fn save_continued_source_world_native(artifact:&str,parent:&[u8],revision:&[u8],next:&[u8],root:&std::path::Path,locator:&str,ticks:u32,

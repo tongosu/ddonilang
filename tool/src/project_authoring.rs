@@ -623,6 +623,7 @@ fn import_for_cursor<'a>(
 }
 
 fn precise_method_atom_at_cursor(source: &str, byte_offset: usize) -> Option<ModelSpan> {
+    // F5-GA[PREVIOUS-TOKENS]: index<2 검사가 먼저 끝나므로 뒤의 index-1/index-2는 같은 Vec 안이다.
     let tokens = Lexer::new(source).tokenize().ok()?;
     let (index, token) = tokens.iter().enumerate().find(|(_, token)| {
         matches!(&token.kind, TokenKind::Atom(name) if name == "정밀")
@@ -787,6 +788,7 @@ fn cursor_is_non_code(source: &str, byte_offset: usize) -> bool {
 }
 
 fn completion_prefix(source: &str, byte_offset: usize) -> (usize, String) {
+    // F5-GA[CURSOR-RANGE]: 호출자가 UTF-8 끝 경계를 확인하고, 시작은 char_indices에서만 고른다.
     let mut start = byte_offset;
     for (index, ch) in source[..byte_offset].char_indices().rev() {
         if ch.is_alphanumeric()
@@ -859,6 +861,7 @@ fn model_output_completion(source: &str, byte_offset: usize) -> bool {
 }
 
 fn model_method_completion(source: &str, byte_offset: usize) -> Option<(usize, String)> {
+    // F5-GA[METHOD-RANGE]: 시작은 같은 prefix의 find/trim 경계를 합한 위치로 byte_offset 이하이다.
     if !has_model_surface(source) {
         return None;
     }
@@ -1196,6 +1199,7 @@ fn build_project_authoring_completion(
 }
 
 fn valid_rename_name(name: &str) -> bool {
+    // F5-GA[NAME-TOKENS]: 마지막 && 사슬은 len==2 뒤에만 tokens[0]을 읽는다. rename 의미 증명은 아니다.
     if name.trim() != name || name.is_empty() {
         return false;
     }
@@ -1845,6 +1849,7 @@ fn model_name_spans(source: &str, within: ModelSpan, name: &str) -> Vec<(usize, 
         if width == 0 || tokens.len() < width {
             return Vec::new();
         }
+        // F5-GA[NAME-WINDOW]: index<=len-width, width=2*parts.len()-1. window와 짝수 offset/2는 범위 안이다.
         let mut spans = Vec::new();
         for index in 0..=tokens.len() - width {
             let window = &tokens[index..index + width];
@@ -2873,6 +2878,7 @@ fn typed_directive_pin_spans(
     directive: &str,
     local: &str,
 ) -> Vec<((usize, usize), (usize, usize))> {
+    // F5-GA[DIRECTIVE-TOKENS]: 두 loop가 pos<len을 확인한다. 닫힌 괄호 뒤는 pos>=begin+2이며 windows(3)는 길이3이다.
     let Ok(tokens) = Lexer::new(source).tokenize() else {
         return Vec::new();
     };
@@ -2916,6 +2922,7 @@ fn typed_directive_pin_spans(
 }
 
 fn source_range(source: &str, start: usize, end: usize) -> Option<AuthoringSourceRange> {
+    // F5-GA[CURSOR-RANGE]: 완성 호출의 start/end는 같은 source의 확인된 UTF-8 경계다. utf16_position도 그 조건만 검사한다.
     if start > end
         || end > source.len()
         || !source.is_char_boundary(start)
@@ -3114,6 +3121,7 @@ fn resolve_simple_reference(
     if candidates.len() != 1 {
         return (None, "ambiguous");
     }
+    // F5-GA[UNIQUE-CANDIDATE]: 같은 지역 Vec의 len==1 직후이며 사이에 변경하지 않는다.
     (Some(candidates[0].1.id.clone()), "local")
 }
 
@@ -3141,6 +3149,7 @@ fn resolve_qualified_reference(
             },
         );
     }
+    // F5-GA[UNIQUE-CANDIDATE]: 바로 위 len==1 검사 뒤 같은 불변 Vec의 첫 항목만 읽는다.
     let import = matching_imports[0];
     let mut visited = BTreeSet::new();
     match resolve_export_definition(
@@ -3189,6 +3198,7 @@ fn resolve_export_definition(
             ExportResolution::Ambiguous
         };
     }
+    // F5-GA[UNIQUE-CANDIDATE]: export Vec도 len==1을 확인한 뒤이며 이 사이에 변경하지 않는다.
     let internal_name = &matching_exports[0].internal_name;
     if let Some((alias, symbol)) = internal_name.split_once('.') {
         let matching_imports = imports
@@ -3203,6 +3213,7 @@ fn resolve_export_definition(
             };
         }
         return resolve_export_definition(
+            // F5-GA[UNIQUE-CANDIDATE]: 이 재귀 입력의 import Vec도 위에서 len==1을 확인했다.
             &matching_imports[0].resolved_path,
             symbol,
             imports,
@@ -3357,7 +3368,7 @@ mod tests {
   내줌=(결과, 입력)
 ) 풀기.
 
-(결과: 계산.결과, 입력: 계산.입력) 보임.
+(결과: 계산.결과, 입력: 계산.입력) 내보임.
 "#
     }
 
@@ -3386,7 +3397,7 @@ mod tests {
   내줌=(결과, 입력, 배수)
 ) 풀기.
 
-(결과: 계산.결과, 입력: 계산.입력, 배수: 계산.배수) 보임.
+(결과: 계산.결과, 입력: 계산.입력, 배수: 계산.배수) 내보임.
 "#
         )
     }
@@ -4140,8 +4151,8 @@ mod tests {
   시간: 수 := 1.
   각도: 수 := 15.
 }.
-(표시시간: 시간, 표시각도: 각도) 보임.
-(각도) 보임.
+(표시시간: 시간, 표시각도: 각도) 내보임.
+(각도) 내보임.
 "#;
         let source = project(
             vec![
@@ -4260,7 +4271,7 @@ mod tests {
 (매마디)마다 {
   시간 <- 시간 + 1.
   각도 <- 각도 + 운동.증가량.
-  (경과: 시간 * 1@s, 각도: 각도 * 1@rad, 증가량: 운동.증가량) 보임.
+  (경과: 시간 * 1@s, 각도: 각도 * 1@rad, 증가량: 운동.증가량) 내보임.
 }.
 "#;
         let source = project(

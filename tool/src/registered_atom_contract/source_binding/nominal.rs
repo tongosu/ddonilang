@@ -45,6 +45,7 @@ fn resolved_type_dependencies(raw:&[u8],version:u16)->Option<Vec<(u8,[u8;32])>> 
 }
 
 impl<'a> Tail<'a> {
+    // F5-GA[REG_NOMINAL_TAKE]: The shared Reader rejects short take(1) before category/kind index0; the returned slice is exactly one byte.
     pub(super) fn parse(input:&mut Reader<'a>,sources:&[Source<'a>],version:u16)->Result<Self> {
         let count=input.count(65536,106)?;
         let mut schemas:Vec<Schema<'a>>=Vec::new();schemas.try_reserve_exact(count).map_err(|_|ContractFailure::SchemaInvalid)?;
@@ -81,6 +82,7 @@ impl<'a> Tail<'a> {
         let mut active=BTreeSet::new();
         for _ in 0..count {
             let source=input.u32()? as usize;let start=input.u64()?;let end=input.u64()?;let schema=input.u32()? as usize;
+            // F5-GA[REG_NOMINAL_SOURCE]: Left-to-right short-circuit rejects source>=len before sources[source]; the borrowed slice is not resized.
             if source>=sources.len() || schema>=schemas.len() || !active.insert(schema)
                 || start>=end || end>sources[source].length
                 || declarations.last().is_some_and(|old|(old.source,old.start,old.end)>=(source,start,end)

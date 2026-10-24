@@ -84,6 +84,14 @@ impl PendingReplayLifecycleV1 {
     }
     pub(crate) fn canonical_bytes(&self)->&[u8] {&self.bytes}
     pub(crate) fn previous_bytes(&self)->Option<&[u8]>{self.previous.as_deref()}
+    /// Raw R2 commitment candidate only. This does not issue Ready authority;
+    /// verify_metadata_anchor/verify_committed still own that transition.
+    pub(crate) fn ready_candidate_bytes(&self)->Result<Vec<u8>,String>{
+        let mut raw=self.bytes.clone();
+        let phase=lifecycle_field_offset(&raw,8).ok_or("E_REPLAY_LIFECYCLE_FORMAT")?;
+        if raw.get(phase)!=Some(&0){return Err("E_REPLAY_LIFECYCLE_FORMAT".into());}
+        raw[phase]=1;ReplayLifecycleCandidateV1::parse(&raw)?;Ok(raw)
+    }
     pub(crate) fn first_tx(&self)->&[u8;32] {
         lifecycle_field(&self.bytes,5).unwrap().try_into().unwrap()
     }
@@ -93,11 +101,13 @@ impl PendingReplayLifecycleV1 {
         row:&PlannedReplayControlRowV1,adapter:&SqliteAdapterV1,
         retained:&crate::snapshot_v2_durable_transaction::native::RetainedFirstSourceWorldV2)
         ->Result<ReadyReplayLifecycleV1,String> {
-        let actual=retained.replay_committed_receipt(adapter).map_err(|e|format!("E_REPLAY_RECEIPT_CURRENT: {e:?}"))?;
+        let actual={let _phase=crate::storage_observation::Span::start("replay.ready_retained_receipt");
+            retained.replay_committed_receipt(adapter).map_err(|e|format!("E_REPLAY_RECEIPT_CURRENT: {e:?}"))?};
         if actual!=plan.prospective_receipt || self.first_tx()!=&plan.first_tx {
             return Err("E_REPLAY_RECEIPT_MISMATCH: 후보와 실제 영수증이 다릅니다".into());
         }
-        adapter.check_replay_archive(plan,row).map_err(|e|format!("E_REPLAY_ARCHIVE_READBACK: {e:?}"))?;
+        {let _phase=crate::storage_observation::Span::start("replay.ready_archive_readback");
+            adapter.check_replay_archive(plan,row).map_err(|e|format!("E_REPLAY_ARCHIVE_READBACK: {e:?}"))?;}
         let mut bytes=self.bytes;
         let phase=lifecycle_field_offset(&bytes,8).ok_or("E_REPLAY_LIFECYCLE_FORMAT")?;
         bytes[phase]=1;

@@ -26,6 +26,7 @@ impl<'a> ReplayCustodyCandidateV1<'a> {
             return Err("E_REPLAY_CUSTODY_FORMAT: 보호 자료의 머리·길이가 다릅니다".into());
         }
         let mut fields=[&[][..];9];let mut offset=DOMAIN.len()+3;
+        // F5-GA[CUSTODY_FIXED]: 전체 길이는 고정 헤더와 LENGTHS9칸의 합과 같아야 한다. 각 반복은 그 고정 폭만 더하고 실제 기록 폭도 확인하므로 헤더9/필드 슬라이스와0..8번 인덱스가 총길이를 넘지 않는다.
         for (i,field) in fields.iter_mut().enumerate(){
             let header=bytes.get(offset..offset+9).ok_or("E_REPLAY_CUSTODY_FORMAT")?;
             if header[0]!=i as u8+1 || u64::from_be_bytes(header[1..].try_into().unwrap())!=LENGTHS[i] as u64 {
@@ -33,6 +34,7 @@ impl<'a> ReplayCustodyCandidateV1<'a> {
             }
             offset+=9;*field=&bytes[offset..offset+LENGTHS[i]];offset+=LENGTHS[i];
         }
+        // F5-GA[CUSTODY_KIND]: 위 고정 폭 순회의 7번 필드는 LENGTHS[7]=1이어서 첫 바이트가 존재한다.
         if fields[7][0]>2{return Err("E_REPLAY_CUSTODY_FORMAT: 종료 권한 종류가 다릅니다".into());}
         Ok(Self{fields})
     }

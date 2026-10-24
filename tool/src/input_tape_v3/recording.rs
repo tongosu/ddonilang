@@ -5,6 +5,46 @@ use crate::replay_evidence::ExecutionGenerationV1;
 use super::pending::{PendingSupplyOwnerV1,CheckedPendingAtFinishV1};
 mod manipulation_finish;
 
+/// Shared actual C01 response producer. Recovery serializes this exact value,
+/// not host JSON or a reconstructed display summary.
+pub(crate) fn finished_output_value(bytes:&[u8],summary:&serde_json::Value)->serde_json::Value {
+    serde_json::json!({"tape_bytes":bytes,"summary":summary})
+}
+
+#[cfg(test)]
+mod recovery_payload_tests {
+    use super::*;
+    #[test]
+    fn wo25_finish_payload_limit_rejects_before_returning_partial_c01() {
+        let summary=serde_json::json!({"output_log_texts":["한글 🧪"],"madi":3});
+        let expected=finished_output_value(&[0,128,255],&summary).to_string().into_bytes();
+        assert_eq!(encode_finish_payload(&[0,128,255],&summary,expected.len()).unwrap(),expected);
+        assert!(encode_finish_payload(&[0,128,255],&summary,expected.len()-1).is_err());
+        assert!(encode_finish_payload(&[0,128,255],&summary,0).is_err());
+        let decoded:serde_json::Value=serde_json::from_slice(&expected).unwrap();
+        assert_eq!(decoded.as_object().unwrap().len(),2);
+        assert_eq!(decoded["summary"],summary);
+    }
+}
+
+fn encode_finish_payload(bytes:&[u8],summary:&serde_json::Value,limit:usize)->Result<Vec<u8>,String> {
+    struct Bounded {raw:Vec<u8>,limit:usize}
+    impl std::io::Write for Bounded {
+        fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{
+            let length=self.raw.len().checked_add(bytes.len()).filter(|length|*length<=self.limit)
+                .ok_or_else(||std::io::Error::new(std::io::ErrorKind::InvalidData,"마치기 응답 크기 한도 초과"))?;
+            self.raw.try_reserve(length-self.raw.len())
+                .map_err(|_|std::io::Error::new(std::io::ErrorKind::OutOfMemory,"마치기 응답 메모리 부족"))?;
+            self.raw.extend_from_slice(bytes);Ok(bytes.len())
+        }
+        fn flush(&mut self)->std::io::Result<()>{Ok(())}
+    }
+    let mut writer=Bounded{raw:Vec::new(),limit};
+    serde_json::to_writer(&mut writer,&finished_output_value(bytes,summary))
+        .map_err(|cause|format!("E_NATIVE_FINISH_PAYLOAD_LIMIT: 원래 마치기 응답을 보존할 수 없습니다 ({cause})"))?;
+    Ok(writer.raw)
+}
+
 pub(super) struct RecordingControllerV1 {
     generation:ExecutionGenerationV1,
     state:RecordingStateV1,
@@ -33,6 +73,14 @@ impl PreparedDirectFinishV1 {
     pub(super) fn closed_count(&self)->u64{self.proof.closed_count}
     #[cfg(windows)]
     pub(super) fn generation(&self)->ExecutionGenerationV1{self.proof.generation.clone()}
+    pub(super) fn recovery_payload_bytes(&self)->Result<Vec<u8>,String>{
+        encode_finish_payload(&self.bytes,&self.summary,536_870_912)
+    }
+    pub(super) fn recovery_notice_payload(&self)->Vec<u8>{
+        // None is produced only by prepare_accepted_finish's exclusive
+        // (None,None) branch. Missing/stale frontend supply cannot prepare it.
+        self.notice.as_ref().map_or_else(||vec![0],CheckedPendingAtFinishV1::recovery_payload)
+    }
 }
 impl RecordingControllerV1 {
     #[cfg(windows)]

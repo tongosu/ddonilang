@@ -20,11 +20,13 @@ impl<'a> ReplayBundleCandidateV1<'a> {
         for (i,field) in fields.iter_mut().enumerate(){
             let header_end=offset.checked_add(9).ok_or("E_REPLAY_BUNDLE_FORMAT: 길이 초과")?;
             let header=bytes.get(offset..header_end).ok_or("E_REPLAY_BUNDLE_FORMAT: 필드가 잘렸습니다")?;
+            // F5-GA[BUNDLE_HEADER]: header_end는 checked_add(9) 결과이고 get이 길이9를 보장하므로 고정 헤더 조회가 범위 안이다.
             if header[0]!=i as u8+1{return Err("E_REPLAY_BUNDLE_FORMAT: 필드 순서가 다릅니다".into());}
             let length=usize::try_from(u64::from_be_bytes(header[1..].try_into().unwrap())).map_err(|_|"E_REPLAY_BUNDLE_FORMAT: 필드 길이 초과")?;
             let end=header_end.checked_add(length).ok_or("E_REPLAY_BUNDLE_FORMAT: 필드 길이 초과")?;
             *field=bytes.get(header_end..end).ok_or("E_REPLAY_BUNDLE_FORMAT: 필드가 잘렸습니다")?;offset=end;
         }
+        // F5-GA[BUNDLE_RANGE]: fields는 고정11칸이고, 단락 평가로 4번 필드 길이16을 확인한 뒤에만 앞8바이트를 읽는다.
         if offset!=bytes.len() || fields[4].len()!=16 || fields[4][..8]!=[0;8]
             || fields[6].len()!=32 || fields[10].len()!=113 {
             return Err("E_REPLAY_BUNDLE_FORMAT: 범위·결과·제어 참조가 다릅니다".into());

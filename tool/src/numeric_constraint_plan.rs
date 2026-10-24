@@ -8,6 +8,16 @@ use ddonirang_lang::{CanonProgram, Expr, ExprKind, Literal, NodeId, SeedDef, Stm
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum NumericKind { Integer, Approximate, Rational, BigInteger, Factor }
 
+// F4: call-only constraint scratch must not occupy every recursive infix frame.
+// Break preserves the original successful early return before literal/shape post-recording.
+#[inline(never)]
+fn projection_call_frame<F>(arm: F) -> Result<std::ops::ControlFlow<Shape, Shape>, String>
+where
+    F: FnOnce() -> Result<std::ops::ControlFlow<Shape, Shape>, String>,
+{
+    arm()
+}
+
 impl NumericKind {
     fn bit(self) -> u8 { 1 << self as u8 }
 
@@ -73,6 +83,7 @@ struct BagConstraints {nodes:Vec<BagNode>,operations:Vec<BagOperation>,compariso
 #[derive(Clone,Debug)]
 struct BagOperation {left:Shape,right:Shape,op:String,site:NodeId,literals:[bool;2]}
 impl BagConstraints {
+    // F5-GA[BAG-ID]: private IDs come from this append-only graph; joins link distinct roots, and rank is bounded by log2(nodes.len()).
     fn variable(&mut self,seed:Option<Shape>)->BagVariable {
         let id=self.nodes.len();self.nodes.push(BagNode{parent:id,rank:0,seeds:seed.into_iter().collect(),unknown:false,collection_signature:false,source_collection:false});BagVariable(id)
     }
@@ -118,6 +129,7 @@ pub(crate) fn resolve_source_builtin_roles(program:&CanonProgram,func:&str,args:
         if slots[slot].replace(input).is_some() {return Err(format!("E_CALL_PIN_DUPLICATE: {canonical}의 {} 받는자리가 겹칩니다",signature.params[slot]));}
     }
     if slots.iter().any(Option::is_none) {return Err(format!("E_CALL_REQUIRED_PIN_MISSING: {canonical}의 받는자리가 부족합니다"));}
+    // F5-GA[ROLE-SLOTS]: both position searches are within params.len(); the preceding missing-slot guard excludes None before unwrap.
     let canonical_order=slots.into_iter().map(Option::unwrap).collect::<Vec<_>>();
     Ok(Some(ResolvedSourceBuiltinRoles{arg_for_role:signature.params.iter().copied().zip(canonical_order.iter().copied()).collect(),canonical_order}))
 }
@@ -540,6 +552,7 @@ impl NumericConstraintPlan {
                 }
             }
             for (site,shape,result) in &projection.consumed_conditionals {
+                // F5-GA[INDEPENDENT-OWNER]: the preceding pass checked every same shape against the unchanged independent graph and bags.
                 let kind=Projection::finish_shape_in(shape,&independent,&projection.bags).as_ref().and_then(NumericKind::from_type).expect("checked independent owner");
                 projection.graph.require(*result,kind,*site)?;
             }
@@ -648,6 +661,7 @@ impl Projection<'_> {
     }
 
     fn project_static_numeric(&mut self,shape:&Shape)->Result<Variable,String> {
+        // F5-GA[STATIC-PREFLIGHT]: callers first validate these immutable source shapes; recursion changes numeric constraints/cache only, not bag seeds or operation indices.
         match shape {
             Shape::Numeric(variable)=>Ok(*variable),
             Shape::Declared(kind)=>match self.declared(kind,self.program.id)? {Shape::Numeric(variable)=>Ok(variable),_=>unreachable!("preflight source")},
@@ -1280,6 +1294,7 @@ impl Projection<'_> {
     }
 
     fn expression(&mut self, scope_id: NodeId, scope: &mut Scope, expression: &Expr) -> Result<Shape, String> {
+        // F5-GA[EXPRESSION-SLOTS]: actuals is an unfiltered map of args; successful role resolution returns original arg indices, and local arity guards precede fixed indexing.
         self.source_sites.insert(expression.id,expression.span);
         if let Some(shape)=self.shapes.get(&expression.id) {return Ok(shape.clone());}
         let shape = if let Some(operand) = expression.source_negated_operand() {
@@ -1526,6 +1541,8 @@ impl Projection<'_> {
                 Shape::Unknown(expression.id)
             }
             ExprKind::Call { args, func } => {
+                match projection_call_frame(|| {
+                    let shape = {
                 let actuals = args.iter().map(|arg| self.expression(scope_id, scope, &arg.expr)).collect::<Result<Vec<_>, _>>()?;
                 if let Some(binding)=self.program.origin.manipulation_phase_calls.get(&expression.id){
                     if binding.definition!="B1.DEF.INPUT_PHASE.R1"||binding.ordinal_pin!="B1.PIN.INPUT_PHASE.ORDINAL.R1"
@@ -1535,7 +1552,7 @@ impl Projection<'_> {
                     let expected=self.declared(&TypeRef::Named("바른수".into()),expression.id)?;
                     self.same_shape(&expected,&actuals[0],args[0].expr.id)?;
                     let shape=Shape::Declared(TypeRef::Named("글".into()));
-                    self.shapes.insert(expression.id,shape.clone());return Ok(shape);
+                    self.shapes.insert(expression.id,shape.clone());return Ok(std::ops::ControlFlow::Break(shape));
                 }
                 if let Some(binding)=self.program.origin.subject_reference_calls.get(&expression.id){
                     let read=binding.definition=="VC04.DEF.ILGI.R1"&&binding.receiver_pin=="VC04.PIN.ILGI.REFERENCE.R1";
@@ -1552,7 +1569,7 @@ impl Projection<'_> {
                     }
                     let shape=Shape::Declared(if read {TypeRef::Applied{name:"맺음".into(),args:vec![TypeRef::Named(owner.clone()),TypeRef::Named("가리킴안됨".into())]}}
                         else {TypeRef::Applied{name:"가리킴".into(),args:vec![TypeRef::Named(owner.clone())]}});
-                    self.shapes.insert(expression.id,shape.clone());return Ok(shape);
+                    self.shapes.insert(expression.id,shape.clone());return Ok(std::ops::ControlFlow::Break(shape));
                 }
                 for arg in args {self.source_sites.insert(arg.id,arg.expr.span);}
                 let canonical = ddonirang_lang::stdlib::canonicalize_stdlib_alias(func);
@@ -1561,7 +1578,7 @@ impl Projection<'_> {
                     && crate::work_cost::builtin_work_cost_rule(canonical).is_ok_and(|rule| rule.is_some()) {
                     let shape = Shape::CollectionSlice(Arc::from([Shape::InputEvent]));
                     self.shapes.insert(expression.id, shape.clone());
-                    return Ok(shape);
+                    return Ok(std::ops::ControlFlow::Break(shape));
                 }
                 use ddonirang_lang::ordinary_callable::{resolve_scalar_math_callable,ScalarMathCallableOwner};
                 let math_owner=(!scope.contains_key(func)).then(||resolve_scalar_math_callable(self.program,func)).flatten();
@@ -1574,7 +1591,7 @@ impl Projection<'_> {
                         // Existing non-numeric overload dispatch still owns
                         // disjoint byte/text calls and ambiguity rejection.
                         let shape=Shape::Unknown(expression.id);
-                        self.shapes.insert(expression.id,shape.clone());return Ok(shape);
+                        self.shapes.insert(expression.id,shape.clone());return Ok(std::ops::ControlFlow::Break(shape));
                     }
                     let seed = candidates[0];
                     let mut supplied=BTreeMap::new();
@@ -1696,6 +1713,12 @@ impl Projection<'_> {
                     let result=self.builtin_results.get(canonical).filter(|results|results.len()==1).and_then(|results|results.first()).cloned();
                     if let Some(kind)=result {self.declared(&kind,expression.id)?}else{Shape::Unknown(expression.id)}
                 } else { Shape::Unknown(expression.id) }
+                    };
+                    Ok(std::ops::ControlFlow::Continue(shape))
+                })? {
+                    std::ops::ControlFlow::Break(shape) => return Ok(shape),
+                    std::ops::ControlFlow::Continue(shape) => shape,
+                }
             }
             ExprKind::Thunk(body) => {
                 self.statements(body.id, &mut scope.clone(), &body.stmts, None)?;
@@ -2029,6 +2052,7 @@ pub(crate) struct NumericConstraints {
 }
 
 impl NumericConstraints {
+    // F5-GA[NUMERIC-ID]: compilation-local IDs come from this append-only graph (or its index-preserving clone); only distinct roots are joined.
     pub(crate) fn variable(&mut self, preference: DefaultPreference) -> Variable {
         let index = self.components.len();
         self.components.push(Component { parent: index, size: 1, required: None, preference, allowed: 0b1_1111 });
@@ -2087,6 +2111,7 @@ impl NumericConstraints {
         let preference = a.preference.max(b.preference);
         let allowed = a.allowed & b.allowed;
         if allowed == 0 { return Err("E_TYPE_MISMATCH: 같은 수 결속의 정적 제약이 충돌합니다".into()); }
+        // F5-GA[NUMERIC-SIZE]: disjoint root sizes sum to at most the number of allocated components, so usize addition cannot overflow.
         let size = a.size.checked_add(b.size).expect("disjoint component count fits allocated nodes");
         self.components[parent].required = required;
         self.components[parent].preference = preference;
@@ -2098,6 +2123,7 @@ impl NumericConstraints {
 
     /// Called only after the complete compilation's constraints are collected.
     pub(crate) fn resolved(&self, variable: Variable) -> NumericKind {
+        // F5-GA[NUMERIC-DOMAIN]: initial five-bit domains are nonempty; same/restrict reject zero before publishing, and never add bits.
         let component = &self.components[self.root(variable)];
         let preferred = component.required.map(|(kind, _)| kind).unwrap_or_else(|| component.preference.kind());
         if component.allowed & preferred.bit() != 0 { preferred }
@@ -2121,6 +2147,7 @@ impl NumericConstraints {
     }
 
     fn propagate(&mut self, incidence: &[Vec<usize>], initial: impl IntoIterator<Item=usize>) -> Result<(), String> {
+        // F5-GA[NUMERIC-QUEUE]: finish builds incidence from enumerate(); propagation changes domains only, not graph or operation lengths.
         // Each domain shrinks at most five times. An operation is requeued
         // only when a participating component shrinks, not by full rescans.
         let mut pending = VecDeque::new();

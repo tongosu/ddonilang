@@ -118,6 +118,7 @@ pub(super) fn decode_base64url(text: &str) -> Result<Vec<u8>, TensorFrameError> 
 fn sha_hex(bytes: &[u8]) -> String { format!("{:x}", Sha256::digest(bytes)) }
 
 pub(super) fn transport_value(value: &AdmittedTensor) -> serde_json::Value {
+    // F5-GA[TENSOR_ADMITTED]: Private admitted owners retain a structurally verified leading tag; shared saved_bytes cannot be shortened by this projection.
     let carrier = &value.saved_bytes()[1..];
     serde_json::json!({
         "carrier_base64url": base64url(carrier), "carrier_byte_length": carrier.len(),
@@ -214,6 +215,7 @@ pub(super) struct UnadmittedTensorFrame<'a> {
 }
 
 impl<'a> UnadmittedTensorFrame<'a> {
+    // F5-GA[TENSOR_CANDIDATE]: The sole structural constructor validates tag, exact axes, all VALUE32 boundaries and EOF before exposing these immutable borrowed ranges.
     pub(super) fn saved_bytes(&self) -> &'a [u8] {
         self.saved
     }
@@ -255,6 +257,7 @@ impl<'a> Cursor<'a> {
         Ok(head)
     }
     fn u32(&mut self) -> Result<u32, TensorFrameError> {
+        // F5-GA[TENSOR_U32]: take(4) returns exactly four bytes or Err before array conversion.
         Ok(u32::from_be_bytes(self.take(4)?.try_into().unwrap()))
     }
     fn field(&mut self, tag: u8) -> Result<&'a [u8], TensorFrameError> {
@@ -290,6 +293,7 @@ fn shape_count(mut axes: impl Iterator<Item = u64> + Clone) -> Result<u64, Tenso
 pub(super) fn inspect_tensor_frame(
     saved: &[u8],
 ) -> Result<UnadmittedTensorFrame<'_>, TensorFrameError> {
+    // F5-GA[TENSOR_FIELDS]: Rank/count exact-width checks and chunks_exact(8) precede the corresponding fixed-array conversions.
     let mut cursor = Cursor(saved);
     if cursor.take(1)? != [TAG] {
         return Err(TensorFrameError::Tag);
@@ -440,6 +444,7 @@ pub(super) fn verify_runtime(value: &ddonirang_lang::runtime::TensorValue) -> Re
 /// The existing ResourceValue canonical scalar owner is the only producer.
 /// A borrowed scalar frame is checked before allocation; no host float or cast.
 fn decode_element(bytes: &[u8]) -> Result<Fixed64, TensorFrameError> {
+    // F5-GA[TENSOR_SCALAR]: Short-circuit len!=9 rejects before tag indexing; the remaining tail then has exactly eight bytes.
     if bytes.len() != 9 || bytes[0] != 0x02 {
         return Err(TensorFrameError::ElementValue);
     }
@@ -483,6 +488,7 @@ pub(super) fn admit_tensor_value(
 pub(super) fn encode_typed_tensor(
     resolved: &TypeRef, shape: &[u64], elements: &[Fixed64],
 ) -> Result<AdmittedTensor, TensorFrameError> {
+    // F5-GA[TENSOR_ENCODER]: Successful encode_tensor_candidate has pushed the leading tag before any caller takes saved[1..].
     if shape.len() > PROFILE_MAX_RANK { return Err(TensorFrameError::ResourceLimit); }
     let identity = element_identity::issue(resolved).map_err(TensorFrameError::ElementType)?;
     if shape_count(shape.iter().copied())? != elements.len() as u64 {

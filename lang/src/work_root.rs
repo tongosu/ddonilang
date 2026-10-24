@@ -84,6 +84,7 @@ impl RootDirective {
     }
 
     pub fn typed_modules(&self) -> Result<Vec<ModuleDeclaration>, ParseError> {
+        // F5-GA[ROOT-FIELDS]: 제품 파서는 빈 FieldValue를 거부한다. record_fields 성공값은 요구한 개수의 비어 있지 않은 조각이다.
         let value = self.field(RootField::Modules).ok_or_else(|| ParseError {
             span: self.span,
             message: "E_WORK_ROOT_MODULES_REQUIRED: 모듬이 필요합니다".into(),
@@ -162,6 +163,7 @@ fn path_text(tokens: &[Token]) -> Result<String, ParseError> {
 }
 
 fn comma_parts(tokens: &[Token]) -> Result<Vec<&[Token]>, ParseError> {
+    // F5-GA[ROOT-PARTS]: 빈 입력은 바로 반환하고, 빈 항목·마지막 쉼표는 거부하므로 반환하는 각 조각에는 첫·끝 토큰이 있다.
     if tokens.is_empty() {
         return Ok(Vec::new());
     }
@@ -291,6 +293,7 @@ fn name(token: &Token) -> Option<&str> {
 /// No arbitrary expressions or calls are evaluated, and nested values retain
 /// their token/span authority for later typed interpretation.
 pub fn parse_work_root(source: &str) -> Result<RootDirective, ParseError> {
+    // F5-GA[ROOT-CURSOR]: 공유 Lexer의 EOF는 소비하지 않는다. 커서 증가는 비-EOF 토큰 뒤에서만 하며 값 루프도 EOF에서 먼저 거부한다.
     let tokens = Lexer::new(source).tokenize().map_err(|err| ParseError {
         span: Span::new(err.pos, err.pos + 1),
         message: err.message,

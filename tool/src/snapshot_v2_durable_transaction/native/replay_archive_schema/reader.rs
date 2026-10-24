@@ -98,7 +98,31 @@ impl SqliteAdapterV1 {
     fn load_replay_archive_transport(&self,proof:VerifiedExecutionFirstCheckpointV1,kind:ReplayArchiveReadKindV1)
         ->Result<NativeReplayArchiveTransportV1,Failure>{
         let lifecycle=proof.read_lifecycle_for(self,kind)?;
-        let latest=ReplayLifecycleCandidateV1::parse(&lifecycle).map_err(|_|Failure::CorruptRecoveryRecord)?;
+        let bundle=self.check_replay_archive_candidate(&proof,kind,&lifecycle)?;
+        if proof.read_lifecycle_for(self,kind)?!=lifecycle{return Err(Failure::CustodyConflict);}
+        Ok(NativeReplayArchiveTransportV1{proof,lifecycle,kind,bundle})
+    }
+
+    /// Full archive/anchor validation only. Returning bytes does not issue a
+    /// Ready, restore, execution or recovery permit. Normal readers still
+    /// require protected Ready before and after this call. R2's separate
+    /// Native owner may check its exact Ready candidate before a repair.
+    pub(in crate::snapshot_v2_durable_transaction::native) fn check_replay_archive_candidate(
+        &self,proof:&VerifiedExecutionFirstCheckpointV1,kind:ReplayArchiveReadKindV1,lifecycle:&[u8])
+        ->Result<Vec<u8>,Failure>{
+        let latest=ReplayLifecycleCandidateV1::parse(lifecycle).map_err(|_|Failure::CorruptRecoveryRecord)?;
+        let (_,nonce,fingerprint,generation)=proof.scope.identity_fields(self)?;
+        let state=latest.payload(9).and_then(|v|v.first()).copied().ok_or(Failure::CorruptRecoveryRecord)?;
+        let count=u64::from_be_bytes(latest.payload(15).ok_or(Failure::CorruptRecoveryRecord)?.try_into().map_err(|_|Failure::CorruptRecoveryRecord)?);
+        let receipt_hash:[u8;32]=Sha256::digest(&proof.receipt).into();
+        if latest.payload(1)!=Some(nonce.as_slice()) || latest.payload(2)!=Some(fingerprint.as_slice())
+            || latest.payload(3)!=Some(generation.to_be_bytes().as_slice()) || latest.payload(4)!=Some(proof.pesi.as_slice())
+            || latest.payload(5)!=Some(proof.first_tx.as_slice()) || latest.payload(8)!=Some(&[1][..])
+            || !kind.accepts_state(state) || latest.payload(10)!=Some(proof.checkpoint_tx.as_slice())
+            || latest.payload(11)!=Some(receipt_hash.as_slice()) || !kind.accepts_count(state,count,proof.anchor_madi())
+            || !latest.payload(17).is_some_and(|value|kind.accepts_end(state,value[0])){
+            return Err(Failure::CustodyConflict);
+        }
         let latest_ordinal=u64::from_be_bytes(latest.payload(7).ok_or(Failure::CorruptRecoveryRecord)?.try_into().map_err(|_|Failure::CorruptRecoveryRecord)?);
         let db=self.connect()?;db.execute_batch("BEGIN").map_err(database_error)?;
         let count:i64=db.query_row("SELECT count(*) FROM wo23_replay_controls_v1 WHERE execution_first_tx=?1",params![proof.first_tx.as_slice()],|r|r.get(0)).map_err(database_error)?;
@@ -146,7 +170,7 @@ impl SqliteAdapterV1 {
             previous=row.digest;ordinal=ordinal.checked_add(1).ok_or(Failure::LimitExceeded)?;
         }
         drop(statement);db.execute_batch("COMMIT").map_err(database_error)?;drop(db);
-        if proof.read_lifecycle_for(self,kind)?!=lifecycle{return Err(Failure::CustodyConflict);}
-        Ok(NativeReplayArchiveTransportV1{proof,lifecycle,kind,bundle:latest_bundle.ok_or(Failure::CorruptRecoveryRecord)?})
+        proof.scope.verify_current(self)?;
+        latest_bundle.ok_or(Failure::CorruptRecoveryRecord)
     }
 }

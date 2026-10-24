@@ -4,6 +4,8 @@ use super::ExecutionGenerationV1;
 use crate::snapshot_v2_durable_transaction::native::{SqliteAdapterV1,ProtectedReplayReadyV1};
 use crate::unit_wire::{resumable_complete_state::NativeRecordingProgressOwnerV1,project_runtime_attachment::SourceBoundSavedRuntimeAttachment};
 use crate::snapshot_v2_durable_transaction::native::ReadmittedFirstSourceWorldV2;
+mod recovery_intent;
+pub(crate) use recovery_intent::NativeFinishRecoveryIntentV1;
 pub(crate) struct NativeFinishedRecordingReadyV1 {
     protected:ProtectedReplayReadyV1,generation:ExecutionGenerationV1,tape_hash:[u8;32],closed_count:u64,
 }
@@ -84,17 +86,38 @@ impl NativeFinishCheckpointPlanV1 {
             || <[u8;32]>::from(Sha256::digest(candidate.tape_bytes()))!=self.tape_hash {
             return Err("E_NATIVE_FINISH_STALE_CANDIDATE: 종료 후보가 바뀌었습니다".into());
         }
-        let (row,pending)=match self.data.begin_pending(adapter){
-            Ok(value)=>value,
-            Err(super::ReplayPendingFailureV1::Before(cause))=>return Err(format!("E_NATIVE_FINISH_BEFORE_PENDING: {cause}")),
-            Err(super::ReplayPendingFailureV1::Uncertain(cause))=>{owner.block_evidence(cause.clone());return Err(cause);},
-        };
+        // R2 applies only to this metadata finish with an existing Ready
+        // anchor. The original ROW/Pending/ciphertext are generated once.
+        adapter.provision_finish_recovery(&self.data.scope)
+            .map_err(|cause|format!("E_NATIVE_FINISH_BEFORE_PENDING: 복구 저장 구간 확인 ({cause:?})"))?;
+        let mut intent=self.prepare_recovery_intent(adapter,&candidate)?;
+        adapter.append_finish_recovery_intent(&self.data.scope,&intent)
+            .map_err(|cause|format!("E_NATIVE_FINISH_BEFORE_PENDING: 원 종료 자료 보존 ({cause:?})"))?;
+        let witness=self.data.scope.persist_finish_intent_witness(adapter,&intent)
+            .map_err(|error|match error{
+                crate::snapshot_v2_durable_transaction::native::ReplayLifecycleWriteFailureV1::Before(cause)=>
+                    format!("E_NATIVE_FINISH_BEFORE_PENDING: 복구 보호 확인 Before({cause:?})"),
+                crate::snapshot_v2_durable_transaction::native::ReplayLifecycleWriteFailureV1::Uncertain(cause)=>
+                    format!("E_NATIVE_FINISH_BEFORE_PENDING: 복구 보호 확인 Uncertain({cause:?})"),
+            })?;
+        if let Err(cause)=self.data.scope.write_finish_pending(adapter,&intent,&witness){
+            let message=self.retain_original_failure(adapter,&intent,&witness,&cause);
+            if !cause.before_pending(){owner.block_evidence(message.clone());}
+            return Err(message);
+        }
         owner.block_evidence("E_NATIVE_FINISH_PENDING: 종료 기록의 내구 확인 중입니다".into());
-        let committed=(||{
-            adapter.commit_replay_metadata(&self.data,&row)?;
-            self.data.complete_metadata_ready(adapter,&row,pending,context)
-        })();
-        let protected=match committed{Ok(value)=>value,Err(cause)=>{owner.block_evidence(cause.clone());return Err(cause);}};
+        if let Err(cause)=adapter.commit_replay_metadata_captured(&self.data,intent.row()){
+            let message=self.retain_original_failure(adapter,&intent,&witness,&cause);
+            owner.block_evidence(message.clone());return Err(message);
+        }
+        let pending=intent.take_pending()?;
+        let protected=match adapter.complete_finish_recovery_ready(&self.data,&intent,pending,context){
+            Ok(value)=>value,
+            Err(cause)=>{
+                let message=self.retain_original_failure(adapter,&intent,&witness,&cause);
+                owner.block_evidence(message.clone());return Err(message);
+            },
+        };
         let proof=NativeFinishedRecordingReadyV1{protected,generation:self.generation,tape_hash:self.tape_hash,closed_count:self.closed_count};
         owner.publish_finish(adapter,candidate,proof)
     }

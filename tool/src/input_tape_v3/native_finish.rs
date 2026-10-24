@@ -7,6 +7,8 @@ impl PreparedNativeLogicalFinishV1 {
     pub(crate) fn summary(&self)->&serde_json::Value{self.inner.planned_artifact_parts().1}
     pub(crate) fn closed_count(&self)->u64{self.inner.closed_count()}
     pub(crate) fn generation(&self)->crate::replay_evidence::ExecutionGenerationV1{self.inner.generation()}
+    pub(crate) fn recovery_payload_bytes(&self)->Result<Vec<u8>,String>{self.inner.recovery_payload_bytes()}
+    pub(crate) fn recovery_notice_payload(&self)->Vec<u8>{self.inner.recovery_notice_payload()}
 }
 impl LiveRecording {
     pub(crate) fn native_finished_output(&self)->Result<(Vec<u8>,serde_json::Value),String>{

@@ -1,6 +1,6 @@
 import { createRuntimeBridgeV1 } from '../runtime/runtime_bridge.js';
 import { LogicalActionInput } from '../runtime/logical_action_input.js';
-import { createNativeLogicalFinishBarrier } from '../runtime/native_recording_finish.js';
+import { createNativeLogicalFinishBarrier,recoverNativeLogicalFinish } from '../runtime/native_recording_finish.js';
 import { nativeSourceAvailable,nativeSourceRequest,sourceStorageErrorMessage } from '../runtime/native_source_transport.js';
 import { renderSpace2dCanvas2d } from '../wasm_page_common.js';
 import { createAuthoredCompositionHost, renderAuthoredBogae } from './authored_bogae_renderer.js';
@@ -45,6 +45,7 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
       통합 V3 후보로 저장합니다. 기록 마치기는 성공한 마디까지만 정상 기록으로 남깁니다. 별도 중단은 미완 기록이며 정상 재생은 할 수 없습니다. 옛 형식의 자동 변환과 글자 입력은 지원하지 않습니다.</p>
       <button data-action="stop-recording">미완 기록으로 중단·저장</button>
       <button data-action="verify-receipt" hidden>저장한 완료 기록 재현 확인</button>
+      <button data-action="recover-finish" hidden>마치기 중단 확인·복구</button>
       <button data-action="new-record" hidden>저장한 시점에서 새 기록</button>
       <label>미리 정한 입력 요청으로 기록 <input data-field="finite-request" type="file" accept=".json,application/json"></label>
       <p>현재 원문·입력 계약에 맞는 요청 JSON의 모든 마디를 실행해 정상 V3 기록을 저장합니다. 실시간 중단 기록을 완료로 바꾸는 기능은 아닙니다.</p>
@@ -79,6 +80,7 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
   let valueIntake = Promise.resolve();
   function renderValueControls(binding) {
     panel.querySelector('[data-action="verify-receipt"]').hidden=!boundAuthoredSource||typedBinding(JSON.stringify(binding));
+    panel.querySelector('[data-action="recover-finish"]').hidden=!boundAuthoredSource||typedBinding(JSON.stringify(binding));
     panel.querySelector('[data-action="new-record"]').hidden=!boundAuthoredSource||typedBinding(JSON.stringify(binding))||typeof prepareNativeNewRecord!=='function';
     const controls=field('value-controls');controls.replaceChildren();
     controls.hidden=binding.source_profile!=='v1-core-v25-manipulation-alpha4-provisional';
@@ -302,6 +304,7 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
           host.attach(inputRegion ?? field('region'), { controls: [...playbackControls,...viewControls,
             panel.querySelector('summary'), field('advanced').querySelector(':scope > summary'), panel.querySelector('[data-action="seal"]'),
             panel.querySelector('[data-action="verify-receipt"]'),
+            panel.querySelector('[data-action="recover-finish"]'),
             panel.querySelector('[data-action="new-record"]'),
             panel.querySelector('[data-action="stop-recording"]'),
             field('value-controls'),
@@ -353,6 +356,27 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
         const prepared=await panel.logicalExecution.prepareStoredCheckpoint(record);
         try{await prepared.publish();}catch(error){await prepared.close();throw error;}
         field('feedback').textContent='끝난 기록을 보존하고 실제 저장 시점에서 새 기록을 시작했습니다. ▶로 계속하세요.';
+      } else if (action === 'recover-finish') {
+        await pauseAndSettle();await valueIntake;
+        // Preserve live/unsaved execution. Only the user can explicitly close it.
+        if(host||session)throw new Error(`E_NATIVE_FINISH_RECOVERY_CLOSE_REQUIRED: 현재 실행은 보존했습니다. 먼저 ${onPresentation?'입력 창을 닫고 상단 ■ 중지':'‘실행 닫기’'}를 누른 뒤 확인·복구하세요.`);
+        const selected=readAuthoredProject(),selectedSource=readSource(),token=generation;
+        const selectedBinding=field('binding').value,selectedActions=field('actions').value,selectedCapacity=field('capacity').value;
+        const requireSelection=()=>{
+          if(host||session||token!==generation||readAuthoredProject()!==selected||readSource()!==selectedSource
+              ||boundAuthoredSource!==selected||boundSource!==selectedSource||field('binding').value!==selectedBinding
+              ||field('actions').value!==selectedActions||field('capacity').value!==selectedCapacity)
+            throw new Error('E_NATIVE_FINISH_RECOVERY_SOURCE_CHANGED: 선택한 작품이나 입력 계약이 바뀌었습니다. 복구 결과를 현재 화면에 게시하지 않았습니다.');
+        };
+        requireSelection();
+        if(!selected||typedBinding(selectedBinding))throw new Error('E_NATIVE_FINISH_RECOVERY_UNSUPPORTED: 저장한 논리 입력 작품과 계약을 먼저 선택하세요.');
+        const recovered=await recoverNativeLogicalFinish({authored:selected,binding:JSON.parse(selectedBinding),unchanged:requireSelection});
+        requireSelection();
+        // Display exact original bytes as text, not a resumed world/VM or HTML.
+        field('result').textContent=recovered.original_output_json_utf8;
+        const excluded=recovered.notice.excluded_input_count;
+        field('feedback').textContent=`저장한 원래 완료 응답을 확인했습니다. 새 실행이나 입력 재처리는 하지 않았습니다. 제외 입력 ${excluded}개.`
+          +(recovered.original_failure===null?'':` 원래 실패: ${recovered.original_failure}`);
       } else if (action === 'verify-receipt') {
         await pauseAndSettle();await valueIntake;
         const selected=readAuthoredProject(),selectedSource=readSource(),token=generation,originalHost=host;
@@ -470,6 +494,7 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
       try{dialog.close();target.focus();}
       finally{retained.attach(target,{controls:[...playbackControls,...viewControls,
         panel.querySelector('summary'),panel.querySelector('[data-action="seal"]'),field('value-controls'),
+        field('advanced').querySelector(':scope > summary'),panel.querySelector('[data-action="recover-finish"]'),
         ...(inputRegion?[field('region')]:[])]});}
     },
     async captureStorageContext() {
@@ -556,6 +581,7 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
           nextHost.attach(inputRegion??field('region'),{controls:[...playbackControls,...viewControls,
             panel.querySelector('summary'),field('advanced').querySelector(':scope > summary'),panel.querySelector('[data-action="seal"]'),field('value-controls'),
             panel.querySelector('[data-action="verify-receipt"]'),
+            panel.querySelector('[data-action="recover-finish"]'),
             panel.querySelector('[data-action="new-record"]'),
             ...(inputRegion?[field('region')]:[])]});
           const old=session;host?.detach?.();pause();generation++;
@@ -580,6 +606,7 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
       boundSource = null; source = ''; bindingJson = ''; actionsJson = ''; capacityText = '';
       authoredSource = null; boundAuthoredSource = null;
       panel.querySelector('[data-action="verify-receipt"]').hidden=true;
+      panel.querySelector('[data-action="recover-finish"]').hidden=true;
       panel.querySelector('[data-action="new-record"]').hidden=true;
       for (const name of ['binding','actions','capacity','replay','finite-request']) field(name).value = '';
       field('partial-replay').checked=false;

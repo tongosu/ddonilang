@@ -36,22 +36,86 @@ pub(super) fn extend_expected(rows:&[(String,String)],profile:NativeSchemaProfil
     }
     expected.sort_by_key(|(name,_)|*name);Ok(())
 }
+
+/// Actual metadata call-site failure only. Private construction retains both
+/// the typed cause and its unchanged original message, including rollback.
+/// A decoded record or message cannot construct this target-bound capture.
+#[cfg(windows)]
+pub(crate) struct CapturedReplayMetadataFailureV1 {
+    stage:u8,cause:Option<Failure>,original_message:String,
+    first:[u8;32],epoch:u64,ordinal:u64,row_digest:[u8;32],
+    before_pending:bool,
+}
+#[cfg(windows)]
+impl CapturedReplayMetadataFailureV1 {
+    fn original(message:String,plan:&crate::replay_evidence::ReplayCheckpointPlanDataV1,
+        row:&crate::replay_evidence::PlannedReplayControlRowV1)->Self{
+        Self{stage:4,cause:None,original_message:message,first:plan.first_tx,
+            epoch:plan.recording_epoch,ordinal:plan.control_ordinal,row_digest:row.row_digest,before_pending:false}
+    }
+    fn native(stage:u8,label:&str,cause:Failure,plan:&crate::replay_evidence::ReplayCheckpointPlanDataV1,
+        row:&crate::replay_evidence::PlannedReplayControlRowV1)->Self{
+        let message=format!("E_REPLAY_EVIDENCE_RECOVERY_REQUIRED: 기록 부속 거래 {label} ({cause:?})");
+        let mut captured=Self::original(message,plan,row);
+        captured.stage=stage;captured.cause=Some(cause);captured
+    }
+    pub(crate) fn original_message(&self)->&str{&self.original_message}
+    pub(crate) fn before_pending(&self)->bool{self.before_pending}
+    // Only Native sibling owners call this at actual Pending/Ready/anchor
+    // failure sites. Neither parsing a message nor a decoded row is an issuer.
+    pub(super) fn finish_native(stage:u8,cause:Option<Failure>,message:String,
+        intent:&crate::replay_evidence::NativeFinishRecoveryIntentV1,before_pending:bool)->Self{
+        let row=intent.row();
+        Self{stage,cause,original_message:message,first:row.first_tx,epoch:row.recording_epoch,
+            ordinal:row.control_ordinal,row_digest:row.row_digest,before_pending}
+    }
+    pub(crate) fn record_for<'a>(&'a self,intent:&crate::replay_evidence::NativeFinishRecoveryIntentV1)
+        ->Result<(Vec<u8>,&'a [u8]),String>{
+        use crate::replay_evidence::finish_recovery::{encode_header,RecordHeaderV1,RecordKindV1};
+        use sha2::{Digest,Sha256};
+        let header=RecordHeaderV1::parse(intent.header_bytes())?;
+        if header.kind()!=RecordKindV1::Intent || header.field(5)!=Some(self.first.as_slice())
+            || header.field(6)!=Some(self.epoch.to_be_bytes().as_slice())
+            || header.field(7)!=Some(self.ordinal.to_be_bytes().as_slice())
+            || header.field(12).is_none_or(|row|Sha256::digest(row).as_slice()!=self.row_digest.as_slice()) {
+            return Err("E_REPLAY_EVIDENCE_RECOVERY_REQUIRED: 원 실패와 종료 저장 대상이 다릅니다".into());
+        }
+        let message=self.original_message.as_bytes();
+        if message.is_empty()||message.len()>65536{return Err("E_REPLAY_EVIDENCE_RECOVERY_REQUIRED: 원 실패 안내 길이 한도 초과".into());}
+        let (kind,code)=match &self.cause{None=>(0,0u16),Some(cause)=>(1,cause.clone() as u16)};
+        let digest:[u8;32]=Sha256::digest(message).into();
+        let length=(message.len() as u64).to_be_bytes();let chunks=1u32.to_be_bytes();
+        let raw=encode_header(RecordKindV1::ActualFailure,&[intent.record_digest(),&[self.stage],&[kind],
+            &code.to_be_bytes(),&digest,&length,&chunks])?;
+        RecordHeaderV1::parse(&raw)?.check_payload([message])?;
+        Ok((raw,message))
+    }
+}
+
 #[cfg(windows)]
 impl SqliteAdapterV1 {
     pub(crate) fn commit_replay_metadata(&self,plan:&crate::replay_evidence::ReplayCheckpointPlanDataV1,
         row:&crate::replay_evidence::PlannedReplayControlRowV1)->Result<(),String>{
-        let failed=|stage:&str,cause:Failure|format!("E_REPLAY_EVIDENCE_RECOVERY_REQUIRED: 기록 부속 거래 {stage} ({cause:?})");
-        plan.scope.verify_current(self).map_err(|e|failed("Root 확인",e))?;
+        self.commit_replay_metadata_captured(plan,row).map_err(|failure|failure.original_message)
+    }
+    /// Preserve the actual typed cause before the legacy String boundary.
+    /// No message parsing, synthetic Interrupted or retry permission.
+    pub(crate) fn commit_replay_metadata_captured(&self,plan:&crate::replay_evidence::ReplayCheckpointPlanDataV1,
+        row:&crate::replay_evidence::PlannedReplayControlRowV1)->Result<(),CapturedReplayMetadataFailureV1>{
+        let _observation = crate::storage_observation::Span::start("sqlite.replay_metadata.write_and_verify_total");
+        let failed=|stage,label:&str,cause:Failure|CapturedReplayMetadataFailureV1::native(stage,label,cause,plan,row);
+        let original=|message:String|CapturedReplayMetadataFailureV1::original(message,plan,row);
+        plan.scope.verify_current(self).map_err(|e|failed(4,"Root 확인",e))?;
         if plan.previous_lifecycle.is_none() || plan.control_ordinal==0 {
-            return Err("E_REPLAY_METADATA_PLAN: 실제 기존 checkpoint의 종료 제어만 허용합니다".into());
+            return Err(original("E_REPLAY_METADATA_PLAN: 실제 기존 checkpoint의 종료 제어만 허용합니다".into()));
         }
         match (&plan.reopen,plan.recording_state){
-            (Some(proof),0)=>proof.check_plan(plan,self)?,
+            (Some(proof),0)=>proof.check_plan(plan,self).map_err(original)?,
             (None,1..=3)=>{},
-            _=>return Err("E_REPLAY_METADATA_PLAN: 새 기록은 실제 정상 복원 결속이 필요합니다".into()),
+            _=>return Err(original("E_REPLAY_METADATA_PLAN: 새 기록은 실제 정상 복원 결속이 필요합니다".into())),
         }
-        let db=self.connect().map_err(|e|failed("열기",e))?;
-        db.execute_batch("BEGIN IMMEDIATE").map_err(|e|failed("시작",database_error(e)))?;
+        let db=self.connect().map_err(|e|failed(5,"열기",e))?;
+        db.execute_batch("BEGIN IMMEDIATE").map_err(|e|failed(6,"시작",database_error(e)))?;
         let result=(||->Result<(),Failure>{
             let b=&plan.binding;
             let head:i64=db.query_row("SELECT count(*) FROM vc04_project_heads WHERE project_identity=?1 AND history_revision_identity=?2 AND revision_integrity_sha256=?3 AND payload_kind=1 AND payload_key=?4",
@@ -63,12 +127,18 @@ impl SqliteAdapterV1 {
         })();
         if let Err(cause)=result{
             return match db.execute_batch("ROLLBACK"){
-                Ok(())=>Err(failed("쓰기 거부",cause)),Err(rollback)=>Err(format!("{}; rollback={rollback}",failed("쓰기 불확실",cause))),
+                Ok(())=>Err(failed(7,"쓰기 거부",cause)),Err(rollback)=>{
+                    let mut captured=failed(7,"쓰기 불확실",cause);
+                    captured.original_message.push_str(&format!("; rollback={rollback}"));
+                    Err(captured)
+                },
             };
         }
-        db.execute_batch("COMMIT").map_err(|e|failed("확정 불확실",database_error(e)))?;drop(db);
-        self.confirm_container_durable().map_err(|e|failed("내구 확인",e))?;
-        self.check_replay_archive(plan,row).map_err(|e|failed("전체 재읽기",e))
+        let metadata_commit_observation = crate::storage_observation::Span::start("sqlite.replay_metadata.full_commit_and_close");
+        db.execute_batch("COMMIT").map_err(|e|failed(8,"확정 불확실",database_error(e)))?;drop(db);
+        drop(metadata_commit_observation);
+        self.confirm_container_durable().map_err(|e|failed(9,"내구 확인",e))?;
+        self.check_replay_archive(plan,row).map_err(|e|failed(10,"전체 재읽기",e))
     }
     #[cfg(test)]
     pub(crate) fn test_assert_first_replay_archive(&self,first_tx:&[u8;32],expected:&[u8]){

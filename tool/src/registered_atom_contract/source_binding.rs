@@ -4,6 +4,7 @@
 use super::ContractFailure;
 pub(crate) mod nominal;
 type Result<T> = std::result::Result<T, ContractFailure>;
+// F5-GA[REG_CODEC_HEADER]: The fixed byte literal is longer than2; both len-2 header slices are independent of input length.
 const HEADER: &[u8] = b"ddn.vc04.atom-source-binding.v1\0\0\x01";
 
 #[derive(Debug)]
@@ -35,6 +36,7 @@ pub(crate) struct Candidate<'a> {
 
 struct Reader<'a> { rest: &'a [u8] }
 impl<'a> Reader<'a> {
+    // F5-GA[REG_CODEC_TAKE]: A successful take(n) returns exactly n bytes; short input returns Err before fixed-width conversion or index0.
     fn take(&mut self, n: usize) -> Result<&'a [u8]> {
         if n > self.rest.len() { return Err(ContractFailure::SchemaInvalid); }
         let (value, rest) = self.rest.split_at(n); self.rest = rest; Ok(value)
@@ -91,6 +93,7 @@ fn exact_label(label: &str) -> bool {
 }
 
 impl<'a> Candidate<'a> {
+    // F5-GA[REG_CODEC_CALLER]: The only non-test caller parses the descriptor immediately before this immutable verifier, so source/registry/entry ordinals are already range-checked.
     pub(crate) fn verify_resolved_occurrences(&self, saved: &crate::project_revision_envelope_supply::VerifiedSavedV25Sources) -> Result<()> {
         self.verify_sources(saved.captures())?;
         let actual = saved.atom_value_occurrences();

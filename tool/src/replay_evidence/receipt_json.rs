@@ -48,6 +48,7 @@ pub(crate) fn actual_receipt_array(receipts:&[Value])->Result<Vec<u8>,String> {
 /// Structural decoding only. Typed replay must still reproduce all receipts.
 pub(crate) fn decode_receipt_array(bytes:&[u8],max_count:u64)->Result<Vec<Value>,String>{
     if bytes.len()>MAX||bytes.len()<8{return Err("E_REPLAY_RECEIPT_FORMAT".into());}
+    // F5-GA[RECEIPT_COUNT]: 위 최소8바이트 검사 뒤 정확히 앞8바이트만 정수로 읽는다.
     let count=u64::from_be_bytes(bytes[..8].try_into().unwrap());
     if count>max_count||count as u128>(bytes.len() as u128-8)/9{return Err("E_REPLAY_RECEIPT_LIMIT".into());}
     let count=usize::try_from(count).map_err(|_|"E_REPLAY_RECEIPT_LIMIT")?;
@@ -56,6 +57,7 @@ pub(crate) fn decode_receipt_array(bytes:&[u8],max_count:u64)->Result<Vec<Value>
     for _ in 0..count{
         let end=cursor.checked_add(9).ok_or("E_REPLAY_RECEIPT_FORMAT")?;
         let header=bytes.get(cursor..end).ok_or("E_REPLAY_RECEIPT_FORMAT")?;
+        // F5-GA[RECEIPT_HEADER]: checked_add(9)와 get 뒤 header는 정확히9바이트라 0번과 나머지8바이트 정수 변환이 안전하다.
         if header[0]!=1{return Err("E_REPLAY_RECEIPT_FORMAT".into());}
         let length=usize::try_from(u64::from_be_bytes(header[1..].try_into().unwrap())).map_err(|_|"E_REPLAY_RECEIPT_LIMIT")?;
         cursor=end;let end=cursor.checked_add(length).ok_or("E_REPLAY_RECEIPT_FORMAT")?;

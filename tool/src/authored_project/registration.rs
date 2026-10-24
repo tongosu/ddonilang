@@ -73,6 +73,7 @@ impl RegistrationSourceView for SavedRegistrationSource<'_> {
     fn module(&self,path:&str)->Result<Option<[u8;32]>,String>{
         let rows:Vec<_>=self.project.authored_identity.modules.iter().filter(|m|m.sources.iter().any(|p|p==path)).collect();
         if rows.is_empty(){return Ok(None)}
+        // F5-GA[MODULE_ONE]: The immutable filtered Vec is checked nonempty and len==1 before rows[0]; decoding failures already return the existing error.
         if rows.len()!=1{return Err(fail("원문의 소유 모듈이 유일하지 않습니다"))}
         Ok(Some(hex::decode(rows[0].id.as_str()).map_err(|_|fail("모듈 정체 표기 오류"))?.try_into().map_err(|_|fail("모듈 정체 길이 오류"))?))
     }
@@ -168,6 +169,7 @@ impl RegistrationDraft {
     fn restore_resolved(&mut self,source:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1)->Result<(),String> {
         let source=resolved_supply::Source::saved(source);
         let rows=self.artifacts.iter().filter(|blob|blob.role==Some(resolved_supply::RESOLVED_ROLE)).collect::<Vec<_>>();
+        // F5-GA[RESOLVED_ONE]: Short-circuit len!=1 rejects before rows[0], and no mutation occurs before the following restore read.
         if resolved_supply::ResolvedCatalog::needed(&source)? {
             if rows.len()!=1||rows[0].path!=resolved_supply::RESOLVED_PATH {return Err("E_RESOLVED_SUPPLY_CATALOG_REQUIRED: 이 원문에는 R3.2 등록 자료가 필요합니다. 자동 발급하지 않습니다".into());}
             self.resolved=Some(std::sync::Arc::new(resolved_supply::ResolvedCatalog::restore(&source,self,rows[0].bytes())?));
@@ -205,6 +207,7 @@ impl RegistrationDraft {
     fn bind_atom_values_from(&self,source:&impl RegistrationSourceView,program:&ddonirang_lang::CanonProgram)
         ->Result<BoundAtomValuesV1,String>{
         source.verify(self)?;
+        // F5-GA[ATOM_INDICES]: Candidate::parse checks binding source/registry/entry bounds before immutable indexed reads; source verification does not replace that parser check.
         let candidate=wire::Candidate::parse(&self.descriptor).map_err(contract_error)?;
         let mut bindings=BTreeMap::new();
         for binding in &candidate.bindings {
@@ -240,6 +243,7 @@ impl RegistrationDraft {
         use ddonirang_lang::{TopLevelItem,SeedKind,SchemaCategory};
         use ddonirang_core::platform::RecordFieldType as T;
         source.verify(self)?;
+        // F5-GA[NOMINAL_INDICES]: The parsed nominal tail rejects out-of-range declaration source/schema indices before lookup; tables remain immutable here.
         let candidate=wire::Candidate::parse(&self.descriptor).map_err(contract_error)?;
         let mut result=BTreeMap::new();
         for TopLevelItem::SeedDef(seed) in &program.items {
@@ -351,7 +355,9 @@ fn restore_recorded_candidate_parts(
         artifacts.push(RegistrationBlob{path:row.logical_path,role,bytes,sha});
     }
     if descriptor_count!=1{return Err(fail("source binding role이 하나가 아닙니다"));}
+    // F5-GA[DESCRIPTOR_ONE]: Exactly one matching role was counted while pushing the same immutable artifact rows, so find cannot be None.
     let descriptor_blob=artifacts.iter().find(|blob|blob.role==Some("vc04_atom_source_binding")).unwrap();
+    // F5-GA[PARSED_WIDTHS]: Reader::take(32) supplies every parsed custody/nominal identity slice below; short bytes return Err before any fixed-array conversion.
     let parsed=wire::Candidate::parse(&descriptor_blob.bytes).map_err(contract_error)?;
     let expected_path=format!(".ddn/registration/atom-source-binding.v{}.bin",parsed.version);
     if descriptor_blob.path!=expected_path{return Err(fail("source binding 경로·버전 불일치"));}
@@ -385,6 +391,7 @@ fn verify_nominal_source_binding_parts(project:&crate::authored_project::Project
     for (source,(path,capture)) in sources.captures().iter().enumerate(){
         let modules:Vec<_>=project.authored_identity.modules.iter().filter(|module|module.sources.iter().any(|file|file==path)).collect();
         if modules.is_empty(){continue;}if modules.len()!=1{return Err(fail("모듈 owner 중복"));}
+        // F5-GA[ADMITTED_MODULE]: len==1 guards modules[0]; the only callers consume projects opened/validated as exact64 lowercase hex through private source-admission holders.
         let module:[u8;32]=hex::decode(modules[0].id.as_str()).unwrap().try_into().unwrap();
         let program=ddonirang_lang::parse_v25_with_mode(capture.text(),path,ddonirang_lang::ParseMode::Strict).map_err(|e|fail(&e.to_string()))?;
         for TopLevelItem::SeedDef(seed) in program.items {if let SeedKind::Schema(category)=seed.seed_kind {
@@ -498,6 +505,7 @@ fn prepare_from_source_view(view:&impl RegistrationSourceView,previous:Option<&R
     let captures=view.captures();
     let mut declarations=Vec::new();
     let mut total_slots=schemas.iter().try_fold(0usize,|n,row|n.checked_add(row.slots.len())).ok_or_else(||fail("붙이 개수 한도입니다"))?;
+    // F5-GA[SCHEMA_BUILD]: Every pushed declaration has an existing or just-inserted schema; later lookups use that same unchanged module/name pair, and push precedes last().
     for (source,(path,capture)) in captures.iter().enumerate() {
         let Some(module)=view.module(path)? else{continue};
         for seed in view.declarations(path,capture)? {
@@ -545,6 +553,7 @@ fn prepare_from_source_view(view:&impl RegistrationSourceView,previous:Option<&R
         let id=fresh(&mut atom_used,entropy)?;atoms.push(Atom{id,label:occurrence.label.clone()});
     }
     atoms.sort_by_key(|atom|atom.id);
+    // F5-GA[REGISTRY_BUILD]: Some(registry) creates one contract, None creates none; private occurrences come from the same captures and the atom loop inserts every referenced label before lookup.
     let contracts=if let Some(registry)=registry {
         vec![RecordedAtomContract::record(&registry,&atoms.iter().map(|atom|atom.id.to_vec()).collect::<Vec<_>>()).map_err(contract_error)?.1]
     } else {vec![]};

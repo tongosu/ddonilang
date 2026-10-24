@@ -1,0 +1,4419 @@
+{
+  "schema": "ddn.public_package_projection.v1",
+  "version": "1.0.0-rc.1",
+  "package_kind": "DOCUMENT_METADATA_ONLY_NOT_NEW_RUNTIME",
+  "original_product": "25bc4477d66e6ef1a855c1a9f0ee148c4f3d4aa4",
+  "original_tree": "cf7e3e5afbf30275537c82c8210449b0d38c8bb2",
+  "original_zip_sha256": "ddbafe2c2fe8a5f67c498a5597562f9c24f60657d0f01aaf9f2c5380504e1bac",
+  "original_zip_bytes": 39428354,
+  "compiled_runtime_source": "07dd1cf390d943430a83a8e431ece84cfe3f43cf",
+  "asset_source": "9799c273200ddf5215c5e95f2445c8f06edeb195",
+  "changed_files": [
+    {
+      "path": "BETA3_DEVELOPMENT_MANIFEST.json",
+      "before_sha256": "ef62623b47c77425ed1c8b76fbee9173293d8dc1df381cab74ee2a4a1dd73325",
+      "after_sha256": "f59b1dac8cb4a92adeab84b963f61be6ea79e5a1fab22313ec142d5d6bc3d2ce",
+      "bytes": 1975,
+      "kind": "explicit_documentation_or_metadata"
+    },
+    {
+      "path": "bin/workbench/asset_manifest.detjson",
+      "before_sha256": "0c02d290e34df394058ec503547f7e798807bd08b141331e5aff9fb2f09b6958",
+      "after_sha256": "478a44a70c28f1f7e8ef6a0da5f23426bcaa740a0e80f0c7398bb2254b98b13d",
+      "bytes": 110298,
+      "kind": "native_asset_manifest"
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/교사용_안내와_해답.md",
+      "before_sha256": "d5885e698e197d87d85931414d273894ca16ac3777b725c0916839cf8ef72111",
+      "after_sha256": "e860186d0b1237f7847c8a2bb26b5291936768613fc7707a491df3bd5c1c43e2",
+      "bytes": 11751,
+      "kind": "explicit_documentation_or_metadata"
+    },
+    {
+      "path": "bin/workbench/first_steps_beta1/검증목록.json",
+      "before_sha256": "acf97ae517e0d93174eb5829f6f4caf5f357f37a52f0f4e4eb1c4ecbd6ecf347",
+      "after_sha256": "b46d3d79d9d67f2e4f1893b2353f05f9362ba587a59254b970ba715c2a4a68ff",
+      "bytes": 1767,
+      "kind": "explicit_documentation_or_metadata"
+    },
+    {
+      "path": "bin/workbench/ui/wasm/ddonirang_tool.manifest.detjson",
+      "before_sha256": "eaab861ea5892faf4d21d86eeb748f27ae34745254a6865d4c49079d884fa546",
+      "after_sha256": "07f2c49ff88bdff25829109012a630eeb5fe74712d6bfceea92e352a7d96690a",
+      "bytes": 64114,
+      "kind": "explicit_documentation_or_metadata"
+    },
+    {
+      "path": "history/base-stage/RELEASE_MANIFEST.json",
+      "before_sha256": "e528e4e22365d41e9eed835f7be05870a66e6ea3ecedbd2ff58883c5888c38c4",
+      "after_sha256": "38527cbd106fd73d751704135470578ccdb58e7ffacb23376ba20c4636b261f6",
+      "bytes": 8469,
+      "kind": "explicit_documentation_or_metadata"
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/교사용_안내와_해답.md",
+      "before_sha256": "d5885e698e197d87d85931414d273894ca16ac3777b725c0916839cf8ef72111",
+      "after_sha256": "e860186d0b1237f7847c8a2bb26b5291936768613fc7707a491df3bd5c1c43e2",
+      "bytes": 11751,
+      "kind": "explicit_documentation_or_metadata"
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_beta1/검증목록.json",
+      "before_sha256": "acf97ae517e0d93174eb5829f6f4caf5f357f37a52f0f4e4eb1c4ecbd6ecf347",
+      "after_sha256": "b46d3d79d9d67f2e4f1893b2353f05f9362ba587a59254b970ba715c2a4a68ff",
+      "bytes": 1767,
+      "kind": "explicit_documentation_or_metadata"
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/wasm/ddonirang_tool.manifest.detjson",
+      "before_sha256": "eaab861ea5892faf4d21d86eeb748f27ae34745254a6865d4c49079d884fa546",
+      "after_sha256": "07f2c49ff88bdff25829109012a630eeb5fe74712d6bfceea92e352a7d96690a",
+      "bytes": 64114,
+      "kind": "explicit_documentation_or_metadata"
+    }
+  ],
+  "external_references": {
+    "e1": {
+      "original_member": "solutions/seamgrim_ui_mvp/first_steps_beta1/검증목록.json",
+      "field": "/evidence/report",
+      "role": "historical_firststeps_verification_report",
+      "original_locator_sha256": "23d0d265a7afe5363a1eaa640153cc31ff4df557db971d015bc8345bc668b39f",
+      "original_basename": "RESULT.json",
+      "referenced_artifact_sha256": "ccc664232f5b782d24f47129922848cfd3ef726f5bbe426588c83eb2e6da21ba",
+      "body_included": false,
+      "boundary": "Historical external evidence locator, not a claim that this package contains that report or archive."
+    },
+    "e2": {
+      "original_member": "bin/workbench/first_steps_beta1/검증목록.json",
+      "field": "/evidence/report",
+      "role": "historical_firststeps_verification_report",
+      "original_locator_sha256": "23d0d265a7afe5363a1eaa640153cc31ff4df557db971d015bc8345bc668b39f",
+      "original_basename": "RESULT.json",
+      "referenced_artifact_sha256": "ccc664232f5b782d24f47129922848cfd3ef726f5bbe426588c83eb2e6da21ba",
+      "body_included": false,
+      "boundary": "Historical external evidence locator, not a claim that this package contains that report or archive."
+    },
+    "e3": {
+      "original_member": "history/base-stage/RELEASE_MANIFEST.json",
+      "field": "/baseline/path",
+      "role": "historical_artifact",
+      "original_locator_sha256": "7e1367aa4551bb419fce1df65321afcfebd775ad4013178e67c83ec9444ecd89",
+      "original_basename": "DDN-1.0.0-beta.1-windows-x64-development-r64.zip",
+      "referenced_artifact_sha256": "0a3803abdfaf7c3e2bebdc7b60ebdb6721931c040edb44d00965e59a92421613",
+      "body_included": false,
+      "boundary": "Historical external evidence locator, not a claim that this package contains that report or archive."
+    },
+    "e4": {
+      "original_member": "history/base-stage/RELEASE_MANIFEST.json",
+      "field": "/build_identity/tool_lib_result/log",
+      "role": "historical_test_log",
+      "original_locator_sha256": "35fc5aa35f7cebb93dbcbe1c4a07c2919bd66b893734d1af14805da6484fad56",
+      "original_basename": "beta1-freeze-r33-final-tool-full-20261018.log",
+      "referenced_artifact_sha256": "7091a42e52f82fc13e7892888e106f719f35e7b683a7762c7f5f5a2000b7e64f",
+      "body_included": false,
+      "boundary": "Historical external evidence locator, not a claim that this package contains that report or archive."
+    },
+    "e5": {
+      "original_member": "BETA3_DEVELOPMENT_MANIFEST.json",
+      "field": "/reused_runtime/from",
+      "role": "predecessor_runtime_directory",
+      "original_locator_sha256": "9de9d0ae3f235715482588d6aa854e00920ee33d8173cc0ef2810d0dff3ad452",
+      "original_basename": "r141",
+      "referenced_artifact_sha256": null,
+      "body_included": false,
+      "boundary": "Historical external evidence locator, not a claim that this package contains that report or archive."
+    },
+    "e6": {
+      "original_member": "solutions/seamgrim_ui_mvp/ui/wasm/ddonirang_tool.manifest.detjson",
+      "field": "/reused_runtime/from",
+      "role": "predecessor_runtime_directory",
+      "original_locator_sha256": "9de9d0ae3f235715482588d6aa854e00920ee33d8173cc0ef2810d0dff3ad452",
+      "original_basename": "r141",
+      "referenced_artifact_sha256": null,
+      "body_included": false,
+      "boundary": "Historical external evidence locator, not a claim that this package contains that report or archive."
+    },
+    "e7": {
+      "original_member": "solutions/seamgrim_ui_mvp/ui/wasm/ddonirang_tool.manifest.detjson",
+      "field": "/reused_wasm/from",
+      "role": "historical_wasm_reuse_directory",
+      "original_locator_sha256": "f0ec33ec18a4c20572007f69174f73c53bb56335ae714df8ca62a1136f235ddc",
+      "original_basename": "r134",
+      "referenced_artifact_sha256": null,
+      "body_included": false,
+      "boundary": "Historical external evidence locator, not a claim that this package contains that report or archive."
+    },
+    "e8": {
+      "original_member": "bin/workbench/ui/wasm/ddonirang_tool.manifest.detjson",
+      "field": "/reused_runtime/from",
+      "role": "predecessor_runtime_directory",
+      "original_locator_sha256": "9de9d0ae3f235715482588d6aa854e00920ee33d8173cc0ef2810d0dff3ad452",
+      "original_basename": "r141",
+      "referenced_artifact_sha256": null,
+      "body_included": false,
+      "boundary": "Historical external evidence locator, not a claim that this package contains that report or archive."
+    },
+    "e9": {
+      "original_member": "bin/workbench/ui/wasm/ddonirang_tool.manifest.detjson",
+      "field": "/reused_wasm/from",
+      "role": "historical_wasm_reuse_directory",
+      "original_locator_sha256": "f0ec33ec18a4c20572007f69174f73c53bb56335ae714df8ca62a1136f235ddc",
+      "original_basename": "r134",
+      "referenced_artifact_sha256": null,
+      "body_included": false,
+      "boundary": "Historical external evidence locator, not a claim that this package contains that report or archive."
+    }
+  },
+  "protected_payloads": [
+    {
+      "path": "bin/ddonilang.exe",
+      "sha256": "cd9b1291f740b4d02f0839f7e654eb3d5a25461d36926179eba90e78a89405dc",
+      "bytes": 20037120
+    },
+    {
+      "path": "bin/ddonirang-lsp.exe",
+      "sha256": "e4b7cc90864d38d31342cb3ae5f1fbaaf513d058c9633b40d89708a364606401",
+      "bytes": 4165632
+    },
+    {
+      "path": "bin/ddonirang.exe",
+      "sha256": "ba0d40cfff6fdcc9c756a53153bbc62f52b90806812d967c613ca5e518a0e30c",
+      "bytes": 20037120
+    },
+    {
+      "path": "bin/workbench/alpha1/01_요금_계산기.ddn",
+      "sha256": "0c9026d2555ca267b5932f5edc46f05c920eb7d21453c928dbaee8d86b8a5323",
+      "bytes": 463
+    },
+    {
+      "path": "bin/workbench/alpha1/02_조건과_반복.ddn",
+      "sha256": "747ea29d3678527e2bdcb8a4a11334f76552310f370d08bafe76be6397365a15",
+      "bytes": 387
+    },
+    {
+      "path": "bin/workbench/alpha1/03_자동_함수표.ddn",
+      "sha256": "1a9c1262f83781c0d40f49e010c94007c666ad8669d4e856e47e79fd6e246597",
+      "bytes": 404
+    },
+    {
+      "path": "bin/workbench/alpha1/04_시간단계_시뮬레이션.ddn",
+      "sha256": "41f7d1122cebea8dcc3e61290af2f9add9b190d70ce21803e03ae891a5369e1a",
+      "bytes": 789
+    },
+    {
+      "path": "bin/workbench/alpha1/잘못된입력/01_요금_타입오류.ddn",
+      "sha256": "83ebad9b2597ba17d110e8aac901841daf3fd5426775d5e23da6291db4223685",
+      "bytes": 217
+    },
+    {
+      "path": "bin/workbench/alpha1/잘못된입력/02_반복_원소타입오류.ddn",
+      "sha256": "b6b82a712b22fb18cb24cab82d2779ec8dd08638a4227d03871409464875894d",
+      "bytes": 95
+    },
+    {
+      "path": "bin/workbench/alpha1/잘못된입력/03_함수표_인자누락.ddn",
+      "sha256": "ab86f4b67f5d9845caf37e6195bfc1beb88bcc472a79e739eafa4fc94867da94",
+      "bytes": 91
+    },
+    {
+      "path": "bin/workbench/alpha1/잘못된입력/04_시뮬레이션_인자중복.ddn",
+      "sha256": "705df9d2b8ea817cfc8f6fd868c74980bf244f404d4817ef4b85b41daffa216a",
+      "bytes": 207
+    },
+    {
+      "path": "bin/workbench/alpha1/잘못된입력/05_조사_모호오류.ddn",
+      "sha256": "9d0f882611f082cc01a323c3c4d83c17515296cd9d42cdab58301dfc9d9c8fb8",
+      "bytes": 115
+    },
+    {
+      "path": "bin/workbench/first_steps/교정예제/FIX07D_핀중복고치기.ddn",
+      "sha256": "0788ae9fc77fd727590b56fc3800a8a5d98f1bd1bc11dbf6041a38c8e97401c5",
+      "bytes": 358
+    },
+    {
+      "path": "bin/workbench/first_steps/교정예제/FIX08A_씨맞추기.ddn",
+      "sha256": "b9791ddd8b7d274f35e043ea970d575da8a06a9dbea6eea72135ea5a276b3733",
+      "bytes": 135
+    },
+    {
+      "path": "bin/workbench/first_steps/교정예제/FIX08B_높이채우기.ddn",
+      "sha256": "8c65a18b72198187cf6e1defd652f81dd7eb2f3238cb5c12dd555a16a87eec82",
+      "bytes": 201
+    },
+    {
+      "path": "bin/workbench/first_steps/교정예제/FIX08C_결과자리배정.ddn",
+      "sha256": "b9791ddd8b7d274f35e043ea970d575da8a06a9dbea6eea72135ea5a276b3733",
+      "bytes": 135
+    },
+    {
+      "path": "bin/workbench/first_steps/교정예제/FIX08D_이름핀으로명시.ddn",
+      "sha256": "d3cb89338fd5f750849e50c794b9320e383d3a72763c9d834849484248c58660",
+      "bytes": 204
+    },
+    {
+      "path": "bin/workbench/first_steps/보충/06_마지막에배우는축약.ddn",
+      "sha256": "f15cdec9a5d25dd49937d3104bed9e99ce6c5fba941190dc96b234cb9e8ab5ba",
+      "bytes": 167
+    },
+    {
+      "path": "bin/workbench/first_steps/보충/09_축약대조.ddn",
+      "sha256": "3b5dd14a34953e1b513153ee3b70a61b9cf6285d1a47b2cb6548577214c5771c",
+      "bytes": 163
+    },
+    {
+      "path": "bin/workbench/first_steps/수정실습/MOD01_개수수정.ddn",
+      "sha256": "68c8db870e68be4fa88fa15843ca8529d9e206b7104f6b49490080515de546b5",
+      "bytes": 68
+    },
+    {
+      "path": "bin/workbench/first_steps/수정실습/MOD02_높이수정.ddn",
+      "sha256": "90df0894f2ecf6ee276753f92df93839d769b28308c547d6d3823a83e264ccd8",
+      "bytes": 155
+    },
+    {
+      "path": "bin/workbench/first_steps/수정실습/MOD03_출력호출제거.ddn",
+      "sha256": "6daa2f1f435d2b90bb201364d24412f85ce0c808fc4f4a73b0ff4ad8890dd742",
+      "bytes": 198
+    },
+    {
+      "path": "bin/workbench/first_steps/수정실습/MOD04_인자뒤바꾸기.ddn",
+      "sha256": "7b6648bcf851b6f57e0742c7b4ded67912e4dd945b2959831ca34679c152c307",
+      "bytes": 261
+    },
+    {
+      "path": "bin/workbench/first_steps/수정실습/MOD05_끝수수정.ddn",
+      "sha256": "53d3361657b21e9d32e8495cf19ee3ba2ede9728d9dadfae3ec9ff104487508c",
+      "bytes": 291
+    },
+    {
+      "path": "bin/workbench/first_steps/수정실습/MOD06_차림수정.ddn",
+      "sha256": "2212d0f9bcb8f3c967fd3462c22f9c00d33dc282420ec55149d7b2dea14d6c3b",
+      "bytes": 306
+    },
+    {
+      "path": "bin/workbench/first_steps/수정실습/MOD07_사용량수정.ddn",
+      "sha256": "63a94a4b8243afb9c587dfcc3490ab12d2535a98153cca274a2a6c918f1da5e8",
+      "bytes": 488
+    },
+    {
+      "path": "bin/workbench/first_steps/수정실습/MOD08_교정후값수정.ddn",
+      "sha256": "ea4f1e8e0fb23cf3b2a2fc719ed07e54c3aa88d4aa705ccb8c9dcb004d41cbcd",
+      "bytes": 204
+    },
+    {
+      "path": "bin/workbench/first_steps/수정실습/MOD09_방어력수정.ddn",
+      "sha256": "d3162b1402f1119e3467913af31718f8732900d7b07e8f3b21e4dd3d88ed6010",
+      "bytes": 535
+    },
+    {
+      "path": "bin/workbench/first_steps/수정실습/MOD10_상점잔액수정.ddn",
+      "sha256": "69ab673fb41290649d410b16cc1f027ac357f4d14b716f30920accd0f4c02631",
+      "bytes": 530
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/01A_첫계산.ddn",
+      "sha256": "2bce7adcc962739cfd2edc0c3b7aeb8020e3ecc62d694d207db0d51649f8418e",
+      "bytes": 22
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/01B_글과수.ddn",
+      "sha256": "abd408e310425de2213e9543547ebc20ae0794ea8e0b15fb703d57c261c12e9a",
+      "bytes": 45
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/01C_이름붙이기.ddn",
+      "sha256": "feb98ff021375159daf384da94e0c3a7116131df806ed88eab17759a65ac157a",
+      "bytes": 68
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/01D_결속바꾸기.ddn",
+      "sha256": "762f448bb05cb772ac98bd78dafa723fa68d4f77b3184a8404d435606b85b42d",
+      "bytes": 64
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/02A_두배정의.ddn",
+      "sha256": "256efc0a09cb56c420b6d766e21696a89dd64765a5dde71ed0af6ad9e0d16290",
+      "bytes": 89
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/02B_조사바꾸기.ddn",
+      "sha256": "d9e1d04a458fd825988c306a101024bb3b0a448a7e78dd3d5066365bb399284f",
+      "bytes": 92
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/02C_두받는자리.ddn",
+      "sha256": "ac7f0e19e4c9df1b9b0210b293d6c42630e69972bb415b85174ed4ba2ba0e324",
+      "bytes": 155
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/02D_이름핀.ddn",
+      "sha256": "f2617f7caa4c71d84918bcaef934d836dce4fa2011d9abae84fa2b273fb4f0c4",
+      "bytes": 155
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/03A_실행정의.ddn",
+      "sha256": "dbf86957e5df94e0584165af6512c6209816d702b046ac0768160feb2bc5e62a",
+      "bytes": 155
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/03B_직접만든움직씨.ddn",
+      "sha256": "8dbe5bce0e771908da8b16c4e940544498bd228e12334de4e06171186d41f1d9",
+      "bytes": 153
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/03C_계산과동작분리.ddn",
+      "sha256": "f80d331b9d23653752b18c249aab7690d622d268896b650555b35c9ca5752a81",
+      "bytes": 224
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/03D_계산만남기기.ddn",
+      "sha256": "6daa2f1f435d2b90bb201364d24412f85ce0c808fc4f4a73b0ff4ad8890dd742",
+      "bytes": 198
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/04A_조건의참갈래.ddn",
+      "sha256": "45aafe5a9f0bbe422642b1565a5252378eaefbccc46d14360203b2d4e49e5fbf",
+      "bytes": 261
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/04B_조건의거짓갈래.ddn",
+      "sha256": "2421cc0ebb21ae343bd6bd5ae3967e3c49a3fca3b0dae95a39216d817bf032dd",
+      "bytes": 261
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/04C_같을때.ddn",
+      "sha256": "5656ca14c86da0e8f973e989313e40a0d55b065d12627333ca70dee2d1815fac",
+      "bytes": 261
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/04D_음수비교.ddn",
+      "sha256": "71d9ef90535134ce32ebce9faa0588600d0268374eae20814eae810ddacb8bdf",
+      "bytes": 263
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/05A_정의안반복.ddn",
+      "sha256": "90cf724b10d681222e70f05fc316c4c0dadd196a1e7bbc51fcd5d7804f701a9c",
+      "bytes": 291
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/05B_반복범위바꾸기.ddn",
+      "sha256": "53d3361657b21e9d32e8495cf19ee3ba2ede9728d9dadfae3ec9ff104487508c",
+      "bytes": 291
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/05C_처음부터거짓.ddn",
+      "sha256": "88bc55694eac61a91b124d1878b2f55764cf7398100d0ddfc63dc4e3cfd711de",
+      "bytes": 291
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/05D_한번반복.ddn",
+      "sha256": "aab77ebeb008ba6e2d8fb019c13015853b2a30d3f9af1003b2bd31e2dacffc0c",
+      "bytes": 291
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/06A_차림받는자리.ddn",
+      "sha256": "88f698c268d05017a762ccf5e380b091dabbefab963d78222f0753a9d32fafc8",
+      "bytes": 261
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/06B_차림바꾸기.ddn",
+      "sha256": "bf8f52c5489f873bcb2b9770af6036db1b291e2e54d3325aca10882db45ff66d",
+      "bytes": 264
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/06C_한원소차림.ddn",
+      "sha256": "88e3604fc5fd56a811a4b5b90faa1140e5d8351868d2390f9e13fd48e85fd1cf",
+      "bytes": 284
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/06D_순회와움직씨.ddn",
+      "sha256": "560cbbad2df779f5f721f7b6ef0dc0cc01824009c2802d8479b4615e4318a653",
+      "bytes": 306
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/07A_요금규칙연결.ddn",
+      "sha256": "7664db0bc5191a2edb941abfb36365dbe42e46a1f99d0cc0e2002e0c6a50ce55",
+      "bytes": 488
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/07B_규칙값수정.ddn",
+      "sha256": "63a94a4b8243afb9c587dfcc3490ab12d2535a98153cca274a2a6c918f1da5e8",
+      "bytes": 488
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/07C_할인경계.ddn",
+      "sha256": "0dcaea614603c4330402340270b2f1166c283be4775848b835f0034e8fb8fb15",
+      "bytes": 425
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/07D_핀중복오류.ddn",
+      "sha256": "3381119598ab8303d6f5b730aadf71102d9fcf762d02a1389f409c042b7392d3",
+      "bytes": 373
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/08A_씨불일치.ddn",
+      "sha256": "d4532cbeb520b3701c1d1a5d04473f28323fda01a0b716af3c8b0468f643f653",
+      "bytes": 139
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/08B_받는자리누락.ddn",
+      "sha256": "2ab3c9dbd2c6db48e8dac47458738764730284ec20fdee5b90a1dacb33a89e61",
+      "bytes": 191
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/08C_결과자리누락.ddn",
+      "sha256": "0d28b421626cb786e1b190a0006e5888a7b3d38566738bb7aa6fff3184c948db",
+      "bytes": 139
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/08D_조사모호.ddn",
+      "sha256": "ddc940700dfb6d9f04ed6e21549702d08302e464958ab42b4e3d7c452a767f87",
+      "bytes": 193
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/09A_용사와슬라임.ddn",
+      "sha256": "7a0debbcd26b294f570ba0652a1c97d3d8f0d204e4dd32c4b2ebac8630aa0cad",
+      "bytes": 535
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/09B_방어규칙경계.ddn",
+      "sha256": "af3225f84fa06a61139e939f0c7dd9fc28546c7d0749e7519d76700aedb0a8e7",
+      "bytes": 519
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/09C_쓰러짐경계.ddn",
+      "sha256": "82e602c17cd718fc39396e1d284d604b108657ca90917b774d1cd64f6d41f033",
+      "bytes": 470
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/09D_미로의열쇠.ddn",
+      "sha256": "ae895516ba8e7e5ca7ec85f99021bb98d45162e017e9750d96484bf91fb3cce2",
+      "bytes": 309
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/10A_작은상점.ddn",
+      "sha256": "e09d7f76158c143fbb5643f567382d8ee45dbee549ee751b97c71040e4889e4c",
+      "bytes": 530
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/10B_잔액부족.ddn",
+      "sha256": "69ab673fb41290649d410b16cc1f027ac357f4d14b716f30920accd0f4c02631",
+      "bytes": 530
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/10C_잔액딱맞음.ddn",
+      "sha256": "00ea3bb28f0a1e37994f9f02e396ea84d6dde9b6b1092eb6aa8f8f91294b50fa",
+      "bytes": 530
+    },
+    {
+      "path": "bin/workbench/first_steps/예제/10D_규칙을여러번.ddn",
+      "sha256": "6d421cdaa40ff5d4c9246da6d7d1bf4b385312785ca2d1517d2a21a45a98427b",
+      "bytes": 623
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/수정실습/MOD11_세칸씩전진.ddn",
+      "sha256": "708c88c75c6a7be34cff4e1828e13448e8a7dd56947645e43e40463df3ea3bfd",
+      "bytes": 582
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/수정실습/MOD12_배율네배.ddn",
+      "sha256": "271b8e7a49590a6f5f8cb3fc4f2eba428e01afb19a445e318af1849ab390c5f2",
+      "bytes": 628
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/수정실습/MOD13_겹의자리.ddn",
+      "sha256": "82eacef2ff569ac740010820a18b7038596e4fdff48fcb59969e52da243c9b8b",
+      "bytes": 540
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/수정실습/MOD14_대상의자리.ddn",
+      "sha256": "9ca0a352163fbfab10aa84d929cd34ab62056becc75537c51463c798bac095ea",
+      "bytes": 891
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/수정실습/MOD15_보상바꾸기.ddn",
+      "sha256": "75e3890e43bc085f6250a8da25d3d3979e68f75aec8ab830a01a941e9c1335b4",
+      "bytes": 972
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/수정실습/MOD16_같은기록두칸.ddn",
+      "sha256": "c43200497fe3949bf1be2d76cc6d9464f6cfebd7ba575d67e85704207f468874",
+      "bytes": 270
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/예제/11A_원의자리.ddn",
+      "sha256": "29299b622240ae7f6491d4d81822bbd91b3c70d9b076453f0215bc7beb804505",
+      "bytes": 639
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/예제/11B_두칸씩전진.ddn",
+      "sha256": "b93841ad0d93cb13b0682d981ef2ac94e201a2eeec5e663be83f5f9180041216",
+      "bytes": 582
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/예제/12A_계산한크기.ddn",
+      "sha256": "2db0e959a82b35c2e59e165769a481908908334936ac48637ed6f4b8a1db2a9d",
+      "bytes": 628
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/예제/12B_삼각형넓이.ddn",
+      "sha256": "67d8efceee4505992668a2ed14ecee727a3950467894c4a22027f5dc3abb7ba8",
+      "bytes": 658
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/예제/13A_겹쳐비교.ddn",
+      "sha256": "ceea02dc99ecc222167d8314e886ef8d86479b8bb459c11421cd03b9899d9bae",
+      "bytes": 540
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/예제/13B_그림과결과표.ddn",
+      "sha256": "7e2cf7dbf6033e63b0c8a9990a6e4468261fd8f9dc7e247d463d1d613d42eb19",
+      "bytes": 654
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/예제/14A_공자세히.ddn",
+      "sha256": "4f98ea0ee95f9c7582f81ccc779e81cb089fa0cb9d42dcbbb5a2c7e7207522dc",
+      "bytes": 887
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/예제/14B_움직이는공돋.ddn",
+      "sha256": "dc7c9d0938d12066d1854237f393d5b76220a818ab23885d1aa1267195b38aeb",
+      "bytes": 945
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/예제/15A_세칸이동게임.ddn",
+      "sha256": "872e8cd5485ffe8677534f20b4932f604185a9d7655af0684dbce52d3f4f7d10",
+      "bytes": 972
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/예제/15B_순서가중요한게임.ddn",
+      "sha256": "aaf95ca488b027117ac78cd1f894beacaec26d6636b36dbf0c42a9ae47705d5a",
+      "bytes": 414
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/예제/16A_누름과반복기록.ddn",
+      "sha256": "39089efed2550f7cf4adce3851f2ff09adbf9405f7792e6788768c41b268a426",
+      "bytes": 318
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha2/예제/16B_같은입력다른규칙.ddn",
+      "sha256": "d737743a409ed17c1bf174986d4c09a24c493a340883ab1e76902a73da51cb5d",
+      "bytes": 270
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha3/수정실습/MOD17_음수와단위.ddn",
+      "sha256": "3fb217291756f9c70d662128f1a660905a3ff7d00567b035b6c68757795ae3d4",
+      "bytes": 290
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha3/예제/17A_계산과표시.ddn",
+      "sha256": "7e5f01abb724c32358ece3287e33e45d1456731f08297a68fe0996fc11b6bb11",
+      "bytes": 303
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha3/예제/17B_차원을유지하기.ddn",
+      "sha256": "1b0837cdd2117a61d8eed601f8096db0f016a0073098d233ffe7d75a82778220",
+      "bytes": 170
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha3/예제/21A_정확한수.ddn",
+      "sha256": "6156ecb7f682ccfdabeda04c4fa32d5b5659aa133f24429e5f85ae2fabd6e31a",
+      "bytes": 321
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha3/예제/22A_같은차원.ddn",
+      "sha256": "84c3ddeb110b6d8f7554997684d86b80eb21cc1064f1d0f9a8a361f481a8c0c7",
+      "bytes": 187
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha3/예제/22B_차원실수.ddn",
+      "sha256": "9b2c1b0c8f93b6862b124fe9f474a7242615f41a09d39d3e0f954c40be7c8860",
+      "bytes": 111
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha3/예제/23A_매마디누적.ddn",
+      "sha256": "b5e68a6d1f3ade50dac2138927fd1ac990f9efe892d05d8c6719aa3430985402",
+      "bytes": 174
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha3/예제/24A_표의선택과갱신.ddn",
+      "sha256": "763a9a4985df508594a86f61ee3d2fd3586ff860084c9eb875225a11e9f80d8d",
+      "bytes": 293
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha3/프로젝트/27A/app/main.ddn",
+      "sha256": "c65970a823f9ef19fb0e90499096850f7344ac4dc1917fddf4d08defdfdac11b",
+      "bytes": 123
+    },
+    {
+      "path": "bin/workbench/first_steps_alpha3/프로젝트/27A/뿌리.ddn",
+      "sha256": "8f7db8080c953f12a8e9ee3ed2e2e55eb0cb7a4c01d89b4b280b1544f2212d49",
+      "bytes": 134
+    },
+    {
+      "path": "bin/workbench/first_steps_beta1/31_맨바깥Tuple.ddn",
+      "sha256": "c50bd742f6bb6adfe27cc7dd6cb69980724e48142675ce67627d5df50176978d",
+      "bytes": 227
+    },
+    {
+      "path": "bin/workbench/first_steps_beta1/32_나눔수정확계산.ddn",
+      "sha256": "6445676ff3a8ea019f26b000fff2227b1329278c0f78a0578d2ebffcf35e61b9",
+      "bytes": 288
+    },
+    {
+      "path": "bin/workbench/first_steps_beta1/33_다른수종류비교거부.ddn",
+      "sha256": "e5de30f6b538fef066a12eaa9c10a6180a6602a57ba61fa4c5025dbbc32e2a98",
+      "bytes": 167
+    },
+    {
+      "path": "bin/workbench/lessons/rep_phys_pendulum_wave1_v1/lesson.ddn",
+      "sha256": "6756a3d1d4f64025cd5f6165963060f58b0e8ba6e29ba0e4f942fe37deecdf9b",
+      "bytes": 1834
+    },
+    {
+      "path": "bin/workbench/lessons/rep_phys_projectile_xy_v1/lesson.ddn",
+      "sha256": "49f88c57e90f21256bdfaab84f461fe2eab809a1d42a9024018e4c0a9e3e8e99",
+      "bytes": 1122
+    },
+    {
+      "path": "bin/workbench/samples/alpha2_linear_composition.ddn",
+      "sha256": "bf7e91c875bfffdb61f72b77792fc06f2bc0296390513c4a11f9dfbe77ac0ba6",
+      "bytes": 5567
+    },
+    {
+      "path": "bin/workbench/samples/alpha2_logical_tetris.ddn",
+      "sha256": "30053194cbf5b46cefc0cc177304a427a2fbd74a74a347ec2b4cb3c6f9f2febf",
+      "bytes": 17095
+    },
+    {
+      "path": "bin/workbench/samples/alpha2_parabola_composition.ddn",
+      "sha256": "8ab678d0ffbcbcf0222a2f0ade9879db4fe20e24a9a3843ecb706ce2df5a0dd0",
+      "bytes": 4674
+    },
+    {
+      "path": "bin/workbench/samples/alpha2_pendulum_composition.ddn",
+      "sha256": "56926035b4f09372af69ed601c5957cee1adb369fc014140a73dd986a90fd3e8",
+      "bytes": 5137
+    },
+    {
+      "path": "bin/workbench/samples/alpha3_chaebi_empty.ddn",
+      "sha256": "1060c127b4d7ba5aa87ec74ead14782d940c97f8d59db41397c67ae0f15c9cb3",
+      "bytes": 173
+    },
+    {
+      "path": "bin/workbench/samples/alpha3_chaebi_once.ddn",
+      "sha256": "6bdb7f1d551eccca406f2a85d72768ced15836c2fa40f9dca5f2f2c36cf927ac",
+      "bytes": 178
+    },
+    {
+      "path": "bin/workbench/samples/alpha3_double_pendulum_lab.ddn",
+      "sha256": "8a19e22001c7fdc16fbea64d7651f2bbe1736805ad9ba4f2fbbb13c63821c36f",
+      "bytes": 5765
+    },
+    {
+      "path": "bin/workbench/samples/alpha3_double_pendulum_lab.project.ddn",
+      "sha256": "063f25d82cc84205e988c09984b1234455bdf1733b66dbb3332a7e7ea5970c90",
+      "bytes": 257
+    },
+    {
+      "path": "bin/workbench/samples/alpha3_function_lab.ddn",
+      "sha256": "62fa70ffb0648a0489941d9a12383ee913a5404c8ba60ab4b43cb035dc460c44",
+      "bytes": 4629
+    },
+    {
+      "path": "bin/workbench/samples/alpha3_market_lab.ddn",
+      "sha256": "25f955f28d8b8ed6c0bfff97d90444e94b83fb1e5af8f0387d1676126a12be51",
+      "bytes": 6411
+    },
+    {
+      "path": "bin/workbench/samples/alpha3_numeric_display.ddn",
+      "sha256": "5c259d2436b602083d80e9baedcfb8e015efff270352941d5792744562bf6397",
+      "bytes": 123
+    },
+    {
+      "path": "bin/workbench/samples/alpha3_scene_relative.ddn",
+      "sha256": "e0593343a2908cbdee0aab211cad7b418449dfcd2089eb7b15b882ce08cd9d33",
+      "bytes": 794
+    },
+    {
+      "path": "bin/workbench/samples/alpha3_scene_time.ddn",
+      "sha256": "f317f09d6dbce2108548562edcdf13e52ce69f5119de514809ce8c3a871c240f",
+      "bytes": 720
+    },
+    {
+      "path": "bin/workbench/samples/alpha3_table_time.ddn",
+      "sha256": "533e63377785e60e9f4c3db3392c50319360746c006c132aa28aa0ef9ab8aae8",
+      "bytes": 428
+    },
+    {
+      "path": "bin/workbench/samples/alpha3_units.ddn",
+      "sha256": "d2b6a9778bdf2f8b1fa2e4a0e91dbaf669dd196d21eec6ab464bcc7a3422a53e",
+      "bytes": 181
+    },
+    {
+      "path": "bin/workbench/samples/alpha4_drawing_common.ddn",
+      "sha256": "332d8ff48a8bf2d7f706076d315f00996e68049393835c8d5c8eadec705d3d87",
+      "bytes": 1407
+    },
+    {
+      "path": "bin/workbench/samples/alpha4_lrl_lab.ddn",
+      "sha256": "eb41ceec320f4bf181241fdec8d2e44c834eea4f8a88237733629167d7f63689",
+      "bytes": 8828
+    },
+    {
+      "path": "bin/workbench/samples/alpha4_lrl_lab.project.ddn",
+      "sha256": "896d976d2388134fb41eb2b94d18a69e2026fde808107542b37b6a01e01b1edf",
+      "bytes": 233
+    },
+    {
+      "path": "bin/workbench/samples/alpha4_manipulation_point.ddn",
+      "sha256": "d8ed0682f291db89689d8f6b696c0e04b4b9bc7761e4366a4653367fa0251957",
+      "bytes": 921
+    },
+    {
+      "path": "bin/workbench/samples/beta1_logical_counter/app/main.ddn",
+      "sha256": "a4f30095a0429787f986e12969f630dd6854c4a06caf5386caa05e0d8320cbc4",
+      "bytes": 156
+    },
+    {
+      "path": "bin/workbench/samples/beta1_logical_counter/lib/힘.ddn",
+      "sha256": "cd9977b2655d814c75d077704ef0b6dfae89cf0a493249c67c36fc663cff9a61",
+      "bytes": 35
+    },
+    {
+      "path": "bin/workbench/samples/beta1_logical_counter/root.ddn",
+      "sha256": "6462d73cc5198353aab93548e59421687e015408bccff8eda4f1018a002ec17b",
+      "bytes": 192
+    },
+    {
+      "path": "bin/workbench/samples/beta1_logical_tetris/main.ddn",
+      "sha256": "9a20f0029a0a58acae33939ed984ec32891ea697f8d473f4b5092350fca6b5dc",
+      "bytes": 17311
+    },
+    {
+      "path": "bin/workbench/samples/beta1_logical_tetris/root.ddn",
+      "sha256": "38d3c99684a18fb3cc222fc7047db88ab04b306042172fbe290af19b5c3909a1",
+      "bytes": 126
+    },
+    {
+      "path": "bin/workbench/samples/beta1_typed_tuple/declared_call.ddn",
+      "sha256": "341e90a9321675ec797e84bb6e9836042ead388db7c491ae6f05b603a9a1f3db",
+      "bytes": 751
+    },
+    {
+      "path": "bin/workbench/samples/beta1_typed_tuple/main.ddn",
+      "sha256": "346599fe8730f6f631b96bd23b0cc7c7e43017a957166ec5defe47568243b20a",
+      "bytes": 534
+    },
+    {
+      "path": "bin/workbench/samples/beta1_typed_tuple/root.ddn",
+      "sha256": "38d3c99684a18fb3cc222fc7047db88ab04b306042172fbe290af19b5c3909a1",
+      "bytes": 126
+    },
+    {
+      "path": "bin/workbench/samples/beta2_derived/main.ddn",
+      "sha256": "31230da5571377b2548957095920ab37a0e7f0cf293c6a969e8e5f479a52119e",
+      "bytes": 164
+    },
+    {
+      "path": "bin/workbench/samples/beta2_derived/root.ddn",
+      "sha256": "38d3c99684a18fb3cc222fc7047db88ab04b306042172fbe290af19b5c3909a1",
+      "bytes": 126
+    },
+    {
+      "path": "bin/workbench/ui/app.js",
+      "sha256": "5c86dfb704808c6dcddd22d1b5191afda7a3556b8a79513a48f2f1ad510f1a88",
+      "bytes": 205918
+    },
+    {
+      "path": "bin/workbench/ui/block_editor/ddn_block_codec.js",
+      "sha256": "3420299d991ec76a9bc5d86fa6d6b98697a9ed48bac09f13a28e2fc598e0e6b7",
+      "bytes": 13570
+    },
+    {
+      "path": "bin/workbench/ui/block_editor/ddn_block_engine.js",
+      "sha256": "2b9c0a103c32971825ae6cb82b4b2dff53fa72f548d9a1bd43b2c2e31e35ef37",
+      "bytes": 14665
+    },
+    {
+      "path": "bin/workbench/ui/block_editor/rpgbox_palette.js",
+      "sha256": "43bde107c40b575d0d32a6ec495b9493695d0fe72d8ad1ceeba658cf8f21a912",
+      "bytes": 2135
+    },
+    {
+      "path": "bin/workbench/ui/block_editor/seamgrim_palette.js",
+      "sha256": "57366ad7145cd5e73c183678c2940fa09ae88be758677cd850085e6bc79719ff",
+      "bytes": 10928
+    },
+    {
+      "path": "bin/workbench/ui/components/bogae.js",
+      "sha256": "29c9771b2258723f59f98fb85de4729288cf7aaee7a6d1fa299fab465ccc2d59",
+      "bytes": 12326
+    },
+    {
+      "path": "bin/workbench/ui/components/control_parser.js",
+      "sha256": "2a5960e1999564444f91d74ae1f46fe48e32e2237a4db6e0bb664a3d1c54e26b",
+      "bytes": 18728
+    },
+    {
+      "path": "bin/workbench/ui/components/dotbogi.js",
+      "sha256": "4231a6a9d660e9910d1b8eb553decb93f0baf68bfed6f09ac494957ea013e707",
+      "bytes": 28717
+    },
+    {
+      "path": "bin/workbench/ui/components/graph_preview.js",
+      "sha256": "faa97cf63500db5c27d3f3fee21cbb1015945eae0310508ec643fd12d1056acd",
+      "bytes": 5650
+    },
+    {
+      "path": "bin/workbench/ui/components/guide_meta.js",
+      "sha256": "ae21157102088c4aac6a1961598e5a2dc59cedcf9813903222fc4aacbe074362",
+      "bytes": 5470
+    },
+    {
+      "path": "bin/workbench/ui/components/lesson_card_preview.js",
+      "sha256": "c9e5608429179a6d8cbcf8ce2c91d11b549eb587f9575e5d67307ccee0603f95",
+      "bytes": 2032
+    },
+    {
+      "path": "bin/workbench/ui/components/markdown.js",
+      "sha256": "fa815b1021ce4290cce6ddde8c446eb878a455a6340080d7998099cbfdb84ef9",
+      "bytes": 1225
+    },
+    {
+      "path": "bin/workbench/ui/components/overlay.js",
+      "sha256": "6cc1721618dc332d57a9fdd1d214271f9abce799446d7f30c406fe7a12bd7000",
+      "bytes": 570
+    },
+    {
+      "path": "bin/workbench/ui/components/preview_registry.js",
+      "sha256": "88baf8e8d528ab88cdb8f737cde483572e104c1fad1f89114811dc622ac599f8",
+      "bytes": 6499
+    },
+    {
+      "path": "bin/workbench/ui/components/slider_panel.js",
+      "sha256": "ba892f597b9bca6612ac36aee6a5fa7604761476ba4080fddaae7d8a5e467b5f",
+      "bytes": 7716
+    },
+    {
+      "path": "bin/workbench/ui/components/structure_preview.js",
+      "sha256": "c510eb30b07000e393ed8dc11239643ba5b16fa102711737818301c22731dc4d",
+      "bytes": 4311
+    },
+    {
+      "path": "bin/workbench/ui/components/table_preview.js",
+      "sha256": "f67252aeedf1f667aa68861db51e055c4ca7f2590244168c843dff92bf0e982f",
+      "bytes": 3072
+    },
+    {
+      "path": "bin/workbench/ui/components/toast.js",
+      "sha256": "76f63df13f863f0fd09de03152f953bc3ba3acf8395cb4c13e47eb4247c3c755",
+      "bytes": 1318
+    },
+    {
+      "path": "bin/workbench/ui/curriculum_artifact_bundle.js",
+      "sha256": "100d6634d2e3bbd5f7b896a459a57d39f9a30e0156e0791d69b6324f64f0a868",
+      "bytes": 3834
+    },
+    {
+      "path": "bin/workbench/ui/curriculum_cards.js",
+      "sha256": "10f988ae97bff53c19c6bc6138dc65a009cd367bbd0843d45db2ba7200d0a9c3",
+      "bytes": 5025
+    },
+    {
+      "path": "bin/workbench/ui/curriculum_inquiry.js",
+      "sha256": "5a837ceff8438309c2ec223c9f61910108b214f20c12b913e0f9d4bfbca5e606",
+      "bytes": 3965
+    },
+    {
+      "path": "bin/workbench/ui/curriculum_model_comparison.js",
+      "sha256": "8c810c682d45116b4931a5ff178819ea2d183858fc22527ef20e953c8bc9dafb",
+      "bytes": 3731
+    },
+    {
+      "path": "bin/workbench/ui/curriculum_semantic_scene.js",
+      "sha256": "3a67fd6d6b60d87d7784e70c1d89cd5a80edbd5bbf7622a8ca67b5ab0de08abf",
+      "bytes": 9268
+    },
+    {
+      "path": "bin/workbench/ui/dev_surfaces.js",
+      "sha256": "949e6f34d05d8ab4c2f5533e02846ebd3c7d89e922a064b1b64d3b115fef89d4",
+      "bytes": 30923
+    },
+    {
+      "path": "bin/workbench/ui/display_label_contract.js",
+      "sha256": "b47ee34d7eb4bf13372bfe39b4f8928bbd628c30f4527a71ea0bcb5065f0f557",
+      "bytes": 4357
+    },
+    {
+      "path": "bin/workbench/ui/education_assessment_pack.js",
+      "sha256": "7e5af2c90b5de75fccd43ec19041665ed4b9ec25a3184b00c6a8ed8f51869045",
+      "bytes": 14089
+    },
+    {
+      "path": "bin/workbench/ui/education_classroom_ui_pack.js",
+      "sha256": "addb05cf98e8566566031feec3674d3b38a11a7701c7430a9c6e09ab5b98c78b",
+      "bytes": 14324
+    },
+    {
+      "path": "bin/workbench/ui/education_operations_lts.js",
+      "sha256": "07609bc5c0d4e0711cf00e500bf23a6cf5b8ad3febf1c7e4d1fac53f1379ab3f",
+      "bytes": 14654
+    },
+    {
+      "path": "bin/workbench/ui/education_publication_pack.js",
+      "sha256": "c499aba3834e2f5cf87dc6c18c1b70df0a460d28910567b2da8a234ed9919039",
+      "bytes": 14178
+    },
+    {
+      "path": "bin/workbench/ui/featured_seed_catalog.js",
+      "sha256": "f236a56f2ccdbe7b3db9485f34690c54aeae42edd1a79339e18be446ecde02f9",
+      "bytes": 449
+    },
+    {
+      "path": "bin/workbench/ui/featured_seed_quick_launch.js",
+      "sha256": "7dab83da1f71aea43142858b2a406d9ae46024ce22144f2284ca4a99e2e83e3d",
+      "bytes": 2505
+    },
+    {
+      "path": "bin/workbench/ui/first_run_catalog.js",
+      "sha256": "e8fb25a2d45deae2267ac04a8cc92808c476cdb8a20f3814dcf2631819f1cd00",
+      "bytes": 2083
+    },
+    {
+      "path": "bin/workbench/ui/formula_sugar.js",
+      "sha256": "4993a666ede6ecad8d0c75f45d17081891b5ea26a6c7381a3c94d141d9afab6b",
+      "bytes": 5454
+    },
+    {
+      "path": "bin/workbench/ui/free_lab_experiment_report.js",
+      "sha256": "1f6369037eead36e5665849278ed6f8357ab1bf7be240ba17d2e3a8b90b5b075",
+      "bytes": 9420
+    },
+    {
+      "path": "bin/workbench/ui/free_lab_first_run.js",
+      "sha256": "c6a29a95287a87530c96827b6713469c8ea62967c6fbf8a8a1b0f822ce10aa40",
+      "bytes": 10321
+    },
+    {
+      "path": "bin/workbench/ui/free_lab_research_workflow.js",
+      "sha256": "2fa454dc0147a3c36fcef969775a7768466fdda69915bde7ebc336a6c542c33d",
+      "bytes": 12386
+    },
+    {
+      "path": "bin/workbench/ui/free_lab_share_pack.js",
+      "sha256": "25406ec0c23a7d641b4ae1cdbb924638f4bc204ca6cd7bd77cde905c9c8229ee",
+      "bytes": 9415
+    },
+    {
+      "path": "bin/workbench/ui/free_lab_ui_pack.js",
+      "sha256": "e84ef6617f44b64a5a81971bbfb0f11198f29739d1bb769acec2ed9666ef3c4d",
+      "bytes": 10577
+    },
+    {
+      "path": "bin/workbench/ui/graph_autorender.js",
+      "sha256": "f8eeb5372acb607e304aeff249751252c001d2117980ef50113aa3859dc42595",
+      "bytes": 4647
+    },
+    {
+      "path": "bin/workbench/ui/host/browser_host_adapter.js",
+      "sha256": "c924ad86304be825caf32f04c55491901fbda818660928e905b379e43f6448c5",
+      "bytes": 1966
+    },
+    {
+      "path": "bin/workbench/ui/host/host_bridge.js",
+      "sha256": "75f4b75c587e51660b70813c59fdceb3f4fd4bd38cfd1a24df5f8b8ec9c8250c",
+      "bytes": 1059
+    },
+    {
+      "path": "bin/workbench/ui/input_registry.js",
+      "sha256": "ab47e0cb5e80d57a02dc347cdebd19c18827352b800fe9476784ce8900632d9a",
+      "bytes": 6522
+    },
+    {
+      "path": "bin/workbench/ui/inspector_contract.js",
+      "sha256": "52a21e8e24ddee5927b93745ed588ec0d95f54281d94d2b55c11fe84a6c50914",
+      "bytes": 13779
+    },
+    {
+      "path": "bin/workbench/ui/learning_spine_index.js",
+      "sha256": "94405410ade1463c793a7bae9c719a50c437b14720faad9daa54c86923a0c05c",
+      "bytes": 9708
+    },
+    {
+      "path": "bin/workbench/ui/legacy_warning_guide.js",
+      "sha256": "849e44eaa3020a183cb47b478247db7c0b69f5926454a254e9a0ca1bcbb20860",
+      "bytes": 2672
+    },
+    {
+      "path": "bin/workbench/ui/lesson_library_curation.js",
+      "sha256": "56702934285d2fe9ef9e4b04b49719ca6d029bf8720a3fbf22aae79d9cd22cc7",
+      "bytes": 4908
+    },
+    {
+      "path": "bin/workbench/ui/lesson_loader_contract.js",
+      "sha256": "8dc94257f228b7d8d649fd73b71e86b87b3a786997aa409a785c4c161c4d6c8f",
+      "bytes": 6266
+    },
+    {
+      "path": "bin/workbench/ui/lesson_plan_v0.js",
+      "sha256": "6941dc0d3235f5a5456c24f5853b2f27dd58de955fe249581b1977f9b2d09a2d",
+      "bytes": 12148
+    },
+    {
+      "path": "bin/workbench/ui/live_trace_reaction_runtime.js",
+      "sha256": "4a8b85e319c7ec1ca43411f09db5d28a5f959b253c1a17e82ec2d754d85b25bf",
+      "bytes": 11856
+    },
+    {
+      "path": "bin/workbench/ui/numeric_curriculum_track.js",
+      "sha256": "ea8eb42a4271bf67edda8a2d2aded8202555eb386afdfaa0d28a7b6c5fc0a840",
+      "bytes": 89575
+    },
+    {
+      "path": "bin/workbench/ui/nurigym_python_web_parity.js",
+      "sha256": "323187f7eb90fa3321c314d8ed8c30e076c5fc7beacc1af6a435f5a15e6aaa79",
+      "bytes": 6911
+    },
+    {
+      "path": "bin/workbench/ui/overlay_session_contract.js",
+      "sha256": "aa680c2b50ee3a42b875ef3f7526a0a26efd13e2cf445402195c55eb039a04e7",
+      "bytes": 9873
+    },
+    {
+      "path": "bin/workbench/ui/platform_contract.js",
+      "sha256": "74c61b0add39ce026d21fc08ed6a704197c8c795471a44bd3a59df995ab959a9",
+      "bytes": 2322
+    },
+    {
+      "path": "bin/workbench/ui/platform_mock_adapter_contract.js",
+      "sha256": "464c709b231ee777fb7593e6961b5c70d0c292bb7c9d15008bd59467477fd48d",
+      "bytes": 7001
+    },
+    {
+      "path": "bin/workbench/ui/platform_server_adapter_contract.js",
+      "sha256": "67b5b3bc290c881c55ac4f3a1d7299331f28f4068fb11c07a2813135a8af546e",
+      "bytes": 6360
+    },
+    {
+      "path": "bin/workbench/ui/play_diagnostic_contract.js",
+      "sha256": "de9851336751214144302ab5be2a3a1c50027c5e3bcf09b02b2b40f30a84c0cf",
+      "bytes": 2962
+    },
+    {
+      "path": "bin/workbench/ui/play_output_contract.js",
+      "sha256": "3a5293e8ed341c793481e1d1dd557f4365a536a0d21b7bc82c4184a419df97b6",
+      "bytes": 1330
+    },
+    {
+      "path": "bin/workbench/ui/play_source_contract.js",
+      "sha256": "ad0199566b2aad04785e953c54c27fcd53bac9902a676f8ec3fd964ad90cdee7",
+      "bytes": 9280
+    },
+    {
+      "path": "bin/workbench/ui/playground.js",
+      "sha256": "a7a6b289a3a66d1d2c90bda796d1d1acd3302526cd7d9772681ddd654bd8a1c5",
+      "bytes": 57067
+    },
+    {
+      "path": "bin/workbench/ui/preview_payload_loader.js",
+      "sha256": "a9e9348b6d70ffa88f8bc9e03f643fa3d9a5008669bd16604410fc023a7fc930",
+      "bytes": 3231
+    },
+    {
+      "path": "bin/workbench/ui/preview_result_contract.js",
+      "sha256": "6933941562204c8f7b8fb9dff8ff2c6b3cd3ea5ae7d9f3acc67c0c5d16826ae0",
+      "bytes": 8620
+    },
+    {
+      "path": "bin/workbench/ui/preview_session.js",
+      "sha256": "5f20e275e10241679440205d421f870bf826c66d08513adc08937492f3e06855",
+      "bytes": 1573
+    },
+    {
+      "path": "bin/workbench/ui/preview_view_model.js",
+      "sha256": "026070d2ecbc848697da693ed06f3e30e6c8652bc7192622addf898a556c81c5",
+      "bytes": 2571
+    },
+    {
+      "path": "bin/workbench/ui/project_service_client.js",
+      "sha256": "19eb3d88f90b1b101715c17503cfaa9c5b95f525417eb4acb6c0d32af4d032f3",
+      "bytes": 4287
+    },
+    {
+      "path": "bin/workbench/ui/project_snapshot.js",
+      "sha256": "e44d4bb49b3137626919463d25334d9e4520be1983f2e471345180ca59d983c0",
+      "bytes": 8789
+    },
+    {
+      "path": "bin/workbench/ui/question_card_author_tool_share.js",
+      "sha256": "ad501398470abaae5e38cb8431eb81727c17a97e7b0c977d1efa6f91af947373",
+      "bytes": 13603
+    },
+    {
+      "path": "bin/workbench/ui/question_card_dev_assist.js",
+      "sha256": "ef8ad8056a5d548e470daab166b8c6a56b57434ce15e33016c5f8b708eacb2b9",
+      "bytes": 13419
+    },
+    {
+      "path": "bin/workbench/ui/question_card_smoke.js",
+      "sha256": "f38735b74cd69a2d59a5bf45c0b3d343d38625a22e1634aef4b992de4fc9049f",
+      "bytes": 13384
+    },
+    {
+      "path": "bin/workbench/ui/question_card_validation.js",
+      "sha256": "501b2ff0835df41a4bfa7aff9ebfbccc9cac6b27f206f88228530ced8c61118a",
+      "bytes": 13781
+    },
+    {
+      "path": "bin/workbench/ui/question_card_workflow_hardening.js",
+      "sha256": "f28fa6ba9a2fa61e85df0eb26d22044a213c9d61fb4e42abc1defd19eebf8d64",
+      "bytes": 13745
+    },
+    {
+      "path": "bin/workbench/ui/rpg_box_authoring_ui.js",
+      "sha256": "9a2fb59b404a6973cdab9e0eb47c7643aa970b8030d9b61aa1620627fcbdab64",
+      "bytes": 13957
+    },
+    {
+      "path": "bin/workbench/ui/rpg_engine_adapter_lts.js",
+      "sha256": "401d499fd5f2fb95f1f4d248f4c2ea724ce53e7088df50fa0ee41eef264e2350",
+      "bytes": 12998
+    },
+    {
+      "path": "bin/workbench/ui/rpg_story_package.js",
+      "sha256": "02a08a4baebc8c20d7d6b1a748325c41722040322594e9c6a318e2a7505d84fc",
+      "bytes": 12881
+    },
+    {
+      "path": "bin/workbench/ui/run_action_rail_contract.js",
+      "sha256": "78d63a8f1515696aa3ace7209264312c6cbaf63793270427fdedaf624a4e7b38",
+      "bytes": 4541
+    },
+    {
+      "path": "bin/workbench/ui/run_exec_status_contract.js",
+      "sha256": "f6c59ca96a13918f9354272afde2361fa2a4b707c74c8eaa18d4b5e9f980a029",
+      "bytes": 1770
+    },
+    {
+      "path": "bin/workbench/ui/run_observe_action_contract.js",
+      "sha256": "cd994d203789835b4222ce48dd539ed640eb9eae41d192c311dad571c85c4e72",
+      "bytes": 985
+    },
+    {
+      "path": "bin/workbench/ui/run_observe_family_contract.js",
+      "sha256": "db0d51c3873a33198335f68836df200d3773b0bd45d38afe7e4e4365aaea3415",
+      "bytes": 2141
+    },
+    {
+      "path": "bin/workbench/ui/run_observe_summary_contract.js",
+      "sha256": "ec6e380686d6e22544713bbb0498985ddb41049dcc8f44726c3126864314c8c5",
+      "bytes": 5044
+    },
+    {
+      "path": "bin/workbench/ui/run_runtime_hint_contract.js",
+      "sha256": "731850d98d6399688ac26a12befa1973061fa2cdf8b475523d763cbb20159ec9",
+      "bytes": 2951
+    },
+    {
+      "path": "bin/workbench/ui/run_warning_contract.js",
+      "sha256": "f49c0c402edc3f0c73802b88fede79df1dbc876283c283fd880d2e2a5fbeabe6",
+      "bytes": 11087
+    },
+    {
+      "path": "bin/workbench/ui/run_warning_panel_contract.js",
+      "sha256": "38b1f561d3d1733f91523718ca784c906ae9f1f7b3b764b37c1391d81084580f",
+      "bytes": 11478
+    },
+    {
+      "path": "bin/workbench/ui/runtime/cell_grid_renderer.js",
+      "sha256": "1eacaeafdfd670b2dbfea3f366373edb64db437b80b54f197378b6a1c2c7c73d",
+      "bytes": 13860
+    },
+    {
+      "path": "bin/workbench/ui/runtime/ddn_preprocess.js",
+      "sha256": "fdfead65fb1709e0cc9062c53f8b4ab94d22bde9a3f26a6776ede1e4e782789a",
+      "bytes": 32336
+    },
+    {
+      "path": "bin/workbench/ui/runtime/diag_format.js",
+      "sha256": "8b91d146ea6ac80ecf4bddc59614ef68ce4f09d96621fef22748e6592a944862",
+      "bytes": 1076
+    },
+    {
+      "path": "bin/workbench/ui/runtime/execution_safety.js",
+      "sha256": "1aec4e6d2654504a03c02eb68f15b2df242ec0cd59e954b059109e90ca87b021",
+      "bytes": 713
+    },
+    {
+      "path": "bin/workbench/ui/runtime/host_step_watchdog.js",
+      "sha256": "ab0c79695f41909da42f5d642c16d6ba28275af2ba7e57e4d04555596b079ab5",
+      "bytes": 1224
+    },
+    {
+      "path": "bin/workbench/ui/runtime/index.js",
+      "sha256": "84eb959f557546566e3341cf254c8fb41ff87d0e49e597d33fc74fdae3fe1bc6",
+      "bytes": 423
+    },
+    {
+      "path": "bin/workbench/ui/runtime/lesson_canon_runtime.js",
+      "sha256": "a6cdd41a8052bd06d319ef3d45b526d36cfef84d64487998bba7c3e0897e3f90",
+      "bytes": 9535
+    },
+    {
+      "path": "bin/workbench/ui/runtime/logical_action_input.js",
+      "sha256": "5658c0cbdbcf97acd7edd7b904b3c5b21074a71c498be8befd9d5466bc018d2d",
+      "bytes": 17971
+    },
+    {
+      "path": "bin/workbench/ui/runtime/native_recording_finish.js",
+      "sha256": "ccb1cb69eba1139d00316c0a050ec78411ef17445ebcf8705d6e99b0922e0f88",
+      "bytes": 9463
+    },
+    {
+      "path": "bin/workbench/ui/runtime/native_source_transport.js",
+      "sha256": "6005394b3e611e4b1f17ca743c20093dce6cf813b707d021f38ee9a129c68625",
+      "bytes": 3615
+    },
+    {
+      "path": "bin/workbench/ui/runtime/numeric_kernel_worker.js",
+      "sha256": "70d04170239340d4c9dae220b4d1e599ceb31cfabcfd7018e57067052b184bd8",
+      "bytes": 460
+    },
+    {
+      "path": "bin/workbench/ui/runtime/nurimaker_grid_renderer.js",
+      "sha256": "db7d71023eeac74368600993c524b1d1feb00d39476fe149829b57ebb806cbf5",
+      "bytes": 9706
+    },
+    {
+      "path": "bin/workbench/ui/runtime/observation_manifest.js",
+      "sha256": "91dfe0d9c099430086890e469b40a9bb6951cde1d2e284bd9d538807cb84c81f",
+      "bytes": 2717
+    },
+    {
+      "path": "bin/workbench/ui/runtime/observation_manifest_contract.js",
+      "sha256": "75bd509bc5752a31e09c783f86d0969f386cd0ca3fd178f3f1f8d2ac1450a558",
+      "bytes": 4467
+    },
+    {
+      "path": "bin/workbench/ui/runtime/runtime_bridge.js",
+      "sha256": "d30f7bbeeea5325c7fac244829a4e985e6704241070e49a05b2b2f40409eb7e4",
+      "bytes": 22228
+    },
+    {
+      "path": "bin/workbench/ui/runtime/runtime_worker.js",
+      "sha256": "1928e21a61bf1d6e8746396776dffa396c136b9eef9f453bfdb2ec119317dc08",
+      "bytes": 3893
+    },
+    {
+      "path": "bin/workbench/ui/runtime/wasm_canon_runtime.js",
+      "sha256": "81a4e81a12dbe045fbae6ff7b723532ed73fbb6a0920c217078805d76d9c572b",
+      "bytes": 7996
+    },
+    {
+      "path": "bin/workbench/ui/runtime/wasm_state_observer_client.js",
+      "sha256": "c622557f6b3402b5623c6c870c64bd5509fdb6a97f2d760bf9887026207f2192",
+      "bytes": 2164
+    },
+    {
+      "path": "bin/workbench/ui/runtime/wasm_vm_runtime.js",
+      "sha256": "728a9514464a9d816df95135f7ba50a007198fe04e5f871baf1d3a5ead09f112",
+      "bytes": 26216
+    },
+    {
+      "path": "bin/workbench/ui/runtime/worker_runtime_adapter.js",
+      "sha256": "4ad66e63c2036b32b5fe3d85f7145a7937ac3e6a0c2c33133cf1a3a1b3804bd2",
+      "bytes": 5610
+    },
+    {
+      "path": "bin/workbench/ui/scene_summary_contract.js",
+      "sha256": "4983dffdb937287ca83f70765680a2f680d7a61b9f1c73f8a370a5ced0d5c292",
+      "bytes": 16508
+    },
+    {
+      "path": "bin/workbench/ui/screens/block_editor.js",
+      "sha256": "376e4d37b2b69e20bc7dcad3039c4c087e85a0978b41ea904f1e35df421643cd",
+      "bytes": 5668
+    },
+    {
+      "path": "bin/workbench/ui/screens/browse.js",
+      "sha256": "b0457435f4d6bf23d12605050a2fe45d596cc7571ef12f55fa27c6a5a9e056df",
+      "bytes": 188930
+    },
+    {
+      "path": "bin/workbench/ui/screens/editor.js",
+      "sha256": "af4438e5edb57de88f6e28af07304f4d234d8b303baf2305933ee7acd8cf7043",
+      "bytes": 91789
+    },
+    {
+      "path": "bin/workbench/ui/screens/rpg_box.js",
+      "sha256": "dc29dfa6f0029693fe620feb5b66809742c7960e52b368839f1c11db2e952c48",
+      "bytes": 11025
+    },
+    {
+      "path": "bin/workbench/ui/screens/run.js",
+      "sha256": "b88527b2d1dbab2aa651b4d4078280e5fbabb79c86313de20a5df044dfc665b4",
+      "bytes": 664562
+    },
+    {
+      "path": "bin/workbench/ui/sealed_trace_evaluator.js",
+      "sha256": "60263cef0651cc29411bbcb751a9d6b6cc6f079f84f8d68fb952ad9c495122db",
+      "bytes": 14473
+    },
+    {
+      "path": "bin/workbench/ui/seamgrim_numeric_track_consolidation.js",
+      "sha256": "4dbd7ffb4d6ecc283c2cbde41ad831db72b5ec34c340529671e691eed493b784",
+      "bytes": 11851
+    },
+    {
+      "path": "bin/workbench/ui/seamgrim_runtime_state.js",
+      "sha256": "4116eba61e5c4e8fd9bdfc3b56933df4d0f414fec997b1dc0e51bef49348e722",
+      "bytes": 72637
+    },
+    {
+      "path": "bin/workbench/ui/semantic_cursor_runtime.js",
+      "sha256": "b80e6ea3446f5c5967100c7c91e39e0535f1856a476c650b329100ec01517d5a",
+      "bytes": 10725
+    },
+    {
+      "path": "bin/workbench/ui/seulgi_proposal_ui.js",
+      "sha256": "0ca6c90c14164581d63c565aa333c98c2fd535676290fadc37d0a613a94cc51b",
+      "bytes": 11775
+    },
+    {
+      "path": "bin/workbench/ui/seulgi_replay_safe_workflow.js",
+      "sha256": "9657796be67c49404bde5d1ceaca324852f3a991a2fa01259be85d0d6c8cd824",
+      "bytes": 11091
+    },
+    {
+      "path": "bin/workbench/ui/snapshot_session_contract.js",
+      "sha256": "51a547fd8af720f44192f01e6ab9b464a7c18167fe2f90aca17e086242f18b15",
+      "bytes": 17829
+    },
+    {
+      "path": "bin/workbench/ui/social_world_bridge_pack.js",
+      "sha256": "89aec30f18a96d7792ac00113ce7b0252452f707c8690c0ad11f6f785281b5dd",
+      "bytes": 12386
+    },
+    {
+      "path": "bin/workbench/ui/social_world_lts_readiness.js",
+      "sha256": "c40a279f28d07d42a89e62191a3b0b38714705a67f4bdd2ad9de1c843b317daf",
+      "bytes": 12495
+    },
+    {
+      "path": "bin/workbench/ui/social_world_policy_ghost_ui.js",
+      "sha256": "5e88a67755dce37c17cf6607fc69a0077ea0c3203121a6c430e6800929a8e16d",
+      "bytes": 12352
+    },
+    {
+      "path": "bin/workbench/ui/social_world_template_registry.js",
+      "sha256": "e1e69830a0a8812d36929f8c38e02d9004cfd5d2dbcee1f8a3b622273faced34",
+      "bytes": 12881
+    },
+    {
+      "path": "bin/workbench/ui/studio_benchmark_baseline_local_snapshot.js",
+      "sha256": "e3b405613c5458983fdf6fc009fabff7a339b9822d90842151fde9110c987251",
+      "bytes": 11629
+    },
+    {
+      "path": "bin/workbench/ui/studio_benchmark_baseline_prep_dry_run.js",
+      "sha256": "a662d82b744c4fae85b80ce4d968eaa9f122a0d9f1308e5972bf8ed0e8081f52",
+      "bytes": 12385
+    },
+    {
+      "path": "bin/workbench/ui/studio_classroom_mode.js",
+      "sha256": "5f5c0a0efaf721744579ab8ae388c2825692161c4d197267f1391c85d336a9b4",
+      "bytes": 13183
+    },
+    {
+      "path": "bin/workbench/ui/studio_classroom_operations_panel_preview.js",
+      "sha256": "ef75ac6de200c408b1923692a13332effc9bdd3b22f0f531c39444e1b1882213",
+      "bytes": 10738
+    },
+    {
+      "path": "bin/workbench/ui/studio_classroom_operations_triage.js",
+      "sha256": "3d5bdc9c6078cc2d878ae53fc1e332c3cc2368b1462498ce443ae6e9d06d77a1",
+      "bytes": 12253
+    },
+    {
+      "path": "bin/workbench/ui/studio_diagnostic_fixit_integration.js",
+      "sha256": "e9380e62fcef80fd79dc2a15b8c0d14c6c6d069d3234d6081673246041103f6e",
+      "bytes": 6053
+    },
+    {
+      "path": "bin/workbench/ui/studio_diagnostic_fixit_preview.js",
+      "sha256": "723383518581da16f782485f7c4810b9ccc3976bb1a4a122c60fd99f32d57123",
+      "bytes": 11235
+    },
+    {
+      "path": "bin/workbench/ui/studio_edit_run_contract.js",
+      "sha256": "aa539737312f4ddb98df568ac62221926d37b84b54c5cc7014fc6755112fe16a",
+      "bytes": 6774
+    },
+    {
+      "path": "bin/workbench/ui/studio_lesson_authoring_run_integration.js",
+      "sha256": "a97b232a2ddfda98de0d249b9f4c2a7de3f4467834bc01ee8925972fe85e578e",
+      "bytes": 7886
+    },
+    {
+      "path": "bin/workbench/ui/studio_lesson_publication_review_surface.js",
+      "sha256": "5741aa59e1a4ff1f98c5de6cad6b65a7e54e8da623cf8327a4300088b14624fc",
+      "bytes": 13258
+    },
+    {
+      "path": "bin/workbench/ui/studio_local_release_rehearsal_check.js",
+      "sha256": "76e71d53234063e4f755d0a443a09c591d34d28cc93792b8d7de4e857cfb1f53",
+      "bytes": 12806
+    },
+    {
+      "path": "bin/workbench/ui/studio_local_share_package.js",
+      "sha256": "d4e5efb24f48c5ef41a40df0aeec174bff7dd8955d3bb17ef588b006e1f8346b",
+      "bytes": 50935
+    },
+    {
+      "path": "bin/workbench/ui/studio_ma3_next_development_queue_rebase.js",
+      "sha256": "483cd303c41d5eb0bd182c321840c30d1f8e17c2b3895a3fac8690d5ef3eb60b",
+      "bytes": 11856
+    },
+    {
+      "path": "bin/workbench/ui/studio_ma3_next_queue_coordinate_lock.js",
+      "sha256": "433b206bae1885b0d50eb52a8bad0833cdf3c053c53d3f083cad28a2d0b825f9",
+      "bytes": 11304
+    },
+    {
+      "path": "bin/workbench/ui/studio_ma3_regression_gate_matrix.js",
+      "sha256": "700bf423df20764a5980cf1317f4881959682b988d80c9b40e12a965e4c3abbf",
+      "bytes": 11776
+    },
+    {
+      "path": "bin/workbench/ui/studio_malblock_workbench_integration.js",
+      "sha256": "b5cfa884923788fde7c55439fb9c82210862e12f7513bbdfd3ae73f9c78783bb",
+      "bytes": 9090
+    },
+    {
+      "path": "bin/workbench/ui/studio_next_roadmap_v2_coordinate_lock.js",
+      "sha256": "95f223c801a3c117a1b09792761cdc96e1da6b6a67b686dab60b4cb2d2361762",
+      "bytes": 10997
+    },
+    {
+      "path": "bin/workbench/ui/studio_numeric_report_workflow_stage.js",
+      "sha256": "2e4b636133f595ad416ecd7572a602847a1ce35a1f28a671fdb25991a9ef7de4",
+      "bytes": 10503
+    },
+    {
+      "path": "bin/workbench/ui/studio_numeric_result_report_stage.js",
+      "sha256": "d8874ae1a37d541d07f60183a9a61fbf024c132a39fe599fd684544a0f5f5add",
+      "bytes": 11115
+    },
+    {
+      "path": "bin/workbench/ui/studio_operations_preview_stage_closure.js",
+      "sha256": "b4486462025f4ca2dec166c067997026dc2e2857c1aa57527d4d209d807a2e38",
+      "bytes": 13079
+    },
+    {
+      "path": "bin/workbench/ui/studio_post_super_long_rebase.js",
+      "sha256": "becea94b65602741332cc29f2e744e9872bb9d267e0914784450483125990b7a",
+      "bytes": 10669
+    },
+    {
+      "path": "bin/workbench/ui/studio_productization_stage_closure.js",
+      "sha256": "f84ae7f6b13870d185622bf2a9df45f7f501d66209acd4865fd4311ce693a09c",
+      "bytes": 11365
+    },
+    {
+      "path": "bin/workbench/ui/studio_productization_stage_rebase.js",
+      "sha256": "df39a783fe981211b9cafc1056b7ba894db585b650747728985a768ca09561a7",
+      "bytes": 11232
+    },
+    {
+      "path": "bin/workbench/ui/studio_public_release_approval_recheck.js",
+      "sha256": "e8591379590757840c8423a89126bbf4abdf3490d82721f7ab99e9385e8a0eb1",
+      "bytes": 11582
+    },
+    {
+      "path": "bin/workbench/ui/studio_publication_artifact_dry_run.js",
+      "sha256": "4a94f021734ed2aba270ffc444402ed4a825475088f36ea740dd6d1cdb80182a",
+      "bytes": 12109
+    },
+    {
+      "path": "bin/workbench/ui/studio_release_review_packet_dashboard.js",
+      "sha256": "86ed7ecaf430e18fd714e3f4b22d6e7e1dee98c7c87ca247580f181ae9273540",
+      "bytes": 12944
+    },
+    {
+      "path": "bin/workbench/ui/studio_teacher_feedback_loop_seed.js",
+      "sha256": "258b63211daeeec38c50cee564e63615101cd9d8ea91710ae879fea15c0842c7",
+      "bytes": 11940
+    },
+    {
+      "path": "bin/workbench/ui/studio_teacher_feedback_surface_preview.js",
+      "sha256": "6845f6edff657bcc3ae4b979eaf1eda6687077a85690e784fbc09cd0e50a6e96",
+      "bytes": 10556
+    },
+    {
+      "path": "bin/workbench/ui/subpanel_tab_policy.js",
+      "sha256": "37f590650609190d34cc63070550af7d12d092bda0cfd79f65d5465ac3d90079",
+      "bytes": 648
+    },
+    {
+      "path": "bin/workbench/ui/toolchain_benchmark_lts.js",
+      "sha256": "9ed8945167cfc2f2ded2144ff5b99415488bb5cebb4a7670d566d5a46c094c01",
+      "bytes": 12592
+    },
+    {
+      "path": "bin/workbench/ui/toolchain_diagnostic_ui_lsp.js",
+      "sha256": "fce2a46a56c06df8dab3e4dc27cf193e8a6f5347da18b000d570a99b8316b0f8",
+      "bytes": 11358
+    },
+    {
+      "path": "bin/workbench/ui/toolchain_registry_verification.js",
+      "sha256": "e494cdc79f32926a7c9922dcccaaecc07954a2fe7b67e7dcb9e2b73aaf2f314b",
+      "bytes": 12873
+    },
+    {
+      "path": "bin/workbench/ui/trace_reaction_runtime.js",
+      "sha256": "34e71bf3f558e5f5b3f577fd64aeb6ab9171d8f831d30614f54998dcc98d7986",
+      "bytes": 26774
+    },
+    {
+      "path": "bin/workbench/ui/ttonimaru_platform_hardening.js",
+      "sha256": "ae9413528c3af9ec9d436bc75c2c5b2f073fb83db7dfe411df7f08696e971404",
+      "bytes": 13196
+    },
+    {
+      "path": "bin/workbench/ui/ttonimaru_project_share_ui.js",
+      "sha256": "3c41ab3b264f823ba769f373101967fba1aca76bdb8feb5430ba36b946292db3",
+      "bytes": 13373
+    },
+    {
+      "path": "bin/workbench/ui/ttonimaru_public_registry_seed.js",
+      "sha256": "f5aee012c8830184cc2e42353959fdcb1653bdd08c8e7ca2f34bfc455b43b869",
+      "bytes": 13800
+    },
+    {
+      "path": "bin/workbench/ui/ttonimaru_publication_read_api.js",
+      "sha256": "f74920f85fc4078dcfd50a13296178c4f02e88b67351bb8fd6d86b7741d1849e",
+      "bytes": 14026
+    },
+    {
+      "path": "bin/workbench/ui/update_tick_contract.js",
+      "sha256": "fcc80096e077d08ca6a2e832cc2da412c7e3d4153c796d69d667bea9c0555a2e",
+      "bytes": 4431
+    },
+    {
+      "path": "bin/workbench/ui/view_family_contract.js",
+      "sha256": "8cddd63ee1269e3ebff383a427a8058638459d707916360e06a854b4dc497faf",
+      "bytes": 4263
+    },
+    {
+      "path": "bin/workbench/ui/view_plan_runtime.js",
+      "sha256": "935d1d8957d8a2bd5f47958a161e161ec8a4f2b7835617866ae51b3e30c4da93",
+      "bytes": 35800
+    },
+    {
+      "path": "bin/workbench/ui/wasm/ddonirang_tool.js",
+      "sha256": "945cc81f968a69113bbb670bcce32a45159f78cd3637b416fdf76f2b14b57e45",
+      "bytes": 177446
+    },
+    {
+      "path": "bin/workbench/ui/wasm/ddonirang_tool_bg.wasm",
+      "sha256": "0413541270a4bf9056e84e71e54f07ad1328d4dbbc9eb5ab020970a41e6103f0",
+      "bytes": 11164431
+    },
+    {
+      "path": "bin/workbench/ui/wasm_ddn_wrapper.js",
+      "sha256": "3bc73bfd49ea5ad64cca04e4063b78d972c4d5f042c6d32b99601097fc95a95d",
+      "bytes": 9113
+    },
+    {
+      "path": "bin/workbench/ui/wasm_page_common.js",
+      "sha256": "3abe8aa2e5f8f16ccb2d8133bd4f2247b54b99723695bbcc927108a9f771cec4",
+      "bytes": 108595
+    },
+    {
+      "path": "bin/workbench/ui/workbench/alpha_lesson_catalog.js",
+      "sha256": "80bf3e6987f0b2df45eef83c12b0974511543870700092d5829e90470d5a6966",
+      "bytes": 15556
+    },
+    {
+      "path": "bin/workbench/ui/workbench/approved_workbench_api.js",
+      "sha256": "ce9a5950924a354dcd4dcb7b21aa3749b61e2446eee7867596035470dbb1324a",
+      "bytes": 13265
+    },
+    {
+      "path": "bin/workbench/ui/workbench/authored_bogae_renderer.js",
+      "sha256": "e897a6839580d64f86e762941e7802d9c5b68a3622837a71c877068abddfd882",
+      "bytes": 35844
+    },
+    {
+      "path": "bin/workbench/ui/workbench/authored_project_panel.js",
+      "sha256": "e5d0e756757e27766a1aaafa28a1b129b5914d8ab8f914cf6a3e36061a662543",
+      "bytes": 22922
+    },
+    {
+      "path": "bin/workbench/ui/workbench/canvas_presentation.js",
+      "sha256": "00a13ec445da70e2234f2d4c5a04f5c376ac184b937ee6505d466c2b86f15593",
+      "bytes": 17777
+    },
+    {
+      "path": "bin/workbench/ui/workbench/committed_output_view.js",
+      "sha256": "6fbf082e2cc074f5ce237b894427d2b06c6a0a9921275d1d2aed76363052ffa0",
+      "bytes": 1712
+    },
+    {
+      "path": "bin/workbench/ui/workbench/editor_presentation.js",
+      "sha256": "24d3059d7d73c4f3b5545b02adcd7529a71355838ce3f5c68c77269f17ee1d83",
+      "bytes": 12540
+    },
+    {
+      "path": "bin/workbench/ui/workbench/execution_controller.js",
+      "sha256": "1f1824ee6aaee38b3f88d88c8fba8fd62bf785dce4c27e7609bd0a4a8dd43fe7",
+      "bytes": 34155
+    },
+    {
+      "path": "bin/workbench/ui/workbench/execution_lifecycle.js",
+      "sha256": "ab90f3540fae2975221be2d06026157ef949e35bd640c7297cd9b43949446f13",
+      "bytes": 13345
+    },
+    {
+      "path": "bin/workbench/ui/workbench/exploration_presets.js",
+      "sha256": "ca92cf3fb3b0d5eaa580b04e399f3d1c9c2a2c256e52502bfeb45de619662275",
+      "bytes": 900
+    },
+    {
+      "path": "bin/workbench/ui/workbench/first_steps_alpha2_catalog.js",
+      "sha256": "100e599d7aae451335f45b5d53e78ce8772a46ee587cdb6906a59de6b58501a0",
+      "bytes": 1323
+    },
+    {
+      "path": "bin/workbench/ui/workbench/first_steps_alpha3_catalog.js",
+      "sha256": "bb3c334520c89236fd552f2b5bfed833609dd1ed3507c15a8e9c97b6af935655",
+      "bytes": 1888
+    },
+    {
+      "path": "bin/workbench/ui/workbench/first_steps_alpha4_catalog.js",
+      "sha256": "00d3ee63338e406e82883178b9d13bedb1abed0baa77e8ee1859a2799aa55a00",
+      "bytes": 1403
+    },
+    {
+      "path": "bin/workbench/ui/workbench/first_steps_catalog.js",
+      "sha256": "bbd59e22cb5abf6f4f92ff78b4107982c96027503b8f7126308cc69fc8b7ab7e",
+      "bytes": 13435
+    },
+    {
+      "path": "bin/workbench/ui/workbench/gaji_controller.js",
+      "sha256": "63d43415cbace9dbae8114b650308e78a13ef69e76b37159c6e6f1193de486e7",
+      "bytes": 17871
+    },
+    {
+      "path": "bin/workbench/ui/workbench/logical_input_panel.js",
+      "sha256": "a00aa4df50942bfbdc7feaf7c4ce00648cec4c5eb8d66be37f893ca918b5e47a",
+      "bytes": 47635
+    },
+    {
+      "path": "bin/workbench/ui/workbench/persistence/authored_source_save.js",
+      "sha256": "2a53e7e07c486cb2409bf294c249ce25c38f08cd1ec52a15c3def05b542946ed",
+      "bytes": 6411
+    },
+    {
+      "path": "bin/workbench/ui/workbench/persistence/capability_session.js",
+      "sha256": "f4bf276a41e89d6cbb0b94ac4403600fac24414ca4fb612833fec6c337df41df",
+      "bytes": 2610
+    },
+    {
+      "path": "bin/workbench/ui/workbench/persistence/edit_recovery_guard.js",
+      "sha256": "9e4d2e245ff8363f65253e78a518d261775fefbc0bcc6227fce5883235265eec",
+      "bytes": 7161
+    },
+    {
+      "path": "bin/workbench/ui/workbench/persistence/local_fallback.js",
+      "sha256": "78965b5d05effbcea545261663c7677cda673ade9047ebffb49468bdbe584e56",
+      "bytes": 3866
+    },
+    {
+      "path": "bin/workbench/ui/workbench/persistence/local_gotgan_store.js",
+      "sha256": "e6839752966382cb077f6cfbf2cf60af06a3c8154919cfadd8d9df44d2b2d337",
+      "bytes": 1841
+    },
+    {
+      "path": "bin/workbench/ui/workbench/persistence/portable_project_artifact.js",
+      "sha256": "efed58a4b5d9e485f68ebf7021fd18e56ef71452699c8f24f093b0cc6689923b",
+      "bytes": 11126
+    },
+    {
+      "path": "bin/workbench/ui/workbench/persistence/project_adapter.js",
+      "sha256": "527655d5f342ff031cf307d9f25ae4b7b21d5dde8e7d62f11b19653075a28896",
+      "bytes": 4840
+    },
+    {
+      "path": "bin/workbench/ui/workbench/persistence/run_archive_adapter.js",
+      "sha256": "150b14f29524a3c8808ca6d1fef64ab6b4b21ed667fe51ce3e3b189005c91eca",
+      "bytes": 6057
+    },
+    {
+      "path": "bin/workbench/ui/workbench/persistence/runtime_project_store.js",
+      "sha256": "7d6a5e732f1def6a9691b0a82d8453a648d269b951904e6fa7ac1b900722b0f3",
+      "bytes": 10292
+    },
+    {
+      "path": "bin/workbench/ui/workbench/portable_actions.js",
+      "sha256": "778f5583d53b463320122bb2583b8d72197934f84c779fc79e99845614226a3c",
+      "bytes": 15256
+    },
+    {
+      "path": "bin/workbench/ui/workbench/project_catalog.js",
+      "sha256": "237346d940954f15801f379a3d533c1b42b3e760e7071cc0596c25113b98e4d0",
+      "bytes": 11568
+    },
+    {
+      "path": "bin/workbench/ui/workbench/project_control_model.js",
+      "sha256": "a3da8d7f600000ebd979de971dd6e2d6d8962348cd8029ee76686e7939d616b6",
+      "bytes": 7825
+    },
+    {
+      "path": "bin/workbench/ui/workbench/project_controls.js",
+      "sha256": "9bad8220b00dc0e2a5d331bd0feddb1e84fa7ac8809f8642406eee622d226476",
+      "bytes": 7269
+    },
+    {
+      "path": "bin/workbench/ui/workbench/project_metadata.js",
+      "sha256": "f08d6dc2165be9c57f0e5da3c9f1f7032e904a63b6ca53b6885d68e49c840342",
+      "bytes": 6245
+    },
+    {
+      "path": "bin/workbench/ui/workbench/project_navigation.js",
+      "sha256": "aa690ec60c0811af0fcdfec88f3dca720f0dbea1b8dbc70e35771964bb1701bc",
+      "bytes": 10191
+    },
+    {
+      "path": "bin/workbench/ui/workbench/project_persistence.js",
+      "sha256": "5cec28ae8d0135af48fa207631b72c5f9e7da87d2dc528291b05423d5c7d0b37",
+      "bytes": 15713
+    },
+    {
+      "path": "bin/workbench/ui/workbench/project_registry.js",
+      "sha256": "47bb49cc4ebff712a56d8d05edf8f98a9598eef3bf4817fbe6327b50dc9aefdd",
+      "bytes": 17381
+    },
+    {
+      "path": "bin/workbench/ui/workbench/run_archive.js",
+      "sha256": "2054630469c5e9a9d2c775f28671180fb4ae5deabffd868e26f946f23eb693f2",
+      "bytes": 14068
+    },
+    {
+      "path": "bin/workbench/ui/workbench/runtime_persistence.js",
+      "sha256": "501d451616d2faaefe61ab54f57d667f0688ee04a94c7ead7b67838a53426610",
+      "bytes": 15374
+    },
+    {
+      "path": "bin/workbench/ui/workbench/semantic_view_payload.js",
+      "sha256": "485fe2782cec8b7e750360479f97316ff18a70332912f68c1a370eba9e1ac87a",
+      "bytes": 46830
+    },
+    {
+      "path": "bin/workbench/ui/workbench/semantic_view_renderer.js",
+      "sha256": "4ed9d94a3163dcf08701fa698e0ce310cdf78b6a17d538e3b58ef0d5d4eb5703",
+      "bytes": 29971
+    },
+    {
+      "path": "bin/workbench/ui/workbench/source_file.js",
+      "sha256": "0722d5242c6a1b0b7d0eb62c102a78e79bf07721ca681eb3ddfa2d3bad7406a7",
+      "bytes": 1084
+    },
+    {
+      "path": "bin/workbench/ui/workbench/source_readiness.js",
+      "sha256": "f9b3b3797bf68837bd97dcc1d880680ab5e4db5f71839c380a05b67d18c0d6a2",
+      "bytes": 11593
+    },
+    {
+      "path": "bin/workbench/ui/workbench/source_readiness_model.js",
+      "sha256": "f87fee49a65f2b1b1898a962e9b47b9ac998c6bfc03a26ed759012a4ee701595",
+      "bytes": 17021
+    },
+    {
+      "path": "bin/workbench/ui/workbench/spatial_view_state.js",
+      "sha256": "1584a0e2e60a51323cdc720f0bcd1629157839dfa6c5d58f58d1b8ed2c4b6f1c",
+      "bytes": 6097
+    },
+    {
+      "path": "bin/workbench/ui/workbench/view_instance_model.js",
+      "sha256": "3fdf28a54022497405e094828e1f89c4592ee5fa903e65f34e3041ccb30a2055",
+      "bytes": 11579
+    },
+    {
+      "path": "bin/workbench/ui/workbench/view_presentation.js",
+      "sha256": "c169838da64b8580af9db1b7f8653d510621aa39828be9cf1dadcba663668e7e",
+      "bytes": 33144
+    },
+    {
+      "path": "bin/workbench/ui/workbench/workbench.js",
+      "sha256": "bbdba281a3d5ee994b55bf9d1a1419fd67d9d93203dc451e0d2badc05e007f77",
+      "bytes": 145744
+    },
+    {
+      "path": "bin/workbench/ui/world_diff_review.js",
+      "sha256": "2ca290766797a4c8d351abf01f589fecc9f3d503553e9159fbc5399a9e0af0e0",
+      "bytes": 5518
+    },
+    {
+      "path": "bin/또니랑.exe",
+      "sha256": "bfa282fb4cefb39fd8511bee6889842719b963b2778e2f5aa6428e8c7b22c6ee",
+      "bytes": 20037120
+    },
+    {
+      "path": "samples/alpha3_basic_tensor.ddn",
+      "sha256": "9227b1617be2989394eb8f914fa9bdb744a79681865b89552d9bb4d31a5e8a22",
+      "bytes": 458
+    },
+    {
+      "path": "samples/alpha3_logical_reaction.ddn",
+      "sha256": "6ddde88cabf4a4213dfd2459d4d475a11a373987d56bbc3b805ed68faff83a52",
+      "bytes": 894
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/alpha1/01_요금_계산기.ddn",
+      "sha256": "0c9026d2555ca267b5932f5edc46f05c920eb7d21453c928dbaee8d86b8a5323",
+      "bytes": 463
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/alpha1/02_조건과_반복.ddn",
+      "sha256": "747ea29d3678527e2bdcb8a4a11334f76552310f370d08bafe76be6397365a15",
+      "bytes": 387
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/alpha1/03_자동_함수표.ddn",
+      "sha256": "1a9c1262f83781c0d40f49e010c94007c666ad8669d4e856e47e79fd6e246597",
+      "bytes": 404
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/alpha1/04_시간단계_시뮬레이션.ddn",
+      "sha256": "41f7d1122cebea8dcc3e61290af2f9add9b190d70ce21803e03ae891a5369e1a",
+      "bytes": 789
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/alpha1/잘못된입력/01_요금_타입오류.ddn",
+      "sha256": "83ebad9b2597ba17d110e8aac901841daf3fd5426775d5e23da6291db4223685",
+      "bytes": 217
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/alpha1/잘못된입력/02_반복_원소타입오류.ddn",
+      "sha256": "b6b82a712b22fb18cb24cab82d2779ec8dd08638a4227d03871409464875894d",
+      "bytes": 95
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/alpha1/잘못된입력/03_함수표_인자누락.ddn",
+      "sha256": "ab86f4b67f5d9845caf37e6195bfc1beb88bcc472a79e739eafa4fc94867da94",
+      "bytes": 91
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/alpha1/잘못된입력/04_시뮬레이션_인자중복.ddn",
+      "sha256": "705df9d2b8ea817cfc8f6fd868c74980bf244f404d4817ef4b85b41daffa216a",
+      "bytes": 207
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/alpha1/잘못된입력/05_조사_모호오류.ddn",
+      "sha256": "9d0f882611f082cc01a323c3c4d83c17515296cd9d42cdab58301dfc9d9c8fb8",
+      "bytes": 115
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/교정예제/FIX07D_핀중복고치기.ddn",
+      "sha256": "0788ae9fc77fd727590b56fc3800a8a5d98f1bd1bc11dbf6041a38c8e97401c5",
+      "bytes": 358
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/교정예제/FIX08A_씨맞추기.ddn",
+      "sha256": "b9791ddd8b7d274f35e043ea970d575da8a06a9dbea6eea72135ea5a276b3733",
+      "bytes": 135
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/교정예제/FIX08B_높이채우기.ddn",
+      "sha256": "8c65a18b72198187cf6e1defd652f81dd7eb2f3238cb5c12dd555a16a87eec82",
+      "bytes": 201
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/교정예제/FIX08C_결과자리배정.ddn",
+      "sha256": "b9791ddd8b7d274f35e043ea970d575da8a06a9dbea6eea72135ea5a276b3733",
+      "bytes": 135
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/교정예제/FIX08D_이름핀으로명시.ddn",
+      "sha256": "d3cb89338fd5f750849e50c794b9320e383d3a72763c9d834849484248c58660",
+      "bytes": 204
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/보충/06_마지막에배우는축약.ddn",
+      "sha256": "f15cdec9a5d25dd49937d3104bed9e99ce6c5fba941190dc96b234cb9e8ab5ba",
+      "bytes": 167
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/보충/09_축약대조.ddn",
+      "sha256": "3b5dd14a34953e1b513153ee3b70a61b9cf6285d1a47b2cb6548577214c5771c",
+      "bytes": 163
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/수정실습/MOD01_개수수정.ddn",
+      "sha256": "68c8db870e68be4fa88fa15843ca8529d9e206b7104f6b49490080515de546b5",
+      "bytes": 68
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/수정실습/MOD02_높이수정.ddn",
+      "sha256": "90df0894f2ecf6ee276753f92df93839d769b28308c547d6d3823a83e264ccd8",
+      "bytes": 155
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/수정실습/MOD03_출력호출제거.ddn",
+      "sha256": "6daa2f1f435d2b90bb201364d24412f85ce0c808fc4f4a73b0ff4ad8890dd742",
+      "bytes": 198
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/수정실습/MOD04_인자뒤바꾸기.ddn",
+      "sha256": "7b6648bcf851b6f57e0742c7b4ded67912e4dd945b2959831ca34679c152c307",
+      "bytes": 261
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/수정실습/MOD05_끝수수정.ddn",
+      "sha256": "53d3361657b21e9d32e8495cf19ee3ba2ede9728d9dadfae3ec9ff104487508c",
+      "bytes": 291
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/수정실습/MOD06_차림수정.ddn",
+      "sha256": "2212d0f9bcb8f3c967fd3462c22f9c00d33dc282420ec55149d7b2dea14d6c3b",
+      "bytes": 306
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/수정실습/MOD07_사용량수정.ddn",
+      "sha256": "63a94a4b8243afb9c587dfcc3490ab12d2535a98153cca274a2a6c918f1da5e8",
+      "bytes": 488
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/수정실습/MOD08_교정후값수정.ddn",
+      "sha256": "ea4f1e8e0fb23cf3b2a2fc719ed07e54c3aa88d4aa705ccb8c9dcb004d41cbcd",
+      "bytes": 204
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/수정실습/MOD09_방어력수정.ddn",
+      "sha256": "d3162b1402f1119e3467913af31718f8732900d7b07e8f3b21e4dd3d88ed6010",
+      "bytes": 535
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/수정실습/MOD10_상점잔액수정.ddn",
+      "sha256": "69ab673fb41290649d410b16cc1f027ac357f4d14b716f30920accd0f4c02631",
+      "bytes": 530
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/01A_첫계산.ddn",
+      "sha256": "2bce7adcc962739cfd2edc0c3b7aeb8020e3ecc62d694d207db0d51649f8418e",
+      "bytes": 22
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/01B_글과수.ddn",
+      "sha256": "abd408e310425de2213e9543547ebc20ae0794ea8e0b15fb703d57c261c12e9a",
+      "bytes": 45
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/01C_이름붙이기.ddn",
+      "sha256": "feb98ff021375159daf384da94e0c3a7116131df806ed88eab17759a65ac157a",
+      "bytes": 68
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/01D_결속바꾸기.ddn",
+      "sha256": "762f448bb05cb772ac98bd78dafa723fa68d4f77b3184a8404d435606b85b42d",
+      "bytes": 64
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/02A_두배정의.ddn",
+      "sha256": "256efc0a09cb56c420b6d766e21696a89dd64765a5dde71ed0af6ad9e0d16290",
+      "bytes": 89
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/02B_조사바꾸기.ddn",
+      "sha256": "d9e1d04a458fd825988c306a101024bb3b0a448a7e78dd3d5066365bb399284f",
+      "bytes": 92
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/02C_두받는자리.ddn",
+      "sha256": "ac7f0e19e4c9df1b9b0210b293d6c42630e69972bb415b85174ed4ba2ba0e324",
+      "bytes": 155
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/02D_이름핀.ddn",
+      "sha256": "f2617f7caa4c71d84918bcaef934d836dce4fa2011d9abae84fa2b273fb4f0c4",
+      "bytes": 155
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/03A_실행정의.ddn",
+      "sha256": "dbf86957e5df94e0584165af6512c6209816d702b046ac0768160feb2bc5e62a",
+      "bytes": 155
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/03B_직접만든움직씨.ddn",
+      "sha256": "8dbe5bce0e771908da8b16c4e940544498bd228e12334de4e06171186d41f1d9",
+      "bytes": 153
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/03C_계산과동작분리.ddn",
+      "sha256": "f80d331b9d23653752b18c249aab7690d622d268896b650555b35c9ca5752a81",
+      "bytes": 224
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/03D_계산만남기기.ddn",
+      "sha256": "6daa2f1f435d2b90bb201364d24412f85ce0c808fc4f4a73b0ff4ad8890dd742",
+      "bytes": 198
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/04A_조건의참갈래.ddn",
+      "sha256": "45aafe5a9f0bbe422642b1565a5252378eaefbccc46d14360203b2d4e49e5fbf",
+      "bytes": 261
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/04B_조건의거짓갈래.ddn",
+      "sha256": "2421cc0ebb21ae343bd6bd5ae3967e3c49a3fca3b0dae95a39216d817bf032dd",
+      "bytes": 261
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/04C_같을때.ddn",
+      "sha256": "5656ca14c86da0e8f973e989313e40a0d55b065d12627333ca70dee2d1815fac",
+      "bytes": 261
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/04D_음수비교.ddn",
+      "sha256": "71d9ef90535134ce32ebce9faa0588600d0268374eae20814eae810ddacb8bdf",
+      "bytes": 263
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/05A_정의안반복.ddn",
+      "sha256": "90cf724b10d681222e70f05fc316c4c0dadd196a1e7bbc51fcd5d7804f701a9c",
+      "bytes": 291
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/05B_반복범위바꾸기.ddn",
+      "sha256": "53d3361657b21e9d32e8495cf19ee3ba2ede9728d9dadfae3ec9ff104487508c",
+      "bytes": 291
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/05C_처음부터거짓.ddn",
+      "sha256": "88bc55694eac61a91b124d1878b2f55764cf7398100d0ddfc63dc4e3cfd711de",
+      "bytes": 291
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/05D_한번반복.ddn",
+      "sha256": "aab77ebeb008ba6e2d8fb019c13015853b2a30d3f9af1003b2bd31e2dacffc0c",
+      "bytes": 291
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/06A_차림받는자리.ddn",
+      "sha256": "88f698c268d05017a762ccf5e380b091dabbefab963d78222f0753a9d32fafc8",
+      "bytes": 261
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/06B_차림바꾸기.ddn",
+      "sha256": "bf8f52c5489f873bcb2b9770af6036db1b291e2e54d3325aca10882db45ff66d",
+      "bytes": 264
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/06C_한원소차림.ddn",
+      "sha256": "88e3604fc5fd56a811a4b5b90faa1140e5d8351868d2390f9e13fd48e85fd1cf",
+      "bytes": 284
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/06D_순회와움직씨.ddn",
+      "sha256": "560cbbad2df779f5f721f7b6ef0dc0cc01824009c2802d8479b4615e4318a653",
+      "bytes": 306
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/07A_요금규칙연결.ddn",
+      "sha256": "7664db0bc5191a2edb941abfb36365dbe42e46a1f99d0cc0e2002e0c6a50ce55",
+      "bytes": 488
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/07B_규칙값수정.ddn",
+      "sha256": "63a94a4b8243afb9c587dfcc3490ab12d2535a98153cca274a2a6c918f1da5e8",
+      "bytes": 488
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/07C_할인경계.ddn",
+      "sha256": "0dcaea614603c4330402340270b2f1166c283be4775848b835f0034e8fb8fb15",
+      "bytes": 425
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/07D_핀중복오류.ddn",
+      "sha256": "3381119598ab8303d6f5b730aadf71102d9fcf762d02a1389f409c042b7392d3",
+      "bytes": 373
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/08A_씨불일치.ddn",
+      "sha256": "d4532cbeb520b3701c1d1a5d04473f28323fda01a0b716af3c8b0468f643f653",
+      "bytes": 139
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/08B_받는자리누락.ddn",
+      "sha256": "2ab3c9dbd2c6db48e8dac47458738764730284ec20fdee5b90a1dacb33a89e61",
+      "bytes": 191
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/08C_결과자리누락.ddn",
+      "sha256": "0d28b421626cb786e1b190a0006e5888a7b3d38566738bb7aa6fff3184c948db",
+      "bytes": 139
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/08D_조사모호.ddn",
+      "sha256": "ddc940700dfb6d9f04ed6e21549702d08302e464958ab42b4e3d7c452a767f87",
+      "bytes": 193
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/09A_용사와슬라임.ddn",
+      "sha256": "7a0debbcd26b294f570ba0652a1c97d3d8f0d204e4dd32c4b2ebac8630aa0cad",
+      "bytes": 535
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/09B_방어규칙경계.ddn",
+      "sha256": "af3225f84fa06a61139e939f0c7dd9fc28546c7d0749e7519d76700aedb0a8e7",
+      "bytes": 519
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/09C_쓰러짐경계.ddn",
+      "sha256": "82e602c17cd718fc39396e1d284d604b108657ca90917b774d1cd64f6d41f033",
+      "bytes": 470
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/09D_미로의열쇠.ddn",
+      "sha256": "ae895516ba8e7e5ca7ec85f99021bb98d45162e017e9750d96484bf91fb3cce2",
+      "bytes": 309
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/10A_작은상점.ddn",
+      "sha256": "e09d7f76158c143fbb5643f567382d8ee45dbee549ee751b97c71040e4889e4c",
+      "bytes": 530
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/10B_잔액부족.ddn",
+      "sha256": "69ab673fb41290649d410b16cc1f027ac357f4d14b716f30920accd0f4c02631",
+      "bytes": 530
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/10C_잔액딱맞음.ddn",
+      "sha256": "00ea3bb28f0a1e37994f9f02e396ea84d6dde9b6b1092eb6aa8f8f91294b50fa",
+      "bytes": 530
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps/예제/10D_규칙을여러번.ddn",
+      "sha256": "6d421cdaa40ff5d4c9246da6d7d1bf4b385312785ca2d1517d2a21a45a98427b",
+      "bytes": 623
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/수정실습/MOD11_세칸씩전진.ddn",
+      "sha256": "708c88c75c6a7be34cff4e1828e13448e8a7dd56947645e43e40463df3ea3bfd",
+      "bytes": 582
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/수정실습/MOD12_배율네배.ddn",
+      "sha256": "271b8e7a49590a6f5f8cb3fc4f2eba428e01afb19a445e318af1849ab390c5f2",
+      "bytes": 628
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/수정실습/MOD13_겹의자리.ddn",
+      "sha256": "82eacef2ff569ac740010820a18b7038596e4fdff48fcb59969e52da243c9b8b",
+      "bytes": 540
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/수정실습/MOD14_대상의자리.ddn",
+      "sha256": "9ca0a352163fbfab10aa84d929cd34ab62056becc75537c51463c798bac095ea",
+      "bytes": 891
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/수정실습/MOD15_보상바꾸기.ddn",
+      "sha256": "75e3890e43bc085f6250a8da25d3d3979e68f75aec8ab830a01a941e9c1335b4",
+      "bytes": 972
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/수정실습/MOD16_같은기록두칸.ddn",
+      "sha256": "c43200497fe3949bf1be2d76cc6d9464f6cfebd7ba575d67e85704207f468874",
+      "bytes": 270
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/예제/11A_원의자리.ddn",
+      "sha256": "29299b622240ae7f6491d4d81822bbd91b3c70d9b076453f0215bc7beb804505",
+      "bytes": 639
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/예제/11B_두칸씩전진.ddn",
+      "sha256": "b93841ad0d93cb13b0682d981ef2ac94e201a2eeec5e663be83f5f9180041216",
+      "bytes": 582
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/예제/12A_계산한크기.ddn",
+      "sha256": "2db0e959a82b35c2e59e165769a481908908334936ac48637ed6f4b8a1db2a9d",
+      "bytes": 628
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/예제/12B_삼각형넓이.ddn",
+      "sha256": "67d8efceee4505992668a2ed14ecee727a3950467894c4a22027f5dc3abb7ba8",
+      "bytes": 658
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/예제/13A_겹쳐비교.ddn",
+      "sha256": "ceea02dc99ecc222167d8314e886ef8d86479b8bb459c11421cd03b9899d9bae",
+      "bytes": 540
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/예제/13B_그림과결과표.ddn",
+      "sha256": "7e2cf7dbf6033e63b0c8a9990a6e4468261fd8f9dc7e247d463d1d613d42eb19",
+      "bytes": 654
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/예제/14A_공자세히.ddn",
+      "sha256": "4f98ea0ee95f9c7582f81ccc779e81cb089fa0cb9d42dcbbb5a2c7e7207522dc",
+      "bytes": 887
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/예제/14B_움직이는공돋.ddn",
+      "sha256": "dc7c9d0938d12066d1854237f393d5b76220a818ab23885d1aa1267195b38aeb",
+      "bytes": 945
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/예제/15A_세칸이동게임.ddn",
+      "sha256": "872e8cd5485ffe8677534f20b4932f604185a9d7655af0684dbce52d3f4f7d10",
+      "bytes": 972
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/예제/15B_순서가중요한게임.ddn",
+      "sha256": "aaf95ca488b027117ac78cd1f894beacaec26d6636b36dbf0c42a9ae47705d5a",
+      "bytes": 414
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/예제/16A_누름과반복기록.ddn",
+      "sha256": "39089efed2550f7cf4adce3851f2ff09adbf9405f7792e6788768c41b268a426",
+      "bytes": 318
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha2/예제/16B_같은입력다른규칙.ddn",
+      "sha256": "d737743a409ed17c1bf174986d4c09a24c493a340883ab1e76902a73da51cb5d",
+      "bytes": 270
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha3/수정실습/MOD17_음수와단위.ddn",
+      "sha256": "3fb217291756f9c70d662128f1a660905a3ff7d00567b035b6c68757795ae3d4",
+      "bytes": 290
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha3/예제/17A_계산과표시.ddn",
+      "sha256": "7e5f01abb724c32358ece3287e33e45d1456731f08297a68fe0996fc11b6bb11",
+      "bytes": 303
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha3/예제/17B_차원을유지하기.ddn",
+      "sha256": "1b0837cdd2117a61d8eed601f8096db0f016a0073098d233ffe7d75a82778220",
+      "bytes": 170
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha3/예제/21A_정확한수.ddn",
+      "sha256": "6156ecb7f682ccfdabeda04c4fa32d5b5659aa133f24429e5f85ae2fabd6e31a",
+      "bytes": 321
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha3/예제/22A_같은차원.ddn",
+      "sha256": "84c3ddeb110b6d8f7554997684d86b80eb21cc1064f1d0f9a8a361f481a8c0c7",
+      "bytes": 187
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha3/예제/22B_차원실수.ddn",
+      "sha256": "9b2c1b0c8f93b6862b124fe9f474a7242615f41a09d39d3e0f954c40be7c8860",
+      "bytes": 111
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha3/예제/23A_매마디누적.ddn",
+      "sha256": "b5e68a6d1f3ade50dac2138927fd1ac990f9efe892d05d8c6719aa3430985402",
+      "bytes": 174
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha3/예제/24A_표의선택과갱신.ddn",
+      "sha256": "763a9a4985df508594a86f61ee3d2fd3586ff860084c9eb875225a11e9f80d8d",
+      "bytes": 293
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha3/프로젝트/27A/app/main.ddn",
+      "sha256": "c65970a823f9ef19fb0e90499096850f7344ac4dc1917fddf4d08defdfdac11b",
+      "bytes": 123
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_alpha3/프로젝트/27A/뿌리.ddn",
+      "sha256": "8f7db8080c953f12a8e9ee3ed2e2e55eb0cb7a4c01d89b4b280b1544f2212d49",
+      "bytes": 134
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_beta1/31_맨바깥Tuple.ddn",
+      "sha256": "c50bd742f6bb6adfe27cc7dd6cb69980724e48142675ce67627d5df50176978d",
+      "bytes": 227
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_beta1/32_나눔수정확계산.ddn",
+      "sha256": "6445676ff3a8ea019f26b000fff2227b1329278c0f78a0578d2ebffcf35e61b9",
+      "bytes": 288
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_beta1/33_다른수종류비교거부.ddn",
+      "sha256": "e5de30f6b538fef066a12eaa9c10a6180a6602a57ba61fa4c5025dbbc32e2a98",
+      "bytes": 167
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/lessons/rep_phys_pendulum_wave1_v1/lesson.ddn",
+      "sha256": "6756a3d1d4f64025cd5f6165963060f58b0e8ba6e29ba0e4f942fe37deecdf9b",
+      "bytes": 1834
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/lessons/rep_phys_projectile_xy_v1/lesson.ddn",
+      "sha256": "49f88c57e90f21256bdfaab84f461fe2eab809a1d42a9024018e4c0a9e3e8e99",
+      "bytes": 1122
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha2_linear_composition.ddn",
+      "sha256": "bf7e91c875bfffdb61f72b77792fc06f2bc0296390513c4a11f9dfbe77ac0ba6",
+      "bytes": 5567
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha2_logical_tetris.ddn",
+      "sha256": "30053194cbf5b46cefc0cc177304a427a2fbd74a74a347ec2b4cb3c6f9f2febf",
+      "bytes": 17095
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha2_parabola_composition.ddn",
+      "sha256": "8ab678d0ffbcbcf0222a2f0ade9879db4fe20e24a9a3843ecb706ce2df5a0dd0",
+      "bytes": 4674
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha2_pendulum_composition.ddn",
+      "sha256": "56926035b4f09372af69ed601c5957cee1adb369fc014140a73dd986a90fd3e8",
+      "bytes": 5137
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha3_chaebi_empty.ddn",
+      "sha256": "1060c127b4d7ba5aa87ec74ead14782d940c97f8d59db41397c67ae0f15c9cb3",
+      "bytes": 173
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha3_chaebi_once.ddn",
+      "sha256": "6bdb7f1d551eccca406f2a85d72768ced15836c2fa40f9dca5f2f2c36cf927ac",
+      "bytes": 178
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha3_double_pendulum_lab.ddn",
+      "sha256": "8a19e22001c7fdc16fbea64d7651f2bbe1736805ad9ba4f2fbbb13c63821c36f",
+      "bytes": 5765
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha3_double_pendulum_lab.project.ddn",
+      "sha256": "063f25d82cc84205e988c09984b1234455bdf1733b66dbb3332a7e7ea5970c90",
+      "bytes": 257
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha3_function_lab.ddn",
+      "sha256": "62fa70ffb0648a0489941d9a12383ee913a5404c8ba60ab4b43cb035dc460c44",
+      "bytes": 4629
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha3_market_lab.ddn",
+      "sha256": "25f955f28d8b8ed6c0bfff97d90444e94b83fb1e5af8f0387d1676126a12be51",
+      "bytes": 6411
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha3_numeric_display.ddn",
+      "sha256": "5c259d2436b602083d80e9baedcfb8e015efff270352941d5792744562bf6397",
+      "bytes": 123
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha3_scene_relative.ddn",
+      "sha256": "e0593343a2908cbdee0aab211cad7b418449dfcd2089eb7b15b882ce08cd9d33",
+      "bytes": 794
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha3_scene_time.ddn",
+      "sha256": "f317f09d6dbce2108548562edcdf13e52ce69f5119de514809ce8c3a871c240f",
+      "bytes": 720
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha3_table_time.ddn",
+      "sha256": "533e63377785e60e9f4c3db3392c50319360746c006c132aa28aa0ef9ab8aae8",
+      "bytes": 428
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha3_units.ddn",
+      "sha256": "d2b6a9778bdf2f8b1fa2e4a0e91dbaf669dd196d21eec6ab464bcc7a3422a53e",
+      "bytes": 181
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha4_drawing_common.ddn",
+      "sha256": "332d8ff48a8bf2d7f706076d315f00996e68049393835c8d5c8eadec705d3d87",
+      "bytes": 1407
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha4_lrl_lab.ddn",
+      "sha256": "eb41ceec320f4bf181241fdec8d2e44c834eea4f8a88237733629167d7f63689",
+      "bytes": 8828
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha4_lrl_lab.project.ddn",
+      "sha256": "896d976d2388134fb41eb2b94d18a69e2026fde808107542b37b6a01e01b1edf",
+      "bytes": 233
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/alpha4_manipulation_point.ddn",
+      "sha256": "d8ed0682f291db89689d8f6b696c0e04b4b9bc7761e4366a4653367fa0251957",
+      "bytes": 921
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/beta1_logical_counter/app/main.ddn",
+      "sha256": "a4f30095a0429787f986e12969f630dd6854c4a06caf5386caa05e0d8320cbc4",
+      "bytes": 156
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/beta1_logical_counter/lib/힘.ddn",
+      "sha256": "cd9977b2655d814c75d077704ef0b6dfae89cf0a493249c67c36fc663cff9a61",
+      "bytes": 35
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/beta1_logical_counter/root.ddn",
+      "sha256": "6462d73cc5198353aab93548e59421687e015408bccff8eda4f1018a002ec17b",
+      "bytes": 192
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/beta1_logical_tetris/main.ddn",
+      "sha256": "9a20f0029a0a58acae33939ed984ec32891ea697f8d473f4b5092350fca6b5dc",
+      "bytes": 17311
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/beta1_logical_tetris/root.ddn",
+      "sha256": "38d3c99684a18fb3cc222fc7047db88ab04b306042172fbe290af19b5c3909a1",
+      "bytes": 126
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/beta1_typed_tuple/declared_call.ddn",
+      "sha256": "341e90a9321675ec797e84bb6e9836042ead388db7c491ae6f05b603a9a1f3db",
+      "bytes": 751
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/beta1_typed_tuple/main.ddn",
+      "sha256": "346599fe8730f6f631b96bd23b0cc7c7e43017a957166ec5defe47568243b20a",
+      "bytes": 534
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/beta1_typed_tuple/root.ddn",
+      "sha256": "38d3c99684a18fb3cc222fc7047db88ab04b306042172fbe290af19b5c3909a1",
+      "bytes": 126
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/beta2_derived/main.ddn",
+      "sha256": "31230da5571377b2548957095920ab37a0e7f0cf293c6a969e8e5f479a52119e",
+      "bytes": 164
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/samples/beta2_derived/root.ddn",
+      "sha256": "38d3c99684a18fb3cc222fc7047db88ab04b306042172fbe290af19b5c3909a1",
+      "bytes": 126
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/app.js",
+      "sha256": "5c86dfb704808c6dcddd22d1b5191afda7a3556b8a79513a48f2f1ad510f1a88",
+      "bytes": 205918
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/block_editor/ddn_block_codec.js",
+      "sha256": "3420299d991ec76a9bc5d86fa6d6b98697a9ed48bac09f13a28e2fc598e0e6b7",
+      "bytes": 13570
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/block_editor/ddn_block_engine.js",
+      "sha256": "2b9c0a103c32971825ae6cb82b4b2dff53fa72f548d9a1bd43b2c2e31e35ef37",
+      "bytes": 14665
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/block_editor/rpgbox_palette.js",
+      "sha256": "43bde107c40b575d0d32a6ec495b9493695d0fe72d8ad1ceeba658cf8f21a912",
+      "bytes": 2135
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/block_editor/seamgrim_palette.js",
+      "sha256": "57366ad7145cd5e73c183678c2940fa09ae88be758677cd850085e6bc79719ff",
+      "bytes": 10928
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/components/bogae.js",
+      "sha256": "29c9771b2258723f59f98fb85de4729288cf7aaee7a6d1fa299fab465ccc2d59",
+      "bytes": 12326
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/components/control_parser.js",
+      "sha256": "2a5960e1999564444f91d74ae1f46fe48e32e2237a4db6e0bb664a3d1c54e26b",
+      "bytes": 18728
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/components/dotbogi.js",
+      "sha256": "4231a6a9d660e9910d1b8eb553decb93f0baf68bfed6f09ac494957ea013e707",
+      "bytes": 28717
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/components/graph_preview.js",
+      "sha256": "faa97cf63500db5c27d3f3fee21cbb1015945eae0310508ec643fd12d1056acd",
+      "bytes": 5650
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/components/guide_meta.js",
+      "sha256": "ae21157102088c4aac6a1961598e5a2dc59cedcf9813903222fc4aacbe074362",
+      "bytes": 5470
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/components/lesson_card_preview.js",
+      "sha256": "c9e5608429179a6d8cbcf8ce2c91d11b549eb587f9575e5d67307ccee0603f95",
+      "bytes": 2032
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/components/markdown.js",
+      "sha256": "fa815b1021ce4290cce6ddde8c446eb878a455a6340080d7998099cbfdb84ef9",
+      "bytes": 1225
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/components/overlay.js",
+      "sha256": "6cc1721618dc332d57a9fdd1d214271f9abce799446d7f30c406fe7a12bd7000",
+      "bytes": 570
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/components/preview_registry.js",
+      "sha256": "88baf8e8d528ab88cdb8f737cde483572e104c1fad1f89114811dc622ac599f8",
+      "bytes": 6499
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/components/slider_panel.js",
+      "sha256": "ba892f597b9bca6612ac36aee6a5fa7604761476ba4080fddaae7d8a5e467b5f",
+      "bytes": 7716
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/components/structure_preview.js",
+      "sha256": "c510eb30b07000e393ed8dc11239643ba5b16fa102711737818301c22731dc4d",
+      "bytes": 4311
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/components/table_preview.js",
+      "sha256": "f67252aeedf1f667aa68861db51e055c4ca7f2590244168c843dff92bf0e982f",
+      "bytes": 3072
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/components/toast.js",
+      "sha256": "76f63df13f863f0fd09de03152f953bc3ba3acf8395cb4c13e47eb4247c3c755",
+      "bytes": 1318
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/curriculum_artifact_bundle.js",
+      "sha256": "100d6634d2e3bbd5f7b896a459a57d39f9a30e0156e0791d69b6324f64f0a868",
+      "bytes": 3834
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/curriculum_cards.js",
+      "sha256": "10f988ae97bff53c19c6bc6138dc65a009cd367bbd0843d45db2ba7200d0a9c3",
+      "bytes": 5025
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/curriculum_inquiry.js",
+      "sha256": "5a837ceff8438309c2ec223c9f61910108b214f20c12b913e0f9d4bfbca5e606",
+      "bytes": 3965
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/curriculum_model_comparison.js",
+      "sha256": "8c810c682d45116b4931a5ff178819ea2d183858fc22527ef20e953c8bc9dafb",
+      "bytes": 3731
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/curriculum_semantic_scene.js",
+      "sha256": "3a67fd6d6b60d87d7784e70c1d89cd5a80edbd5bbf7622a8ca67b5ab0de08abf",
+      "bytes": 9268
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/dev_surfaces.js",
+      "sha256": "949e6f34d05d8ab4c2f5533e02846ebd3c7d89e922a064b1b64d3b115fef89d4",
+      "bytes": 30923
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/display_label_contract.js",
+      "sha256": "b47ee34d7eb4bf13372bfe39b4f8928bbd628c30f4527a71ea0bcb5065f0f557",
+      "bytes": 4357
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/education_assessment_pack.js",
+      "sha256": "7e5af2c90b5de75fccd43ec19041665ed4b9ec25a3184b00c6a8ed8f51869045",
+      "bytes": 14089
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/education_classroom_ui_pack.js",
+      "sha256": "addb05cf98e8566566031feec3674d3b38a11a7701c7430a9c6e09ab5b98c78b",
+      "bytes": 14324
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/education_operations_lts.js",
+      "sha256": "07609bc5c0d4e0711cf00e500bf23a6cf5b8ad3febf1c7e4d1fac53f1379ab3f",
+      "bytes": 14654
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/education_publication_pack.js",
+      "sha256": "c499aba3834e2f5cf87dc6c18c1b70df0a460d28910567b2da8a234ed9919039",
+      "bytes": 14178
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/featured_seed_catalog.js",
+      "sha256": "f236a56f2ccdbe7b3db9485f34690c54aeae42edd1a79339e18be446ecde02f9",
+      "bytes": 449
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/featured_seed_quick_launch.js",
+      "sha256": "7dab83da1f71aea43142858b2a406d9ae46024ce22144f2284ca4a99e2e83e3d",
+      "bytes": 2505
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/first_run_catalog.js",
+      "sha256": "e8fb25a2d45deae2267ac04a8cc92808c476cdb8a20f3814dcf2631819f1cd00",
+      "bytes": 2083
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/formula_sugar.js",
+      "sha256": "4993a666ede6ecad8d0c75f45d17081891b5ea26a6c7381a3c94d141d9afab6b",
+      "bytes": 5454
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/free_lab_experiment_report.js",
+      "sha256": "1f6369037eead36e5665849278ed6f8357ab1bf7be240ba17d2e3a8b90b5b075",
+      "bytes": 9420
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/free_lab_first_run.js",
+      "sha256": "c6a29a95287a87530c96827b6713469c8ea62967c6fbf8a8a1b0f822ce10aa40",
+      "bytes": 10321
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/free_lab_research_workflow.js",
+      "sha256": "2fa454dc0147a3c36fcef969775a7768466fdda69915bde7ebc336a6c542c33d",
+      "bytes": 12386
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/free_lab_share_pack.js",
+      "sha256": "25406ec0c23a7d641b4ae1cdbb924638f4bc204ca6cd7bd77cde905c9c8229ee",
+      "bytes": 9415
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/free_lab_ui_pack.js",
+      "sha256": "e84ef6617f44b64a5a81971bbfb0f11198f29739d1bb769acec2ed9666ef3c4d",
+      "bytes": 10577
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/graph_autorender.js",
+      "sha256": "f8eeb5372acb607e304aeff249751252c001d2117980ef50113aa3859dc42595",
+      "bytes": 4647
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/host/browser_host_adapter.js",
+      "sha256": "c924ad86304be825caf32f04c55491901fbda818660928e905b379e43f6448c5",
+      "bytes": 1966
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/host/host_bridge.js",
+      "sha256": "75f4b75c587e51660b70813c59fdceb3f4fd4bd38cfd1a24df5f8b8ec9c8250c",
+      "bytes": 1059
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/input_registry.js",
+      "sha256": "ab47e0cb5e80d57a02dc347cdebd19c18827352b800fe9476784ce8900632d9a",
+      "bytes": 6522
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/inspector_contract.js",
+      "sha256": "52a21e8e24ddee5927b93745ed588ec0d95f54281d94d2b55c11fe84a6c50914",
+      "bytes": 13779
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/learning_spine_index.js",
+      "sha256": "94405410ade1463c793a7bae9c719a50c437b14720faad9daa54c86923a0c05c",
+      "bytes": 9708
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/legacy_warning_guide.js",
+      "sha256": "849e44eaa3020a183cb47b478247db7c0b69f5926454a254e9a0ca1bcbb20860",
+      "bytes": 2672
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/lesson_library_curation.js",
+      "sha256": "56702934285d2fe9ef9e4b04b49719ca6d029bf8720a3fbf22aae79d9cd22cc7",
+      "bytes": 4908
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/lesson_loader_contract.js",
+      "sha256": "8dc94257f228b7d8d649fd73b71e86b87b3a786997aa409a785c4c161c4d6c8f",
+      "bytes": 6266
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/lesson_plan_v0.js",
+      "sha256": "6941dc0d3235f5a5456c24f5853b2f27dd58de955fe249581b1977f9b2d09a2d",
+      "bytes": 12148
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/live_trace_reaction_runtime.js",
+      "sha256": "4a8b85e319c7ec1ca43411f09db5d28a5f959b253c1a17e82ec2d754d85b25bf",
+      "bytes": 11856
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/numeric_curriculum_track.js",
+      "sha256": "ea8eb42a4271bf67edda8a2d2aded8202555eb386afdfaa0d28a7b6c5fc0a840",
+      "bytes": 89575
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/nurigym_python_web_parity.js",
+      "sha256": "323187f7eb90fa3321c314d8ed8c30e076c5fc7beacc1af6a435f5a15e6aaa79",
+      "bytes": 6911
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/overlay_session_contract.js",
+      "sha256": "aa680c2b50ee3a42b875ef3f7526a0a26efd13e2cf445402195c55eb039a04e7",
+      "bytes": 9873
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/platform_contract.js",
+      "sha256": "74c61b0add39ce026d21fc08ed6a704197c8c795471a44bd3a59df995ab959a9",
+      "bytes": 2322
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/platform_mock_adapter_contract.js",
+      "sha256": "464c709b231ee777fb7593e6961b5c70d0c292bb7c9d15008bd59467477fd48d",
+      "bytes": 7001
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/platform_server_adapter_contract.js",
+      "sha256": "67b5b3bc290c881c55ac4f3a1d7299331f28f4068fb11c07a2813135a8af546e",
+      "bytes": 6360
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/play_diagnostic_contract.js",
+      "sha256": "de9851336751214144302ab5be2a3a1c50027c5e3bcf09b02b2b40f30a84c0cf",
+      "bytes": 2962
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/play_output_contract.js",
+      "sha256": "3a5293e8ed341c793481e1d1dd557f4365a536a0d21b7bc82c4184a419df97b6",
+      "bytes": 1330
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/play_source_contract.js",
+      "sha256": "ad0199566b2aad04785e953c54c27fcd53bac9902a676f8ec3fd964ad90cdee7",
+      "bytes": 9280
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/playground.js",
+      "sha256": "a7a6b289a3a66d1d2c90bda796d1d1acd3302526cd7d9772681ddd654bd8a1c5",
+      "bytes": 57067
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/preview_payload_loader.js",
+      "sha256": "a9e9348b6d70ffa88f8bc9e03f643fa3d9a5008669bd16604410fc023a7fc930",
+      "bytes": 3231
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/preview_result_contract.js",
+      "sha256": "6933941562204c8f7b8fb9dff8ff2c6b3cd3ea5ae7d9f3acc67c0c5d16826ae0",
+      "bytes": 8620
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/preview_session.js",
+      "sha256": "5f20e275e10241679440205d421f870bf826c66d08513adc08937492f3e06855",
+      "bytes": 1573
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/preview_view_model.js",
+      "sha256": "026070d2ecbc848697da693ed06f3e30e6c8652bc7192622addf898a556c81c5",
+      "bytes": 2571
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/project_service_client.js",
+      "sha256": "19eb3d88f90b1b101715c17503cfaa9c5b95f525417eb4acb6c0d32af4d032f3",
+      "bytes": 4287
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/project_snapshot.js",
+      "sha256": "e44d4bb49b3137626919463d25334d9e4520be1983f2e471345180ca59d983c0",
+      "bytes": 8789
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/question_card_author_tool_share.js",
+      "sha256": "ad501398470abaae5e38cb8431eb81727c17a97e7b0c977d1efa6f91af947373",
+      "bytes": 13603
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/question_card_dev_assist.js",
+      "sha256": "ef8ad8056a5d548e470daab166b8c6a56b57434ce15e33016c5f8b708eacb2b9",
+      "bytes": 13419
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/question_card_smoke.js",
+      "sha256": "f38735b74cd69a2d59a5bf45c0b3d343d38625a22e1634aef4b992de4fc9049f",
+      "bytes": 13384
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/question_card_validation.js",
+      "sha256": "501b2ff0835df41a4bfa7aff9ebfbccc9cac6b27f206f88228530ced8c61118a",
+      "bytes": 13781
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/question_card_workflow_hardening.js",
+      "sha256": "f28fa6ba9a2fa61e85df0eb26d22044a213c9d61fb4e42abc1defd19eebf8d64",
+      "bytes": 13745
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/rpg_box_authoring_ui.js",
+      "sha256": "9a2fb59b404a6973cdab9e0eb47c7643aa970b8030d9b61aa1620627fcbdab64",
+      "bytes": 13957
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/rpg_engine_adapter_lts.js",
+      "sha256": "401d499fd5f2fb95f1f4d248f4c2ea724ce53e7088df50fa0ee41eef264e2350",
+      "bytes": 12998
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/rpg_story_package.js",
+      "sha256": "02a08a4baebc8c20d7d6b1a748325c41722040322594e9c6a318e2a7505d84fc",
+      "bytes": 12881
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/run_action_rail_contract.js",
+      "sha256": "78d63a8f1515696aa3ace7209264312c6cbaf63793270427fdedaf624a4e7b38",
+      "bytes": 4541
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/run_exec_status_contract.js",
+      "sha256": "f6c59ca96a13918f9354272afde2361fa2a4b707c74c8eaa18d4b5e9f980a029",
+      "bytes": 1770
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/run_observe_action_contract.js",
+      "sha256": "cd994d203789835b4222ce48dd539ed640eb9eae41d192c311dad571c85c4e72",
+      "bytes": 985
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/run_observe_family_contract.js",
+      "sha256": "db0d51c3873a33198335f68836df200d3773b0bd45d38afe7e4e4365aaea3415",
+      "bytes": 2141
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/run_observe_summary_contract.js",
+      "sha256": "ec6e380686d6e22544713bbb0498985ddb41049dcc8f44726c3126864314c8c5",
+      "bytes": 5044
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/run_runtime_hint_contract.js",
+      "sha256": "731850d98d6399688ac26a12befa1973061fa2cdf8b475523d763cbb20159ec9",
+      "bytes": 2951
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/run_warning_contract.js",
+      "sha256": "f49c0c402edc3f0c73802b88fede79df1dbc876283c283fd880d2e2a5fbeabe6",
+      "bytes": 11087
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/run_warning_panel_contract.js",
+      "sha256": "38b1f561d3d1733f91523718ca784c906ae9f1f7b3b764b37c1391d81084580f",
+      "bytes": 11478
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/cell_grid_renderer.js",
+      "sha256": "1eacaeafdfd670b2dbfea3f366373edb64db437b80b54f197378b6a1c2c7c73d",
+      "bytes": 13860
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/ddn_preprocess.js",
+      "sha256": "fdfead65fb1709e0cc9062c53f8b4ab94d22bde9a3f26a6776ede1e4e782789a",
+      "bytes": 32336
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/diag_format.js",
+      "sha256": "8b91d146ea6ac80ecf4bddc59614ef68ce4f09d96621fef22748e6592a944862",
+      "bytes": 1076
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/execution_safety.js",
+      "sha256": "1aec4e6d2654504a03c02eb68f15b2df242ec0cd59e954b059109e90ca87b021",
+      "bytes": 713
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/host_step_watchdog.js",
+      "sha256": "ab0c79695f41909da42f5d642c16d6ba28275af2ba7e57e4d04555596b079ab5",
+      "bytes": 1224
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/index.js",
+      "sha256": "84eb959f557546566e3341cf254c8fb41ff87d0e49e597d33fc74fdae3fe1bc6",
+      "bytes": 423
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/lesson_canon_runtime.js",
+      "sha256": "a6cdd41a8052bd06d319ef3d45b526d36cfef84d64487998bba7c3e0897e3f90",
+      "bytes": 9535
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/logical_action_input.js",
+      "sha256": "5658c0cbdbcf97acd7edd7b904b3c5b21074a71c498be8befd9d5466bc018d2d",
+      "bytes": 17971
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/native_recording_finish.js",
+      "sha256": "ccb1cb69eba1139d00316c0a050ec78411ef17445ebcf8705d6e99b0922e0f88",
+      "bytes": 9463
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/native_source_transport.js",
+      "sha256": "6005394b3e611e4b1f17ca743c20093dce6cf813b707d021f38ee9a129c68625",
+      "bytes": 3615
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/numeric_kernel_worker.js",
+      "sha256": "70d04170239340d4c9dae220b4d1e599ceb31cfabcfd7018e57067052b184bd8",
+      "bytes": 460
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/nurimaker_grid_renderer.js",
+      "sha256": "db7d71023eeac74368600993c524b1d1feb00d39476fe149829b57ebb806cbf5",
+      "bytes": 9706
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/observation_manifest.js",
+      "sha256": "91dfe0d9c099430086890e469b40a9bb6951cde1d2e284bd9d538807cb84c81f",
+      "bytes": 2717
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/observation_manifest_contract.js",
+      "sha256": "75bd509bc5752a31e09c783f86d0969f386cd0ca3fd178f3f1f8d2ac1450a558",
+      "bytes": 4467
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/runtime_bridge.js",
+      "sha256": "d30f7bbeeea5325c7fac244829a4e985e6704241070e49a05b2b2f40409eb7e4",
+      "bytes": 22228
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/runtime_worker.js",
+      "sha256": "1928e21a61bf1d6e8746396776dffa396c136b9eef9f453bfdb2ec119317dc08",
+      "bytes": 3893
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/wasm_canon_runtime.js",
+      "sha256": "81a4e81a12dbe045fbae6ff7b723532ed73fbb6a0920c217078805d76d9c572b",
+      "bytes": 7996
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/wasm_state_observer_client.js",
+      "sha256": "c622557f6b3402b5623c6c870c64bd5509fdb6a97f2d760bf9887026207f2192",
+      "bytes": 2164
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/wasm_vm_runtime.js",
+      "sha256": "728a9514464a9d816df95135f7ba50a007198fe04e5f871baf1d3a5ead09f112",
+      "bytes": 26216
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/runtime/worker_runtime_adapter.js",
+      "sha256": "4ad66e63c2036b32b5fe3d85f7145a7937ac3e6a0c2c33133cf1a3a1b3804bd2",
+      "bytes": 5610
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/scene_summary_contract.js",
+      "sha256": "4983dffdb937287ca83f70765680a2f680d7a61b9f1c73f8a370a5ced0d5c292",
+      "bytes": 16508
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/screens/block_editor.js",
+      "sha256": "376e4d37b2b69e20bc7dcad3039c4c087e85a0978b41ea904f1e35df421643cd",
+      "bytes": 5668
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/screens/browse.js",
+      "sha256": "b0457435f4d6bf23d12605050a2fe45d596cc7571ef12f55fa27c6a5a9e056df",
+      "bytes": 188930
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/screens/editor.js",
+      "sha256": "af4438e5edb57de88f6e28af07304f4d234d8b303baf2305933ee7acd8cf7043",
+      "bytes": 91789
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/screens/rpg_box.js",
+      "sha256": "dc29dfa6f0029693fe620feb5b66809742c7960e52b368839f1c11db2e952c48",
+      "bytes": 11025
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/screens/run.js",
+      "sha256": "b88527b2d1dbab2aa651b4d4078280e5fbabb79c86313de20a5df044dfc665b4",
+      "bytes": 664562
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/sealed_trace_evaluator.js",
+      "sha256": "60263cef0651cc29411bbcb751a9d6b6cc6f079f84f8d68fb952ad9c495122db",
+      "bytes": 14473
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/seamgrim_numeric_track_consolidation.js",
+      "sha256": "4dbd7ffb4d6ecc283c2cbde41ad831db72b5ec34c340529671e691eed493b784",
+      "bytes": 11851
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/seamgrim_runtime_state.js",
+      "sha256": "4116eba61e5c4e8fd9bdfc3b56933df4d0f414fec997b1dc0e51bef49348e722",
+      "bytes": 72637
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/semantic_cursor_runtime.js",
+      "sha256": "b80e6ea3446f5c5967100c7c91e39e0535f1856a476c650b329100ec01517d5a",
+      "bytes": 10725
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/seulgi_proposal_ui.js",
+      "sha256": "0ca6c90c14164581d63c565aa333c98c2fd535676290fadc37d0a613a94cc51b",
+      "bytes": 11775
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/seulgi_replay_safe_workflow.js",
+      "sha256": "9657796be67c49404bde5d1ceaca324852f3a991a2fa01259be85d0d6c8cd824",
+      "bytes": 11091
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/snapshot_session_contract.js",
+      "sha256": "51a547fd8af720f44192f01e6ab9b464a7c18167fe2f90aca17e086242f18b15",
+      "bytes": 17829
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/social_world_bridge_pack.js",
+      "sha256": "89aec30f18a96d7792ac00113ce7b0252452f707c8690c0ad11f6f785281b5dd",
+      "bytes": 12386
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/social_world_lts_readiness.js",
+      "sha256": "c40a279f28d07d42a89e62191a3b0b38714705a67f4bdd2ad9de1c843b317daf",
+      "bytes": 12495
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/social_world_policy_ghost_ui.js",
+      "sha256": "5e88a67755dce37c17cf6607fc69a0077ea0c3203121a6c430e6800929a8e16d",
+      "bytes": 12352
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/social_world_template_registry.js",
+      "sha256": "e1e69830a0a8812d36929f8c38e02d9004cfd5d2dbcee1f8a3b622273faced34",
+      "bytes": 12881
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_benchmark_baseline_local_snapshot.js",
+      "sha256": "e3b405613c5458983fdf6fc009fabff7a339b9822d90842151fde9110c987251",
+      "bytes": 11629
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_benchmark_baseline_prep_dry_run.js",
+      "sha256": "a662d82b744c4fae85b80ce4d968eaa9f122a0d9f1308e5972bf8ed0e8081f52",
+      "bytes": 12385
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_classroom_mode.js",
+      "sha256": "5f5c0a0efaf721744579ab8ae388c2825692161c4d197267f1391c85d336a9b4",
+      "bytes": 13183
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_classroom_operations_panel_preview.js",
+      "sha256": "ef75ac6de200c408b1923692a13332effc9bdd3b22f0f531c39444e1b1882213",
+      "bytes": 10738
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_classroom_operations_triage.js",
+      "sha256": "3d5bdc9c6078cc2d878ae53fc1e332c3cc2368b1462498ce443ae6e9d06d77a1",
+      "bytes": 12253
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_diagnostic_fixit_integration.js",
+      "sha256": "e9380e62fcef80fd79dc2a15b8c0d14c6c6d069d3234d6081673246041103f6e",
+      "bytes": 6053
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_diagnostic_fixit_preview.js",
+      "sha256": "723383518581da16f782485f7c4810b9ccc3976bb1a4a122c60fd99f32d57123",
+      "bytes": 11235
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_edit_run_contract.js",
+      "sha256": "aa539737312f4ddb98df568ac62221926d37b84b54c5cc7014fc6755112fe16a",
+      "bytes": 6774
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_lesson_authoring_run_integration.js",
+      "sha256": "a97b232a2ddfda98de0d249b9f4c2a7de3f4467834bc01ee8925972fe85e578e",
+      "bytes": 7886
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_lesson_publication_review_surface.js",
+      "sha256": "5741aa59e1a4ff1f98c5de6cad6b65a7e54e8da623cf8327a4300088b14624fc",
+      "bytes": 13258
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_local_release_rehearsal_check.js",
+      "sha256": "76e71d53234063e4f755d0a443a09c591d34d28cc93792b8d7de4e857cfb1f53",
+      "bytes": 12806
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_local_share_package.js",
+      "sha256": "d4e5efb24f48c5ef41a40df0aeec174bff7dd8955d3bb17ef588b006e1f8346b",
+      "bytes": 50935
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_ma3_next_development_queue_rebase.js",
+      "sha256": "483cd303c41d5eb0bd182c321840c30d1f8e17c2b3895a3fac8690d5ef3eb60b",
+      "bytes": 11856
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_ma3_next_queue_coordinate_lock.js",
+      "sha256": "433b206bae1885b0d50eb52a8bad0833cdf3c053c53d3f083cad28a2d0b825f9",
+      "bytes": 11304
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_ma3_regression_gate_matrix.js",
+      "sha256": "700bf423df20764a5980cf1317f4881959682b988d80c9b40e12a965e4c3abbf",
+      "bytes": 11776
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_malblock_workbench_integration.js",
+      "sha256": "b5cfa884923788fde7c55439fb9c82210862e12f7513bbdfd3ae73f9c78783bb",
+      "bytes": 9090
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_next_roadmap_v2_coordinate_lock.js",
+      "sha256": "95f223c801a3c117a1b09792761cdc96e1da6b6a67b686dab60b4cb2d2361762",
+      "bytes": 10997
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_numeric_report_workflow_stage.js",
+      "sha256": "2e4b636133f595ad416ecd7572a602847a1ce35a1f28a671fdb25991a9ef7de4",
+      "bytes": 10503
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_numeric_result_report_stage.js",
+      "sha256": "d8874ae1a37d541d07f60183a9a61fbf024c132a39fe599fd684544a0f5f5add",
+      "bytes": 11115
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_operations_preview_stage_closure.js",
+      "sha256": "b4486462025f4ca2dec166c067997026dc2e2857c1aa57527d4d209d807a2e38",
+      "bytes": 13079
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_post_super_long_rebase.js",
+      "sha256": "becea94b65602741332cc29f2e744e9872bb9d267e0914784450483125990b7a",
+      "bytes": 10669
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_productization_stage_closure.js",
+      "sha256": "f84ae7f6b13870d185622bf2a9df45f7f501d66209acd4865fd4311ce693a09c",
+      "bytes": 11365
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_productization_stage_rebase.js",
+      "sha256": "df39a783fe981211b9cafc1056b7ba894db585b650747728985a768ca09561a7",
+      "bytes": 11232
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_public_release_approval_recheck.js",
+      "sha256": "e8591379590757840c8423a89126bbf4abdf3490d82721f7ab99e9385e8a0eb1",
+      "bytes": 11582
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_publication_artifact_dry_run.js",
+      "sha256": "4a94f021734ed2aba270ffc444402ed4a825475088f36ea740dd6d1cdb80182a",
+      "bytes": 12109
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_release_review_packet_dashboard.js",
+      "sha256": "86ed7ecaf430e18fd714e3f4b22d6e7e1dee98c7c87ca247580f181ae9273540",
+      "bytes": 12944
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_teacher_feedback_loop_seed.js",
+      "sha256": "258b63211daeeec38c50cee564e63615101cd9d8ea91710ae879fea15c0842c7",
+      "bytes": 11940
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/studio_teacher_feedback_surface_preview.js",
+      "sha256": "6845f6edff657bcc3ae4b979eaf1eda6687077a85690e784fbc09cd0e50a6e96",
+      "bytes": 10556
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/subpanel_tab_policy.js",
+      "sha256": "37f590650609190d34cc63070550af7d12d092bda0cfd79f65d5465ac3d90079",
+      "bytes": 648
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/toolchain_benchmark_lts.js",
+      "sha256": "9ed8945167cfc2f2ded2144ff5b99415488bb5cebb4a7670d566d5a46c094c01",
+      "bytes": 12592
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/toolchain_diagnostic_ui_lsp.js",
+      "sha256": "fce2a46a56c06df8dab3e4dc27cf193e8a6f5347da18b000d570a99b8316b0f8",
+      "bytes": 11358
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/toolchain_registry_verification.js",
+      "sha256": "e494cdc79f32926a7c9922dcccaaecc07954a2fe7b67e7dcb9e2b73aaf2f314b",
+      "bytes": 12873
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/trace_reaction_runtime.js",
+      "sha256": "34e71bf3f558e5f5b3f577fd64aeb6ab9171d8f831d30614f54998dcc98d7986",
+      "bytes": 26774
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/ttonimaru_platform_hardening.js",
+      "sha256": "ae9413528c3af9ec9d436bc75c2c5b2f073fb83db7dfe411df7f08696e971404",
+      "bytes": 13196
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/ttonimaru_project_share_ui.js",
+      "sha256": "3c41ab3b264f823ba769f373101967fba1aca76bdb8feb5430ba36b946292db3",
+      "bytes": 13373
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/ttonimaru_public_registry_seed.js",
+      "sha256": "f5aee012c8830184cc2e42353959fdcb1653bdd08c8e7ca2f34bfc455b43b869",
+      "bytes": 13800
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/ttonimaru_publication_read_api.js",
+      "sha256": "f74920f85fc4078dcfd50a13296178c4f02e88b67351bb8fd6d86b7741d1849e",
+      "bytes": 14026
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/update_tick_contract.js",
+      "sha256": "fcc80096e077d08ca6a2e832cc2da412c7e3d4153c796d69d667bea9c0555a2e",
+      "bytes": 4431
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/view_family_contract.js",
+      "sha256": "8cddd63ee1269e3ebff383a427a8058638459d707916360e06a854b4dc497faf",
+      "bytes": 4263
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/view_plan_runtime.js",
+      "sha256": "935d1d8957d8a2bd5f47958a161e161ec8a4f2b7835617866ae51b3e30c4da93",
+      "bytes": 35800
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/wasm/ddonirang_tool.js",
+      "sha256": "945cc81f968a69113bbb670bcce32a45159f78cd3637b416fdf76f2b14b57e45",
+      "bytes": 177446
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/wasm/ddonirang_tool_bg.wasm",
+      "sha256": "0413541270a4bf9056e84e71e54f07ad1328d4dbbc9eb5ab020970a41e6103f0",
+      "bytes": 11164431
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/wasm_ddn_wrapper.js",
+      "sha256": "3bc73bfd49ea5ad64cca04e4063b78d972c4d5f042c6d32b99601097fc95a95d",
+      "bytes": 9113
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/wasm_page_common.js",
+      "sha256": "3abe8aa2e5f8f16ccb2d8133bd4f2247b54b99723695bbcc927108a9f771cec4",
+      "bytes": 108595
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/alpha_lesson_catalog.js",
+      "sha256": "80bf3e6987f0b2df45eef83c12b0974511543870700092d5829e90470d5a6966",
+      "bytes": 15556
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/approved_workbench_api.js",
+      "sha256": "ce9a5950924a354dcd4dcb7b21aa3749b61e2446eee7867596035470dbb1324a",
+      "bytes": 13265
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/authored_bogae_renderer.js",
+      "sha256": "e897a6839580d64f86e762941e7802d9c5b68a3622837a71c877068abddfd882",
+      "bytes": 35844
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/authored_project_panel.js",
+      "sha256": "e5d0e756757e27766a1aaafa28a1b129b5914d8ab8f914cf6a3e36061a662543",
+      "bytes": 22922
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/canvas_presentation.js",
+      "sha256": "00a13ec445da70e2234f2d4c5a04f5c376ac184b937ee6505d466c2b86f15593",
+      "bytes": 17777
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/committed_output_view.js",
+      "sha256": "6fbf082e2cc074f5ce237b894427d2b06c6a0a9921275d1d2aed76363052ffa0",
+      "bytes": 1712
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/editor_presentation.js",
+      "sha256": "24d3059d7d73c4f3b5545b02adcd7529a71355838ce3f5c68c77269f17ee1d83",
+      "bytes": 12540
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/execution_controller.js",
+      "sha256": "1f1824ee6aaee38b3f88d88c8fba8fd62bf785dce4c27e7609bd0a4a8dd43fe7",
+      "bytes": 34155
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/execution_lifecycle.js",
+      "sha256": "ab90f3540fae2975221be2d06026157ef949e35bd640c7297cd9b43949446f13",
+      "bytes": 13345
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/exploration_presets.js",
+      "sha256": "ca92cf3fb3b0d5eaa580b04e399f3d1c9c2a2c256e52502bfeb45de619662275",
+      "bytes": 900
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/first_steps_alpha2_catalog.js",
+      "sha256": "100e599d7aae451335f45b5d53e78ce8772a46ee587cdb6906a59de6b58501a0",
+      "bytes": 1323
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/first_steps_alpha3_catalog.js",
+      "sha256": "bb3c334520c89236fd552f2b5bfed833609dd1ed3507c15a8e9c97b6af935655",
+      "bytes": 1888
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/first_steps_alpha4_catalog.js",
+      "sha256": "00d3ee63338e406e82883178b9d13bedb1abed0baa77e8ee1859a2799aa55a00",
+      "bytes": 1403
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/first_steps_catalog.js",
+      "sha256": "bbd59e22cb5abf6f4f92ff78b4107982c96027503b8f7126308cc69fc8b7ab7e",
+      "bytes": 13435
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/gaji_controller.js",
+      "sha256": "63d43415cbace9dbae8114b650308e78a13ef69e76b37159c6e6f1193de486e7",
+      "bytes": 17871
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/logical_input_panel.js",
+      "sha256": "a00aa4df50942bfbdc7feaf7c4ce00648cec4c5eb8d66be37f893ca918b5e47a",
+      "bytes": 47635
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/persistence/authored_source_save.js",
+      "sha256": "2a53e7e07c486cb2409bf294c249ce25c38f08cd1ec52a15c3def05b542946ed",
+      "bytes": 6411
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/persistence/capability_session.js",
+      "sha256": "f4bf276a41e89d6cbb0b94ac4403600fac24414ca4fb612833fec6c337df41df",
+      "bytes": 2610
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/persistence/edit_recovery_guard.js",
+      "sha256": "9e4d2e245ff8363f65253e78a518d261775fefbc0bcc6227fce5883235265eec",
+      "bytes": 7161
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/persistence/local_fallback.js",
+      "sha256": "78965b5d05effbcea545261663c7677cda673ade9047ebffb49468bdbe584e56",
+      "bytes": 3866
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/persistence/local_gotgan_store.js",
+      "sha256": "e6839752966382cb077f6cfbf2cf60af06a3c8154919cfadd8d9df44d2b2d337",
+      "bytes": 1841
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/persistence/portable_project_artifact.js",
+      "sha256": "efed58a4b5d9e485f68ebf7021fd18e56ef71452699c8f24f093b0cc6689923b",
+      "bytes": 11126
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/persistence/project_adapter.js",
+      "sha256": "527655d5f342ff031cf307d9f25ae4b7b21d5dde8e7d62f11b19653075a28896",
+      "bytes": 4840
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/persistence/run_archive_adapter.js",
+      "sha256": "150b14f29524a3c8808ca6d1fef64ab6b4b21ed667fe51ce3e3b189005c91eca",
+      "bytes": 6057
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/persistence/runtime_project_store.js",
+      "sha256": "7d6a5e732f1def6a9691b0a82d8453a648d269b951904e6fa7ac1b900722b0f3",
+      "bytes": 10292
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/portable_actions.js",
+      "sha256": "778f5583d53b463320122bb2583b8d72197934f84c779fc79e99845614226a3c",
+      "bytes": 15256
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/project_catalog.js",
+      "sha256": "237346d940954f15801f379a3d533c1b42b3e760e7071cc0596c25113b98e4d0",
+      "bytes": 11568
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/project_control_model.js",
+      "sha256": "a3da8d7f600000ebd979de971dd6e2d6d8962348cd8029ee76686e7939d616b6",
+      "bytes": 7825
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/project_controls.js",
+      "sha256": "9bad8220b00dc0e2a5d331bd0feddb1e84fa7ac8809f8642406eee622d226476",
+      "bytes": 7269
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/project_metadata.js",
+      "sha256": "f08d6dc2165be9c57f0e5da3c9f1f7032e904a63b6ca53b6885d68e49c840342",
+      "bytes": 6245
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/project_navigation.js",
+      "sha256": "aa690ec60c0811af0fcdfec88f3dca720f0dbea1b8dbc70e35771964bb1701bc",
+      "bytes": 10191
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/project_persistence.js",
+      "sha256": "5cec28ae8d0135af48fa207631b72c5f9e7da87d2dc528291b05423d5c7d0b37",
+      "bytes": 15713
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/project_registry.js",
+      "sha256": "47bb49cc4ebff712a56d8d05edf8f98a9598eef3bf4817fbe6327b50dc9aefdd",
+      "bytes": 17381
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/run_archive.js",
+      "sha256": "2054630469c5e9a9d2c775f28671180fb4ae5deabffd868e26f946f23eb693f2",
+      "bytes": 14068
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/runtime_persistence.js",
+      "sha256": "501d451616d2faaefe61ab54f57d667f0688ee04a94c7ead7b67838a53426610",
+      "bytes": 15374
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/semantic_view_payload.js",
+      "sha256": "485fe2782cec8b7e750360479f97316ff18a70332912f68c1a370eba9e1ac87a",
+      "bytes": 46830
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/semantic_view_renderer.js",
+      "sha256": "4ed9d94a3163dcf08701fa698e0ce310cdf78b6a17d538e3b58ef0d5d4eb5703",
+      "bytes": 29971
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/source_file.js",
+      "sha256": "0722d5242c6a1b0b7d0eb62c102a78e79bf07721ca681eb3ddfa2d3bad7406a7",
+      "bytes": 1084
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/source_readiness.js",
+      "sha256": "f9b3b3797bf68837bd97dcc1d880680ab5e4db5f71839c380a05b67d18c0d6a2",
+      "bytes": 11593
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/source_readiness_model.js",
+      "sha256": "f87fee49a65f2b1b1898a962e9b47b9ac998c6bfc03a26ed759012a4ee701595",
+      "bytes": 17021
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/spatial_view_state.js",
+      "sha256": "1584a0e2e60a51323cdc720f0bcd1629157839dfa6c5d58f58d1b8ed2c4b6f1c",
+      "bytes": 6097
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/view_instance_model.js",
+      "sha256": "3fdf28a54022497405e094828e1f89c4592ee5fa903e65f34e3041ccb30a2055",
+      "bytes": 11579
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/view_presentation.js",
+      "sha256": "c169838da64b8580af9db1b7f8653d510621aa39828be9cf1dadcba663668e7e",
+      "bytes": 33144
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/workbench/workbench.js",
+      "sha256": "bbdba281a3d5ee994b55bf9d1a1419fd67d9d93203dc451e0d2badc05e007f77",
+      "bytes": 145744
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/world_diff_review.js",
+      "sha256": "2ca290766797a4c8d351abf01f589fecc9f3d503553e9159fbc5399a9e0af0e0",
+      "bytes": 5518
+    },
+    {
+      "path": "tools/vscode-ddn/extension.js",
+      "sha256": "b42d939b2fa0d5c5fb20906afd102c67082e688b662e946a5836d1384af866e4",
+      "bytes": 12823
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/balanced-match/index.js",
+      "sha256": "06e4d0037715251cb3be2b2db063662f555b3538d9e30a9c517a54374d941cbc",
+      "bytes": 1219
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/brace-expansion/index.js",
+      "sha256": "b95a8e5575f0214261cd4e4b79028a9dd7c9814ea22671b6266d76de262da6b2",
+      "bytes": 9709
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/minimatch/lib/path.js",
+      "sha256": "ac5d377288c45e5c5ea8b2deb593a5083a71d672099b52a9bf4a75d35de69e54",
+      "bytes": 151
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/minimatch/minimatch.js",
+      "sha256": "1339bca8b70e33847860daa8fc3ccfa62487e143670da01a3b718d40d5fd424f",
+      "bytes": 29931
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/bin/semver.js",
+      "sha256": "bd6c871026985937dc945011fc54b74b47f5998154216d7b8d40d5ed782e4402",
+      "bytes": 4957
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/classes/comparator.js",
+      "sha256": "054202956430d63d5ff4599fae09760ce465b489e4f0b5ef5ce7cc7ac21157ac",
+      "bytes": 3631
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/classes/index.js",
+      "sha256": "3bb69280c2a788d0eb16f915bb9df4dbe812075182024c753dca2283bcea1b17",
+      "bytes": 143
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/classes/range.js",
+      "sha256": "a6544485aa8575aa9854c67e2caa67726815de18a482d0ceb8a1003244de3bc1",
+      "bytes": 15647
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/classes/semver.js",
+      "sha256": "813b2c185512d30c9b931c2fed8140889d9d7490ceeeedc370da30337dc8ca57",
+      "bytes": 9891
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/clean.js",
+      "sha256": "4eadb0892844cf3ae295121a86163a66c73f89acd1b7f0b114ec115b4539512f",
+      "bytes": 205
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/cmp.js",
+      "sha256": "a63d74e87b73788e78e9ce0a4892b5333d6b809c0de88b31e4ed76cbf17f94b3",
+      "bytes": 961
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/coerce.js",
+      "sha256": "28a251c5ab210ddf9e97551b9f37a53329fcce91f0c3943dcbc02de1a1de915a",
+      "bytes": 2004
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/compare-build.js",
+      "sha256": "5ab651d5b40af289bd85c645a92b6d8cfe1a986dc413c797cfcc8d623d7c844c",
+      "bytes": 281
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/compare-loose.js",
+      "sha256": "07b6a3a1db0a5210ceb784c1708bd4679f3a94fc73a9c9eb349349e7070a6f78",
+      "bytes": 132
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/compare.js",
+      "sha256": "d404b5aa48aaddc8a654c5da8fb7d4443404b7948589b21ac4b045d1cee4e34c",
+      "bytes": 170
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/diff.js",
+      "sha256": "7a11fd39b987cdf06c65e928cb1aca49bec583feb86fb5c8fe47a6fd61d7de31",
+      "bytes": 1423
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/eq.js",
+      "sha256": "b6e30a7168e52723216fc163d300e2bbabf92ec0251f9ac5438bb6ccf57c8936",
+      "bytes": 126
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/gt.js",
+      "sha256": "135523704aa48cd98834dd170ee9f74f0e68043b379f32d021db11e6304c5c93",
+      "bytes": 124
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/gte.js",
+      "sha256": "991c5bbe48ecb210a562646872f05862ad9fc0d42186d85aa60bdc6fa323eb9d",
+      "bytes": 127
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/inc.js",
+      "sha256": "952069fc8690b7d3af0fe9d55f7c54fe2ac067b48c5e74f6a54f9ce19a334493",
+      "bytes": 478
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/lt.js",
+      "sha256": "1c897a9bc849320e2e9dc0f6c09555c01ee3ddf30734515d717b88ad7740ea25",
+      "bytes": 124
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/lte.js",
+      "sha256": "3a8d0b1d00423f60cc7cb810b36ab77b61330831ad237dbe73eb5cecfa412800",
+      "bytes": 127
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/major.js",
+      "sha256": "5c678480d882f511200fed2c16ec3847dfedb08a1d70328dc2f031d35d825276",
+      "bytes": 136
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/minor.js",
+      "sha256": "1b051794f1713adec2a236517196691687c35f82e0b596ff3316a78b3cc10ae6",
+      "bytes": 136
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/neq.js",
+      "sha256": "a662883751918822c162183b46b9e20d09489132f82686c92ab78bee67f3a127",
+      "bytes": 128
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/parse.js",
+      "sha256": "29a69e15b6d02fe381d573f861881a89590e9d0f0f0ca740c5f85eaf0234c4ad",
+      "bytes": 331
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/patch.js",
+      "sha256": "f02d3c1b059fe3d96ce124886f7eef321d381a95638fd3c4a8d5ccd8e76ffadd",
+      "bytes": 136
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/prerelease.js",
+      "sha256": "baedbf503d5610ad041bfb56071efa48feb331ca278295c399537d35d3ffb593",
+      "bytes": 234
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/rcompare.js",
+      "sha256": "84fa5e88adf08d15c993cac8cdec6d1a65045b7e95a9c55184230a7f807f4dc0",
+      "bytes": 132
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/rsort.js",
+      "sha256": "6ec659ce3b6c2b173c719286caab04409adba046c0917874ec3b5e36ddfbc7e3",
+      "bytes": 163
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/satisfies.js",
+      "sha256": "8cf5e122b757251671ed6c9d9680904b71cd375845853f05312e608cf2cc2946",
+      "bytes": 247
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/sort.js",
+      "sha256": "c2fe2d3ed0be8a4e9de8f02abdfd5d9c0d3bcc510d88e87af84185592882c4b8",
+      "bytes": 161
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/truncate.js",
+      "sha256": "e145833a250311927c92f424f56498c52f1b7bb1271ce6afbf006db87773ff43",
+      "bytes": 1021
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/functions/valid.js",
+      "sha256": "0de7ea736cb7807179d46dfac09c830a9338e02b6a07db12d7040cde2def6025",
+      "bytes": 176
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/index.js",
+      "sha256": "4b3e57d3d40e29e0706002eba113d09f35aea593578376bbeec83b777b9912ab",
+      "bytes": 2691
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/internal/constants.js",
+      "sha256": "38a112baf27ceca0260082ff26ac2fd7a9861cab1af12dd65e720277f68e6ce9",
+      "bytes": 873
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/internal/debug.js",
+      "sha256": "8a9f420572260f3cf944463b5090d62a60f0730589dc23a7ec4ca25e2ee41bb3",
+      "bytes": 240
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/internal/identifiers.js",
+      "sha256": "b4916b09dc7869ae0eb05e71c855c942a3a7365f7e6e89185d59a9e45a2451d7",
+      "bytes": 525
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/internal/lrucache.js",
+      "sha256": "14d087c87da87b6f5c36fc4cdd7d2d14077874b14a68e20fce5b6138fa2ca34f",
+      "bytes": 802
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/internal/parse-options.js",
+      "sha256": "fdf51d0de8d5442c35a997ef58cd530d239ce206f961d14c5121354451b01d01",
+      "bytes": 338
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/internal/re.js",
+      "sha256": "5833262888e2b5d843a69193f83c05e374818dbe55379b497819b5bf58e48cd8",
+      "bytes": 8139
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/preload.js",
+      "sha256": "edb6808911bebcb324b2df57e5c9935149e56984ff083b74c6cfe215f5b710ba",
+      "bytes": 83
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/ranges/gtr.js",
+      "sha256": "8fadad28e36d28e93d498ac7ac20badba2a407312845eabc18e82e90a0732b19",
+      "bytes": 231
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/ranges/intersects.js",
+      "sha256": "fe87ac5d3020010ad3ec00636dadbf0c669ff07d0f57e0a8165a8264f79a676f",
+      "bytes": 224
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/ranges/ltr.js",
+      "sha256": "e5186fcc03018acf9be6d968755d4c49727aeb0d981d179eb568ae5fbe983038",
+      "bytes": 227
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/ranges/max-satisfying.js",
+      "sha256": "e1a2c0d6144cc772cd20bbc8ecb9e8a3a4074e9172a3d8e794838b591cdeb416",
+      "bytes": 593
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/ranges/min-satisfying.js",
+      "sha256": "2681abf54098aa670f12826b76a6ec77a2441186ae4243afde3be8ae4908f7ca",
+      "bytes": 591
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/ranges/min-version.js",
+      "sha256": "fefba0a88c2bf74d5cede504b5ae50a8dc3edfd69cf0174a491e2cf3e442614b",
+      "bytes": 1514
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/ranges/outside.js",
+      "sha256": "3a2b0b23593d2f49419c06af2af75450cab103b0c25d665d48fe5bca495a21ca",
+      "bytes": 2204
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/ranges/simplify.js",
+      "sha256": "7b78581c13322bc68ece2088685386b2a9b51c15b94d0a2063bdf2546bd41934",
+      "bytes": 1355
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/ranges/subset.js",
+      "sha256": "ceb9eb6ed5bfc6c7ac7af7f47e5c3535444a4e66a0e2b58cdad4bd02a35d454d",
+      "bytes": 7478
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/ranges/to-comparators.js",
+      "sha256": "6c5e966210cff270fa2850668aaf8460fac7759f8d99f282521ef7a78f4564e9",
+      "bytes": 282
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/semver/ranges/valid.js",
+      "sha256": "5ef6f995af801868925940cf8df5735d565ebabb090b068695cae65218bcd3ac",
+      "bytes": 326
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/browser.js",
+      "sha256": "9406802db032558d3cd8bde9f68d20c067f3a7eca251ad7d0e4473da8d457ada",
+      "bytes": 411
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/browser/main.js",
+      "sha256": "b8a81be90adb2c0ee8309509685068c74b96870ffba6e8dc664a8ce94fadc168",
+      "bytes": 2964
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/browser/ril.js",
+      "sha256": "e636b0a5c6513a6adb5b1a7814128904a39c6fe285019dbfa75d9c44cdb4d262",
+      "bytes": 5643
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/common/api.js",
+      "sha256": "7fa670dda5d24ee45092dc03041000d94dd6c5a12766ebb4c9d7499ad9e52915",
+      "bytes": 10611
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/common/cancellation.js",
+      "sha256": "50d4d76e9b24f17ba46a511f95b4bc16292531f0fd7c80ddbd70198bd7802e90",
+      "bytes": 3296
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/common/connection.js",
+      "sha256": "d10d9d9d74b016f4f85d893c8e4d4da15cad7ba460f3416e7d9ead69f486b4a4",
+      "bytes": 51184
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/common/disposable.js",
+      "sha256": "5e9e59794298ed50a1dec5ef24e862d4ed77c93a556b7130f38cd729138ab814",
+      "bytes": 685
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/common/encoding.js",
+      "sha256": "499c436e2b321b80b933a693cfb859988c471f9517d07ba78f6fcfede173866a",
+      "bytes": 2650
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/common/events.js",
+      "sha256": "7172a4f9ddbc4b9b39c3d06ad4afe3d5e87677230338b4e5c6bb3f24dcf8e1c4",
+      "bytes": 4514
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/common/is.js",
+      "sha256": "9b3f16400056b77fc0b940d93ca9db322c297a7e666062ef038fd66604b4c34c",
+      "bytes": 1272
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/common/linkedMap.js",
+      "sha256": "effa33fb9ede2abc2cb04c263e22958e24ff71eb3c27d52ef32bc6df92759401",
+      "bytes": 11767
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/common/messageBuffer.js",
+      "sha256": "c98114b525a19c544e5555c902798714666b0b8704e1e6d70539c151c80afc52",
+      "bytes": 5646
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/common/messageReader.js",
+      "sha256": "8fc6a8c740a86a85c8ab79c42ad4462e5f0db608e876abd38308f6893629826d",
+      "bytes": 7834
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/common/messages.js",
+      "sha256": "a71eea911a721b2cdc9cd575b31e6cefccec60c01474040d746af03a3a2acd47",
+      "bytes": 10373
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/common/messageWriter.js",
+      "sha256": "deee39f3a2d5a89e7cbc603fb73de2b363b9f04d0727303668af8f3aed132a13",
+      "bytes": 4439
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/common/ral.js",
+      "sha256": "9b4736fe0168adf1dff8a1f41cf76dc8e9f380684cbb39056403e81a05a51cb3",
+      "bytes": 834
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/common/semaphore.js",
+      "sha256": "23f97fc853d012174609337eb92cbebf41b970175ee82fd2bf3ee6cd5a7e0980",
+      "bytes": 2197
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/common/sharedArrayCancellation.js",
+      "sha256": "5d72941efcfae5ec26b955f18afc4042833825019e3a84e45fdd4952da51fc29",
+      "bytes": 2640
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/node/main.js",
+      "sha256": "7c06b1084e5e9b6581cbc0751f8c6b31e87b5c5f0f4b73e96458411191c5c743",
+      "bytes": 9778
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/lib/node/ril.js",
+      "sha256": "daff19bb252f60c97c629f7b9f299ae957a9ef2c87152498262484e6b990debc",
+      "bytes": 5392
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-jsonrpc/node.js",
+      "sha256": "20ed9d05087fa65ed99369c32ebaad6d2714c56d38b6b58e660ec428d1280054",
+      "bytes": 408
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/browser.js",
+      "sha256": "9406802db032558d3cd8bde9f68d20c067f3a7eca251ad7d0e4473da8d457ada",
+      "bytes": 411
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/browser/main.js",
+      "sha256": "84726484e06b67e518d5ef382257f8cf174bda663bfaeeb2766b5ba2283fde83",
+      "bytes": 1841
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/api.js",
+      "sha256": "d1c71ecf25777c39117fa2dbae04a813fbae171a23e73c04b2dfb99cc8d38b34",
+      "bytes": 1613
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/callHierarchy.js",
+      "sha256": "f21d0d2da87fb4a2b5e17401a6d48b04311341f43ed76b7b428fc7a211653827",
+      "bytes": 5116
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/client.js",
+      "sha256": "5c3f0b7d96907f02b24036ecd9585a77a6ee2d132d92d8a798a4dfea96c21c8b",
+      "bytes": 72348
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/codeAction.js",
+      "sha256": "8c62ee1dc841896b995067572c9635887a61a1122077a18ea9573d17eece32c2",
+      "bytes": 5598
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/codeConverter.js",
+      "sha256": "b52620ec8ee643bdb1ff3ff49a40c7f038df2b3e8a48ca070262daa773786977",
+      "bytes": 29673
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/codeLens.js",
+      "sha256": "6d943284ad2ff70d7602033661b7cf81501b8910ef918cdb7765313f02e96b5a",
+      "bytes": 4416
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/colorProvider.js",
+      "sha256": "c86e8eb7b786f0590ee6a8819dc94c329e9747414176f7ea76a44077662ccb90",
+      "bytes": 4226
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/completion.js",
+      "sha256": "3f947c20fac37a5e62a3fa358948144ec9eed255813b6359ad813b27a5ef1a50",
+      "bytes": 7375
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/configuration.js",
+      "sha256": "179d91ba33d36388a292ad709ac2b1f6533a6c311b208e52581dd4abf772182f",
+      "bytes": 8088
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/declaration.js",
+      "sha256": "64987151f8b31b32b033aba3d715af9132f160047260d8ef64bb16b25dd716f0",
+      "bytes": 2943
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/definition.js",
+      "sha256": "8243ebcc9d21bfb9c11eb6700b4bf2f9fe7307e6af84fbd82753464e468ccfa6",
+      "bytes": 2970
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/diagnostic.js",
+      "sha256": "883c465364f88133e2105385434c9bd9d6d784a786051807a3eaa8a09c9d8191",
+      "bytes": 37367
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/documentHighlight.js",
+      "sha256": "f1212ea45de7850d50c2961d32406aec5118d42603d6e367299ba62f56004f8a",
+      "bytes": 2889
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/documentLink.js",
+      "sha256": "3449ead92cb63edb5f2636a6638b08a4797622f1bc68a235940644df2225a5fe",
+      "bytes": 4051
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/documentSymbol.js",
+      "sha256": "a0f4d0b2a71aa4576f91f5c074e1b828aebbb684f58fa60ec76a1e358b5cca55",
+      "bytes": 5549
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/executeCommand.js",
+      "sha256": "98bef79404387223a2c1926a2ca0dae82517c784a94b3daf29bf6184e15f35a0",
+      "bytes": 3004
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/features.js",
+      "sha256": "fd384e033db022bf49d558a8ad21d810e11cc1e1d7d33c523bffd91ea01edd51",
+      "bytes": 11475
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/fileOperations.js",
+      "sha256": "a15809f402a9aac40a6469c04081166603c8906f17a557dc8e978a691d98c53f",
+      "bytes": 13991
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/fileSystemWatcher.js",
+      "sha256": "c172797b101bde208b632c0845818bcf5f93577efc16761bcba222459e02055e",
+      "bytes": 4467
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/foldingRange.js",
+      "sha256": "be1594851a60377e05659efd1f1e1d8106a314f92cc60fc834b5053a2ae8f853",
+      "bytes": 3253
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/formatting.js",
+      "sha256": "c4f12eeddda649608802360a4a6bde0655a4ff87c52fec4e4a3fd280c93c2e8e",
+      "bytes": 9255
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/hover.js",
+      "sha256": "a0c2c31c75f26212ac541a155becfc383bbb4660bcc840e0ab5a9a1a365f877f",
+      "bytes": 3009
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/implementation.js",
+      "sha256": "31c9efab3b2a9ca64f1a79da48926ad2b845dcfebcf2a9a775ef0b38fa2d3e38",
+      "bytes": 2995
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/inlayHint.js",
+      "sha256": "bd1cb2bbc9808b451350ba9ba891bd056420dc48e969774ab93dc03e2c92efff",
+      "bytes": 5011
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/inlineValue.js",
+      "sha256": "d1c443b5776e6cc419d01b0a499b112a8d676b9e12213381398b8b846be1107a",
+      "bytes": 3700
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/linkedEditingRange.js",
+      "sha256": "89b5f329c144c482e30e328c69ff1bce02dc329b9e0115901632f2cdcfe875f0",
+      "bytes": 2862
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/notebook.js",
+      "sha256": "6f8339ca5bfe2a4619e5edb73e04360c136b199a0c3dcf36ca8033fcec3d59f7",
+      "bytes": 38963
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/progress.js",
+      "sha256": "e9efe0b73a36c07c3ddd620c37588c1412db55dab8652f8f95070ffee5931860",
+      "bytes": 1766
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/progressPart.js",
+      "sha256": "023f88e1bcc62eb3758c89c390c8f8a1c6f4aaca17f8a0c95429d7cc0c478fae",
+      "bytes": 4024
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/protocolCallHierarchyItem.js",
+      "sha256": "4eebade40bc47a1a6bfd216e86ede4ca52edd288cb1d3da98da6cbfdd10a6603",
+      "bytes": 786
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/protocolCodeAction.js",
+      "sha256": "252002a20c625a2ec7d58c688ed4834e33cb59daf11d924fb784c84370170247",
+      "bytes": 639
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/protocolCodeLens.js",
+      "sha256": "77cac889f10c0b9d03d9b7eb2dd7be7f779f6ef3661fcdf1ae0e07cf5d1adf55",
+      "bytes": 597
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/protocolCompletionItem.js",
+      "sha256": "470052928b1735228c9ea6876f9752b86aa8f3ceb2af7a4d56bafb24bd805c2e",
+      "bytes": 615
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/protocolConverter.js",
+      "sha256": "a70893c2106e989dfca1d02e841faee041250cbab932a8d14c1320258af1bf3d",
+      "bytes": 42273
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/protocolDiagnostic.js",
+      "sha256": "d0a1057686bc592d8915c42b6381b1fd3831d81ab8a62b1a0c51a214c46c8158",
+      "bytes": 1198
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/protocolDocumentLink.js",
+      "sha256": "fa32f61b06e920e5f7cb91cbabd8002ec9b508442c9592e5325f6fb039f21517",
+      "bytes": 625
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/protocolInlayHint.js",
+      "sha256": "1e132b48a702091b327670e98f88dc77001e4f604cf27d25c3c2236c25683e0d",
+      "bytes": 632
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/protocolTypeHierarchyItem.js",
+      "sha256": "e30536a21fda77a11f726a93afb9aa7a08d25d75faf5f5ac6660625b9abb39e8",
+      "bytes": 786
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/protocolWorkspaceSymbol.js",
+      "sha256": "0a9916ba29c5cf76897933ec44db1f2d374f18813b44a19328255795b5506100",
+      "bytes": 925
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/reference.js",
+      "sha256": "97481a51240fa4611b9bbf0bb5a2c28df62166823702a27248588c8fc1cf055f",
+      "bytes": 2906
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/rename.js",
+      "sha256": "aeef0002f574efdbf0cbeaa0f2e40f693d5f6abc6bcff287b636b332d3972b67",
+      "bytes": 6182
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/selectionRange.js",
+      "sha256": "e32103abe5d92a54b706557032c82f95f670c06773beffb9bcf5e27bc63da7f6",
+      "bytes": 3149
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/semanticTokens.js",
+      "sha256": "e2a7c24848053097226e782645bbcfb12f5e751bce8accc8dd5cdb188af7e956",
+      "bytes": 11123
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/signatureHelp.js",
+      "sha256": "731eb7049cb6bd963219f82ffd9211ceca9557c95220f7fc0495d661a76f7460",
+      "bytes": 3859
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/textSynchronization.js",
+      "sha256": "deaf4e945c2424cebc37bab9a5fb987ec9a97a6d2a8aaeef8a8f4e403d36976c",
+      "bytes": 19852
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/typeDefinition.js",
+      "sha256": "f13f6e9da1ee8a432e4990842d2ad2ea579cbe5c9ecc516e389ae5968b27b8c1",
+      "bytes": 3126
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/typeHierarchy.js",
+      "sha256": "00f0b99700bdb1a4e9e613d7d70c8027b190d88945134d0c53e3e7443c83654f",
+      "bytes": 5005
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/utils/async.js",
+      "sha256": "2191b2bcad7e4c02866cee777239888f5ba3c54a7ce1c8142f5cbb67f3650de3",
+      "bytes": 9206
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/utils/is.js",
+      "sha256": "bc991f144381f2aae24f01b592512d0239dbe2a6fbc279add7cf99ea3e7a55f6",
+      "bytes": 1918
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/utils/uuid.js",
+      "sha256": "cd0df15344052b5fd392d73a39284ec1c8e849f4504cf0237a1e7e74521e37e4",
+      "bytes": 3006
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/workspaceFolder.js",
+      "sha256": "ebc9a04e7a3eb68968323460a844abe9703658c030b5d6b3cfec295df98c288b",
+      "bytes": 6088
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/common/workspaceSymbol.js",
+      "sha256": "855912650611474453255c95e3d3c6330fd3a8e31e80a993827eca77eba82bd3",
+      "bytes": 4274
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/node/main.js",
+      "sha256": "66c5f51e7d66b202249693f66d0b943851255d234f1a69d7fdc4eb0853d1b219",
+      "bytes": 27252
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/lib/node/processes.js",
+      "sha256": "c3c8c947fe35c1cee3f3dd1dad9708a2b0e9ebdf32a0b68194eaf9a3b3fb6b1e",
+      "bytes": 1712
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageclient/node.js",
+      "sha256": "20ed9d05087fa65ed99369c32ebaad6d2714c56d38b6b58e660ec428d1280054",
+      "bytes": 408
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/browser.js",
+      "sha256": "9406802db032558d3cd8bde9f68d20c067f3a7eca251ad7d0e4473da8d457ada",
+      "bytes": 411
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/browser/main.js",
+      "sha256": "16c182c4c1d71bdae3d0b6a5197a4edb98abdb04e7186ab73d014b9d3c1c4a10",
+      "bytes": 1526
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/api.js",
+      "sha256": "fc16fcb1d1b2bc0ab9463f3220b2b4a0acb13eca1090278708af5f0cbb30dbdc",
+      "bytes": 3277
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/connection.js",
+      "sha256": "b230398b4b9685fb946607ecebaab2c9c739d1002ebf4cee524dffb80f9c306d",
+      "bytes": 859
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/messages.js",
+      "sha256": "282cec8bfc09ba8ade9af8762a3424b52570af5a919c1fcd51f1f99ad216734a",
+      "bytes": 1931
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.$.js",
+      "sha256": "0270b54cea45b7fdf27d450e19d7c258c78c40924bf209ecb62ad682237f201d",
+      "bytes": 2303
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.callHierarchy.js",
+      "sha256": "dc47522186e7d1f109ddb18f1a801810a2e9f5e71c684f6309a91ee8b4228189",
+      "bytes": 2521
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.colorProvider.js",
+      "sha256": "65611519044f2655caa0ef809a0b642bf8a1250f1220edf234a0ab28eaabe5a7",
+      "bytes": 1891
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.configuration.js",
+      "sha256": "f2a80071dbbc78d7657e1082ec6cfaede36d94bb3d7dd00ac1f24959da3b5654",
+      "bytes": 1452
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.declaration.js",
+      "sha256": "104515010fe48ab531e4899e037fe01a4934a0d487873e029b8c3037629b79eb",
+      "bytes": 1319
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.diagnostic.js",
+      "sha256": "c66d5c18b74e610461bf724fcd0ea0cbb71c7c5f2ad5e6a36df1d9879d1cc467",
+      "bytes": 3462
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.fileOperations.js",
+      "sha256": "065c0788250af00b65fe7fed0db7d9cdd7024d1569e05b21d9d61c5457d688ff",
+      "bytes": 5127
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.foldingRange.js",
+      "sha256": "228b086ca926669d260e1cdff6b865c96db8bd76746bbdce3604d8bfd59cd6b0",
+      "bytes": 1125
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.implementation.js",
+      "sha256": "5e16bcaf2713a4dd15b6e4f133936acb8c6bf50dd369a24633b3608111cbe621",
+      "bytes": 1303
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.inlayHint.js",
+      "sha256": "71f0511d7e830232d6d7e138884a2c5d3f7f07fbb8a3f073eae2b8609b3f4767",
+      "bytes": 2293
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.inlineValue.js",
+      "sha256": "8cf55869e948e0c8fde850a715717ca8dfdc6dfdf975e9f688ea8e589173777c",
+      "bytes": 1654
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.js",
+      "sha256": "8fb8c0d044c08df9a1abc08f458a044fbc84a943035ad2b36ebd8ac60db0ecb8",
+      "bytes": 55332
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.linkedEditingRange.js",
+      "sha256": "3cfc11731293cbec630528d50e759198b1cd7034d69c051880b1494f3fcf20f6",
+      "bytes": 1059
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.moniker.js",
+      "sha256": "a16c147534130a3ab7d7c97a5f668e962136198a3607940b9a93bdfefb481b35",
+      "bytes": 2524
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.notebook.js",
+      "sha256": "454734f4f6d3d942c6ff7f10af18efca77ed500d02bee71d0914ef04dba132eb",
+      "bytes": 10150
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.progress.js",
+      "sha256": "ecd8038bb126301b3663bb6cd3228c3fd833fd5fbd600cc645af5b2c712dff67",
+      "bytes": 2283
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.selectionRange.js",
+      "sha256": "711a121895f878e50c1452f85544670da7bb5c66fa7e66eca36b6517fe8c2f4f",
+      "bytes": 1166
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.semanticTokens.js",
+      "sha256": "1c26bb18516667220cc99376dc8fc50ac6d5e04b40a53f54c44da68edea38c7c",
+      "bytes": 3491
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.showDocument.js",
+      "sha256": "1010be3efa3449d19cddb40c42bb172c23c5c9b123876c51adf9127e0fd7bf3e",
+      "bytes": 1164
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.typeDefinition.js",
+      "sha256": "4ee3e876a4264106ec8d53ee63ce7abb08f9721a2f046d0fafb6ac1ee5d7a34e",
+      "bytes": 1303
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.typeHierarchy.js",
+      "sha256": "77500414f3d1ea83048d5dcda7fd854e73592cfa262fc3c9deedb8d2cf3599fc",
+      "bytes": 2424
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/protocol.workspaceFolder.js",
+      "sha256": "d8d300a4a928d6a0bf295cb695af39ca85ea3d4ab65be2b351195cdf4e13e74c",
+      "bytes": 1841
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/common/utils/is.js",
+      "sha256": "48d411e47ba4e27a0a36a06b7f5237856045163dab1a06ffb9db1dca5dc4b996",
+      "bytes": 1814
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/lib/node/main.js",
+      "sha256": "cc35a5ff1df065eae9ca4b1c2504ac7af6f0c50c9c8b3bfee510718f7249e688",
+      "bytes": 1512
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-protocol/node.js",
+      "sha256": "20ed9d05087fa65ed99369c32ebaad6d2714c56d38b6b58e660ec428d1280054",
+      "bytes": 408
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-types/lib/esm/main.js",
+      "sha256": "0950402b6e7b2671a3755258a2c9aa49fe8219a6e5b2d93209ac7119befccfd1",
+      "bytes": 78825
+    },
+    {
+      "path": "tools/vscode-ddn/node_modules/vscode-languageserver-types/lib/umd/main.js",
+      "sha256": "2a7d6244507d60d8f03bde5eeb0c09ac03749c2bd10b4673948e1a920a1b0a30",
+      "bytes": 92006
+    },
+    {
+      "path": "tools/vscode-ddn/test/activation.test.js",
+      "sha256": "acdde6b12d7f6ca3d34b3a8077626ac0cd45166bbb2137a421cbcd14303629f7",
+      "bytes": 2576
+    },
+    {
+      "path": "tools/vscode-ddn/test/extension.test.js",
+      "sha256": "f088f5ca8ef4ae08bc60c087465012b91a52a1c0eafa24d541e56c955baadabe",
+      "bytes": 2846
+    },
+    {
+      "path": "tools/vscode-ddn/test/first-flow.test.js",
+      "sha256": "926272370d06b274e6020b94b0701010453e9339ec5524e561e0b11da088394a",
+      "bytes": 3567
+    },
+    {
+      "path": "tools/vscode-ddn/test/package-inventory.js",
+      "sha256": "5a952aa309a8bfa953c6ed01d7618b784dbfecc3494b2c10e268043ff570e8b3",
+      "bytes": 1638
+    },
+    {
+      "path": "tools/vscode-ddn/test/real-host-first-flow.test.js",
+      "sha256": "3a11795f93456e348eb2b880f48b695ede6950040902623411dee130e73a3209",
+      "bytes": 16054
+    },
+    {
+      "path": "tools/vscode-ddn/test/run-real-host-first-flow.js",
+      "sha256": "4751d87b8517ac92f70ca886324025b8d68079c9cf38834686fc53a28fc32c36",
+      "bytes": 3500
+    }
+  ],
+  "scope": "Original artifact remains immutable; historical evidence hash/status retained, private machine locators replaced with explicit provenance references.",
+  "review": "PENDING_R142_AND_PUBLIC_PROJECTION_DELTA",
+  "human": "NOT_RUN",
+  "P5_P6": "OPEN",
+  "public_source_ref": {
+    "repository": "https://github.com/tongosu/ddonilang",
+    "observed_main": "4e3c6f62d678bff1a829e6af7baffc91a5019ac4",
+    "planned_tag": "v1.0.0-rc.1",
+    "tag_created": false,
+    "boundary": "Existing public source main is not the exact private build source. No source push is authorized by WO26; final tag/ref attribution remains explicit release review scope."
+  },
+  "license_notices": {
+    "packages": 125,
+    "files_checked": 256,
+    "original_bytes_unchanged": true,
+    "scope": "CONSERVATIVE_WORKSPACE_GRAPH_NOT_BINARY_CLOSURE",
+    "license_review": "NOT_RUN"
+  },
+  "binary_diagnostic_source_locations": "Original compiler strings retained. No binary patching, secrets scan certification, reproducible-build or clean-PC claim."
+}

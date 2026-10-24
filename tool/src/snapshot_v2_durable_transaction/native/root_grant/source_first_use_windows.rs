@@ -410,6 +410,9 @@ impl super::super::SqliteAdapterV1 {
     fn readmit_source_world_pinned_context(&mut self,record:Grant2,
         context:&crate::unit_wire::project_runtime_attachment::SourceEnvelopeBoundRuntimeAttachment<'_>,first_only:bool)
         ->Result<ReadmittedFirstSourceWorldV2,Failure>{
+        use crate::storage_observation::Span;
+        let _total=Span::start("source.readmit_pinned_total");
+        let protected=Span::start("source.readmit_protected_before");
         if self.schema_profile!=super::super::NativeSchemaProfile::SourceRevision{return Err(Failure::InvalidInput);}
         let nonce=record.base.nonce;
         let parent=match &record.state{FirstUse::Started(parent)=>parent.clone(),_=>return Err(Failure::RecoveryRequired)};
@@ -425,7 +428,9 @@ impl super::super::SqliteAdapterV1 {
             if first_only{return Err(Failure::CustodyConflict);}
             return self.readmit_restart_source_world(grant,attempt,transition,context);
         }
-        self.confirm_container_durable()?;
+        drop(protected);
+        {let _phase=Span::start("source.readmit_confirm_durable");self.confirm_container_durable()?;}
+        let history_check=Span::start("source.readmit_sql_history");
         let db=self.connect()?;db.execute_batch("BEGIN").map_err(|_|Failure::RereadFailed)?;
         let chain=super::super::source_chain::read_retained_source_ancestry(&db,&project,&parent.revision)?;
         if chain.latest.integrity()!=&parent.integrity||chain.initial.revision()!=grant.record.initial.revision
@@ -441,6 +446,8 @@ impl super::super::SqliteAdapterV1 {
                 &attempt.request_hash,&attempt.token_hash,&attempt.record_hash,attempt.epoch)?
         };
         db.execute_batch("COMMIT").map_err(|_|Failure::RereadFailed)?;drop(db);
+        drop(history_check);
+        let _after=Span::start("source.readmit_protected_after");
         grant.verify_root(self,&project)?;
         if WindowsRootGrantStoreV1::read_attempt(&grant.record.base)?!=attempt{return Err(Failure::CustodyConflict);}
         Ok(ReadmittedFirstSourceWorldV2{_grant:grant,_attempt:attempt,payload,history,restart:None})
@@ -513,6 +520,15 @@ impl ReadmittedFirstSourceWorldV2 {
         context:&crate::unit_wire::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>)
         ->Result<super::super::StoredPayloadV1,Failure>{
         if self.restart.is_some(){return self.restart_historical_payload(adapter,index,context);}
+        self.historical_payload_pair(adapter,index,None,context).map(|pair|pair.0)
+    }
+    /// Select both payloads from one freshly checked SQLite read snapshot.
+    /// This is not a cached admission: root/attempt checks still bracket the
+    /// complete source/world history validation and both digest-bound reads.
+    fn historical_payload_pair(&self,adapter:&super::super::SqliteAdapterV1,index:usize,second:Option<usize>,
+        context:&crate::unit_wire::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>)
+        ->Result<(super::super::StoredPayloadV1,Option<super::super::StoredPayloadV1>),Failure>{
+        if self.restart.is_some(){return Err(Failure::InvalidInput);}
         self._grant.verify_root(adapter,&self.payload.binding.project)?;
         if WindowsRootGrantStoreV1::read_attempt(&self._grant.record.base)?!=self._attempt{return Err(Failure::CustodyConflict);}
         let anchor=match &self._grant.record.state{FirstUse::Started(anchor)=>anchor,_=>return Err(Failure::RecoveryRequired)};
@@ -523,10 +539,26 @@ impl ReadmittedFirstSourceWorldV2 {
         if current!=self.payload||history!=self.history{return Err(Failure::CustodyConflict);}
         let digest=history.get(index).ok_or(Failure::InvalidInput)?;
         let payload=super::super::source_world::read_source_history_payload(&db,digest)?;
+        let other=second.map(|index|{
+            let digest=history.get(index).ok_or(Failure::InvalidInput)?;
+            super::super::source_world::read_source_history_payload(&db,digest)
+        }).transpose()?;
         db.execute_batch("COMMIT").map_err(|_|Failure::RereadFailed)?;
         self._grant.verify_root(adapter,&self.payload.binding.project)?;
         if WindowsRootGrantStoreV1::read_attempt(&self._grant.record.base)?!=self._attempt{return Err(Failure::CustodyConflict);}
-        Ok(payload)
+        Ok((payload,other))
+    }
+    pub(super) fn first_payload_and_current_receipt(&self,adapter:&super::super::SqliteAdapterV1,
+        context:&crate::unit_wire::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>)
+        ->Result<(super::super::StoredPayloadV1,Vec<u8>),Failure>{
+        if self.restart.is_some(){
+            // Mixed/restarted histories keep the existing exact consumer.
+            return Ok((self.historical_payload(adapter,0,context)?,self.current_receipt(adapter,context)?));
+        }
+        let (first,_last)=self.historical_payload_pair(adapter,0,self.history.len().checked_sub(1),context)?;
+        let receipt=crate::snapshot_v2_host_bridge::encode_committed_receipt_candidate(
+            &self.payload.binding,adapter.capability()?.as_bytes())?;
+        Ok((first,receipt))
     }
 }
 

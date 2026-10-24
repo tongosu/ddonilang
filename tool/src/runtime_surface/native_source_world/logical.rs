@@ -87,16 +87,28 @@ impl NativeLogicalSourceWorldPrepared {
 pub(crate) fn resume_logical_source_world(
     artifact:&str,parent:&[u8],revision:&[u8],root:&std::path::Path,locator:&str,
     input:&LogicalRecordRequest,
+    source_owner:Option<&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1>,
 )->Result<JsonValue,String>{
-    let mut adapter=crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1::open_source_revision(root).map_err(reject)?;
-    let checked=attachment::check_bytes(artifact.as_bytes())?;
-    let owned=attachment::restore_saved_runtime_payload(&checked)?;
-    let source=attachment::check_saved_source_context(&checked,&owned,parent,revision)?;
-    let admitted=adapter.readmit_current_source_world_source_context(locator,&source).map_err(reject)?;
-    let context=attachment::check_saved_revision_context(&checked,&owned,parent,revision)?;
-    let mut run=CheckpointedLogicalRunV1::restore_native_source_checkpoint(&adapter,&admitted,&context,&input.binding).map_err(reject)?;
-    for snapshot in &input.snapshots {run.step(snapshot)?;}
-    Ok(run.session().summary())
+    use crate::storage_observation::Span;
+    let _total=Span::start("logical.resume_total");
+    let mut adapter={let _phase=Span::start("logical.db_open");
+        crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1::open_source_revision(root).map_err(reject)?};
+    let checked={let _phase=Span::start("logical.attachment_check");attachment::check_bytes(artifact.as_bytes())?};
+    // The caller may supply only a real typed owner retained in this request.
+    // Exact artifact/source binding and fresh Native admission below still run.
+    let restored;
+    let owned=match source_owner{Some(owner)=>owner,None=>{
+        let _phase=Span::start("logical.attachment_restore");
+        restored=attachment::restore_saved_runtime_payload(&checked)?;&restored
+    }};
+    let source={let _phase=Span::start("logical.source_context");attachment::check_saved_source_context(&checked,owned,parent,revision)?};
+    let admitted={let _phase=Span::start("logical.source_readmit");adapter.readmit_current_source_world_source_context(locator,&source).map_err(reject)?};
+    let context={let _phase=Span::start("logical.revision_context");attachment::check_saved_revision_context(&checked,owned,parent,revision)?};
+    let mut run={let _phase=Span::start("logical.checkpoint_restore");
+        CheckpointedLogicalRunV1::restore_native_source_checkpoint(&adapter,&admitted,&context,&input.binding).map_err(reject)?};
+    {let _phase=Span::start("logical.input_suffix");for snapshot in &input.snapshots {run.step(snapshot)?;}}
+    let summary={let _phase=Span::start("logical.summary");run.session().summary()};
+    Ok(summary)
 }
 
 /// A follow-up logical W retains the exact previous input and receipt prefix.
@@ -139,7 +151,7 @@ pub(crate) fn save_continued_logical_source_world(
     let summary=run.session().summary();
     drop(retained);drop(adapter);
     let empty=LogicalRecordRequest{binding:input.binding.clone(),snapshots:vec![]};
-    let reopened=resume_logical_source_world(&artifact,revision,next,root,locator,&empty)?;
+    let reopened=resume_logical_source_world(&artifact,revision,next,root,locator,&empty,None)?;
     if reopened!=summary{return Err("E_SOURCE_LOGICAL_WORLD_READBACK: 다시 읽은 실행 결과가 다릅니다".into());}
     Ok((artifact,summary))
 }
@@ -267,6 +279,33 @@ pub(super) fn verify_admitted_logical_receipt(
 mod tests {
     use super::*;
     #[test]
+    fn b4_request_local_resume_owner_matches_restore_and_rejects_other_source(){
+        let make=|source:&str|{
+            let (root,_,saved)=super::super::tests::fixture(source);
+            let locator=saved.grant_locator.as_deref().unwrap().to_string();
+            let session=begin_first_authored_source_native(&root,&saved.project_identity,&locator,&saved.revision_identity,&saved.revision_integrity).unwrap();
+            let owned=session.permit.source().recorded_execution_owner().unwrap();
+            let mut input:LogicalRecordRequest=serde_json::from_str(include_str!("../../../../solutions/seamgrim_ui_mvp/samples/beta1_logical_tetris/initial-input.json")).unwrap();
+            input.binding.source_revision=sha256_identity(owned.sources().preparation().source.as_bytes());input.snapshots.truncate(1);
+            let prepared=session.execute_logical(&input).unwrap().prepare(&[2]).unwrap();
+            prepared.stage_restore_cache(|_,_|Ok(())).unwrap();let (artifact,_)=prepared.commit().unwrap();
+            (root,locator,artifact,LogicalRecordRequest{binding:input.binding,snapshots:vec![]})
+        };
+        let source="실행:움직씨 := { (매마디)마다 { 1 보여주기. }. }.";
+        let (root,locator,artifact,input)=make(source);
+        let checked=attachment::check_bytes(artifact.as_bytes()).unwrap();
+        let owned=attachment::restore_saved_runtime_payload(&checked).unwrap();
+        let expected=resume_logical_source_world(&artifact,&[1],&[2],&root,&locator,&input,None).unwrap();
+        let actual=resume_logical_source_world(&artifact,&[1],&[2],&root,&locator,&input,Some(&owned)).unwrap();
+        assert_eq!(actual,expected,"request-local reuse must preserve the entire result");
+        let (_,_,other_artifact,_)=make("실행:움직씨 := { (매마디)마다 { 2 보여주기. }. }.");
+        let other_checked=attachment::check_bytes(other_artifact.as_bytes()).unwrap();
+        let other=attachment::restore_saved_runtime_payload(&other_checked).unwrap();
+        let error=resume_logical_source_world(&artifact,&[1],&[2],&root,&locator,&input,Some(&other)).unwrap_err();
+        assert!(error.starts_with("E_PROJECT_RUNTIME_PAYLOAD_OWNER:"),"{error}");
+        assert_eq!(resume_logical_source_world(&artifact,&[1],&[2],&root,&locator,&input,Some(&owned)).unwrap(),expected);
+    }
+    #[test]
     fn b3_native_no_end_keeps_anchor_and_never_becomes_complete_or_running(){
         for failed in [false,true]{
             let source="채비 { 횟수:바른수 := 0. }. 실행:움직씨 := { (매마디)마다 { 횟수 <- 횟수 + 1. 횟수 보여주기. }. }.";
@@ -383,10 +422,10 @@ mod tests {
             restore.test_flip_first_replay_byte(&original_tx,row_digest);drop(restore);
             assert!(rejected,"untrusted row/chunk bytes cannot become a Native recording owner");
         }
-        let cold=resume_logical_source_world(&artifact,&[1],&[2],&root,locator,&suffix).unwrap();
+        let cold=resume_logical_source_world(&artifact,&[1],&[2],&root,locator,&suffix,None).unwrap();
         assert_eq!(cold,baseline.session().summary());
         let mut bad=suffix.clone();bad.binding.initial_rng^=1;
-        assert!(resume_logical_source_world(&artifact,&[1],&[2],&root,locator,&bad).is_err());
+        assert!(resume_logical_source_world(&artifact,&[1],&[2],&root,locator,&bad,None).is_err());
         // A cache write failure precedes Pending/head changes and publishes no
         // new revision. The old saved world is still the exact same prefix.
         let expected_summary=baseline.session().summary();
@@ -402,16 +441,16 @@ mod tests {
             |_,_|Err("E_TEST_CACHE_WRITE".into())).unwrap_err();
         assert_eq!(error,"E_TEST_CACHE_WRITE");
         let empty=LogicalRecordRequest{binding:binding.clone(),snapshots:vec![]};
-        assert_eq!(resume_logical_source_world(&artifact,&[1],&[2],&root,locator,&empty).unwrap()["madi_count"],3);
+        assert_eq!(resume_logical_source_world(&artifact,&[1],&[2],&root,locator,&empty,None).unwrap()["madi_count"],3);
         let expected=baseline.session().summary();
         let result_label=continuous_result.digest_label();
         let (next,summary)=save_continued_logical_source_world(&artifact,&[1],&[2],&[3],&root,locator,&suffix,
             expected["state_hash"].as_str(),Some(&result_label),|_,_|Ok(())).unwrap();
         assert_eq!(summary,baseline.session().summary());
-        assert!(resume_logical_source_world(&artifact,&[1],&[2],&root,locator,&empty).is_err(),"stale first-W cannot reset epoch");
+        assert!(resume_logical_source_world(&artifact,&[1],&[2],&root,locator,&empty,None).is_err(),"stale first-W cannot reset epoch");
         let last=crate::logical_input_tape::LogicalSnapshot{madi:7,events:vec![],held:binding.initial_held.clone()};
         baseline.step(&last).unwrap();
-        let cold=resume_logical_source_world(&next,&[2],&[3],&root,locator,&LogicalRecordRequest{binding,snapshots:vec![last]}).unwrap();
+        let cold=resume_logical_source_world(&next,&[2],&[3],&root,locator,&LogicalRecordRequest{binding,snapshots:vec![last]},None).unwrap();
         assert_eq!(cold,baseline.session().summary());
         // Finish at the real saved boundary (7), not the unsaved diagnostic
         // continuation above. Metadata must not mint a world/revision/madi.

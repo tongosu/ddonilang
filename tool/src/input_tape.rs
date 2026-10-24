@@ -165,6 +165,7 @@ pub fn parse_held_mask(line: &str) -> Result<u16, String> {
 }
 
 pub fn mask_to_bytes(mask: u16) -> Vec<u8> {
+    // F5-GA[TAPE_MASK] The fixed nine-key registry makes expected_mask_len()==2, matching u16's two-byte representation.
     let bytes = mask.to_le_bytes();
     bytes[..expected_mask_len()].to_vec()
 }
@@ -458,6 +459,7 @@ fn verify_control_envelope(bytes: &[u8], mut index: usize, records: usize) -> Re
         take_bytes(bytes, &mut index, events * 11)?;
     }
     let body_end = index;
+    // F5-GA[TAPE_DIGEST] index is advanced only by successful bounded takes; the following footer take also proves body_end<=bytes.len().
     let digest = take_bytes(bytes, &mut index, 32)?;
     if index != bytes.len() {
         return Err("E_SAM_TAPE_TRAILING_BYTES footer 뒤에 불필요한 바이트가 있습니다".into());
@@ -469,6 +471,7 @@ fn verify_control_envelope(bytes: &[u8], mut index: usize, records: usize) -> Re
 }
 
 fn take_bytes<'a>(bytes: &'a [u8], idx: &mut usize, len: usize) -> Result<&'a [u8], String> {
+    // F5-GA[TAPE_TAKE] Saturating addition never decreases idx; after end<=bytes.len both slice bounds are valid. A real Rust slice cannot have usize::MAX length, so overflow cannot pass this check.
     let end = idx.saturating_add(len);
     if end > bytes.len() {
         return Err("E_SAM_TAPE_TRUNCATED 입력 테이프가 잘렸습니다. 원본 기록을 확인하세요".to_string());
@@ -479,6 +482,7 @@ fn take_bytes<'a>(bytes: &'a [u8], idx: &mut usize, len: usize) -> Result<&'a [u
 }
 
 fn read_u32(bytes: &[u8], idx: &mut usize) -> Result<u32, String> {
+    // F5-GA[TAPE_WIDTH] Every read uses a successful exact-width take before fixed byte indices; the decoder's one-byte tags use the same checked helper.
     let raw = take_bytes(bytes, idx, 4)?;
     Ok(u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]))
 }

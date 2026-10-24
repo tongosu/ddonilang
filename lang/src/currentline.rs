@@ -1,6 +1,7 @@
 use regex::Regex;
 use serde_json::{json, Value as JsonValue};
 use std::collections::{BTreeMap, BTreeSet};
+// F5-GA[CURRENTLINE_REGEX]: 이 파일의 Regex::new 패턴은 코드에 고정된 유효 리터럴이다. 사용자 원문은 captures의 대상일 뿐 패턴을 바꾸지 않으므로 입력 때문에 정규식 컴파일 unwrap이 실패하지 않는다.
 
 #[derive(Debug, Clone)]
 pub struct CurrentLineResult {
@@ -188,6 +189,7 @@ impl CurrentLineSession {
         let decl_re = Regex::new(r"(?s)^([가-힣A-Za-z_][가-힣A-Za-z0-9_.]*)\s*:\s*[가-힣A-Za-z_][가-힣A-Za-z0-9_]*\s*<-\s*(.+)$").unwrap();
         for stmt in split_statements(body) {
             if let Some(caps) = decl_re.captures(stmt.trim()) {
+                // F5-GA[CURRENTLINE_CAPTURE_1]: 매치한 선언의 두 괄호 그룹은 선택 분기가 아닌 필수 그룹이어서 get(1)/get(2)가 존재한다.
                 let key = flatten_name(caps.get(1).unwrap().as_str(), None);
                 let value =
                     self.eval_expr(caps.get(2).unwrap().as_str(), None, &BTreeMap::new())?;
@@ -206,6 +208,7 @@ impl CurrentLineSession {
         for stmt in split_statements(body) {
             let stmt = stmt.trim();
             if let Some(caps) = decl_re.captures(stmt) {
+                // F5-GA[CURRENTLINE_CAPTURE_2]: 이 선언 정규식도 두 필수 그룹을 항상 만들며 성공 매치 안에서만 인출한다.
                 let key = format!("{actor}__{}", caps.get(1).unwrap().as_str());
                 let value =
                     self.eval_expr(caps.get(2).unwrap().as_str(), Some(actor), &BTreeMap::new())?;
@@ -261,6 +264,7 @@ impl CurrentLineSession {
         let statements = split_statements(&body);
         let mut idx = 0usize;
         while idx < statements.len() {
+            // F5-GA[CURRENTLINE_STATEMENTS]: statements는 이 반복문 동안 불변이며 idx<len 검사 뒤에만 해당 원소를 읽는다.
             let stmt = statements[idx].trim();
             let next_stmt = statements.get(idx + 1).map(|s| s.trim());
             if next_stmt.is_some_and(|it| it.starts_with("아니면"))
@@ -512,7 +516,11 @@ impl CurrentLineSession {
         binds: &BTreeMap<String, CellValue>,
     ) -> Result<(), String> {
         let close = find_matching(stmt, 0, '(', ')')?;
-        if stmt[close + 1..].trim() != "보임" {
+        let tail = stmt[close + 1..].trim();
+        if tail == "보임" {
+            return Err("E_BOIM_LEGACY_REMOVED: 공개 관찰 선언은 `(필드들) 내보임.`을 사용하세요".to_string());
+        }
+        if tail != "내보임" {
             return Ok(());
         }
         let raw_fields = split_top_level_commas(&stmt[1..close]);
@@ -521,6 +529,7 @@ impl CurrentLineSession {
                 "E_BOIM_EMPTY_PACK: 공개 관찰 값꾸러미는 비어 있을 수 없습니다".to_string(),
             );
         }
+        // F5-GA[CURRENTLINE_FIELDS]: 단락 평가로 길이1일 때만 0번 원소를 읽는다.
         let unary = raw_fields.len() == 1 && !raw_fields[0].contains(':');
         let mut names = BTreeSet::new();
         for raw_field in raw_fields {
@@ -686,7 +695,7 @@ impl CurrentLineSession {
                 .collect::<Vec<_>>()
                 .join(", ");
             let indent = if v25 { "  " } else { "" };
-            lines.push(format!("{indent}({fields}) 보임."));
+            lines.push(format!("{indent}({fields}) 내보임."));
         }
         if v25 {
             lines.push("}".to_string());
@@ -795,6 +804,7 @@ fn split_top_level_commas(source: &str) -> Vec<String> {
 }
 
 fn remove_named_blocks(source: &str, name: &str) -> Result<(String, Vec<String>), String> {
+    // F5-GA[CURRENTLINE_UTF8_1]: find_matching은 char_indices에서 닫는 ASCII '}' 위치를 준다. 그 다음 위치는 문자 경계이며 starts_with(공백)이 참일 때만 완전한 다음 문자를 인출한다.
     let mut out = String::new();
     let mut bodies = Vec::new();
     let mut pos = 0usize;
@@ -829,6 +839,7 @@ fn remove_imja_blocks(source: &str) -> Result<(String, Vec<(String, String)>), S
     let mut bodies = Vec::new();
     let mut pos = 0usize;
     while let Some(caps) = re.captures(&source[pos..]) {
+        // F5-GA[CURRENTLINE_CAPTURE_0]: 성공한 Regex captures의 0번은 전체 매치로 항상 존재하며 regex가 UTF-8 경계를 보존한다.
         let whole = caps.get(0).unwrap();
         let start = pos + whole.start();
         let open = source[start..]
@@ -837,6 +848,7 @@ fn remove_imja_blocks(source: &str) -> Result<(String, Vec<(String, String)>), S
             .ok_or_else(|| "E_CURRENTLINE_IMJA_BLOCK".to_string())?;
         let close = find_matching(source, open, '{', '}')?;
         let mut end = close + 1;
+        // F5-GA[CURRENTLINE_UTF8_2]: end는 닫는 ASCII 중괄호 다음 경계에서 시작한다. 길이/Some(공백) 조건 뒤 완전한 문자 길이만 더하므로 unwrap이 빈 접미부에 닿지 않는다.
         while end < source.len()
             && source[end..]
                 .chars()
@@ -1050,12 +1062,12 @@ mod tests {
         let out = apply_currentline_cell(
             r#"
 각도 <- 15.
-(시간: 1, 각도: 각도) 보임.
+(시간: 1, 각도: 각도) 내보임.
 "#,
             None,
         )
         .expect("currentline public observation");
-        assert!(out.project_source.contains("(시간: 1, 각도: 15) 보임."));
+        assert!(out.project_source.contains("(시간: 1, 각도: 15) 내보임."));
         assert!(!out.project_source.contains("보임 {"));
     }
 

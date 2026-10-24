@@ -276,6 +276,7 @@ pub fn compute_w26_state_hash(params: &W26Params) -> StateHash {
     let mut trade_log = String::from("[");
     let mut total_qty: i64 = 0;
     let mut total_value: i64 = 0;
+    // F5-GA[W26_TRADE]: Native64 nonzero modulo bounds match the unchanged balances/inventory Vec lengths; allocation and earlier arithmetic remain separate audits.
     if agent_count > 0 && item_count > 0 && params.trade_count > 0 {
         for trade in 0..params.trade_count {
             let buyer = (trade % params.agent_count) as usize;
@@ -305,6 +306,7 @@ pub fn compute_w26_state_hash(params: &W26Params) -> StateHash {
     }
     trade_log.push(']');
 
+    // F5-GA[W26_UTILITY]: Each yielded agent/item is below its unchanged private balances/inventory/prices Vec length.
     let mut utilities = Vec::with_capacity(agent_count);
     for agent in 0..agent_count {
         let mut total = balances[agent];
@@ -379,6 +381,7 @@ pub fn compute_w27_state_hash(params: &W27Params) -> StateHash {
 
     let mut accepted = 0i64;
     let mut rejected = 0i64;
+    // F5-GA[W27]: Native64 nonzero agent modulo bounds both accesses to the private length-agent_count balances Vec.
     if agent_count > 0 && params.trade_count > 0 {
         for trade in 0..params.trade_count {
             let agent = (trade % params.agent_count) as usize;
@@ -438,6 +441,7 @@ pub fn compute_w28_state_hash(params: &W28Params) -> StateHash {
     let mut frames = String::from("[");
     let mut total_qty: i64 = 0;
     let mut total_value: i64 = 0;
+    // F5-GA[W28]: Native64 nonzero item modulo bounds both unchanged length-item_count aggregate arrays.
     if item_count > 0 && params.trade_count > 0 {
         for trade in 0..params.trade_count {
             let item = (trade % params.item_count) as usize;
@@ -813,6 +817,7 @@ pub fn compute_w33_state_hash(params: &W33Params) -> StateHash {
             break;
         }
         let end = (start + query_batch).min(agent_count);
+        // F5-GA[W33_QUERY_ONLY]: Every yielded idx is below end<=agent_count==processed.len(); this does not guard the separate W33 trade indices.
         for idx in start..end {
             processed[idx] = true;
         }

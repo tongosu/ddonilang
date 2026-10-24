@@ -79,6 +79,7 @@ pub fn resolve_selected(
     resources: &HashMap<String, Value>,
     entry: Option<&str>,
 ) -> Option<Json> {
+    // F5-GA[PROJECTION_PRIMARY]: Composition relations are private and admitted with exactly one Primary; its clone preserves that carrier and relations() only borrows it.
     let mut candidates = Vec::new();
     // Only actual authored root bindings are eligible. Do not infer a view
     // from a project name, variable spelling, world data or legacy drawlist.
@@ -116,6 +117,7 @@ pub fn resolve_selected(
                         "authored_binding_location":location,"canonical_occurrence":occurrence});
                     let relation_id = crate::runtime_surface::sha256_hex(
                         format!("ddn.bogae_relation.v1\0{identity}").as_bytes());
+                    // F5-GA[PROJECTION_OBJECT]: This local JSON object is never replaced or exposed mutably before the field insertions below.
                     let mut projected=json!({"identity":identity, "relation_id":relation_id,
                         "kind":kind, "order":order, "basis_location":basis, "placement":placement,
                         "view":crate::scene_value::project_view(relation.view()),
@@ -144,6 +146,7 @@ pub fn resolve_selected(
                         // RD-135/520: only an explicitly authored typed scene
                         // element is pickable. Never guess coordinates from a
                         // list, variable name, recipe output or DOM callback.
+                        // F5-GA[PROJECTION_READ]: Immutable JSON string-key reads return Null on missing/non-object data; these reads do not perform mutating Index insertion.
                         if target["kind"]=="scene_element" {
                             if let Some(object)=authored_object_identity(program,source_identity,resources,relation) {
                                 projected["object_identity"]=object;
@@ -389,7 +392,7 @@ mod tests {
 
     #[test]
     fn root_public_observation_keeps_original_source_binding() {
-        let output = run("보기 := () 표준보기.결과표. (측정: 3) 보임.", "root.ddn");
+        let output = run("보기 := () 표준보기.결과표. (측정: 3) 내보임.", "root.ddn");
         assert_eq!(output.public_observations.len(), 1);
         assert_eq!(output.public_observations[0].value_text, "3");
         assert!(output.public_observations[0]
@@ -399,7 +402,7 @@ mod tests {
 
     #[test]
     fn root_and_callable_observations_map_in_authored_order() {
-        let output = run("(첫째: 1) 보임. 기록:움직씨 := { (둘째: 2) 보임. }. () 기록.", "mixed.ddn");
+        let output = run("(첫째: 1) 내보임. 기록:움직씨 := { (둘째: 2) 내보임. }. () 기록.", "mixed.ddn");
         assert_eq!(output.public_observations.iter().map(|row| row.name.as_str()).collect::<Vec<_>>(), vec!["첫째", "둘째"]);
         assert!(output.public_observations.iter().all(|row| row.source_ref.starts_with("mixed.ddn#bytes=")));
     }

@@ -166,6 +166,7 @@ fn should_skip_dir(path: &Path) -> bool {
 }
 
 fn extract_variants(source: &str, file: &Path) -> Result<Vec<VariantSchema>, String> {
+    // F5-GA[ALRIM_SOURCE]: idx는 0에서 시작해 완전한 UTF-8 문자 길이 또는 확인한 ASCII만큼만 이동한다. 문자 인출은 idx<len인 반복문 안이며, cursor도 일치한 접두어 끝에서 같은 규칙으로 이동한다.
     let mut variants = Vec::new();
     let mut idx = 0usize;
     let bytes = source.as_bytes();
@@ -239,6 +240,7 @@ fn extract_variants(source: &str, file: &Path) -> Result<Vec<VariantSchema>, Str
 }
 
 fn find_matching_brace(source: &str, start: usize) -> Result<usize, String> {
+    // F5-GA[ALRIM_BRACE]: 유일한 제품 호출은 확인한 ASCII '{'의 문자 경계를 전달한다. 이후 완전한 문자만 이동하고 마지막 '}'는 그 ASCII 위치를 반환한다. 임의 byte 오프셋의 공개 입구가 아니다.
     let mut depth = 0usize;
     let mut idx = start;
     let mut in_string = false;
@@ -274,6 +276,7 @@ fn parse_block(
     file: &Path,
     base_offset: usize,
 ) -> Result<Vec<VariantSchema>, String> {
+    // F5-GA[ALRIM_BLOCK]: block은 확인한 중괄호 사이 UTF-8 슬라이스다. idx와 미리보기 인덱스는 0 또는 기존 문자 경계에서 시작하고, 확인된 ASCII나 len_utf8만 더한다. byte 조회는 길이 조건 뒤에만 수행한다.
     let mut variants = Vec::new();
     let mut idx = 0usize;
     let bytes = block.as_bytes();
@@ -351,6 +354,7 @@ fn parse_block(
 }
 
 fn parse_fields(block: &str, mut idx: usize) -> Result<(Vec<FieldSchema>, usize), String> {
+    // F5-GA[ALRIM_FIELDS]: 유일한 호출은 확인한 ASCII '(' 다음 경계를 준다. 공백/이름/형식/기본값 탐색은 길이 검사 뒤 완전한 문자만 이동하며 구분자 1바이트 이동도 해당 ASCII를 확인한 뒤만 한다.
     let mut fields = Vec::new();
     let bytes = block.as_bytes();
     loop {

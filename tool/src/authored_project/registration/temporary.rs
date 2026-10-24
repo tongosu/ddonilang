@@ -74,6 +74,7 @@ mod tests {
         ]{assert!(run(source,1).unwrap_err().contains("E_VC04_PURE_WORLD_WRITE"));}
     }
 }
+// F5-GA[REG_TEMP_CAPTURE]: The only private production constructor supplies exactly one sealed capture; Arc/shared borrows never expose a mutable capture Vec.
 impl RegistrationSourceView for DirectSourceActivation {
     fn scope(&self)->&str {&self.scope}
     fn captures(&self)->&[(String,SourceCapture)] {&self.captures}
@@ -96,6 +97,7 @@ impl RegistrationSourceView for DirectSourceActivation {
         if draft.project!=self.scope{return Err(fail("다른 임시 실행의 등록 자료입니다"))}
         let epoch=EpochSupply::for_declared_epoch(ddonirang_lang::SourceEpoch::V25);
         for (_,capture) in &self.captures {crate::source_snapshot_admission::replay(&epoch,capture).map_err(|_|fail("임시 원문 봉인이 다릅니다"))?;}
+        // F5-GA[REG_TEMP_BINDING]: Parse checks registry/entry ordinals before this immutable label comparison; it is not replaced by the later custody checks.
         let candidate=wire::Candidate::parse(&draft.descriptor).map_err(contract_error)?;
         candidate.verify_sources(&self.captures).map_err(contract_error)?;
         candidate.verify_contracts(&draft.contracts).map_err(contract_error)?;

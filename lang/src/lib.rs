@@ -1333,7 +1333,7 @@ mod integration_tests {
     fn test_fixed64_literal_overflow_fails_closed_before_unit_suffix() {
         let source = r#"
 테스트:셈씨 = {
-    (입자수: 602214076000000000000000@mol) 보임.
+    (입자수: 602214076000000000000000@mol) 내보임.
 }
 "#;
         let err = parse(source, "test.ddoni").expect_err("Fixed64 overflow must fail");
@@ -1344,7 +1344,7 @@ mod integration_tests {
 
         let fixed64_overflow = r#"
 테스트:셈씨 = {
-    (물질량: 3000000000@mol) 보임.
+    (물질량: 3000000000@mol) 내보임.
 }
 "#;
         let err =
@@ -2619,7 +2619,7 @@ Test:셈씨 = {
     fn test_public_observation_preserves_order_and_source_spans() {
         let source = r#"
 테스트:셈씨 = {
-    (시간: 1, 각도: 1 + (2 * 3), 각속도: 4) 보임.
+    (시간: 1, 각도: 1 + (2 * 3), 각속도: 4) 내보임.
     1 돌려줘.
 }
 "#;
@@ -2659,7 +2659,7 @@ Test:셈씨 = {
     fn test_public_observation_preserves_authored_field_label_keyword_alias() {
         let source = r#"
 테스트:셈씨 = {
-    (날짜: "2099-01-01", 사건: "중립 fixture") 보임.
+    (날짜: "2099-01-01", 사건: "중립 fixture") 내보임.
     1 돌려줘.
 }
 "#;
@@ -2683,7 +2683,7 @@ Test:셈씨 = {
 
         let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1)
             .expect("canonicalization");
-        assert!(normalized.contains("(날짜: \"2099-01-01\", 사건: \"중립 fixture\") 보임."));
+        assert!(normalized.contains("(날짜: \"2099-01-01\", 사건: \"중립 fixture\") 내보임."));
         assert_eq!(
             parse_and_normalize(&normalized, "test.ddoni", NormalizationLevel::N1)
                 .expect("second canonicalization"),
@@ -2695,7 +2695,7 @@ Test:셈씨 = {
     fn test_public_observation_unary_shorthand_builds_named_field() {
         let source = r#"
 테스트:셈씨 = {
-    (각도) 보임.
+    (각도) 내보임.
     1 돌려줘.
 }
 "#;
@@ -2714,15 +2714,15 @@ Test:셈씨 = {
     fn test_public_observation_canon_roundtrip_is_ordered_and_idempotent() {
         let source = r#"
 테스트:셈씨 = {
-    (시간: 1, 각도: 1 + (2 * 3), 각속도: 4) 보임.
-    (각도) 보임.
+    (시간: 1, 각도: 1 + (2 * 3), 각속도: 4) 내보임.
+    (각도) 내보임.
     1 돌려줘.
 }
 "#;
         let once = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1)
             .expect("first canonicalization");
-        assert!(once.contains("(시간: 1, 각도: 1 + 2 * 3, 각속도: 4) 보임."));
-        assert!(once.contains("(각도: 각도) 보임."));
+        assert!(once.contains("(시간: 1, 각도: 1 + 2 * 3, 각속도: 4) 내보임."));
+        assert!(once.contains("(각도: 각도) 내보임."));
         assert!(!once.contains("보임 {"));
         assert!(!once.contains("project.obs."));
         assert!(!once.contains("output_"));
@@ -2758,11 +2758,11 @@ Test:셈씨 = {
     #[test]
     fn test_public_observation_rejects_invalid_field_forms() {
         let cases = [
-            ("() 보임.", "E_BOIM_EMPTY_PACK"),
-            ("(각도 = 1) 보임.", "E_BOIM_FIXED_BINDING_FORBIDDEN"),
-            ("(각도: 1, 각도: 2) 보임.", "E_BOIM_DUPLICATE_FIELD"),
-            ("(1 + 2) 보임.", "E_BOIM_FIELD_NAME_REQUIRED"),
-            ("(각도, 시간: 1) 보임.", "E_BOIM_FIELD_NAME_REQUIRED"),
+            ("() 내보임.", "E_BOIM_EMPTY_PACK"),
+            ("(각도 = 1) 내보임.", "E_BOIM_FIXED_BINDING_FORBIDDEN"),
+            ("(각도: 1, 각도: 2) 내보임.", "E_BOIM_DUPLICATE_FIELD"),
+            ("(1 + 2) 내보임.", "E_BOIM_FIELD_NAME_REQUIRED"),
+            ("(각도, 시간: 1) 내보임.", "E_BOIM_FIELD_NAME_REQUIRED"),
         ];
         for (surface, code) in cases {
             let source = format!("테스트:셈씨 = {{\n    {surface}\n    1 돌려줘.\n}}\n");
@@ -2773,7 +2773,7 @@ Test:셈씨 = {
 
     #[test]
     fn test_public_observation_duplicate_diagnostic_names_exact_korean_span() {
-        let source = "테스트:셈씨 = {\n    (각도: 1, 각도: 2) 보임.\n    1 돌려줘.\n}\n";
+        let source = "테스트:셈씨 = {\n    (각도: 1, 각도: 2) 내보임.\n    1 돌려줘.\n}\n";
         let second = source.rfind("각도").expect("second field");
         let err = parse(source, "test.ddoni").expect_err("duplicate field");
         assert_eq!(err.code(), "E_BOIM_DUPLICATE_FIELD");

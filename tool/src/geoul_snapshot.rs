@@ -222,6 +222,7 @@ pub fn encode_input_snapshot(snapshot: &InputSnapshotV1) -> Vec<u8> {
 }
 
 pub fn decode_input_snapshot(bytes: &[u8]) -> Result<InputSnapshotV1, String> {
+    // F5-GA[GEOUL_HEADERS] The initial magic slice follows its minimum-length check; the extension slice follows a saturating remaining-header check before idx+magic_len is used.
     let mut idx = 0usize;
     if bytes.len() < SNAPSHOT_MAGIC.len() {
         return Err("snapshot detbin 길이가 너무 짧습니다".to_string());
@@ -297,6 +298,7 @@ fn push_str(out: &mut Vec<u8>, text: &str) {
 }
 
 fn read_u8_slice(bytes: &[u8], idx: &mut usize) -> Result<u8, String> {
+    // F5-GA[GEOUL_BYTE] The explicit idx>=len rejection precedes this one-byte access and cursor advance.
     if *idx >= bytes.len() {
         return Err("snapshot detbin EOF".to_string());
     }
@@ -306,6 +308,7 @@ fn read_u8_slice(bytes: &[u8], idx: &mut usize) -> Result<u8, String> {
 }
 
 fn read_u16_slice(bytes: &[u8], idx: &mut usize) -> Result<u16, String> {
+    // F5-GA[GEOUL_WIDTH] These u16/u32/u64 readers reject saturating end>len before fixed byte offsets; a real Rust slice is shorter than usize::MAX, so an overflowed end cannot pass.
     let end = idx.saturating_add(2);
     if end > bytes.len() {
         return Err("snapshot detbin EOF".to_string());
@@ -350,6 +353,7 @@ fn read_u64_slice(bytes: &[u8], idx: &mut usize) -> Result<u64, String> {
 }
 
 fn read_str_slice(bytes: &[u8], idx: &mut usize) -> Result<String, String> {
+    // F5-GA[GEOUL_RANGE] A successful saturating end<=len check gives idx<=end<=len. This bounds the slice only; it does not establish lossless u64-to-usize length conversion or allocation policy.
     let len = read_u64_slice(bytes, idx)? as usize;
     let end = idx.saturating_add(len);
     if end > bytes.len() {

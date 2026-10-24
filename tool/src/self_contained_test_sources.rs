@@ -36,7 +36,7 @@ pub(crate) const EXACT_ACYCLIC_MODEL: &str = r#"검증방법 <- (방식: "ddn.ex
   내줌=(답, 원본)
 ) 풀기.
 
-(답값: 검산결과.답, 원본값: 검산결과.원본) 보임.
+(답값: 검산결과.답, 원본값: 검산결과.원본) 내보임.
 "#;
 
 pub(crate) const MODEL_RELATION_CYCLE: &str = r#"검증방법 <- (방식: "ddn.exact_acyclic_relation.v1").
@@ -57,7 +57,7 @@ pub(crate) const MODEL_RELATION_CYCLE: &str = r#"검증방법 <- (방식: "ddn.e
   내줌=(왼, 오른)
 ) 풀기.
 
-(왼값: 검산결과.왼, 오른값: 검산결과.오른) 보임.
+(왼값: 검산결과.왼, 오른값: 검산결과.오른) 내보임.
 "#;
 
 pub(crate) const MODEL_UNIT_MISMATCH: &str = r#"검증방법 <- (방식: "ddn.exact_acyclic_relation.v1").
@@ -154,7 +154,7 @@ pub(crate) const MULTIFILE_ENTRY: &str = r#"쓰임 {
 (매마디)마다 {
   시간 <- 시간 + 1.
   각도 <- 각도 + 도움.증가값.
-  (경과: 시간 * 1@s, 각도: 각도 * 1@rad, 증가량: 도움.증가값) 보임.
+  (경과: 시간 * 1@s, 각도: 각도 * 1@rad, 증가량: 도움.증가값) 내보임.
 }.
 "#;
 

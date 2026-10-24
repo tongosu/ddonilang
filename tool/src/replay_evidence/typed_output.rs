@@ -54,6 +54,7 @@ impl StagedResultEmissionsV1 {
     /// Parallel branches merge in the evaluator's existing provider order,
     /// not callback order, display line numbers or map iteration at the host.
     pub(crate) fn extend_since(&mut self, other:&Self, start:usize) {
+        // F5-GA[OUTPUT_PREFIX]: 제품 caller는 같은 provider base에서 보존한 prefix 길이 또는0만 전달한다. rows는 private이며 stage/merge는 append만 하고 성공한 snapshot/child 복원도 그 prefix를 보존한다.
         self.rows.extend_from_slice(&other.rows[start..]);
     }
 

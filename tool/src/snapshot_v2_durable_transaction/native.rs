@@ -8,10 +8,23 @@ use std::time::Duration;
 
 mod root_grant;
 mod replay_archive_schema;
+mod finish_recovery_schema;
+#[cfg(windows)]
+mod finish_recovery_store;
 #[cfg(windows)]
 pub(crate) use replay_archive_schema::{NativeReplayProgressTransportV1,NativeReplayFinishedTransportV1,NativeReplayTerminalTransportV1};
 #[cfg(windows)]
+pub(crate) use replay_archive_schema::CapturedReplayMetadataFailureV1;
+#[cfg(windows)]
 pub(crate) use root_grant::ReplayArchiveRootScopeV1;
+#[cfg(windows)]
+pub(crate) use root_grant::DurableFinishIntentWitnessV1;
+#[cfg(windows)]
+pub(crate) use root_grant::{NativeFinishRecoveryPermitV1,RecoveredNativeFinishV1};
+#[cfg(all(test,windows))]
+pub(crate) use root_grant::test_arm_finish_ready_set_failure;
+#[cfg(all(test,windows))]
+pub(crate) use root_grant::test_finish_lifecycle_cipher_digest;
 #[cfg(windows)]
 pub(crate) use root_grant::VerifiedExecutionFirstCheckpointV1;
 #[cfg(windows)]
@@ -335,6 +348,7 @@ impl SqliteAdapterV1 {
             expected.sort_by_key(|(name,_)|*name);
         }
         replay_archive_schema::extend_expected(&rows,self.schema_profile,&mut expected)?;
+        finish_recovery_schema::extend_expected(&rows,self.schema_profile,&mut expected)?;
         if rows.len() != expected.len()
             || rows
                 .iter()
@@ -463,6 +477,7 @@ impl SqliteAdapterV1 {
 
     fn write_prepared_rows(&self,payload:&StoredPayloadV1,
         custody:Option<&super::recovery_custody::InitialCustodyRowV1>)->Result<PreparedWriteV1,Failure> {
+        let _observation = crate::storage_observation::Span::start("sqlite.write_prepared_total");
         #[cfg(windows)]
         { self.fresh_container.try_borrow_mut().map_err(|_| Failure::CustodyConflict)?.take(); }
         // Reuse RD-670/672 transport ceilings before even opening a database.
@@ -588,6 +603,7 @@ impl SqliteAdapterV1 {
     }
 
     pub(crate) fn sync_prepared(&self, handle: &mut PreparedWriteV1) -> Result<(), Failure> {
+        let _observation = crate::storage_observation::Span::start("sqlite.sync_prepared_full_commit_total");
         self.check_handle(handle)?;
         let connection = handle.connection.take().ok_or(Failure::RecoveryRequired)?;
         connection
@@ -819,6 +835,7 @@ impl SqliteAdapterV1 {
 
     fn commit_verified_rows(&self,payload:&StoredPayloadV1,expected:Option<&StoredHeadV1>,
         custody:Option<(&super::recovery_custody::InitialCustodyRowV1,&super::recovery_custody::VerifiedCustodyRowV1)>)->Result<(),Failure> {
+        let _observation = crate::storage_observation::Span::start("sqlite.commit_verified_total");
         #[cfg(all(windows,feature="beta2-crash-probe"))]
         crash_probe::checkpoint("before_cas");
         #[cfg(windows)]
@@ -885,16 +902,19 @@ impl SqliteAdapterV1 {
     }
 
     pub(crate) fn confirm_container_durable(&self) -> Result<(), Failure> {
+        let _observation = crate::storage_observation::Span::start("sqlite.confirm_container_durable_total");
         #[cfg(test)]
         if self.schema_profile==NativeSchemaProfile::RecoveryCustody
             && FAIL_CUSTODY_CONFIRM.with(|fault|fault.replace(false)) {return Err(Failure::ContainerDurabilityFailed);}
         self.capability()?;
         let connection = self.connect()?;
+        let checkpoint_observation = crate::storage_observation::Span::start("sqlite.wal_checkpoint_full");
         let (busy, frames, checkpointed): (i64, i64, i64) = connection
             .query_row("PRAGMA wal_checkpoint(FULL)", [], |row| {
                 Ok((row.get(0)?, row.get(1)?, row.get(2)?))
             })
             .map_err(|_| Failure::ContainerDurabilityFailed)?;
+        drop(checkpoint_observation);
         if busy != 0 || frames < 0 || frames != checkpointed {
             return Err(Failure::ContainerDurabilityFailed);
         }

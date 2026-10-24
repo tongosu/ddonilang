@@ -142,6 +142,7 @@ impl<'a> Lexer<'a> {
         }
     }
     pub fn tokenize(&mut self) -> Result<Vec<Token>, LexError> {
+        // F5-GA[LEXER-EOF]: 성공 반환에는 항상 EOF 토큰이 붙는다. 토큰 오류는 ?로 반환되어 불완전한 벡터를 소비자에게 주지 않는다.
         let mut tokens = Vec::new();
         while !self.is_eof() {
             self.skip_whitespace();
@@ -608,6 +609,7 @@ impl<'a> Lexer<'a> {
                     let Some(digit) = self.peek_char().filter(|c| c.is_ascii_hexdigit()) else {
                         return Err(LexError::new(item_start, "E_BYTES_LITERAL_INVALID: 두 자리 16진수가 필요합니다"));
                     };
+                    // F5-GA[BYTE-HEX]: 같은 digit을 ASCII 16진수로 걸렀으므로 변환은 Some이다. 두 자리 누적값도 255를 넘지 않는다.
                     byte = byte * 16 + digit.to_digit(16).unwrap() as u8;
                     self.advance();
                 }

@@ -136,6 +136,7 @@ pub(crate) fn stage_runtime_state_with_complete_frame(
     // later validation. A late input/scene/display rejection must not recursively
     // clone or destroy previously staged rows on the Native/WASM call stack.
     let public_observation_frames=OwnedJson::clone_from_value(frames);
+    // F5-GA[CHECKPOINT_ARRAY] frames was checked with is_array immediately above; the owned clone preserves shape, and subsequent consumers borrow it immutably before return.
     let tick_id=snapshot.get("next_tick_id").and_then(uint).ok_or("E_WASM_STATE_TICK_INVALID: next_tick_id가 필요합니다")?;
     if let Some(frame)=frame{
         let parameters=param_overrides.iter().map(|(name,value)|match value{

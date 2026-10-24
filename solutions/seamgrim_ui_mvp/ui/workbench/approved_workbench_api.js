@@ -1,0 +1,266 @@
+// Existing approved inspection and action facade; exact object literal retained.
+export function createApprovedWorkbenchApi({ activeFrame, analyzeSourceReadiness, applySourceReadinessFixIt, attemptMutateParentHash, attemptOverwriteActiveRun, attemptReuseRunId, branchFromCursor, buildCurrentPortableProjectArtifact, buildProjectSnapshot, buildServerProjectArtifact, cloneCurrentPortableProject, currentPortableLineage, currentProject, els, exportPortableProject, getSourceReadinessCandidate, openPendingPortableProject, openRunArchiveDetail, pauseRun, previewPortableProjectFile, projectStorageKey, readMyWorkIndex, readPortableProjectCatalog, reopenProjectSnapshot, resumeRun, saveProjectSnapshot, sourceReadinessSnapshot, startRun, state, stepForward, stopRun, summarizeRunArchiveBoundary, workbenchProjectRegistryState }) {
+  return {
+  getSnapshot() {
+    const project = currentProject();
+    const controlSnapshot = (testId) => {
+      const node = document.querySelector(`[data-testid='${testId}']`);
+      const disabled = Boolean(node?.disabled || node?.getAttribute("aria-disabled") === "true");
+      return {
+        enabled: Boolean(node && !disabled),
+        disabled_reason: disabled ? String(node.dataset.disabledReason || "disabled") : "",
+      };
+    };
+    return {
+      readiness: {
+        workbench_api_ready: true,
+        initialization: "ready",
+        source: sourceReadinessSnapshot(),
+      },
+      projectId: state.projectId,
+      project: {
+        project_id: project.id,
+        title: project.title,
+        kind: project.kind,
+        creation_template: String(project.creationTemplate ?? project.portableSnapshot?.creation_template ?? ""),
+        file_count: project.files.length,
+        files: project.files.map((file) => ({ path: file.path, role: file.role })),
+        native_creator: workbenchProjectRegistryState.nativeProjects.some((item) => item.id === project.id),
+      },
+      mode: state.mode,
+      viewWorkspace: {
+        schema: state.viewWorkspace.schema,
+        primary_view_instance_id: state.viewWorkspace.primary_view_instance_id,
+        active_view_instance_id: state.viewWorkspace.active_view_instance_id,
+        selected_target: state.viewWorkspace.selected_target,
+        instances: state.viewWorkspace.instances.map((instance) => ({ ...instance })),
+      },
+      runtimeStatus: state.runtimeStatus,
+      executionLifecycle: { ...state.executionLifecycle },
+      activeRunId: state.activeRunId,
+      cursorIndex: state.cursorIndex,
+      runs: state.runs.map((run) => ({
+        run_id: run.run_id,
+        server_run_id: run.server_run_id ?? "",
+        source_hash: run.source_hash ?? "",
+        source_kind: run.source_kind ?? "",
+        execution_mode: run.execution_mode_decision?.mode ?? "",
+        source_revision_id: run.source_revision_id ?? "",
+        parent_run_id: run.parent_run_id,
+        parent_server_run_id: run.parent_server_run_id ?? "",
+        parent_madi: run.parent_madi,
+        parent_state_hash: run.parent_state_hash,
+        frame_count: run.frames.length,
+        frames: run.frames.map((frame) => ({
+          frame_id: frame.frame_id,
+          madi: frame.madi,
+          state_hash: frame.state_hash,
+          input_snapshot: { ...frame.input_snapshot },
+        })),
+        input_snapshots: run.frames.map((frame) => ({ ...frame.input_snapshot })),
+        latest_state_hash: run.frames.at(-1)?.state_hash ?? "",
+        shared_runtime_result: run.shared_runtime_result
+          ? structuredClone(run.shared_runtime_result)
+          : null,
+        work_cost_receipt: run.work_cost_receipt
+          ? structuredClone(run.work_cost_receipt)
+          : null,
+        server_archive_status: run.server_archive_status ?? "",
+        server_checkpoint_count: run.server_checkpoint_count ?? 0,
+        server_latest_checkpoint_sha256: run.server_latest_checkpoint_sha256 ?? "",
+        server_final_status: run.server_final_status ?? "",
+        final_status: run.final_status ?? "",
+        configured_madi: run.configured_madi ?? 0,
+        committed_step_count: run.committed_step_count ?? 0,
+        setup: structuredClone(run.setup ?? {}),
+        server_finalize_attempt_count: run.server_finalize_attempt_count ?? 0,
+        server_finalized: Boolean(run.server_finalized),
+      })),
+      activeFrame: activeFrame(),
+      diagnostics: [...state.diagnostics],
+      sourceReadiness: sourceReadinessSnapshot(),
+      sourceReadOnly: els.sourceEditor.readOnly,
+      pendingRecipe: state.pendingRecipe,
+      nextInput: state.nextInput,
+      projectControls: {
+        schema: state.projectControls?.schema ?? "",
+        project_id: state.projectControls?.project_id ?? "",
+        status: state.projectControls?.status ?? "idle",
+        source: state.projectControls?.source ?? "",
+        authoring_plan_hash: state.projectControls?.authoring_plan_hash ?? "",
+        controls: (state.projectControls?.controls ?? []).map((control) => ({ ...control })),
+        control_values: { ...(state.projectControls?.control_values ?? {}) },
+        action_map_hash: state.projectControls?.action_map?.action_map_hash ?? "",
+        actions: (state.projectControls?.actions ?? []).map((action) => ({
+          ...action,
+          input_snapshot: { ...action.input_snapshot },
+        })),
+        error: state.projectControls?.error ? { ...state.projectControls.error } : null,
+      },
+      livePump: {
+        madi_hz: state.livePump.pacing?.madiHz ?? null,
+        scheduled_delay_ms: state.livePump.scheduledDelayMs,
+        generation: state.livePump.generation,
+        scheduled: state.livePump.scheduled,
+        in_flight: state.livePump.inFlight,
+        step_start_count: state.livePump.stepStartCount,
+        step_commit_count: state.livePump.stepCommitCount,
+        max_in_flight: state.livePump.maxInFlight,
+        last_origin: state.livePump.lastOrigin,
+        last_cancel_reason: state.livePump.lastCancelReason,
+      },
+      semanticViewPayload: state.semanticViewPayload
+        ? {
+            schema: state.semanticViewPayload.schema,
+            committed_frame: state.semanticViewPayload.committed_frame,
+            ordered_observations: state.semanticViewPayload.ordered_observations,
+            committed_resource_keys: Object.keys(state.semanticViewPayload.committed_resources ?? {}),
+            committed_view_meta_keys: Object.keys(state.semanticViewPayload.committed_view_meta ?? {}),
+            view_binding: state.semanticViewPayload.view_binding,
+            view_config: state.semanticViewPayload.view_config,
+            committed_trajectory_length: state.semanticViewPayload.committed_trajectory.length,
+            semantic_payload_hash: state.semanticViewPayload.semantic_payload_hash,
+          }
+        : null,
+      semanticRenderer: state.semanticRenderModel
+        ? {
+            schema: state.semanticRenderModel.schema,
+            family: state.semanticRenderModel.family,
+            status: state.semanticRenderModel.status,
+            data_source: state.semanticRenderModel.data_source,
+            committed_frame: state.semanticRenderModel.committed_frame,
+            semantic_payload_hash: state.semanticRenderModel.semantic_payload_hash,
+            role: state.semanticRenderModel.role,
+            overlay_enabled: Boolean(state.semanticRenderModel.overlay_enabled),
+            overlay_world_target: state.semanticRenderModel.overlay_world_target ?? null,
+            overlay_drawlist: state.semanticRenderModel.overlay_drawlist ?? [],
+            overlay_status: state.semanticRenderModel.overlay_status ?? null,
+            overlay_diagnostic: state.semanticRenderModel.overlay_diagnostic ?? null,
+            labels: state.semanticRenderModel.labels,
+            current: state.semanticRenderModel.current ?? null,
+            trajectory_length: state.semanticRenderModel.trajectory?.length ?? 0,
+            point_count: state.semanticRenderModel.points?.length ?? 0,
+            tick: state.semanticRenderModel.tick ?? null,
+            position: state.semanticRenderModel.position ?? null,
+            geometry_source: state.semanticRenderModel.geometry_source ?? "",
+            draw_item_count: state.semanticRenderModel.draw_list?.length ?? 0,
+            canvas_projection: state.semanticRenderModel.canvas_projection ?? null,
+          }
+        : null,
+      persistenceStatus: state.persistenceStatus,
+      persistence: {
+        generation: Number(state.persistenceOperation?.generation ?? 0),
+        completed_generation: Number(state.persistenceOperation?.completedGeneration ?? 0),
+        phase: String(state.persistenceOperation?.phase ?? "idle"),
+        outcome: String(state.persistenceOperation?.outcome ?? ""),
+        mode: String(state.persistenceStatus?.mode ?? "unsaved"),
+        revision_id: String(state.persistenceStatus?.revision_id ?? state.serverProject.headRevisionId ?? ""),
+      },
+      controls: {
+        project_save: controlSnapshot("project-save"),
+        lifecycle_run: controlSnapshot("lifecycle-run"),
+        lifecycle_pause: controlSnapshot("lifecycle-pause"),
+        lifecycle_resume: controlSnapshot("lifecycle-resume"),
+        lifecycle_step: controlSnapshot("lifecycle-step"),
+        lifecycle_stop: controlSnapshot("lifecycle-stop"),
+        history_back: controlSnapshot("history-back"),
+        history_branch: controlSnapshot("history-branch"),
+        project_clone: controlSnapshot("project-clone"),
+      },
+      serverProject: {
+        project_id: state.serverProject.projectId,
+        head_revision_id: state.serverProject.headRevisionId,
+        content_sha256: state.serverProject.contentSha256,
+        package_hash: state.serverProject.packageHash,
+        revision_count: state.serverProject.revisions.length,
+        conflict_open: Boolean(state.serverProject.conflict),
+      },
+      runArchives: state.runArchives.map((run) => ({
+        server_run_id: run.server_run_id,
+        source_revision_id: run.source_revision_id,
+        parent_server_run_id: run.parent_server_run_id,
+        branch_madi: run.branch_madi,
+        branch_state_hash: run.branch_state_hash,
+        latest_committed_madi: run.latest_committed_madi,
+        final_status: run.final_status,
+      })),
+      selectedRunArchive: state.selectedRunArchive?.run
+        ? {
+            server_run_id: state.selectedRunArchive.run.server_run_id,
+            final_status: state.selectedRunArchive.run.final_status,
+            parent_server_run_id: state.selectedRunArchive.run.parent_server_run_id,
+            branch_madi: state.selectedRunArchive.run.branch_madi,
+            branch_state_hash: state.selectedRunArchive.run.branch_state_hash,
+            checkpoints: (state.selectedRunArchive.run.checkpoints ?? []).map((checkpoint) => ({
+              sequence: checkpoint.sequence,
+              committed_madi: checkpoint.committed_madi,
+              previous_checkpoint_sha256: checkpoint.previous_checkpoint_sha256,
+              checkpoint_sha256: checkpoint.checkpoint_sha256,
+              state_hashes: [...(checkpoint.artifact?.state_hashes ?? [])],
+              input_snapshots: [...(checkpoint.artifact?.input_snapshots ?? [])],
+            })),
+          }
+        : null,
+      myWork: readMyWorkIndex().map((row) => ({
+        project_id: row.project_id,
+        head_revision_id: row.head_revision_id,
+        has_edit_capability: Boolean(row.edit_capability),
+        has_view_capability: Boolean(row.view_capability),
+        verify_status: row.verify_status || "",
+      })),
+      portableCatalog: readPortableProjectCatalog().map((row) => ({
+        project_id: row.project_id,
+        title: row.title,
+        content_sha256: row.content_sha256,
+      })),
+      pendingPortableImport: state.pendingPortableImport
+        ? {
+            has_artifact: Boolean(state.pendingPortableImport.artifact),
+            error_code: state.pendingPortableImport.error?.code ?? "",
+            byte_length: state.pendingPortableImport.byte_length ?? 0,
+          }
+        : null,
+      portableLineage: {
+        origin_kind: currentPortableLineage().origin_kind,
+        origin_content_sha256: currentPortableLineage().origin_content_sha256,
+        source_lesson_id: currentPortableLineage().source_lesson_id,
+      },
+      capabilitySession: state.capabilitySession
+        ? {
+            schema: state.capabilitySession.schema,
+            source: state.capabilitySession.source,
+            project_id: state.capabilitySession.project_id,
+            role: state.capabilitySession.role,
+            capability_redacted: true,
+          }
+        : null,
+    };
+  },
+  attemptOverwriteActiveRun,
+  attemptReuseRunId,
+  attemptMutateParentHash,
+  startRun,
+  pauseRun,
+  resumeRun,
+  stepForward,
+  stopRun,
+  branchFromCursor,
+  openRunArchiveDetail,
+  analyzeSourceReadiness,
+  getSourceReadinessCandidate,
+  applySourceReadinessFixIt,
+  saveProjectSnapshot,
+  reopenProjectSnapshot,
+  buildProjectSnapshot,
+  buildCurrentPortableProjectArtifact,
+  exportPortableProject,
+  previewPortableProjectFile,
+  openPendingPortableProject,
+  cloneCurrentPortableProject,
+  projectStorageKey,
+  async buildProjectArtifact() {
+    return buildServerProjectArtifact();
+  },
+  summarizeRunArchiveBoundary,
+};
+}

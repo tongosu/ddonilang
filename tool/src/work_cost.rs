@@ -1167,13 +1167,12 @@ mod tests {
     }
 
     fn eval_call_static_dispatch_names() -> BTreeSet<String> {
-        let source = include_str!("ddn_runtime.rs");
+        let source = include_str!("ddn_runtime/builtin_calls.rs");
         let start = source
-            .find("    fn eval_call(")
+            .find("    pub(super) fn eval_call(")
             .expect("eval_call source boundary");
-        let end = source[start..]
-            .find("    fn resource_backed_caller_names")
-            .map(|offset| start + offset)
+        let end = source
+            .rfind("\n}\n")
             .expect("eval_call source end boundary");
         let mut names = BTreeSet::new();
         let mut arm_head = String::new();

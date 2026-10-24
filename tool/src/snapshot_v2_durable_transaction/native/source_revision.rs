@@ -20,6 +20,7 @@ impl SqliteAdapterV1 {
     #[cfg(windows)]
     pub(crate) fn save_authoring_source(&mut self,prepared:super::PreparedAuthoringSourceV1)
         ->Result<super::DurablySavedAuthoringSourceV1,SourceSaveFailure>{
+        let _observation = crate::storage_observation::Span::start("sqlite.source_revision.save_authoring_total");
         use SourceSaveFailure::{BeforeCommit as Before,AfterCommitUnconfirmed as After};
         if self.schema_profile!=NativeSchemaProfile::SourceRevision{return Err(Before(Failure::UnsupportedDurability));}
         prepared.verify_before_save(self).map_err(Before)?;
@@ -37,12 +38,15 @@ impl SqliteAdapterV1 {
             if changes!=1{return Err(Failure::StaleRevision);}Ok(())
         })();
         if let Err(error)=write{return match db.execute_batch("ROLLBACK"){Ok(())=>Err(Before(error)),Err(_)=>Err(After(Failure::RecoveryRequired))};}
+        let authoring_commit_observation = crate::storage_observation::Span::start("sqlite.source_revision.authoring_full_commit_and_close");
         db.execute_batch("COMMIT").map_err(|_|After(Failure::WriteFailed))?;drop(db);
+        drop(authoring_commit_observation);
         prepared.confirm_saved(self).map_err(After)
     }
     #[cfg(windows)]
     pub(crate) fn save_source_successor<'a>(&'a mut self,source:&Source,
         grant:&super::root_grant::AdmittedSourceGrantV2)->Result<DurablySavedSourceRevision<'a>,SourceSaveFailure>{
+        let _observation = crate::storage_observation::Span::start("sqlite.source_revision.save_successor_total");
         use SourceSaveFailure::{BeforeCommit as Before,AfterCommitUnconfirmed as After};
         if self.schema_profile!=NativeSchemaProfile::SourceRevision||source.parent().is_empty(){return Err(Before(Failure::UnsupportedDurability));}
         let expected_integrity=grant.verify_source_successor(self,source).map_err(Before)?;
@@ -62,7 +66,9 @@ impl SqliteAdapterV1 {
             if changes!=1{return Err(Failure::StaleRevision);}Ok(())
         })();
         if let Err(error)=write{return match db.execute_batch("ROLLBACK"){Ok(())=>Err(Before(error)),Err(_)=>Err(After(Failure::RecoveryRequired))};}
+        let successor_commit_observation = crate::storage_observation::Span::start("sqlite.source_revision.successor_full_commit_and_close");
         db.execute_batch("COMMIT").map_err(|_|After(Failure::WriteFailed))?;drop(db);
+        drop(successor_commit_observation);
         #[cfg(test)]
         if SAVE_FAULT.with(|f|f.get())==2{return Err(After(Failure::RereadFailed));}
         grant.verify_saved_source(self,source).map_err(After)?;
@@ -78,6 +84,7 @@ impl SqliteAdapterV1 {
 
     pub(super) fn save_initial_source_revision_bound<'a>(&'a mut self,source:&Source,
         grant:Option<&super::root_grant::AdmittedSourceGrantV2>)->Result<DurablySavedSourceRevision<'a>,SourceSaveFailure> {
+        let _observation = crate::storage_observation::Span::start("sqlite.source_revision.save_initial_total");
         use SourceSaveFailure::{BeforeCommit as Before,AfterCommitUnconfirmed as After};
         if self.schema_profile!=NativeSchemaProfile::SourceRevision||!source.parent().is_empty() {
             return Err(Before(Failure::UnsupportedDurability));
@@ -113,7 +120,9 @@ impl SqliteAdapterV1 {
         })();
         if let Err(error)=write {return match db.execute_batch("ROLLBACK") {Ok(())=>Err(Before(error)),Err(_)=>Err(After(Failure::RecoveryRequired))};}
         // COMMIT can have reached disk even when its acknowledgement fails.
+        let initial_commit_observation = crate::storage_observation::Span::start("sqlite.source_revision.initial_full_commit");
         db.execute_batch("COMMIT").map_err(|_|After(Failure::WriteFailed))?;
+        drop(initial_commit_observation);
         drop(db);
         #[cfg(test)]
         if SAVE_FAULT.with(|f|f.get())==2{return Err(After(Failure::RereadFailed));}

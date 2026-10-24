@@ -98,6 +98,7 @@ pub(crate) enum TensorSelector {
 }
 
 fn tensor_selection_plan(value: &ddonirang_lang::runtime::TensorValue, selectors: &[TensorSelector]) -> Result<(Vec<u64>, Vec<usize>), String> {
+    // F5-GA[WIRE_SELECTION] axes/coordinates share one fixed length; zero retained extents return early. Every emitted offset is checked against elements.len, and an empty result shape emits exactly one scalar offset. Replacement clones that same element length.
     verify_runtime_tensor(value)?;
     if selectors.is_empty() || selectors.len() > value.shape().len() {
         return Err("E_TENSOR_SELECTION: 비어 있거나 축 수를 넘는 선택입니다".into());
@@ -180,6 +181,7 @@ pub(crate) fn preflight_tensor_collection(shape: &[u64]) -> Result<(), String> {
         .map_err(|e| format!("E_TENSOR_RESOURCE_LIMIT: 차림 구체화 한도 초과: {e:?}"))
 }
 pub(crate) fn tensor_to_resource(value: &ddonirang_lang::runtime::TensorValue) -> Result<ResourceValue, String> {
+    // F5-GA[WIRE_TENSOR_TAG] verify_runtime inspects the saved tag before slicing [1..]; the restore counterpart receives an AdmittedTensor built from an explicitly tagged and inspected saved frame.
     verify_runtime_tensor(value)?;
     Ok(ResourceValue::BasicTensorV1(value.saved_bytes()[1..].to_vec()))
 }
@@ -224,6 +226,7 @@ impl SnapshotJsonOwner {
         Self::copy_from_value(value, true)
     }
     fn copy_from_value(value: &JsonValue, sort_keys: bool) -> Self {
+        // F5-GA[WIRE_CLONE] One root job produces one built root; each private parent job is scheduled behind exactly its child jobs and consumes only their results.
         enum Job<'a> { Value(&'a JsonValue), Array(usize), Object(Vec<&'a str>) }
         let mut jobs = vec![Job::Value(value)];
         let mut built = Vec::<SnapshotJsonOwner>::new();
@@ -309,6 +312,7 @@ pub(crate) fn parse_snapshot_json_with_value_context(raw:&str,
     references:Option<&crate::subject_reference_owner::SubjectReferenceContextV1<'_>>,
     catalog:Option<&crate::authored_project::registration::SavedNominalCatalogV1>,
 ) -> Result<SnapshotJsonOwner,String> {
+    // F5-GA[WIRE_JSON_STATE] A pending value either completes a scalar (then continues) or pushes a container before the frame match. Object child jobs are requested only after storing their key; close only pops the still-present matched frame and completes it for the next loop.
     // RD-694: structural depth has no authority. Heap frames/owned JSON roots
     // keep parsing and error cleanup iterative within the existing byte gate.
     if raw.len() > 2_000_000 { return Err("저장 스냅샷 크기 상한 초과".into()); }
@@ -323,6 +327,7 @@ pub(crate) fn parse_snapshot_json_with_value_context(raw:&str,
         while matches!(bytes.get(*pos), Some(b' ' | b'\n' | b'\r' | b'\t')) { *pos += 1; }
     }
     fn located(raw: &str, pos: usize, message: &str) -> String {
+        // F5-GA[WIRE_JSON_BOUNDS] Diagnostic prefixes clamp to byte length. scalar's start has a successful bytes.get before either suffix slice; direct pos reads are guarded by get/EOF branches. A completed Object is constructed as Object before as_object().unwrap.
         let prefix = &raw.as_bytes()[..pos.min(raw.len())];
         let line = 1 + prefix.iter().filter(|b| **b == b'\n').count();
         let column = prefix.iter().rposition(|b| *b == b'\n').map_or(prefix.len(), |p| prefix.len() - p - 1);
@@ -791,6 +796,7 @@ pub(crate) fn registered_atom_from_detjson(
 }
 
 pub fn resource_value_to_detjson(value: &ResourceValue) -> JsonValue {
+    // F5-GA[WIRE_PROJECT_JOBS] Map jobs produce exactly two children per row; Record jobs produce types.len+fields.len children. Parent jobs run after those children and consume the same immutable counts, leaving one root result.
     enum Job<'a> {
         Value(&'a ResourceValue), Type(&'a RecordFieldType),
         Collection(&'static str, usize), Map(usize),
@@ -997,6 +1003,7 @@ fn resource_value_from_admitted_detjson_with_budget(payload: &JsonValue, budget:
     resource_value_from_admitted_detjson_with_catalog(payload,budget,&[],None,None)
 }
 fn resource_value_from_admitted_detjson_with_catalog(payload:&JsonValue,budget:&mut saved_resource_value::ValueDecodeBudget,contracts:&[crate::registered_atom_contract::RecordedAtomContract],references:Option<&crate::subject_reference_owner::SubjectReferenceContextV1<'_>>,catalog:Option<&crate::authored_project::registration::SavedNominalCatalogV1>)->Result<ResourceValue,String>{
+    // F5-GA[WIRE_RESTORE_JOBS] Each admitted child produces one value or returns Err. MapRow/MapValue schedule exactly paired values; every RecordRow validates a nonempty String name before its parent consumes all rows. Immutable jobs leave exactly one root on success.
     enum Job<'a> {
         Value(&'a JsonValue), List(usize), Set(usize), Map(usize),
         MapRow(&'a JsonValue), MapValue(&'a serde_json::Map<String, JsonValue>),
@@ -1145,6 +1152,7 @@ fn resource_value_leaf_from_admitted_detjson(payload: &JsonValue, budget: &mut s
 }
 
 fn parse_record_field_types(payload: &JsonValue) -> Result<BTreeMap<String, RecordFieldType>, String> {
+    // F5-GA[WIRE_TYPE_JOBS] The initial Record job and its immutable children reduce to exactly one root Record, including the empty fields case; failed children return before the final pop.
     let bad = || "E_PRODUCT_RECORD_WIRE: 올바르지 않은 묶음 저장값입니다".to_string();
     enum Job<'a> { Type(&'a JsonValue), Applied(&'a str, usize), Record(&'a serde_json::Map<String, JsonValue>) }
     let fields = payload.as_object().ok_or_else(bad)?;
@@ -1324,6 +1332,7 @@ fn parse_unit_value_v2(
         ));
     }
     let mut exponents = [0i8; UnitDim::AXIS_COUNT];
+    // F5-GA[WIRE_UNIT_AXIS] dimensions.len()==AXIS_COUNT was checked immediately above; enumerate therefore stays inside this fixed array.
     for (index, value) in dimensions.iter().enumerate() {
         exponents[index] = value
             .as_i64()

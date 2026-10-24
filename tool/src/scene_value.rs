@@ -29,6 +29,7 @@ fn orientation(a: &[Fixed64;2], b: &[Fixed64;2], c: &[Fixed64;2],math:&mut Geome
     math.operation(&first,&second,'-')
 }
 fn on_segment(a: &[Fixed64;2], b: &[Fixed64;2], c: &[Fixed64;2],math:&mut GeometryMath<'_>) -> Result<bool,String> {
+    // F5-GA[SCENE_AXES]: All three points are length-two Rust arrays and axis ranges only over 0..2.
     Ok(orientation(a,b,c,math)?.is_zero() && (0..2).all(|axis|
         a[axis].min(b[axis]) <= c[axis] && c[axis] <= a[axis].max(b[axis])))
 }
@@ -39,6 +40,7 @@ fn segments_intersect(a: &[Fixed64;2], b: &[Fixed64;2], c: &[Fixed64;2], d: &[Fi
         || on_segment(a,b,c,math)? || on_segment(a,b,d,math)? || on_segment(c,d,a,math)? || on_segment(c,d,b,math)?)
 }
 fn polygon(vertices: &[Value],math:&mut GeometryMath<'_>) -> Result<PlaneElement,String> {
+    // F5-GA[SCENE_VERTICES]: Rejecting len<3 precedes modular indexing; immutable points and bounded i/j loops keep successors and modulo results in range.
     let points=vertices.iter().map(pair).collect::<Result<Vec<_>,_>>()?;
     let invalid=||"E_SCENE_GEOMETRY: 다각형은 서로 다른 꼭짓점 셋 이상과 단순한 넓이 있는 도형이어야 합니다".to_string();
     if points.len()<3 {return Err(invalid());}

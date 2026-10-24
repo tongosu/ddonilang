@@ -389,6 +389,7 @@ impl RewardExpr {
                 };
                 Ok(RewardValue::Bool(result))
             }
+            // F5-GA[REWARD_ARITY]: Each recognized branch rejects nonmatching arity before any indexed argument evaluation; shared recursion cannot resize args.
             RewardExpr::Call(name, args) => match name.as_str() {
                 "min" => {
                     if args.len() != 2 {
@@ -480,6 +481,7 @@ struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
+    // F5-GA[REWARD_LEX]: Private lexer owns immutable chars; guarded token entry, bounded scans, monotone cursors and short-circuit lookahead bound all indexed reads/slices.
     fn new(input: &'a str) -> Self {
         Self {
             chars: input.chars().collect(),

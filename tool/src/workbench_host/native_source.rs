@@ -9,20 +9,24 @@ mod general_recording;
 
 #[derive(Debug,Clone)]
 pub(super) struct NativeSourceController {
-    sender:mpsc::SyncSender<(String,mpsc::Sender<Result<String,String>>)>,
+    sender:mpsc::SyncSender<(String,mpsc::Sender<Result<String,String>>,Option<std::time::Instant>)>,
     #[cfg(test)] worker:std::sync::Arc<std::sync::Mutex<Option<std::thread::JoinHandle<()>>>>,
 }
 impl NativeSourceController {
     pub(super) fn start()->Self{
-        let (sender,receiver)=mpsc::sync_channel::<(String,mpsc::Sender<Result<String,String>>) >(2);
+        let (sender,receiver)=mpsc::sync_channel::<(String,mpsc::Sender<Result<String,String>>,Option<std::time::Instant>) >(2);
         // Runtime owners may contain Rc. Construct and use them only here,
         // never move a VM/permit through the HTTP worker threads.
         let worker=std::thread::spawn(move||{
             #[cfg(windows)] let mut retained=BTreeMap::new();
             #[cfg(windows)] let mut finishes=BTreeMap::new();
-            for (request,reply) in receiver {
+            for (request,reply,submitted) in receiver {
+                let rebuild_scope=crate::ddn_runtime::SavedProgramRebuildScope::begin();
+                let observation=crate::storage_observation::Request::begin(submitted);
                 #[cfg(windows)] let result=dispatch(&request,&mut retained,&mut finishes);
                 #[cfg(not(windows))] let result={let _=request;Err("E_SOURCE_FIRST_USE_UNSUPPORTED: Native 보호 실행을 지원하지 않습니다".into())};
+                drop(observation);
+                drop(rebuild_scope);
                 let _=reply.send(result);
             }
         });
@@ -39,13 +43,15 @@ impl NativeSourceController {
     }
     pub(super) fn call(&self,request:String)->Result<String,String>{
         let (sender,receiver)=mpsc::channel();
-        self.sender.try_send((request,sender)).map_err(|_|"E_NATIVE_SOURCE_BUSY_OR_CLOSED")?;
+        self.sender.try_send((request,sender,crate::storage_observation::submitted())).map_err(|_|"E_NATIVE_SOURCE_BUSY_OR_CLOSED")?;
         receiver.recv().map_err(|_|"E_NATIVE_SOURCE_SESSION_CLOSED")?
     }
 }
 #[derive(Deserialize)]
 #[serde(tag="operation",deny_unknown_fields)]
 enum Request {
+    #[cfg(test)]
+    #[serde(rename="_test_finish_ready_set_failure_once")] TestFinishReadySetFailureOnce,
     #[serde(rename="general_recording_content")] GeneralRecordingContent {authored_project_json_utf8:String},
     #[serde(rename="logical_new_run")] LogicalNewRun {authored_project_json_utf8:String,input_request:crate::logical_input_tape::LogicalRecordRequest,authoring_selection:crate::runtime_surface::NativeAuthoringSelection},
     #[serde(rename="logical_save")] LogicalSave {authored_project_json_utf8:String,input_request:crate::logical_input_tape::LogicalRecordRequest,state_hash:String,
@@ -53,6 +59,7 @@ enum Request {
     #[serde(rename="logical_load")] LogicalLoad {authored_project_json_utf8:String,input_request:crate::logical_input_tape::LogicalRecordRequest},
     #[serde(rename="logical_verify_receipt")] LogicalVerifyReceipt {authored_project_json_utf8:String,input_request:crate::logical_input_tape::LogicalRecordRequest},
     #[serde(rename="logical_finish_begin")] LogicalFinishBegin {authored_project_json_utf8:String,input_request:crate::logical_input_tape::LogicalRecordRequest},
+    #[serde(rename="logical_finish_recover")] LogicalFinishRecover {authored_project_json_utf8:String,input_request:crate::logical_input_tape::LogicalRecordRequest},
     #[serde(rename="logical_finish_commit")] LogicalFinishCommit {session_handle:String,pending_json_utf8:String},
     #[serde(rename="logical_finish_prepare")] LogicalFinishPrepare {session_handle:String,pending_json_utf8:String},
     #[serde(rename="logical_recording_result_identity")] LogicalRecordingResultIdentity {session_handle:String},
@@ -132,6 +139,11 @@ fn dispatch(text:&str,retained:&mut BTreeMap<String,crate::runtime_surface::Nati
     use crate::runtime_surface as runtime;
     let request:Request=serde_json::from_str(text).map_err(|_|"E_NATIVE_SOURCE_REQUEST_FIELDS")?;
     let (authored,ticks,is_save)=match &request {
+        #[cfg(test)]
+        Request::TestFinishReadySetFailureOnce=>{
+            crate::snapshot_v2_durable_transaction::native::test_arm_finish_ready_set_failure();
+            return Ok(serde_json::json!({"armed":true}).to_string());
+        },
         Request::GeneralRecordingContent{authored_project_json_utf8}=>{
             return general_recording::content(authored_project_json_utf8,retained);
         },
@@ -162,6 +174,9 @@ fn dispatch(text:&str,retained:&mut BTreeMap<String,crate::runtime_surface::Nati
             if finishes.contains_key(&handle){return Err("E_NATIVE_FINISH_HANDLE_COLLISION".into());}
             finishes.insert(handle.clone(),owner);
             return Ok(serde_json::json!({"session_handle":handle,"registration":registration}).to_string());
+        },
+        Request::LogicalFinishRecover{authored_project_json_utf8,input_request}=>{
+            return logical::recover_finish(authored_project_json_utf8,input_request,retained);
         },
         Request::LogicalFinishCommit{session_handle,pending_json_utf8}=>{
             return finishes.get_mut(session_handle).ok_or("E_NATIVE_FINISH_SESSION_CLOSED")?

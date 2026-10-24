@@ -3,6 +3,26 @@ import {nativeSourceAvailable,nativeSourceRequest} from './native_source_transpo
 const stable=value=>JSON.stringify(value,(_key,part)=>part&&typeof part==='object'&&!Array.isArray(part)
   ?Object.fromEntries(Object.entries(part).sort(([a],[b])=>a<b?-1:a>b?1:0)):part);
 
+// Explicit cold request only. This never starts a VM, supplies input frames,
+// retries a failed finish, or interprets a display summary as an execution permit.
+export async function recoverNativeLogicalFinish({authored,binding,unchanged,
+  available=nativeSourceAvailable,request=nativeSourceRequest}){
+  unchanged();
+  if(!await available())throw new Error('E_NATIVE_FINISH_RECOVERY_UNSUPPORTED: Native에 저장한 기록만 확인·복구할 수 있습니다.');
+  unchanged();
+  const recovered=await request('logical_finish_recover',authored,{input_request:{binding,snapshots:[]}});
+  unchanged();
+  if(typeof recovered?.original_output_json_utf8!=='string'
+      ||typeof recovered?.notice?.excluded_input_count!=='string'
+      ||!(recovered.original_failure===null||typeof recovered.original_failure==='string'))
+    throw new Error('E_NATIVE_FINISH_RECOVERY_RESPONSE: 복구 응답을 확인하지 못했습니다.');
+  const record=JSON.parse(recovered.original_output_json_utf8);
+  if(!record||Object.keys(record).length!==2||!Array.isArray(record.tape_bytes)||!record.summary
+      ||record.tape_bytes.some(byte=>!Number.isInteger(byte)||byte<0||byte>255))
+    throw new Error('E_NATIVE_FINISH_RECOVERY_RESPONSE: 원래 완료 응답을 표시할 수 없습니다.');
+  return recovered;
+}
+
 // Only transports the fenced physical queue. Native reconstructs and admits
 // its own producer; neither the callback nor a matching summary is authority.
 export function createNativeLogicalFinishBarrier({authored,binding,unchanged,

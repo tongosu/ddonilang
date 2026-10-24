@@ -14,6 +14,7 @@ impl<'a> ReplaySeedCandidateV1<'a> {
         }
         let mut offset=DOMAIN.len()+3;let mut fields=[&[][..];17];
         for (i,tag) in TAGS.into_iter().enumerate() {
+            // F5-GA[SEED_HEADER]: checked_add(9)와 get이 성공한 header는9바이트이므로 0번과 뒤8바이트 변환은 범위 안이다. i는 TAGS17개의0..16이다.
             let header_end=offset.checked_add(9).ok_or("E_REPLAY_SEED_FORMAT: 길이 초과")?;
             let header=bytes.get(offset..header_end).ok_or("E_REPLAY_SEED_FORMAT: 필드 머리가 잘렸습니다")?;
             if header[0]!=tag{return Err("E_REPLAY_SEED_FORMAT: 원 시작 필드 순서가 다릅니다".into());}
@@ -26,6 +27,7 @@ impl<'a> ReplaySeedCandidateV1<'a> {
         Ok(Self{fields})
     }
     pub(crate) fn payload(&self,tag:u8)->Option<&'a [u8]> {
+        // F5-GA[SEED_TAG]: position은 TAGS17칸 안의 번호만 반환하고 fields도 고정17칸이다.
         TAGS.iter().position(|item|*item==tag).map(|i|self.fields[i])
     }
 }

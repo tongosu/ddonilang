@@ -248,6 +248,7 @@ pub fn canonical_execution_binding_hash(record: &CanonicalExecutionBindingRecord
 pub fn carrier_base64url(bytes: &[u8]) -> String {
     const ABC: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let mut out = String::with_capacity((bytes.len() * 4 + 2) / 3);
+    // F5-GA[CARRIER-BASE64]: chunks(3)의 첫 값과 0..63 비트 분할만 읽는다. 이 근거는 용량 산술의 판정이 아니다.
     for chunk in bytes.chunks(3) {
         let a = chunk[0] as usize;
         let b = chunk.get(1).copied().unwrap_or(0) as usize;

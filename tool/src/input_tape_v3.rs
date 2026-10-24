@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use crate::{logical_input_tape as logical, manipulation_input as manipulation};
 mod recording;
+pub(crate) use recording::finished_output_value;
 mod pending;
 #[cfg(windows)]
 mod native_finish;
@@ -265,6 +266,8 @@ pub(crate) fn checked_completed_logical_archive_prefix(contract:&[u8],evidence:&
     binding:&logical::LogicalInputBinding)->Result<Vec<logical::LogicalFrame>,String>{
     checked_logical_archive_prefix(contract,evidence,binding,logical::Termination::Complete)
 }
+mod recovery_response;
+pub(crate) use recovery_response::check_original_finish_response;
 fn decode_logical_archive_tape(contract:&[u8],evidence:&[u8],binding:&logical::LogicalInputBinding)->Result<Tape,String>{
     let expected=ExpectedBinding::Logical(binding);
     let wanted=logical_contract_bytes(binding)?;
@@ -676,6 +679,31 @@ mod tests {
         assert_eq!(controller.finished().unwrap(),record_logical(source,&request).unwrap());
         assert_eq!(controller.finish_excluded_count().unwrap(),1);assert_eq!(packet,original);
         assert_eq!(session.summary(),before);assert_eq!(controller.finish_excluded_count().unwrap(),1);
+    }
+    #[test]
+    fn wo25_finish_export_preserves_actual_response_and_distinguishes_empty_frontend_notice() {
+        use recording::RecordingControllerV1;
+        let source="(매마디)마다 { 1 보여주기. }.";let request=logical_request(source);
+        let mut session=logical::LogicalInputSession::new(source,request.binding.clone()).unwrap();
+        let mut controller=RecordingControllerV1::for_fresh_logical(&mut session).unwrap();
+        session.step(&request.snapshots[0]).unwrap();let before=session.summary();
+        let direct=controller.prepare_direct_finish(&mut session).unwrap();
+        assert_eq!(direct.recovery_notice_payload(),vec![0]);
+        let (tape,summary)=direct.planned_artifact_parts();
+        let expected=serde_json::json!({"tape_bytes":tape,"summary":summary}).to_string().into_bytes();
+        assert_eq!(direct.recovery_payload_bytes().unwrap(),expected);
+
+        let registration=controller.register_frontend(&mut session).unwrap();
+        assert!(controller.prepare_direct_finish(&mut session).is_err(),"missing supply must not become direct-owner zero notice");
+        let packet=serde_json::json!({"producer_generation":registration["producer_generation"],
+            "first_unprocessed":"1","observed_until":"1","events":[]}).to_string();
+        let frontend=controller.prepare_frontend_finish(&mut session,&packet).unwrap();
+        let notice=frontend.recovery_notice_payload();
+        assert_eq!(notice.len(),49);assert_eq!(notice[0],1);
+        assert_eq!(&notice[1..9],&1u64.to_be_bytes());assert_eq!(&notice[9..17],&1u64.to_be_bytes());
+        assert_eq!(frontend.recovery_payload_bytes().unwrap(),expected,"notice is never inserted into C01/world/summary");
+        controller.ensure_running().unwrap();assert!(controller.finished().is_err());
+        assert_eq!(session.summary(),before,"exporting cannot advance or publish");
     }
     #[test]
     fn b3_frontend_finish_rejects_stale_or_overlapping_queue_without_publication() {

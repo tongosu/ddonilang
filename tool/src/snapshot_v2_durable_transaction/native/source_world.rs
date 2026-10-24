@@ -249,17 +249,21 @@ fn check_prefix(db:&rusqlite::Connection,prepared:&PreparedFirstSourceWorldV2,ve
     }Ok(())
 }
 fn append_verified(adapter:&SqliteAdapterV1,prepared:&PreparedFirstSourceWorldV2,verified:&(Vec<u8>,[u8;32]),source:&SourceBoundSavedRuntimeAttachment<'_>)->Result<(),Failure>{
+    let _observation = crate::storage_observation::Span::start("sqlite.source_world.append_verified_total");
     prepared.start.check_current(adapter,source)?;
     let db=adapter.connect()?;db.execute_batch("BEGIN IMMEDIATE").map_err(|_|Failure::WriteFailed)?;
     check_prefix(&db,prepared,None,false)?;check_source_head(&db,&prepared.start)?;
     let request=prepared.start.request();
     db.execute("INSERT INTO vc04_recovery_custody_v1 VALUES (?1,1,1,?2,?3,?4,?5)",params![request.payload().digest.as_slice(),prepared.hash.as_slice(),request.raw(),verified.0,verified.1.as_slice()]).map_err(|_|Failure::WriteFailed)?;
+    let verified_commit_observation = crate::storage_observation::Span::start("sqlite.source_world.verified_full_commit_and_close");
     db.execute_batch("COMMIT").map_err(|_|Failure::RecoveryRequired)?;drop(db);
+    drop(verified_commit_observation);
     let db=adapter.connect()?;db.execute_batch("BEGIN").map_err(|_|Failure::RereadFailed)?;
     check_prefix(&db,prepared,Some(verified),false)?;db.execute_batch("COMMIT").map_err(|_|Failure::RereadFailed)
 }
 fn commit_source_head(adapter:&SqliteAdapterV1,prepared:&PreparedFirstSourceWorldV2,verified:&(Vec<u8>,[u8;32]),
     replay:Option<(&crate::replay_evidence::ReplayCheckpointPlanDataV1,&crate::replay_evidence::PlannedReplayControlRowV1)>)->Result<(),Failure>{
+    let _observation = crate::storage_observation::Span::start("sqlite.source_world.commit_source_head_total");
     #[cfg(any(test,feature="beta2-crash-probe"))]
     super::crash_probe::checkpoint("before_cas");
     let db=adapter.connect()?;db.execute_batch("BEGIN IMMEDIATE").map_err(|_|Failure::AtomicCommitFailed)?;
@@ -277,7 +281,9 @@ fn commit_source_head(adapter:&SqliteAdapterV1,prepared:&PreparedFirstSourceWorl
         if changed!=1{return Err(Failure::StaleRevision);}Ok(())
     })();
     if let Err(cause)=result{return match db.execute_batch("ROLLBACK"){Ok(())=>Err(cause),Err(_)=>Err(Failure::RecoveryRequired)};}
+    let head_commit_observation = crate::storage_observation::Span::start("sqlite.source_world.head_full_commit");
     db.execute_batch("COMMIT").map_err(|_|Failure::RecoveryRequired)?;
+    drop(head_commit_observation);
     #[cfg(any(test,feature="beta2-crash-probe"))]
     super::crash_probe::checkpoint("after_cas");
     Ok(())
@@ -407,10 +413,20 @@ pub(super) fn check_cold_source_world_history(db:&rusqlite::Connection,
         if old.binding.expected_parent!=parent||old.binding.project!=current.binding.project||old.binding.pesi!=current.binding.pesi
             ||old.binding.execution_profile!=current.binding.execution_profile||digests.contains(&old.digest){return Err(Failure::CustodyConflict);}
         let old_layout=crate::unit_wire::check_resumable_complete_state_layout_v2(&old.snapshot,context.pesi().as_raw())?;
-        let old_descriptor=complete::rebuild_source_descriptor_candidate(old_layout.supplies[9],context.owned())?;
+        let latest=index==descriptor.prior_durable_receipts.len();
+        // Only this function's exact current payload reuses its already rebuilt
+        // static descriptor. Historical payloads still rebuild with this source
+        // owner; nothing is cached across DB observations, requests or owners.
+        let historical_descriptor;
+        let old_descriptor=if latest {
+            if old_layout.supplies[9]!=layout.supplies[9]{return Err(Failure::CustodyConflict);}
+            &descriptor
+        }else{
+            historical_descriptor=complete::rebuild_source_descriptor_candidate(old_layout.supplies[9],context.owned())?;
+            &historical_descriptor
+        };
         if old_descriptor.source_descriptor_prefix!=descriptor.source_descriptor_prefix||old_descriptor.execution_instance!=descriptor.execution_instance
             ||old_descriptor.prior_durable_receipts!=descriptor.prior_durable_receipts[..index]{return Err(Failure::CustodyConflict);}
-        let latest=index==descriptor.prior_durable_receipts.len();
         check_world_custody(db,&old,&predecessor,context,latest.then_some(request_hash),latest.then_some(token_hash),latest.then_some(witness_hash))?;
         parent=old.binding.new_revision.clone();predecessor=old.digest;digests.push(old.digest);
     }
@@ -442,6 +458,7 @@ impl SqliteAdapterV1 {
     }
     fn write_source_world_prepared(&self,start:SourceWorldStart,
         context:&SourceBoundSavedRuntimeAttachment<'_>)->Result<PreparedFirstSourceWorldV2,Failure>{
+        let _observation = crate::storage_observation::Span::start("sqlite.source_world.write_prepared_total");
         if self.schema_profile!=NativeSchemaProfile::SourceRevision{return Err(Failure::UnsupportedDurability);}
         start.check_current(self,context)?;
         #[cfg(any(test,feature="beta2-crash-probe"))]
@@ -469,7 +486,9 @@ impl SqliteAdapterV1 {
             Ok(())
         })();
         if let Err(cause)=written{return match db.execute_batch("ROLLBACK"){Ok(())=>Err(cause),Err(_)=>Err(Failure::RecoveryRequired)};}
+        let prepared_commit_observation = crate::storage_observation::Span::start("sqlite.source_world.prepared_full_commit_and_close");
         db.execute_batch("COMMIT").map_err(|_|Failure::RecoveryRequired)?;drop(db);
+        drop(prepared_commit_observation);
         #[cfg(any(test,feature="beta2-crash-probe"))]
         super::crash_probe::checkpoint("after_prepared");
         self.confirm_container_durable()?;

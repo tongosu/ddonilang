@@ -887,6 +887,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn tokenize(mut self) -> Result<Vec<Token>, ModelParseError> {
+        // F5-GA[MODEL-LEXER]: both production callers check non-EOF before next_token; bump and matched UTF-8 prefixes preserve character boundaries.
         let mut out = Vec::new();
         while self.pos < self.source.len() {
             self.skip_ws_and_comments();
@@ -1240,6 +1241,7 @@ impl<'a> Parser<'a> {
                 continue;
             }
             if is_unknown_statement(&statement) {
+                // F5-GA[MODEL-UNKNOWN]: the classifier requires exactly three tokens and an Ident at position zero.
                 let name = token_ident(&statement[0])
                     .expect("classified ident")
                     .to_string();
@@ -1331,6 +1333,7 @@ impl<'a> Parser<'a> {
         }
 
         let body_span = if body_start_pos < body_end_pos {
+            // F5-GA[MODEL-BODY]: both positions belong to this EOF-terminated token vector; the strict inequality also protects end-1.
             self.tokens[body_start_pos]
                 .span
                 .merge(self.tokens[body_end_pos - 1].span)
@@ -1414,6 +1417,7 @@ impl<'a> Parser<'a> {
         model_name: &str,
         tokens: &[Token],
     ) -> Result<ModelDeclaration, ModelParseError> {
+        // F5-GA[MODEL-DECL]: the sole product caller classified Ident/Colon plus a DoubleColon at index>=2; local length guards protect properties and roles.
         let span = span_of(tokens);
         let name = token_ident(&tokens[0])
             .expect("classified declaration")
@@ -1571,6 +1575,7 @@ impl<'a> Parser<'a> {
         model_name: &str,
         tokens: &[Token],
     ) -> Result<ModelRelation, ModelParseError> {
+        // F5-GA[MODEL-RELATION]: the sole caller found RelationEqual in this same immutable statement; its position bounds both expression slices.
         let index = tokens
             .iter()
             .position(|token| matches!(token.kind, TokenKind::RelationEqual))
@@ -1605,6 +1610,7 @@ impl<'a> Parser<'a> {
         model_name: &str,
         tokens: &[Token],
     ) -> Result<ModelEvent, ModelParseError> {
+        // F5-GA[MODEL-EVENT]: matched braces bound the body; marker_count==1 and immutable header predicates justify each repeated marker lookup.
         let span = span_of(tokens);
         let open = tokens
             .iter()
@@ -2122,6 +2128,7 @@ impl<'a> Parser<'a> {
     }
 
     fn current(&self) -> &Token {
+        // F5-GA[MODEL-CURSOR]: Lexer always appends EOF; advance stops there, and parse_view's direct jump follows a checked non-EOF Dot.
         &self.tokens[self.pos]
     }
 
@@ -2195,6 +2202,7 @@ fn is_event_statement(tokens: &[Token]) -> bool {
 }
 
 fn contains_adjacent_words(tokens: &[Token], first: &str, second: &str) -> bool {
+    // F5-GA[MODEL-WINDOWS]: slice windows(2) always contains both indices; surface detection likewise uses fixed-width slice windows(4/2).
     tokens.windows(2).any(|window| {
         token_ident(&window[0]) == Some(first) && token_ident(&window[1]) == Some(second)
     })
@@ -3839,7 +3847,7 @@ fn expression_dimension(
                 .ok_or_else(|| format!("미분 축 '{axis_name}'의 단위를 찾을 수 없습니다"))?;
             let mut result = base;
             for _ in 0..identity.order {
-                result = result.sub(axis_dim);
+                result = combine_unit_dimensions(result, axis_dim, true)?;
             }
             Ok(Some(result))
         }
@@ -3877,7 +3885,7 @@ fn node_dimension(
             };
             let mut result = base;
             for _ in 0..identity.order {
-                result = result.sub(axis_dim);
+                result = combine_unit_dimensions(result, axis_dim, true)?;
             }
             Ok(Some(result))
         }
@@ -3901,14 +3909,11 @@ fn node_dimension(
                     )),
                     _ => Ok(None),
                 },
-                "*" => Ok(match (left_dimension, right_dimension) {
-                    (Some(left), Some(right)) => Some(left.add(right)),
-                    _ => None,
-                }),
-                "/" => Ok(match (left_dimension, right_dimension) {
-                    (Some(left), Some(right)) => Some(left.sub(right)),
-                    _ => None,
-                }),
+                "*" | "/" => match (left_dimension, right_dimension) {
+                    (Some(left), Some(right)) =>
+                        combine_unit_dimensions(left, right, operator == "/").map(Some),
+                    _ => Ok(None),
+                },
                 "^" => {
                     let Some(base) = left_dimension else {
                         return Ok(None);
@@ -3946,6 +3951,15 @@ fn dimensionless_integer(node: &ModelExprNode) -> Option<i8> {
         return None;
     };
     surface.parse::<i8>().ok()
+}
+
+fn combine_unit_dimensions(left: UnitDim, right: UnitDim, divide: bool) -> Result<UnitDim, String> {
+    let mut axes = left.exponents();
+    for (axis, value) in axes.iter_mut().zip(right.exponents()) {
+        *axis = if divide { axis.checked_sub(value) } else { axis.checked_add(value) }
+            .ok_or_else(|| "단위 지수 범위를 벗어났습니다".to_string())?;
+    }
+    Ok(UnitDim::from_exponents(axes))
 }
 
 fn scale_dimension(dimension: UnitDim, exponent: i8) -> Result<UnitDim, String> {
@@ -4109,11 +4123,7 @@ fn parse_unit_dimension(surface: &str) -> Result<UnitDim, String> {
                 .map_err(|_| format!("잘못된 단위 지수: {surface}"))?;
         }
         for _ in 0..exponent {
-            result = if divide {
-                result.sub(spec.dim)
-            } else {
-                result.add(spec.dim)
-            };
+            result = combine_unit_dimensions(result, spec.dim, divide)?;
         }
     }
     Ok(result)
@@ -4259,7 +4269,7 @@ fn canonical_program(ir: &ModelIr) -> String {
             }
             out.push('\n');
         }
-        out.push_str(") 보임.\n");
+        out.push_str(") 내보임.\n");
         fragments.push((view.span.start, out));
     }
     fragments.sort_by_key(|(start, _)| *start);
@@ -4822,6 +4832,7 @@ pub fn parse_model_recipe_library_with_source_file(
             return Err(error("E_MODEL_RECIPE_SHAPE_CANDIDATE",
                 "일반 결속이나 풀기 요청은 방법 선언이 아닙니다", start.start, parser.previous().span.end));
         }
+        // F5-GA[MODEL-RECIPE]: the preceding count+1 check proves a successful insertion into this same Vec before last().
         let recipe = parser.recipes.last().expect("one recipe parsed");
         if !names.insert(recipe.name.clone()) {
             return Err(error("E_MODEL_RECIPE_DUP_CANDIDATE",
@@ -5120,6 +5131,57 @@ pub fn model_ir_candidate_json(program: &ModelProgram) -> JsonValue {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejects_wrapped_unit_exponents_without_panicking() {
+        let source = |unit: &str| {
+            format!("계산 = 모형 {{\n 값:수@{unit} :: (그자리).\n 값::구함.\n 값 =:= 1.\n}}.\n")
+        };
+        let control = parse_model_program(&source("m")).expect("valid unit surface");
+        assert!(control.ir.diagnostics.iter().any(|diagnostic| {
+            diagnostic.candidate_code == "E_MODEL_UNIT_MISMATCH_CANDIDATE"
+        }));
+        for unit in ["m^128*m^128", "m^255*m"] {
+            let rejected = parse_model_program(&source(unit)).err().expect(unit);
+            assert_eq!(rejected.candidate_code, "E_MODEL_UNIT_INVALID_CANDIDATE");
+            assert_eq!(rejected.message, "단위 지수 범위를 벗어났습니다");
+            assert!(rejected.span.start < rejected.span.end);
+        }
+    }
+
+    #[test]
+    fn checked_unit_dimension_preserves_boundaries_and_ordinary_units() {
+        let mut upper = [0; UnitDim::AXIS_COUNT];
+        upper[0] = i8::MAX;
+        assert_eq!(parse_unit_dimension("m^127").unwrap(), UnitDim::from_exponents(upper));
+        let mut lower = [0; UnitDim::AXIS_COUNT];
+        lower[0] = i8::MIN;
+        assert_eq!(parse_unit_dimension("m^0/m^128").unwrap(), UnitDim::from_exponents(lower));
+        for invalid in ["m^127*m", "m^0/m^128/m"] {
+            assert_eq!(parse_unit_dimension(invalid).unwrap_err(), "단위 지수 범위를 벗어났습니다");
+        }
+        assert_eq!(parse_unit_dimension("kg*m/s^2").unwrap().exponents(), [1,-2,1,0,0,0,0,0,0]);
+        assert_eq!(parse_unit_dimension("m^0").unwrap(), UnitDim::NONE);
+    }
+
+    #[test]
+    fn checked_expression_dimensions_reject_wrapped_composition_with_existing_diagnostic() {
+        let source = |left: &str, right: &str, result: &str, operator: &str| format!(
+            "계산 = 모형 {{\n 첫째:수@{left} :: (들임).\n 둘째:수@{right} :: (들임).\n 결과:수@{result} :: (그자리).\n 결과::구함.\n 결과 =:= 첫째 {operator} 둘째.\n}}.\n"
+        );
+        let control = parse_model_program(&source("m", "m", "m^2", "*")).unwrap();
+        assert!(control.ir.diagnostics.is_empty(), "{:?}", control.ir.diagnostics);
+        for (left, right, result, operator) in [
+            ("m^127", "m", "m^0/m^128", "*"),
+            ("m^0/m^128", "m", "m^127", "/"),
+        ] {
+            let program = parse_model_program(&source(left, right, result, operator)).unwrap();
+            assert!(program.ir.diagnostics.iter().any(|diagnostic|
+                diagnostic.candidate_code == "E_MODEL_UNIT_MISMATCH_CANDIDATE"
+                    && diagnostic.message == "단위 지수 범위를 벗어났습니다"
+                    && diagnostic.provenance.start < diagnostic.provenance.end));
+        }
+    }
 
     #[test]
     fn wo03_recipe_library_preserves_existing_identity_and_rejects_other_statements() {
@@ -5596,7 +5658,7 @@ mod tests {
 계산=모형{입력:나눔수::(들임,내줌). 결과:나눔수::(그자리,내줌). 결과::구함. 입력 + 1 =:= 결과.}.
 정확한방법 <- (방식: "ddn.exact_acyclic_relation.v1").
 실행결과 <- (대상=계산, 들임=(입력: 2), 처음=(), 방법=정확한방법, 내줌=(결과, 입력)) 풀기.
-(계산값: 실행결과.결과, 입력값: 실행결과.입력) 보임.
+(계산값: 실행결과.결과, 입력값: 실행결과.입력) 내보임.
 "#;
         let program = parse_model_program(source).expect("typed run/view");
         let request = &program.ir.requests[0];
@@ -5605,7 +5667,7 @@ mod tests {
         assert_eq!(request.recipe_binding.as_deref(), Some("정확한방법"));
         assert_eq!(request.output_selection, ["결과", "입력"]);
         assert_eq!(program.ir.views[0].fields[0].name, "계산값");
-        assert!(program.canonical_ddn.contains(") 보임."));
+        assert!(program.canonical_ddn.contains(") 내보임."));
     }
 
     #[test]

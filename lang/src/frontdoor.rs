@@ -293,7 +293,7 @@ pub fn has_legacy_boim_surface(source: &str) -> bool {
 pub fn validate_no_legacy_boim_surface(source: &str) -> Result<(), String> {
     if has_legacy_boim_surface(source) {
         return Err(
-            "E_BOIM_LEGACY_REMOVED: `보임 {}` 블록은 제거되었습니다. `(<이름>: <식>, ...) 보임.`을 사용하세요"
+            "E_BOIM_LEGACY_REMOVED: `보임 {}` 블록은 제거되었습니다. `(<이름>: <식>, ...) 내보임.`을 사용하세요"
                 .to_string(),
         );
     }
@@ -871,6 +871,7 @@ fn flush_connect_endpoint_assignment_block(
         return;
     }
     if pending.len() == 1 {
+        // F5-GA[CONNECT-SINGLE-POP]: 같은 소유 Vec의 len==1 검사 뒤 변경·외부 호출 없이 pop한다.
         let assignment = pending.pop().expect("pending assignment");
         out.push_str(assignment.indent);
         out.push_str(assignment.target);
@@ -881,6 +882,7 @@ fn flush_connect_endpoint_assignment_block(
         return;
     }
 
+    // F5-GA[CONNECT-MULTI-FIRST]: empty와 len==1은 위에서 반환했으므로 같은 Vec의 길이는 2 이상이다.
     let first = &pending[0];
     let relations = pending
         .iter()
@@ -1042,6 +1044,7 @@ fn parse_connect_carried_property_inner(input: &str) -> Option<(&str, &str)> {
 }
 
 fn resolve_connect_carried_properties(relations: &mut [ConnectEndpointRelation<'_>]) -> Option<()> {
+    // F5-GA[CONNECT-RESOLVE]: 고정 slice의 0..len만 읽고 필드만 갱신하므로 길이와 idx 범위는 변하지 않는다.
     for idx in 0..relations.len() {
         if relations[idx].rule != ConnectEndpointRule::CarriedProperty {
             continue;
@@ -1079,6 +1082,7 @@ fn split_connect_endpoints(input: &str) -> Option<(&str, &str)> {
 }
 
 fn format_connect_endpoint_pack(relation_set: &ConnectEndpointRelationSet<'_>) -> String {
+    // F5-GA[CONNECT-ONE-RELATION]: 같은 불변 Vec의 len==1인 분기 안에서만 [0]을 읽는다.
     if relation_set.relations.len() == 1 {
         return format_connect_endpoint_relation_pack(&relation_set.relations[0]);
     }
@@ -1107,6 +1111,7 @@ fn format_connect_endpoint_relation_pack(relation: &ConnectEndpointRelation<'_>)
             escape_frontdoor_string(relation.channel)
         ),
         ConnectEndpointRule::Flow | ConnectEndpointRule::ReverseFlow => {
+            // F5-GA[CONNECT-FLOW-ENUM]: 바깥 match가 허용한 같은 Copy enum을 변경 없이 다시 분기한다.
             let (rule, direction) = match relation.rule {
                 ConnectEndpointRule::Flow => ("흐르게", "왼쪽에서오른쪽"),
                 ConnectEndpointRule::ReverseFlow => ("거슬러 흐르게", "오른쪽에서왼쪽"),
@@ -1124,6 +1129,8 @@ fn format_connect_endpoint_relation_pack(relation: &ConnectEndpointRelation<'_>)
             )
         }
         ConnectEndpointRule::CarriedProperty => {
+            // F5-GA[CONNECT-CARRIED]: private 생성자와 resolver가 property Some과 Flow/ReverseFlow carrier를 확정한다.
+            // F5-GA[CONNECT-CARRIED]: 확정 실패는 집합 생성 전에 None으로 반환하며 여기서는 불변 값만 소비한다.
             let (carrier_rule, carrier_direction) = match relation
                 .carrier_rule
                 .expect("carried property carrier rule resolved")
@@ -1524,7 +1531,7 @@ mod tests {
             assert!(err.starts_with("E_BOIM_LEGACY_REMOVED:"));
             assert!(has_legacy_boim_surface(source));
         }
-        let canonical = "(x: 1) 보임.";
+        let canonical = "(x: 1) 내보임.";
         validate_no_legacy_boim_surface(canonical).expect("new surface passes");
         assert!(!has_legacy_boim_surface(canonical));
     }

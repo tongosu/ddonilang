@@ -1189,6 +1189,7 @@ fn commit_patch_candidates_atomically_inner(
             .map(|entity| format!("guard:{}:isolation", entity.0)),
     );
     if let Some(request) = authorized_request.as_ref() {
+        // F5-GA[AUTHORIZED-PREFLIGHT]: request는 위의 Some(preflight) 검증 뒤에만 생기며 Option 자체는 그 뒤 바뀌지 않는다.
         preflight
             .as_deref_mut()
             .expect("authorized request requires a preflight context")

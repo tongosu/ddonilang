@@ -1095,7 +1095,7 @@ mod tests {
         use crate::authored_project::{ProjectArtifact,SourceSnapshot,SourceFile};
         use crate::unit_wire::resumable_complete_state as complete;
         let root="(글판=\"v25\", 모듬=차림[(이름=앱, 머리=\"app/main.ddn\", 원문=차림[\"app/main.ddn\"])], 시작=(모듈=앱, 정의=실행)) 얽음.\n";
-        let body="채비 { 값:수 := 0. }. 실행:움직씨 := { (매마디)마다 { 값 <- 값 + 1. (값:값) 보임. }. }. 짜임 := (관계들=차림[(보기=(() 표준보기.결과표)) 표준보개.으뜸]) 표준보개.짜임.";
+        let body="채비 { 값:수 := 0. }. 실행:움직씨 := { (매마디)마다 { 값 <- 값 + 1. (값:값) 내보임. }. }. 짜임 := (관계들=차림[(보기=(() 표준보기.결과표)) 표준보개.으뜸]) 표준보개.짜임.";
         let blobs=[SavedSourceBlobV1{path:"root.ddn",role:"root",bytes:root.as_bytes()},
             SavedSourceBlobV1{path:"app/main.ddn",role:"ddn_source",bytes:body.as_bytes()}];
         let sources=std::sync::Arc::new(seal_saved_v25_sources(collect_saved_source_supply(
@@ -1634,7 +1634,7 @@ mod tests {
     fn live_failed_madi_preserves_accepted_prefix_but_cannot_continue_or_seal() {
         // Keep both branches in the same explicit numeric family so the
         // intended second-madi division failure reaches the runtime owner.
-        let source = "(매마디)마다 { 값 <- 6.0. 사건들 <- () 입력사상.사건들. 사건들마다 { { 사건들.채널 == \"곱함\" }이면 { 값 <- 1.0 / 0.0. }. }. }. 짜임 := (관계들=차림[(보기=(() 표준보기.결과표)) 표준보개.으뜸]) 표준보개.짜임. (값:값) 보임.";
+        let source = "(매마디)마다 { 값 <- 6.0. 사건들 <- () 입력사상.사건들. 사건들마다 { { 사건들.채널 == \"곱함\" }이면 { 값 <- 1.0 / 0.0. }. }. }. 짜임 := (관계들=차림[(보기=(() 표준보기.결과표)) 표준보개.으뜸]) 표준보개.짜임. (값:값) 내보임.";
         let mut request = request(source, false);
         request.snapshots[0].events.truncate(1);
         request.snapshots[0].held.insert("곱함".into(), false);

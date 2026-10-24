@@ -158,8 +158,7 @@ impl ReadmittedFirstSourceWorldV2 {
         ->Result<VerifiedExecutionFirstCheckpointV1,Failure>{
         // The existing historical consumer covers both initial and restarted
         // mixed histories. It never falls back from old source A to current B.
-        let first=self.historical_payload(adapter,0,context)?;
-        let receipt=self.current_receipt(adapter,context)?;
+        let (first,receipt)=self.first_payload_and_current_receipt(adapter,context)?;
         if first.binding.pesi!=self.payload.binding.pesi{return Err(Failure::CustodyConflict);}
         let layout=crate::unit_wire::check_resumable_complete_state_layout_v2(&self.payload.snapshot,&self.payload.binding.pesi)?;
         let scope=ReplayArchiveRootScopeV1::from_source(&self._grant,adapter)?;

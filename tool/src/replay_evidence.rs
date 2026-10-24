@@ -21,6 +21,7 @@ pub(crate) use general_progress::GeneralProgressEvidenceV1;
 mod logical_no_end;
 pub(crate) use logical_no_end::LogicalNoEndEvidenceV1;
 mod bundle;
+pub(crate) mod finish_recovery;
 #[cfg(windows)]
 mod first_checkpoint;
 #[cfg(windows)]
@@ -34,7 +35,7 @@ pub(crate) use next_checkpoint::PlannedNextReplayCheckpointV1;
 #[cfg(windows)]
 mod native_finish;
 #[cfg(windows)]
-pub(crate) use native_finish::{NativeFinishedRecordingReadyV1,NativeFinishCheckpointPlanV1};
+pub(crate) use native_finish::{NativeFinishedRecordingReadyV1,NativeFinishCheckpointPlanV1,NativeFinishRecoveryIntentV1};
 #[cfg(windows)]
 mod native_no_end;
 #[cfg(windows)]

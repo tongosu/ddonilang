@@ -3,6 +3,23 @@
 use super::*;
 use crate::{runtime_surface as runtime,logical_input_tape::LogicalRecordRequest};
 
+pub(super) fn recover_finish(authored:&str,input:&LogicalRecordRequest,
+    retained:&BTreeMap<String,runtime::NativeFirstSourceWorldRetained>)->Result<String,String>{
+    if !input.snapshots.is_empty(){return Err("E_REPLAY_EVIDENCE_RECOVERY_REQUIRED: 복구 요청에는 실행 입력을 넣지 않습니다".into());}
+    let owned=crate::project_revision_envelope_supply::admit_fresh_authored_project(authored.as_bytes())?;
+    let project=owned.project().authored_identity.logical_dependency_id.as_str();
+    if retained.contains_key(project){return Err("E_NATIVE_SOURCE_EXECUTION_PROFILE_CHANGED".into());}
+    let path=root(project)?;let source:SourceLocator=read(&path.join("source.locator.json"))?;
+    if source.project_hex!=project{return Err("E_NATIVE_SOURCE_SOURCE_CHANGED".into());}
+    let digest=runtime::native_source_current_digest(&path,&identity(project)?,&source.grant_locator)?;
+    let saved:WorldLocator=read(&path.join(format!("world-{}.json",hex::encode(digest))))?;
+    let checked=crate::unit_wire::project_runtime_attachment::check_bytes(saved.saved_artifact_json_utf8.as_bytes())?;
+    let recorded=crate::unit_wire::project_runtime_attachment::restore_saved_runtime_payload(&checked)?;
+    if recorded.project().save()?!=authored{return Err("E_NATIVE_SOURCE_SOURCE_CHANGED".into());}
+    runtime::recover_native_logical_finish(&saved.saved_artifact_json_utf8,&identity(&saved.parent_hex)?,
+        &identity(&saved.revision_hex)?,&path,&source.grant_locator,&input.binding)
+}
+
 pub(super) fn is_logical_artifact(artifact:&str)->Result<bool,String>{
     let checked=crate::unit_wire::project_runtime_attachment::check_bytes(artifact.as_bytes())?;
     crate::unit_wire::project_runtime_attachment::restore_saved_runtime_payload(&checked)?;
@@ -34,7 +51,9 @@ pub(super) fn new_run(authored:&str,input:&LogicalRecordRequest,selection:&runti
 
 pub(super) fn dispatch(authored:&str,input:&LogicalRecordRequest,expected:Option<&str>,expected_result:Option<&str>,
     retained:&BTreeMap<String,runtime::NativeFirstSourceWorldRetained>)->Result<String,String>{
-    let owned=crate::project_revision_envelope_supply::admit_fresh_authored_project(authored.as_bytes())?;
+    let _total=crate::storage_observation::Span::start("logical.dispatch_total");
+    let owned={let _phase=crate::storage_observation::Span::start("logical.authored_admission");
+        crate::project_revision_envelope_supply::admit_fresh_authored_project(authored.as_bytes())?};
     let project=owned.project().authored_identity.logical_dependency_id.as_str();
     if retained.contains_key(project){return Err("E_NATIVE_SOURCE_EXECUTION_PROFILE_CHANGED".into());}
     if input.snapshots.len()>65536||expected.is_none()&&!input.snapshots.is_empty(){return Err("E_NATIVE_SOURCE_LOGICAL_INPUT_RANGE".into());}
@@ -50,7 +69,7 @@ pub(super) fn dispatch(authored:&str,input:&LogicalRecordRequest,expected:Option
         let recorded=crate::unit_wire::project_runtime_attachment::restore_saved_runtime_payload(&bytes)?;
         if recorded.project().save()?!=authored{return Err("E_NATIVE_SOURCE_SOURCE_CHANGED".into());}
         let parent=identity(&saved.parent_hex)?;let revision=identity(&saved.revision_hex)?;
-        let old=runtime::resume_logical_source_world(&saved.saved_artifact_json_utf8,&parent,&revision,&path,&source.grant_locator,&empty)?;
+        let old=runtime::resume_logical_source_world(&saved.saved_artifact_json_utf8,&parent,&revision,&path,&source.grant_locator,&empty,Some(&recorded))?;
         let count=old["madi_count"].as_u64().and_then(|v|usize::try_from(v).ok()).ok_or("E_NATIVE_SOURCE_LOGICAL_COUNT")?;
         if let Some(expected)=expected {
             let frames=old["frames"].as_array().ok_or("E_NATIVE_SOURCE_LOGICAL_INPUTS")?;
@@ -64,13 +83,13 @@ pub(super) fn dispatch(authored:&str,input:&LogicalRecordRequest,expected:Option
             // save owner below. Do not separately restore and execute it just
             // for the same state check. Legacy/empty-prefix paths stay intact.
             let candidate=if suffix.snapshots.is_empty()||expected_result.is_none(){
-                let value=runtime::resume_logical_source_world(&saved.saved_artifact_json_utf8,&parent,&revision,&path,&source.grant_locator,&suffix)?;
+                let value=runtime::resume_logical_source_world(&saved.saved_artifact_json_utf8,&parent,&revision,&path,&source.grant_locator,&suffix,Some(&recorded))?;
                 if value["state_hash"].as_str()!=Some(expected){return Err("E_NATIVE_SOURCE_SAVE_WORLD_MISMATCH".into());}
                 Some(value)
             }else{None};
             if suffix.snapshots.is_empty(){
                 if let Some(expected)=expected_result{
-                    let actual=runtime::NativeLogicalFinishSessionV1::open(&saved.saved_artifact_json_utf8,&parent,&revision,&path,&source.grant_locator,&input.binding)?;
+                    let actual=runtime::NativeLogicalFinishSessionV1::open(&saved.saved_artifact_json_utf8,&parent,&revision,&path,&source.grant_locator,&input.binding,Some(&recorded))?;
                     if actual.result_identity()?["result_identity"].as_str()!=Some(expected){return Err("E_NATIVE_SOURCE_SAVE_RESULT_MISMATCH: 원 형식 결과가 다릅니다. 기존 저장본을 보존했습니다".into());}
                 }
                 (saved.saved_artifact_json_utf8,saved.parent_hex,saved.revision_hex,candidate.ok_or("E_NATIVE_SOURCE_SAVE_WORLD_MISMATCH")?)
@@ -78,32 +97,41 @@ pub(super) fn dispatch(authored:&str,input:&LogicalRecordRequest,expected:Option
                 let next=revision_id()?;
                 let stage=|artifact:&str,digest:&[u8;32]|write_once(&path.join(format!("world-{}.json",hex::encode(digest))),
                     &WorldLocator{parent_hex:saved.revision_hex.clone(),revision_hex:hex::encode(&next),saved_artifact_json_utf8:artifact.into()});
-                let (artifact,summary)=runtime::save_continued_logical_source_world(&saved.saved_artifact_json_utf8,&parent,&revision,&next,&path,&source.grant_locator,&suffix,expected_result.map(|_|expected),expected_result,stage)?;
+                let (artifact,summary)={let _phase=crate::storage_observation::Span::start("logical.continued_save_call");
+                    runtime::save_continued_logical_source_world(&saved.saved_artifact_json_utf8,&parent,&revision,&next,&path,&source.grant_locator,&suffix,expected_result.map(|_|expected),expected_result,stage)?};
                 (artifact,saved.revision_hex,hex::encode(next),summary)
             }
         }else{(saved.saved_artifact_json_utf8,saved.parent_hex,saved.revision_hex,old)}
     }else{
         let expected=expected.ok_or("E_NATIVE_SOURCE_WORLD_REQUIRED: 논리 입력 저장본이 없습니다")?;
         if input.snapshots.is_empty(){return Err("E_NATIVE_SOURCE_LOGICAL_INPUT_RANGE".into());}
-        let actual=runtime::read_authored_source_native(&path,&identity(project)?,&source.grant_locator)?;
+        let actual={let _phase=crate::storage_observation::Span::start("logical.first_save_read_source");
+            runtime::read_authored_source_native(&path,&identity(project)?,&source.grant_locator)?};
         let payload:serde_json::Value=serde_json::from_str(&actual.project_payload_utf8).map_err(|_|"E_NATIVE_SOURCE_SOURCE_PAYLOAD")?;
         if payload["authored_project_json_utf8"].as_str()!=Some(authored){return Err("E_NATIVE_SOURCE_SOURCE_CHANGED".into());}
-        let session=runtime::begin_first_authored_source_native(&path,&identity(project)?,&source.grant_locator,&actual.revision_identity,&actual.revision_integrity)?;
-        let execution=session.execute_logical(input)?;
-        execution.check_state_hash(expected)?;
-        if let Some(expected)=expected_result{execution.check_result_identity(expected)?;}
+        let session={let _phase=crate::storage_observation::Span::start("logical.first_save_begin");
+            runtime::begin_first_authored_source_native(&path,&identity(project)?,&source.grant_locator,&actual.revision_identity,&actual.revision_integrity)?};
+        let execution={let _phase=crate::storage_observation::Span::start("logical.first_save_execute");
+            session.execute_logical(input)?};
+        {let _phase=crate::storage_observation::Span::start("logical.first_save_compare");
+            execution.check_state_hash(expected)?;
+            if let Some(expected)=expected_result{execution.check_result_identity(expected)?;}}
         let next=revision_id()?;
-        let prepared=execution.prepare(&next)?;
-        prepared.stage_restore_cache(|artifact,digest|{
-            let cache=WorldLocator{parent_hex:hex::encode(&actual.revision_identity),revision_hex:hex::encode(&next),saved_artifact_json_utf8:artifact.into()};
-            write_once(&path.join(format!("world-{}.json",hex::encode(digest))),&cache)?;write_once(&world_path,&cache)
-        })?;
-        let (artifact,summary)=prepared.commit()?;
+        let prepared={let _phase=crate::storage_observation::Span::start("logical.first_save_prepare");
+            execution.prepare(&next)?};
+        {let _phase=crate::storage_observation::Span::start("logical.first_save_stage_cache");
+            prepared.stage_restore_cache(|artifact,digest|{
+                let cache=WorldLocator{parent_hex:hex::encode(&actual.revision_identity),revision_hex:hex::encode(&next),saved_artifact_json_utf8:artifact.into()};
+                write_once(&path.join(format!("world-{}.json",hex::encode(digest))),&cache)?;write_once(&world_path,&cache)
+            })?;}
+        let (artifact,summary)={let _phase=crate::storage_observation::Span::start("logical.first_save_commit");
+            prepared.commit()?};
         (artifact,hex::encode(actual.revision_identity),hex::encode(next),summary)
     };
     // The response is emitted only after Native readmission/commit. The UI
     // receives an input projection, not a Native permit or durable capsule.
-    let selected=runtime::native_authoring_selection(&path,&identity(project)?,&source.grant_locator,authored)?;
+    let selected={let _phase=crate::storage_observation::Span::start("logical.final_authoring_selection");
+        runtime::native_authoring_selection(&path,&identity(project)?,&source.grant_locator,authored)?};
     Ok(serde_json::json!({"kind":"native_logical_world","authored_project_json_utf8":authored,"authoring_selection":selected,
         "saved_artifact_json_utf8":artifact,"parent_hex":parent,"revision_hex":next,"summary":summary}).to_string())
 }
@@ -137,9 +165,9 @@ fn open_recording(authored:&str,input:&LogicalRecordRequest,
     let parent=identity(&saved.parent_hex)?;let revision=identity(&saved.revision_hex)?;
     match admission{
         RecordingOpen::Current=>runtime::NativeLogicalFinishSessionV1::open(&saved.saved_artifact_json_utf8,&parent,
-            &revision,&path,&source.grant_locator,&input.binding),
+            &revision,&path,&source.grant_locator,&input.binding,Some(&recorded)),
         RecordingOpen::New(selection)=>runtime::NativeLogicalFinishSessionV1::open_new_record(&saved.saved_artifact_json_utf8,&parent,
-            &revision,&path,&source.grant_locator,&input.binding,selection),
+            &revision,&path,&source.grant_locator,&input.binding,selection,Some(&recorded)),
     }
 }
 
@@ -170,6 +198,30 @@ pub(super) fn verify_receipt(authored:&str,input:&LogicalRecordRequest,
 mod tests {
     use super::*;
     #[test]
+    #[ignore = "requires the exact existing task-owned Ready fixture and explicit observation flags"]
+    fn wo25_existing_ready_query_compilation_observation(){
+        let request_path=std::env::var("DDN_WO25_EXISTING_READY_REQUEST_PATH").expect("explicit existing Ready fixture path required");
+        let local=std::env::var("DDN_WO25_EXISTING_READY_LOCALAPPDATA").expect("explicit existing Ready storage path required");
+        assert_eq!(std::env::var("DDN_WO25_TEST_COMPILE_OBSERVATION").as_deref(),Ok("1"));
+        assert_eq!(std::env::var("DDN_PRIVATE_STORAGE_TIMING").as_deref(),Ok("1"));
+        assert_eq!(std::env::var("LOCALAPPDATA").as_deref(),Ok(local.as_str()));
+        assert!(std::fs::metadata(&request_path).unwrap().len()<=1_048_576);
+        let request=std::fs::read_to_string(&request_path).unwrap();
+        assert_eq!(runtime::sha256_hex(request.as_bytes()),
+            "2888a09f0fa9bc5ed27e5e7ad49669abddd70adb694eddef5408b52130d619f4");
+        let parsed:serde_json::Value=serde_json::from_str(&request).unwrap();
+        assert_eq!(parsed["operation"],"logical_finish_recover");
+        assert_eq!(parsed["input_request"]["snapshots"],serde_json::json!([]));
+        let host=NativeSourceController::start();
+        let response=host.call(request).unwrap();
+        host.close_for_cold_test();
+        let response:serde_json::Value=serde_json::from_str(&response).unwrap();
+        assert_eq!(runtime::sha256_hex(response["original_output_json_utf8"].as_str().unwrap().as_bytes()),
+            "66738e5024741a5b38238e365d897f6a60e5e27f7b154c44084e41f827547c4d");
+        assert_eq!(response["notice"],serde_json::json!({"excluded_input_count":"1"}));
+        assert!(response["original_failure"].is_null());
+    }
+    #[test]
     fn wo22_native_logical_controller_actual_cold_save_and_prefix_rejection(){
         controller_flow(include_str!("../../../../solutions/seamgrim_ui_mvp/samples/beta1_logical_tetris/main.ddn"));
     }
@@ -179,12 +231,16 @@ mod tests {
     }
     #[test]
     fn b3_native_mixed_progress_corruption_and_wrong_world_observation(){
-        controller_flow_inner("채비 { 횟수:바른수 := 0. }. 실행:움직씨 := { (매마디)마다 { 횟수 <- 횟수 + 1. 횟수 보여주기. }. }.",true);
+        controller_flow_inner("채비 { 횟수:바른수 := 0. }. 실행:움직씨 := { (매마디)마다 { 횟수 <- 횟수 + 1. 횟수 보여주기. }. }.",true,false);
+    }
+    #[test]
+    fn wo25_native_finish_preserved_ready_failure_cold_repair_returns_original_without_rerun(){
+        controller_flow_inner("채비 { 횟수:바른수 := 0. }. 실행:움직씨 := { (매마디)마다 { 횟수 <- 횟수 + 1. 횟수 보여주기. }. }.",false,true);
     }
     fn controller_flow(main_source:&str){
-        controller_flow_inner(main_source,false);
+        controller_flow_inner(main_source,false,false);
     }
-    fn controller_flow_inner(main_source:&str,mixed_failure:bool){
+    fn controller_flow_inner(main_source:&str,mixed_failure:bool,ready_failure:bool){
         let authored=crate::authored_project::operate("create",&serde_json::json!({"source_profile":"v1-core-v25","module_name":"",
             "source_snapshot":{"root_path":"root.ddn","entry_path":"main.ddn","files":[
                 {"path":"root.ddn","text":include_str!("../../../../solutions/seamgrim_ui_mvp/samples/beta1_logical_tetris/root.ddn")},
@@ -293,18 +349,67 @@ mod tests {
         assert!(refused.starts_with("E_NATIVE_FINISH_BEFORE_PENDING:"));
         let finish=serde_json::json!({"operation":"logical_finish_commit","session_handle":begin["session_handle"],
             "pending_json_utf8":packet}).to_string();
-        let complete:serde_json::Value=serde_json::from_str(&cold.call(finish.clone()).unwrap()).unwrap();
+        let original_failure;
+        let complete:serde_json::Value=if ready_failure{
+            let preview:serde_json::Value=serde_json::from_str(&cold.call(serde_json::json!({
+                "operation":"logical_finish_prepare","session_handle":begin["session_handle"],"pending_json_utf8":packet
+            }).to_string()).unwrap()).unwrap();
+            cold.call(serde_json::json!({"operation":"_test_finish_ready_set_failure_once"}).to_string()).unwrap();
+            let failure=cold.call(finish.clone()).unwrap_err();
+            assert_eq!(failure,"E_REPLAY_EVIDENCE_RECOVERY_REQUIRED: 종료 Ready 보호 확인 (WriteFailed)","original cause must survive evidence retention unchanged");
+            original_failure=Some(failure);preview
+        }else{
+            original_failure=None;serde_json::from_str(&cold.call(finish.clone()).unwrap()).unwrap()
+        };
         assert_eq!(complete.as_object().unwrap().len(),2);
         assert_eq!(complete["summary"],fresh["summary"]);
-        assert_eq!(serde_json::from_str::<serde_json::Value>(&cold.call(finish).unwrap()).unwrap(),complete);
-        let notice:serde_json::Value=serde_json::from_str(&cold.call(serde_json::json!({
-            "operation":"logical_finish_notice","session_handle":begin["session_handle"]}).to_string()).unwrap()).unwrap();
+        let notice:serde_json::Value=if ready_failure{
+            assert!(cold.call(finish).is_err(),"failed Pending owner cannot publish a second finish");
+            serde_json::json!({"excluded_input_count":"0"})
+        }else{
+            assert_eq!(serde_json::from_str::<serde_json::Value>(&cold.call(finish).unwrap()).unwrap(),complete);
+            serde_json::from_str(&cold.call(serde_json::json!({
+            "operation":"logical_finish_notice","session_handle":begin["session_handle"]}).to_string()).unwrap()).unwrap()
+        };
         assert_eq!(notice["excluded_input_count"],"0");
-        let same_owner_verified:serde_json::Value=serde_json::from_str(&cold.call(serde_json::json!({
+        if !ready_failure{
+            let same_owner_verified:serde_json::Value=serde_json::from_str(&cold.call(serde_json::json!({
             "operation":"logical_finish_verify","session_handle":begin["session_handle"]}).to_string()).unwrap()).unwrap();
-        assert_eq!(same_owner_verified["status"],"REPLAY_VERIFIED");
-        assert_eq!(same_owner_verified["summary"],complete["summary"]);
+            assert_eq!(same_owner_verified["status"],"REPLAY_VERIFIED");
+            assert_eq!(same_owner_verified["summary"],complete["summary"]);
+        }
         cold.call(serde_json::json!({"operation":"logical_finish_close","session_handle":begin["session_handle"]}).to_string()).unwrap();
+        let storage_path=root(owned.project().authored_identity.logical_dependency_id.as_str()).unwrap();
+        let stored_state=||{
+            let db=rusqlite::Connection::open_with_flags(storage_path.join("vc04_snapshot_v2.sqlite3"),rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+            let head:String=db.query_row("SELECT group_concat(v,',') FROM (SELECT hex(history_revision_identity)||':'||hex(revision_integrity_sha256)||':'||hex(payload_key) AS v FROM vc04_project_heads ORDER BY project_identity)",[],|row|row.get(0)).unwrap();
+            let controls:String=db.query_row("SELECT group_concat(v,',') FROM (SELECT hex(row_sha256) AS v FROM wo23_replay_controls_v1 ORDER BY execution_first_tx,control_ordinal)",[],|row|row.get(0)).unwrap();
+            let records:String=db.query_row("SELECT group_concat(v,',') FROM (SELECT hex(record_sha256) AS v FROM wo25_finish_recovery_records_v1 ORDER BY execution_first_tx,control_ordinal,evidence_ordinal)",[],|row|row.get(0)).unwrap();
+            (head,controls,records)
+        };
+        let before_recovery=stored_state();
+        if ready_failure{
+            assert_cold_recovery_tampering_rejected(&storage_path,&edited,&empty);
+            assert_eq!(stored_state(),before_recovery,"restoring exact mutation bytes must preserve stored evidence");
+        }
+        let recovered_text=NativeSourceController::start().call(serde_json::json!({
+            "operation":"logical_finish_recover","authored_project_json_utf8":edited,"input_request":empty
+        }).to_string()).unwrap();
+        let recovered:serde_json::Value=serde_json::from_str(&recovered_text).unwrap();
+        assert_eq!(serde_json::from_str::<serde_json::Value>(recovered["original_output_json_utf8"].as_str().unwrap()).unwrap(),complete);
+        let original_bytes=complete.to_string();
+        assert_eq!(recovered["original_output_json_utf8"].as_str(),Some(original_bytes.as_str()),"original C01 bytes must be returned, not a rewritten summary");
+        assert_eq!(stored_state(),before_recovery,"repair must not advance world head, replay ordinal or original evidence");
+        assert_eq!(recovered["notice"],notice);
+        assert_eq!(recovered["original_failure"],serde_json::to_value(&original_failure).unwrap());
+        let mut wrong=empty.clone();wrong.binding.initial_rng^=1;
+        assert!(NativeSourceController::start().call(serde_json::json!({
+            "operation":"logical_finish_recover","authored_project_json_utf8":edited,"input_request":wrong
+        }).to_string()).is_err());
+        assert_eq!(NativeSourceController::start().call(serde_json::json!({
+            "operation":"logical_finish_recover","authored_project_json_utf8":edited,"input_request":empty
+        }).to_string()).unwrap(),recovered_text,"Ready query must return identical bytes without a new recording owner");
+        assert_eq!(stored_state(),before_recovery,"repeated query/refusal must not write a second result");
         let verified:serde_json::Value=serde_json::from_str(&NativeSourceController::start().call(serde_json::json!({
             "operation":"logical_verify_receipt","authored_project_json_utf8":edited,"input_request":empty
         }).to_string()).unwrap()).unwrap();
@@ -317,5 +422,46 @@ mod tests {
             "authored_project_json_utf8":edited,"input_request":empty,"authoring_selection":loaded["authoring_selection"]}).to_string()).unwrap()).unwrap();
         assert_eq!(restarted["summary"],fresh["summary"]);
         assert_eq!(restarted["revision_hex"],fresh["revision_hex"]);
+    }
+
+    fn assert_cold_recovery_tampering_rejected(root:&std::path::Path,authored:&str,input:&LogicalRecordRequest){
+        use crate::replay_evidence::finish_recovery::{RecordHeaderV1,RecordKindV1,encode_header};
+        use sha2::{Digest,Sha256};
+        let mut db=rusqlite::Connection::open(root.join("vc04_snapshot_v2.sqlite3")).unwrap();
+        // This fixture has exactly one actual retained failure; never pick MAX/latest.
+        let mut rows=db.prepare("SELECT execution_first_tx,control_ordinal,header_bytes,record_sha256,payload_length FROM wo25_finish_recovery_records_v1 WHERE evidence_ordinal=1").unwrap();
+        let entries=rows.query_map([],|row|Ok((row.get::<_,Vec<u8>>(0)?,row.get::<_,i64>(1)?,row.get::<_,Vec<u8>>(2)?,row.get::<_,Vec<u8>>(3)?,row.get::<_,i64>(4)?))).unwrap().collect::<Result<Vec<_>,_>>().unwrap();
+        assert_eq!(entries.len(),1);drop(rows);
+        let (first,ordinal,header,digest,length)=&entries[0];
+        let intent:Vec<u8>=db.query_row("SELECT header_bytes FROM wo25_finish_recovery_records_v1 WHERE execution_first_tx=?1 AND control_ordinal=?2 AND evidence_ordinal=0",rusqlite::params![first,ordinal],|row|row.get(0)).unwrap();
+        let parsed=RecordHeaderV1::parse(&intent).unwrap();
+        let nonce:&[u8;32]=parsed.field(2).unwrap().try_into().unwrap();
+        let first_array:&[u8;32]=first.as_slice().try_into().unwrap();
+        let protected=||crate::snapshot_v2_durable_transaction::native::test_finish_lifecycle_cipher_digest(nonce,first_array).unwrap();
+        let before=protected();
+        let recover=||NativeSourceController::start().call(serde_json::json!({"operation":"logical_finish_recover","authored_project_json_utf8":authored,"input_request":input}).to_string());
+        let payload:Vec<u8>=db.query_row("SELECT chunk_bytes FROM wo25_finish_recovery_chunks_v1 WHERE execution_first_tx=?1 AND control_ordinal=?2 AND evidence_ordinal=1 AND chunk_ordinal=0",rusqlite::params![first,ordinal],|row|row.get(0)).unwrap();
+        let candidate=RecordHeaderV1::parse(header).unwrap();
+        let mut fields=(1..=7).map(|tag|candidate.field(tag).unwrap().to_vec()).collect::<Vec<_>>();
+        let forged=b"forged original failure";
+        fields[4]=Sha256::digest(forged).to_vec();fields[5]=(forged.len() as u64).to_be_bytes().to_vec();
+        let refs=fields.iter().map(Vec::as_slice).collect::<Vec<_>>();
+        let forged_header=encode_header(RecordKindV1::ActualFailure,&refs).unwrap();
+        // All public hashes are internally valid; the protected stage2 witness is not.
+        let forged_digest=RecordHeaderV1::parse(&forged_header).unwrap().check_payload([forged.as_slice()]).unwrap();
+        let tx=db.transaction().unwrap();
+        tx.execute("UPDATE wo25_finish_recovery_records_v1 SET header_bytes=?3,record_sha256=?4,payload_length=?5 WHERE execution_first_tx=?1 AND control_ordinal=?2 AND evidence_ordinal=1",rusqlite::params![first,ordinal,&forged_header,forged_digest.as_slice(),forged.len() as i64]).unwrap();
+        tx.execute("UPDATE wo25_finish_recovery_chunks_v1 SET chunk_bytes=?3 WHERE execution_first_tx=?1 AND control_ordinal=?2 AND evidence_ordinal=1 AND chunk_ordinal=0",rusqlite::params![first,ordinal,forged.as_slice()]).unwrap();tx.commit().unwrap();
+        assert!(recover().is_err(),"recomputed outer hashes cannot replace the authenticated failure");
+        assert_eq!(protected(),before,"refusal must not publish protected Ready");
+        let tx=db.transaction().unwrap();
+        tx.execute("UPDATE wo25_finish_recovery_records_v1 SET header_bytes=?3,record_sha256=?4,payload_length=?5 WHERE execution_first_tx=?1 AND control_ordinal=?2 AND evidence_ordinal=1",rusqlite::params![first,ordinal,header,digest,length]).unwrap();
+        tx.execute("UPDATE wo25_finish_recovery_chunks_v1 SET chunk_bytes=?3 WHERE execution_first_tx=?1 AND control_ordinal=?2 AND evidence_ordinal=1 AND chunk_ordinal=0",rusqlite::params![first,ordinal,&payload]).unwrap();tx.commit().unwrap();
+        let cipher:Vec<u8>=db.query_row("SELECT custody_ciphertext FROM wo23_replay_controls_v1 WHERE execution_first_tx=?1 AND control_ordinal=0",[first],|row|row.get(0)).unwrap();
+        let mut corrupt=cipher.clone();corrupt[0]^=1;
+        db.execute("UPDATE wo23_replay_controls_v1 SET custody_ciphertext=?2 WHERE execution_first_tx=?1 AND control_ordinal=0",rusqlite::params![first,&corrupt]).unwrap();
+        assert!(recover().is_err(),"valid current witness cannot bypass historical custody");
+        assert_eq!(protected(),before,"archive refusal must not publish protected Ready");
+        db.execute("UPDATE wo23_replay_controls_v1 SET custody_ciphertext=?2 WHERE execution_first_tx=?1 AND control_ordinal=0",rusqlite::params![first,&cipher]).unwrap();
     }
 }

@@ -471,9 +471,20 @@ impl CheckpointedLogicalRunV1 {
         context:&super::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>,
         parent:&[u8],revision:&[u8],
     )->Result<Vec<u8>,Failure> {
+        // This consumer validates the assembled descriptor below and retains
+        // its rebuilt runner. Do not first rebuild and discard an identical
+        // runner through the standalone checked-byte producer.
+        let descriptor=self.assemble_source_rebuild_descriptor()?;
+        self.encode_checkpoint_request_with_descriptor(world_bytes,context,parent,revision,descriptor)
+    }
+
+    fn encode_checkpoint_request_with_descriptor(
+        &self,world_bytes:&[u8],
+        context:&super::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>,
+        parent:&[u8],revision:&[u8],descriptor:Vec<u8>,
+    )->Result<Vec<u8>,Failure> {
         use sha2::Digest;
         let owned=&self.provenance.source_owner;
-        let descriptor=self.source_rebuild_descriptor_supply()?;
         let rebuilt=rebuild_source_descriptor_candidate(&descriptor,owned)?;
         let supplies=[context.revision_envelope().to_vec(),encode_source_capture_supply(owned.sources())?,
             encode_constituent_supply(owned)?,encode_logical_execution_contract_supply(owned,&rebuilt.runner)?,
@@ -817,6 +828,14 @@ impl CheckpointedLogicalRunV1 {
     /// R2 field12 producer retains the original source/entry contract and the
     /// actual accepted prefix count; checkpoint history comes only from owner.
     pub(crate) fn source_rebuild_descriptor_supply(&self)->Result<Vec<u8>,Failure> {
+        let out=self.assemble_source_rebuild_descriptor()?;
+        rebuild_source_descriptor_candidate(&out,&self.provenance.source_owner)?;
+        Ok(out)
+    }
+
+    /// Private assembly only: never a checked supply or admission capability.
+    /// Both callers must rebuild/check these exact bytes against their owner.
+    fn assemble_source_rebuild_descriptor(&self)->Result<Vec<u8>,Failure> {
         self.checkpoint_predecessor_supply()?;
         let count=self.session.retained_core_inputs().map_err(|_|Failure::InvalidInput)?.len();
         let count=u64::try_from(count).map_err(|_|Failure::LimitExceeded)?;
@@ -828,7 +847,6 @@ impl CheckpointedLogicalRunV1 {
         let length=u32::try_from(receipts.len()).map_err(|_|Failure::LimitExceeded)?;
         append_supply(&mut out,&length.to_be_bytes())?;
         for receipt in receipts {append_bytes32(&mut out,receipt)?;}
-        rebuild_source_descriptor_candidate(&out,&self.provenance.source_owner)?;
         Ok(out)
     }
 }
@@ -1482,6 +1500,21 @@ mod tests{
         let context=attachment::check_saved_revision_context(&checked,&saved_owner,&[],&[9]).unwrap();
         let world=original.encode_world_frame().unwrap();
         let raw=original.encode_checkpoint_request(&world,&context,&[],&[9]).unwrap();
+        // Former path: independently checked byte producer followed by the
+        // same encoder's descriptor rebuild. All request bytes must agree.
+        let checked_descriptor=original.source_rebuild_descriptor_supply().unwrap();
+        let former=original.encode_checkpoint_request_with_descriptor(
+            &world,&context,&[],&[9],checked_descriptor).unwrap();
+        assert_eq!(raw,former,"one descriptor rebuild must preserve every request byte");
+        // The private assembly path must not let malformed source metadata
+        // escape either consumer or mutate the running world on refusal.
+        let prefix=original.provenance.source_descriptor_prefix.clone();
+        original.provenance.source_descriptor_prefix[0]^=1;
+        let before_rejection=original.session().summary();
+        let checked_error=original.source_rebuild_descriptor_supply().unwrap_err();
+        assert_eq!(original.encode_checkpoint_request(&world,&context,&[],&[9]).unwrap_err(),checked_error);
+        assert_eq!(original.session().summary(),before_rejection);
+        original.provenance.source_descriptor_prefix=prefix;
         let before=original.session().summary();
         let mut wrong=binding.clone();wrong.initial_rng^=1;
         assert!(CheckpointedLogicalRunV1::restore_local_checkpoint(&raw,&context,&wrong).is_err());

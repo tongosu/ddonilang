@@ -166,3 +166,7 @@ cargo check --locked --workspace --no-default-features
 ## 베타3 — 다시 해도 똑같다
 
 입력 기록과 저장한 작품을 다시 열어 같은 결과를 확인하는 베타3 개발 확인판입니다. [베타3 사용법과 알려진 제한](publish/releases/beta3-candidate.md), [Windows ZIP 내려받기](https://github.com/tongosu/ddonilang/releases/tag/v1.0.0-beta.3)를 확인해 주세요. 정식 출시나 사람의 사용 확인 완료를 뜻하지는 않습니다.
+
+## RC1 시험판
+
+[RC1 사용법과 알려진 제한](publish/releases/rc1-candidate.md)을 확인해 주세요. 공개 검토 전 후보이며 정식 V1·Human 완료가 아닙니다.

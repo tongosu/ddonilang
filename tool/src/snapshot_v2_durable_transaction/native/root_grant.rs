@@ -178,6 +178,40 @@ pub(crate) struct ReplayArchiveRootScopeV1 {
     pinned:std::sync::Arc<PinnedNativeRootV1>,
     lease:std::sync::Arc<std::fs::File>,
 }
+/// Actual protected stage1, not SQL data or a cold recovery permit.
+/// Constructed only by the existing Windows grant owner after flush/fresh.
+#[cfg(windows)]
+pub(crate) struct FinishFailureCaptureWitnessV1 {
+    plain:Vec<u8>,intent_digest:[u8;32],failure_digest:[u8;32],
+}
+#[cfg(windows)]
+pub(crate) struct DurableFinishIntentWitnessV1 {plain:Vec<u8>,intent_digest:[u8;32]}
+/// One explicit cold query/repair, from actual current source/world admission.
+/// No Clone/Deserialize/default/raw-ID constructor; does not recreate a VM.
+#[cfg(windows)]
+pub(crate) struct NativeFinishRecoveryPermitV1 {
+    proof:VerifiedExecutionFirstCheckpointV1,
+    binding:crate::logical_input_tape::LogicalInputBinding,
+    checked:windows::CheckedColdFinishV1,
+}
+#[cfg(windows)]
+pub(crate) struct RecoveredNativeFinishV1 {
+    c01:Vec<u8>,notice:serde_json::Value,original_cause:Option<String>,
+}
+#[cfg(all(test,windows))]
+pub(crate) fn test_arm_finish_ready_set_failure(){windows::test_arm_finish_ready_set_failure();}
+#[cfg(all(test,windows))]
+pub(crate) fn test_finish_lifecycle_cipher_digest(nonce:&[u8;32],first:&[u8;32])->Result<[u8;32],Failure>{
+    windows::test_finish_lifecycle_cipher_digest(nonce,first)
+}
+#[cfg(windows)]
+impl RecoveredNativeFinishV1 {
+    pub(crate) fn into_parts(self)->(Vec<u8>,serde_json::Value,Option<String>){(self.c01,self.notice,self.original_cause)}
+}
+#[cfg(windows)]
+impl Drop for FinishFailureCaptureWitnessV1 {
+    fn drop(&mut self){self.plain.fill(0);self.intent_digest.fill(0);self.failure_digest.fill(0);}
+}
 /// Untrusted selection data; admission below compares every field to the
 /// actual protected root and same SQLite head. Not a grant or receipt.
 #[cfg(windows)]
@@ -424,6 +458,8 @@ mod windows {
     include!("root_grant/source_first_use_windows.rs");
     include!("root_grant/source_authoring_windows.rs");
     include!("root_grant/replay_windows.rs");
+    include!("root_grant/finish_recovery_windows.rs");
+    include!("root_grant/finish_recovery_cold_windows.rs");
 
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum Namespace { Grant, RootSlot, Attempt, SourceTransition }

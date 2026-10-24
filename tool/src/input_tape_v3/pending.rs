@@ -19,6 +19,14 @@ pub(super) struct CheckedPendingAtFinishV1 {
 }
 impl CheckedPendingAtFinishV1 {
     pub(super) fn count(&self)->u64 {self.until-self.first}
+    /// Read-only R2 export from the checked, actual frontend queue owner.
+    /// An empty observed range still has tag01; it is not a direct owner.
+    pub(super) fn recovery_payload(&self)->Vec<u8> {
+        let mut raw=Vec::with_capacity(49);raw.push(1);
+        raw.extend_from_slice(&self.first.to_be_bytes());
+        raw.extend_from_slice(&self.until.to_be_bytes());
+        raw.extend_from_slice(&self.digest);raw
+    }
     pub(super) fn matches(&self,other:&Self)->bool {
         self.first==other.first && self.until==other.until && self.digest==other.digest
     }

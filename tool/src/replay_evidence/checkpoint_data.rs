@@ -46,6 +46,7 @@ impl ReplayCheckpointPlanDataV1 {
         let data=Self{scope,binding,prospective_receipt:receipt,first_tx,checkpoint_tx,control_ordinal,recording_epoch,
             previous_row,recording_state:0,end_owner_kind:2,previous_lifecycle:Some(lifecycle),
             bundle_digest:Sha256::digest(&bundle).into(),bundle,result_digest,seed_digest,accepted_count:progress.accepted_count,reopen:Some(proof)};
+        // F5-GA[CHECKPOINT_REOPEN]: data는 바로 위에서 reopen:Some(proof)로 만든 불변 지역값이며 그 사이 대입/호출이 없다. 검증 성공이나 재실행 권한을 미리 부여한다는 뜻은 아니다.
         data.reopen.as_ref().unwrap().check_plan(&data,adapter)?;
         Ok(data)
     }
@@ -78,18 +79,24 @@ impl ReplayCheckpointPlanDataV1 {
         pending:super::PendingReplayLifecycleV1,
         retained:&crate::snapshot_v2_durable_transaction::native::RetainedFirstSourceWorldV2,
         context:&crate::unit_wire::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>)->Result<(),String>{
+        use crate::storage_observation::Span;
+        let _total=Span::start("replay.ready_total");
         // Re-admit the actual committed current root and complete mixed
         // history before Ready, not only this transaction's local SQL chain.
         let full_check=(||{
-            let current=adapter.revalidate_replay_scope_current_world(&self.scope,context)?;
-            let actual=current.current_receipt(adapter,context)?;
+            let current={let _phase=Span::start("replay.ready_fresh_history");
+                adapter.revalidate_replay_scope_current_world(&self.scope,context)?};
+            let actual={let _phase=Span::start("replay.ready_current_receipt");
+                current.current_receipt(adapter,context)?};
             if actual!=self.prospective_receipt || current.payload().binding!=self.binding {
                 return Err(crate::snapshot_v2_durable_transaction::SnapshotV2DurabilityFailureV1::CustodyConflict);
             }Ok(())
         })();
         full_check.map_err(|e|format!("E_REPLAY_EVIDENCE_RECOVERY_REQUIRED: 원 확정 거래 전체 이력 재확인 실패 ({e:?})"))?;
-        let ready=pending.verify_committed(self,row,adapter,retained)
-            .map_err(|e|format!("E_REPLAY_EVIDENCE_RECOVERY_REQUIRED: 원 세계 거래는 확정됐으나 재생 기록 확인이 끝나지 않았습니다 ({e})"))?;
+        let ready={let _phase=Span::start("replay.ready_committed_and_archive");
+            pending.verify_committed(self,row,adapter,retained)
+                .map_err(|e|format!("E_REPLAY_EVIDENCE_RECOVERY_REQUIRED: 원 세계 거래는 확정됐으나 재생 기록 확인이 끝나지 않았습니다 ({e})"))?};
+        let _write=Span::start("replay.ready_protected_write");
         self.scope.write_replay_ready(adapter,&ready)
             .map(|_|())
             .map_err(|e|format!("E_REPLAY_EVIDENCE_RECOVERY_REQUIRED: Ready 보호 기록 불확실 ({e:?})"))

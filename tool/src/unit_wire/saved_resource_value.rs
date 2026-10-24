@@ -114,6 +114,7 @@ struct NominalFrame {
     next:Option<([u8;32],RecordFieldType)>,
 }
 impl ValueFrame {
+    // F5-GA[SAVED_FRAME] Frames are private parser states: Map key and index are set/taken together; Record next_field is supplied before each child; only nonempty frames are pushed and accepted.
     fn accept(&mut self, value: &mut StagedValue, budget: &mut ValueDecodeBudget) -> Result<(), Failure> {
         if let Some(nominal)=&mut self.nominal {
             let (id,kind)=nominal.next.take().ok_or(Failure::InvalidInput)?;
@@ -184,6 +185,7 @@ impl ValueFrame {
 
 impl<'a> Reader<'a> {
     fn next_nominal_slot(&mut self,frame:&mut ValueFrame,catalog:&crate::authored_project::registration::SavedNominalCatalogV1,budget:&mut ValueDecodeBudget)->Result<(),Failure>{
+        // F5-GA[SAVED_NOMINAL_END] checked_add and end<=self.bytes.len precede the prefix slice; the private outer_limit is a prior prefix length of full_bytes.
         let nominal=frame.nominal.as_mut().ok_or(Failure::InvalidInput)?;
         let schema=catalog.schema(&nominal.identity).ok_or(Failure::CustodyConflict)?;
         let slot=schema.slots.get(nominal.slots.len()).ok_or(Failure::InvalidInput)?;
@@ -202,6 +204,7 @@ impl<'a> Reader<'a> {
         self.bytes=&self.bytes[..end];Ok(())
     }
     fn take(&mut self,n:usize)->Result<&'a [u8],Failure> {
+        // F5-GA[SAVED_TAKE] Successful take returns exactly n bytes through get(at..checked_end); the cursor advances only after this check.
         let end=self.at.checked_add(n).ok_or(Failure::LimitExceeded)?;
         let bytes=self.bytes.get(self.at..end).ok_or(Failure::InvalidInput)?;
         self.at=end;Ok(bytes)
@@ -237,6 +240,7 @@ impl<'a> Reader<'a> {
         self.record_type_context(budget,false)
     }
     fn record_type_context(&mut self,budget:&mut ValueDecodeBudget,output_atoms:bool)->Result<RecordFieldType,Failure>{
+        // F5-GA[SAVED_TYPE_FRAME] Record field names are prepared before pushing/continuing a nonempty record frame. last_mut Some dominates pop; no frame removal occurs between them.
         let mut frames: Vec<TypeFrame> = Vec::new();
         loop {
             budget.charge(std::mem::size_of::<RecordFieldType>())?;
@@ -303,6 +307,7 @@ impl<'a> Reader<'a> {
         Ok(())
     }
     fn value(&mut self,_depth:usize,budget:&mut ValueDecodeBudget,catalog:Option<&crate::authored_project::registration::SavedNominalCatalogV1>,subject_payload:bool)->Result<ResourceValue,Failure> {
+        // F5-GA[SAVED_CURSOR] A tag take(1) proves start<current length; later takes keep at bounded. Rational decode_prefix returns a checked consumed prefix, and nominal outer limits were captured from this same full slice.
         let full_bytes=self.bytes;
         let mut frames: Vec<ValueFrame> = Vec::new();
         loop {
@@ -442,6 +447,7 @@ impl<'a> Reader<'a> {
                 ResourceValue::IdentityReference(value.into())
             },
             0x0c=>{
+                // F5-GA[SAVED_BYTES_HEADER] take(20) proves header[12..20]; successful payload take bounds the start+1..at carrier slice.
                 // The existing Bytes owner retains its BE header inside the
                 // ResourceValue frame. Charge the payload before allocation.
                 let header=self.take(20)?;
@@ -473,6 +479,7 @@ impl<'a> Reader<'a> {
                 ResourceValue::RegisteredAtom(atom.into())
             },
             0x0e=>{
+                // F5-GA[SAVED_TENSOR_PREFIX] All seven checked length-prefixed fields are consumed before slicing the carrier; start was the successfully consumed tag position.
                 // Determine exactly seven FIELD32 members, then delegate every
                 // profile/type/shape/element check to the existing Tensor owner.
                 const PROFILE:&[u8]=b"DDN-BASIC-TENSOR-VALUE-V1\0";
@@ -543,6 +550,7 @@ pub(crate) fn check_saved_type(value: &ResourceValue, kind: &RecordFieldType) ->
                 let canonical = canonical_type_name(name);
                 if canonical != *name { return Err(Failure::InvalidInput); }
                 match (canonical.as_str(), value) {
+                    // F5-GA[SAVED_ARGS] The immutable args vector is indexed only under the adjacent exact one/two-argument match guard.
                     ("차림", ResourceValue::List(items)) if args.len() == 1 => pending.extend(items.iter().rev().map(|item| (item, &args[0]))),
                     ("모음", ResourceValue::Set(items)) if args.len() == 1 => pending.extend(items.values().rev().map(|item| (item, &args[0]))),
                     ("짝맞춤", ResourceValue::Map(entries)) if args.len() == 2 => {
@@ -613,6 +621,7 @@ fn dimension(text:&str)->Result<UnitDim,Failure> {
             let power=match pieces.next(){None=>1,Some(n)=>n.parse::<i16>().map_err(|_|Failure::InvalidInput)?};
             if pieces.next().is_some()||!(1..=128).contains(&power){return Err(Failure::InvalidInput);}
             let axis=match symbol{"m"=>0,"s"=>1,"kg"=>2,"rad"=>3,"px"=>4,"K"=>5,"KRW"=>6,"USD"=>7,"mol"=>8,_=>return Err(Failure::InvalidInput)};
+            // F5-GA[SAVED_AXIS] The exhaustive symbol match yields 0..8 and UnitDim::AXIS_COUNT is 9; invalid symbols return before either access.
             if exponents[axis]!=0{return Err(Failure::InvalidInput);}
             exponents[axis]=i8::try_from(power*sign).map_err(|_|Failure::InvalidInput)?;
         }

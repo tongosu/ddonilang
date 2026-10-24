@@ -18,6 +18,20 @@ fn replace_json(target:&mut Json,value:&Json) {
     drop(OwnedJson::from_value(std::mem::replace(target,replacement)));
 }
 
+// Only reject shapes that serde_json's mutable string indexing cannot accept.
+// Null/missing objects remain allowed, preserving the existing insertion path.
+fn validate_scene_write_shapes(projection:&Json,write_time_lock:bool)->Result<(),String> {
+    let object_or_null=|value:&Json|value.is_object()||value.is_null();
+    for candidate in projection["candidates"].as_array().into_iter().flatten() {
+        if !object_or_null(candidate) || (write_time_lock
+            && (!object_or_null(&candidate["artifact"])
+                || !object_or_null(&candidate["artifact"]["lock"]))) {
+            return Err("E_BOGAE_TIME_POLICY_INVALID: 장면의 쓰기 대상이 객체가 아닙니다".into());
+        }
+    }
+    Ok(())
+}
+
 fn requested_madi(policy:&Json,cursor:u64)->Result<u64,String> {
     let number=match policy["kind"].as_str() {
         Some("common")=>cursor as i128,
@@ -29,6 +43,7 @@ fn requested_madi(policy:&Json,cursor:u64)->Result<u64,String> {
 }
 
 fn candidate_at<'a>(projection:&'a Json,identity:&Json)->Result<&'a Json,String> {
+    // F5-GA[SCENE_READ_1]: 읽기 전용 serde_json 문자열 인덱스는 형식/키 불일치 때 Null을 반환하며 IndexMut의 삽입 경로를 쓰지 않는다.
     projection["candidates"].as_array().into_iter().flatten()
         .find(|candidate|candidate["artifact"]["identity"]==*identity)
         .ok_or_else(||"E_BOGAE_TIME_OUT_OF_RANGE: 지정 마디에 같은 보개짜임의 장면이 없습니다".into())
@@ -38,12 +53,14 @@ fn candidate_at<'a>(projection:&'a Json,identity:&Json)->Result<&'a Json,String>
 /// Uses the same validated public-observation projector on Native and WASM.
 pub fn resolve_result_tables(projection:&mut Json,frames:&[Json],source_identity:&str,revision_identity:&str)->Result<(),String> {
     if projection["schema"]!="ddn.bogae_projection.v2" {return Ok(());}
+    validate_scene_write_shapes(projection,false)?;
     let mut cache:BTreeMap<u64,OwnedJson>=BTreeMap::new();
     let Some(candidates)=projection["candidates"].as_array_mut() else {return Ok(());};
     for candidate in candidates {
         let artifact=&mut candidate["artifact"];
         let mut owners=vec![artifact];
         while let Some(owner)=owners.pop() {
+            // F5-GA[SCENE_READ_2]: 비교식의 읽기 전용 JSON 인덱스이며 아래 변경식의 안전성까지 주장하지 않는다.
             if owner["view"]["kind"]=="result_table" {
                 let madi=owner["resolved_madi"].as_u64().ok_or("E_BOGAE_TIME_OUT_OF_RANGE: 결과표의 장면 마디가 없습니다")?;
                 if !cache.contains_key(&madi) {
@@ -57,9 +74,11 @@ pub fn resolve_result_tables(projection:&mut Json,frames:&[Json],source_identity
                         let mut frame=OwnedJson::clone_from_value(frame);
                         frame.value_mut()["run_id"]=json!(run_id);frame.value_mut()["source_identity"]=json!(source_identity);
                         frame.value_mut()["revision_identity"]=json!(revision_identity);
+                        // F5-GA[SCENE_LOCAL_REQUEST]: request의 frames는 이 함수의 빈 배열 생성과 push로만 유지되어 배열 인출이 실패하지 않는다.
                         request.value_mut()["frames"].as_array_mut().unwrap().push(frame.into_parent_value());
                     }
                     let bundle=OwnedJson::from_value(crate::deterministic_debug::build_public_observation_trace(&request)?);
+                    // F5-GA[SCENE_READ_3]: SnapshotJsonOwner의 Deref는 &JsonValue이므로 trace 조회도 읽기 전용 Null 반환 계약을 따른다.
                     cache.insert(madi,OwnedJson::from_value(crate::deterministic_debug::build_public_observation_table_projection(&bundle["trace"],&run_id)?));
                 }
                 replace_json(&mut owner["view"]["table_projection"],&cache[&madi]);
@@ -83,12 +102,14 @@ impl SceneHistory {
 
     /// Preview is immutable: any out-of-range relation rejects the whole madi.
     pub fn preview(&self,cursor:u64,current:&Json)->Result<Json,String> {
+        // F5-GA[SCENE_READ_4]: 시간정책 탐색의 JSON 조회는 불일치 시 Null이며 아래 정책 검증/변경을 대신하지 않는다.
         let needs_history=current["candidates"].as_array().into_iter().flatten().any(|candidate| {
             let artifact=&candidate["artifact"];
             artifact["time_policy"]["kind"]!="common" || artifact["relations"].as_array().into_iter().flatten()
                 .any(|relation|relation["time_policy"]["kind"]!="common")
         });
         if !needs_history {return Ok(OwnedJson::clone_from_value(current).into_parent_value());}
+        validate_scene_write_shapes(current,true)?;
         let mut result=OwnedJson::clone_from_value(current);
         let Some(candidates)=result.value_mut()["candidates"].as_array_mut() else {
             return Err("E_BOGAE_TIME_POLICY_INVALID: 장면 후보 목록이 없습니다".into());
@@ -97,6 +118,7 @@ impl SceneHistory {
             let authored=OwnedJson::clone_from_value(&candidate["artifact"]);
             replace_json(&mut candidate["authored_artifact"],&authored);
             candidate["artifact"]["lock"]["time"]=json!("scene_madi.v1");
+            // F5-GA[SCENE_READ_5]: 정체와 시간정책의 빌림은 읽기 전용이다. 이 앞뒤의 mutable 경로는 별도 감사 대상으로 남긴다.
             let identity=OwnedJson::clone_from_value(&candidate["artifact"]["identity"]);
             let primary_madi=requested_madi(&candidate["artifact"]["time_policy"],cursor)?;
             let primary_frame=if primary_madi==cursor {current}else{
@@ -111,6 +133,7 @@ impl SceneHistory {
                     let frame=if madi==cursor {current}else{
                         self.frames.get(&madi).ok_or("E_BOGAE_TIME_OUT_OF_RANGE: 지정한 장면 마디가 없습니다")?
                     };
+                    // F5-GA[SCENE_READ_6]: candidate_at의 공유 참조에서 읽으므로 배열 변환 실패는 None이며 인덱스 panic으로 바뀌지 않는다.
                     let prior=candidate_at(frame,&identity)?["artifact"]["relations"].as_array().into_iter().flatten()
                         .find(|old|old["identity"]==relation["identity"])
                         .ok_or("E_BOGAE_TIME_OUT_OF_RANGE: 지정 마디에 같은 작성 관계가 없습니다")?;
@@ -153,11 +176,13 @@ impl SceneHistory {
         let mut frames=OwnedJson::from_value(json!([]));
         for (madi,projection) in &self.frames {
             let mut row=json!({"madi":madi});
+            // F5-GA[SCENE_LOCAL_ROWS]: row는 방금 만든 Object, frames는 이 함수의 Array이며 외부 가변 별칭 없이 삽입/push만 수행한다.
             row["projection"]=projection.clone().into_parent_value();
             frames.value_mut().as_array_mut().unwrap().push(row);
         }
         let digest=crate::runtime_surface::sha256_hex(format!("ddn.bogae_scene_history.v1\0{}",compact_json(&frames)).as_bytes());
         let mut result=json!({"schema":"ddn.bogae_scene_history.v1","sha256":digest});
+        // F5-GA[SCENE_LOCAL_RESULT]: result는 바로 앞에서 만든 Object이고 frames 필드 삽입 전 다른 타입으로 바뀌지 않는다.
         result["frames"]=frames.into_parent_value();
         result
     }
@@ -229,7 +254,7 @@ mod tests {
     #[test]
     fn a3_rd136_actual_native_table_uses_selected_committed_prefix() {
         // A3-TIME-P1: no harness rewrite; this is the public V25 source frontdoor.
-        let source="채비 { 값:수 := 0. }. (매마디)마다 { 값 <- 값 + 1. (값:값) 보임. }. 보기 := () 표준보기.결과표. 현재 := (보기=보기) 표준보개.으뜸. 처음 := (보기=보기,자리=#오른쪽,시간=((번호=0) 표준시간.고정마디)) 표준보개.곁. 짜임 := (관계들=차림[현재,처음]) 표준보개.짜임.";
+        let source="채비 { 값:수 := 0. }. (매마디)마다 { 값 <- 값 + 1. (값:값) 내보임. }. 보기 := () 표준보기.결과표. 현재 := (보기=보기) 표준보개.으뜸. 처음 := (보기=보기,자리=#오른쪽,시간=((번호=0) 표준시간.고정마디)) 표준보개.곁. 짜임 := (관계들=차림[현재,처음]) 표준보개.짜임.";
         let summary=crate::runtime_surface::run_summary_with_bogae_entry(source,"table-time.ddn",Some(3),"v1-core-v25","짜임").unwrap();
         let projection=&summary["bogae_projection"];
         let relations=&projection["candidates"][0]["artifact"]["relations"];

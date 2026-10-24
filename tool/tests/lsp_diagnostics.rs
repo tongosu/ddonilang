@@ -1,14 +1,17 @@
-use ddonirang_lang::parse_v25;
 use ddonirang_tool::lsp::{
     byte_range_to_lsp_range,
     diagnostics::{sort_diagnostics, Diagnostic},
     encode_message, ByteRange, FrameDecoder, LspPosition, LspRange, LspServer, PositionEncoding,
     PublishRejection, RpcMessage, ServerEvent,
 };
+use ddonirang_tool::source_analysis::{
+    analyze_source, SourceAnalysisDiagnostic, SourceAnalysisRequest,
+};
 use serde_json::{json, Value};
 
 const URI: &str = "file:///lsp-diagnostics.ddn";
-const VALID: &str = "첫함수:셈씨 := { 1 돌려줘. }\n둘함수:셈씨 := { 첫함수. }";
+// Accepted by `ddonilang 검사 --source-profile v1-core-v25` with no diagnostic.
+const VALID: &str = "첫함수:셈씨 := { 1 돌려줘. }\n둘함수:셈씨 := { 첫함수하기. }";
 const LEGACY_EQUALS: &str = "검산:움직씨 = {\n}\n";
 // A well-formed Tuple type is supported by VC13; a missing position keeps
 // this fixture a parser error, not a runtime Tuple/value mismatch.
@@ -132,8 +135,22 @@ fn workspace_diagnostics(
     }
 }
 
+/// The first diagnostic of the shared check that `ddonilang 검사` runs.
+fn shared_check(source: &str) -> SourceAnalysisDiagnostic {
+    analyze_source(SourceAnalysisRequest {
+        source_text: source.to_string(),
+        path: URI.to_string(),
+        analysis_generation: 0,
+        source_profile_identity: "v1-core-v25".to_string(),
+    })
+    .diagnostics
+    .into_iter()
+    .next()
+    .expect("fixture must produce a shared check diagnostic")
+}
+
 fn expected_range(source: &str) -> Value {
-    let error = parse_v25(source, URI).expect_err("fixture must produce parser diagnostic");
+    let error = shared_check(source);
     let start = previous_char_boundary(source, error.span.start.min(source.len()));
     let end = next_char_boundary(source, error.span.end.min(source.len())).max(start);
     let range =
@@ -175,9 +192,9 @@ fn d01_d04_current_v25_diagnostics_reuse_parser_identity() {
     assert_eq!(legacy[0]["data"]["sourceProfile"], "v25");
 
     let syntax = diagnostics(&open_after_close(&mut server, SYNTAX_ERROR, 3));
-    let parser_error = parse_v25(SYNTAX_ERROR, URI).expect_err("syntax fixture must fail");
-    assert_eq!(syntax[0]["code"], parser_error.code());
-    assert_eq!(syntax[0]["message"], parser_error.message);
+    let shared_error = shared_check(SYNTAX_ERROR);
+    assert_eq!(syntax[0]["code"], shared_error.code.as_str());
+    assert_eq!(syntax[0]["message"], shared_error.message.as_str());
     assert_eq!(syntax[0]["range"], expected_range(SYNTAX_ERROR));
 
     let legacy_chaebi = diagnostics(&open_after_close(
@@ -190,6 +207,19 @@ fn d01_d04_current_v25_diagnostics_reuse_parser_identity() {
         legacy_chaebi[0]["code"].as_str(),
         Some("E_BOIM_LEGACY_REMOVED") | Some("E_V25_DEFINITION_MIGRATION_REQUIRED")
     ));
+}
+
+#[test]
+fn crlf_multichar_parser_token_matches_shared_cli_diagnostic() {
+    let source = "// 😀 한글\r\n값 <- 1.\r\n// 😀 주석\r\n값 <- (3 보여주기.\r\n";
+    let mut server = LspServer::new();
+    init(&mut server);
+    let actual = diagnostics(&open(&mut server, source, 1));
+    let expected = shared_check(source);
+    assert_eq!(actual.len(), 1);
+    assert_eq!(actual[0]["code"], expected.code);
+    assert_eq!(actual[0]["message"], expected.message);
+    assert_eq!(actual[0]["range"], expected_range(source));
 }
 
 fn open_after_close(server: &mut LspServer, source: &str, version: i64) -> ServerEvent {
@@ -349,7 +379,11 @@ fn d13_pull_diagnostics_reuses_push_payload_and_result_id() {
     );
     assert_eq!(
         capabilities["capabilities"]["diagnosticProvider"]["workspaceDiagnostics"],
-        true
+        false
+    );
+    assert_eq!(
+        capabilities["capabilities"]["diagnosticProvider"]["interFileDependencies"],
+        false
     );
 
     let push = open(&mut server, "🙂검산:움직씨 = {\n}\n", 1);

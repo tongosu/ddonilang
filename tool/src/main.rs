@@ -4,7 +4,7 @@ mod detmath_assets;
 pub mod completion;
 mod fixed64_boundary;
 mod gate0_registry;
-pub mod lsp;
+use ddonirang_tool::lsp;
 mod paths;
 mod project_meta;
 pub mod proof;
@@ -992,6 +992,7 @@ fn simple_json_from_expr(expr: &Expr) -> Option<serde_json::Value> {
                 return Some(serde_json::Value::Array(values));
             }
             if canonical == "짝맞춤" {
+                // F5-GA[INTERNAL_PAIR]: Even arity plus the step-two loop bounds idx and idx+1; recursive conversion only borrows args.
                 if args.len() % 2 != 0 {
                     return None;
                 }
@@ -1254,6 +1255,7 @@ impl ReplaySam {
 }
 
 impl Sam for ReplaySam {
+    // F5-GA[INTERNAL_CALLER_REPLAY]: Private callers clone one snapshot per expected entry and tick exactly once per entry; EngineLoop calls begin_tick once per tick.
     fn begin_tick(&mut self, _tick_id: TickId) -> InputSnapshot {
         let snapshot = self
             .snapshots
@@ -1397,6 +1399,7 @@ impl Iyagi for GridIyagi {
 
 #[derive(Clone)]
 struct MazeData {
+    // F5-GA[INTERNAL_CALLER_MAZE]: parse_maze is the sole data constructor; rectangular tiles and dimensions are captured together and never resized by consumers.
     width: i64,
     height: i64,
     tiles: Vec<Vec<char>>,
@@ -1935,6 +1938,7 @@ fn run_ddn_summary_command(mut args: Vec<String>) -> Result<(), String> {
 }
 
 fn validate_run_summary_cli_args(args: &[String]) -> Result<(), String> {
+    // F5-GA[INTERNAL_CALLER_ARGS]: Each indexed option read is the first operation of index<len; advanced value positions use get rather than indexing.
     let mut positional_count = 0usize;
     let mut madi_count = 0usize;
     let mut summary_json_count = 0usize;
@@ -2502,6 +2506,7 @@ fn find_single_equals(text: &str) -> Option<usize> {
 }
 
 fn remove_type_prefixes(code: &str, line_no: usize) -> Result<String, String> {
+    // F5-GA[INTERNAL_CHARS]: Immutable chars; i<len, short-circuit predecessor/successor guards, and j<len or explicit rejection precede every indexed read.
     let mut out = String::new();
     let chars: Vec<char> = code.chars().collect();
     let mut i = 0usize;
@@ -2700,6 +2705,7 @@ fn frames_to_log(frames: &[ddonirang_core::TickFrame]) -> Result<ReplayLog, Stri
 }
 
 fn log_to_snapshots(log: &ReplayLog) -> Vec<(InputSnapshot, String)> {
+    // F5-GA[INTERNAL_CALLER_JSON]: Replay input payload is serde_json::Value, not a custom serializer or non-string-key map; its JSON serialization is infallible apart from external resource exhaustion.
     log.frames
         .iter()
         .map(|frame| {
@@ -3778,6 +3784,7 @@ fn run_eco_model_series(
     is_macro: bool,
     resource_keys: &BTreeSet<String>,
 ) -> Result<Vec<BTreeMap<String, Fixed64>>, String> {
+    // F5-GA[INTERNAL_CALLER_SERIES]: Success returns one pushed entry per requested tick, or returns Err early; caller indexes the same tick range. Allocation safety is separate and unproven.
     let program = load_ddn_program(source, "<eco_runner>")
         .map_err(|e| format!("E_ECO_RUNNER_MODEL_PARSE {}", e))?;
     let mut runner = DdnRunner::new(program, "매마디");
@@ -4419,6 +4426,7 @@ fn eco_max(values: &[Fixed64]) -> Fixed64 {
 }
 
 fn eco_gini(values: &[Fixed64]) -> Fixed64 {
+    // F5-GA[INTERNAL_GINI]: Both read indices come from bounded ranges over this immutable slice; this proves indexing only, not numeric/model semantics.
     if values.is_empty() {
         return Fixed64::ZERO;
     }
@@ -4445,6 +4453,7 @@ fn eco_gini(values: &[Fixed64]) -> Fixed64 {
 }
 
 fn eco_quantile_linear(values: &[Fixed64], p: Fixed64) -> Fixed64 {
+    // F5-GA[INTERNAL_QUANTILE]: Singleton read requires len==1; sorted keeps that slice length, and both computed indices are rejected before indexed reads.
     if values.is_empty() {
         return Fixed64::ZERO;
     }
@@ -4547,6 +4556,7 @@ fn main() {
         ddn_runtime::set_default_age_target(policy.age_target);
     }
 
+    // F5-GA[CLI_ARGS]: Required Option arguments below return/exit on None before unwrap; remaining[idx] is bounded by its loop or by the post-increment missing-value return/exit, with no Vec resize. This does not prove the called workflows safe.
     match cmd.as_deref() {
         Some("run") => {
             if let Err(err) = ensure_feature(policy.as_ref(), FeatureGate::ClosedCore) {

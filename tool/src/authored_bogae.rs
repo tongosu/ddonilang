@@ -1,5 +1,18 @@
 //! Explicit v2 authoring metadata and immutable persistent activation admission.
 //! Geometry and recipes always come from the actual typed product execution.
+// F5-GA[정의표]: 관계를 push하기 전에 같은 이름을 definitions에 넣는다. content의
+// 관계/보기법/보기/도움 정의도 먼저 definitions에 넣고, 이후 두 표의 열쇠는 제거하지 않는다.
+// supplied/bindings는 이 definitions 전체를 성공적으로 순회한 뒤에만 관계·내용에서 읽는다.
+// 겹의 basis는 유일한 으뜸 이름인지 검사하고 recipe/view 이름도 definitions에 명시 등록한다.
+// F5-GA[모듈]: original_owner의 순번은 같은 project.modules를 enumerate한 값이다.
+// register의 copy는 그 project의 clone이고 중첩 bindings/compositions만 바꾸므로 순번이 유지된다.
+// primaries/owners의 [0]은 각각 len==1 확인 뒤, module_index는 같은 Vec의 position 성공 뒤다.
+// F5-GA[등록]: Candidate는 registration이 Some임을 확인한 composition의 clone만 담는다.
+// Activation/Candidate 필드는 비공개이고 내부 변경 가능 셀·역직렬화 입구가 없어 apply 중 불변이다.
+// F5-GA[JSON]: serde_json의 읽기 Index는 잘못된 모양에서 Null을 돌려주지만 변경 Index는 패닉 가능하다.
+// ready 문자열은 projection 객체를, label/kind 문자열 일치는 candidate/관계 객체를 보장한다.
+// artifact는 get_mut 관계 차림 검사 뒤에만 쓰고, recipe도 고정 필드 일치 뒤에만 변경한다.
+// 공개 JSON의 artifact 모양 거부는 별도 F5 교정이다. 메모리·재귀·전체 제품 안전성 증명은 아니다.
 use crate::authored_project::{
     self, AuthoredComposition, AuthoredModule, BindingId, CompositionId, Entry, ProjectArtifact,
 };
@@ -1007,8 +1020,11 @@ impl Activation {
             .iter()
             .find(|c| c.composition.definition == label)
             .ok_or_else(|| fail("실제 후보가 등록된 짜임이 아닙니다"))?;
-        let relations = candidate["artifact"]["relations"]
-            .as_array_mut()
+        // 공개 JSON 입구에서는 artifact가 scalar일 수도 있다.
+        // 변경 인덱스의 패닉 대신 기존 typed 관계 오류로 거부한다.
+        let relations = candidate.get_mut("artifact")
+            .and_then(|artifact| artifact.get_mut("relations"))
+            .and_then(Value::as_array_mut)
             .ok_or_else(|| fail("실제 typed 관계들이 없습니다"))?;
         if relations.len() != registered.relations.len() {
             return Err(fail("실제 관계 수가 원문 차림과 다릅니다"));
@@ -1102,6 +1118,23 @@ impl Activation {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn malformed_public_projection_artifact_returns_existing_error_without_panic() {
+        let source = "기본 := (보기=(() 표준보기.결과표)) 표준보개.으뜸. 짜임 := (관계들=차림[기본]) 표준보개.짜임.";
+        let registered = project(source).register_bogae("앱", "main.ddn", "짜임", true).unwrap();
+        let artifact = registered.save().unwrap();
+        let activation = Activation::from_artifact(&artifact, source, "main.ddn").unwrap();
+        for malformed in [json!(1), json!(true), json!("글"), json!([]), json!(null), json!({"relations":1})] {
+            let result = activation.apply(Some(json!({"status":"ready", "candidates":[{
+                "label":"짜임", "artifact":malformed
+            }]})));
+            assert!(matches!(result, Err(ref error) if error == "E_AUTHORED_BOGAE: 실제 typed 관계들이 없습니다"));
+        }
+        let temporary = run(source, None).bogae_projection.unwrap();
+        let expected = run(source, Some(&artifact)).bogae_projection.unwrap();
+        assert_eq!(activation.apply(Some(temporary)).unwrap().unwrap(), expected);
+    }
+
     #[test]
     fn beta1_common_drawing_labs_register_original_multiaxis_source_content() {
         for (root,entry,composition,root_text,text) in [

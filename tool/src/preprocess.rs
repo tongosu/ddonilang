@@ -582,6 +582,7 @@ struct IntroChooseBranch {
 }
 
 fn lower_intro_choose_blocks(source: &str) -> String {
+    // F5-GA[PRE_LINES] Every lines[index] access is dominated by its own while index<lines.len guard; returned next_index is tested again by the outer loop.
     if !source.contains("고르기:") {
         return source.to_string();
     }
@@ -1038,6 +1039,7 @@ fn find_update_seed_insert(source: &str) -> Option<(usize, String)> {
 }
 
 fn find_matching_brace(source: &str, open_idx: usize) -> Option<usize> {
+    // F5-GA[PRE_BYTES] Byte scans index only under i<len, with explicit i+1<len before lookahead; these are byte slices, not UTF-8 string indices.
     let bytes = source.as_bytes();
     if *bytes.get(open_idx)? != b'{' {
         return None;
@@ -1245,6 +1247,7 @@ fn is_meta_block_header_line(trimmed: &str) -> bool {
 }
 
 fn rewrite_unary_minus_line(line: &str) -> String {
+    // F5-GA[PRE_CHARS] i/num_end are bounded by the unchanged char vector; lookahead short-circuits on len, and the extracted range runs from i+1 to the monotonically bounded num_end.
     let chars: Vec<char> = line.chars().collect();
     let mut out = String::with_capacity(line.len());
     let mut i = 0;
@@ -1309,6 +1312,7 @@ fn is_unary_minus_context(preceding: &str) -> bool {
     if trimmed.is_empty() {
         return true;
     }
+    // F5-GA[PRE_LAST] The same valid UTF-8 str was just proved nonempty, so chars().last() must exist.
     let last = trimmed.chars().last().unwrap();
     matches!(
         last,
@@ -1369,6 +1373,7 @@ fn has_seed_def(source: &str) -> bool {
 }
 
 pub fn preprocess_ai_calls(source: &str, meta: &AiMeta) -> Result<String, String> {
+    // F5-GA[PRE_UTF8] These scanners start at boundary0 or immediately after a verified three-byte ASCII opener; they advance by char.len_utf8 or a child scanner's boundary. i<len therefore yields a nonempty valid suffix and next() succeeds, including strip_slgi_blocks's inner j loop.
     let mut out = String::new();
     let mut i = 0usize;
     let mut in_string = false;

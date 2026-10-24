@@ -34,6 +34,8 @@ pub mod ddn_runtime;
 pub mod result_place;
 pub mod deterministic_debug;
 #[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod storage_observation;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod dotbogi_workflow;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod bdl_packet;
@@ -115,6 +117,7 @@ pub use lsp::diagnostics;
 pub use lsp::hover;
 pub mod model_runtime;
 pub mod module_directive_analysis;
+pub mod name_binding;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod numeric_workflow;
 #[cfg(not(target_arch = "wasm32"))]

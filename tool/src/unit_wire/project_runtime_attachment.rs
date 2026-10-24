@@ -1,6 +1,8 @@
 //! RD-686 physical byte gate. Passing this gate is NOT revision/PESI admission.
 //! The caller must subsequently verify the raw envelope with its shared owner,
 //! restore a candidate VM, and only then publish. No adapter may mint identity.
+// F5-GA[IMMUTABLE-JSON]: envelope[key]는 serde_json::Value의 불변 조회다. 키/형식 불일치는
+// Null을 돌려주며, 뒤의 명시적 형식/정체 검사에서 거부된다. IndexMut 증명은 아니다.
 
 use serde::{de::{MapAccess, SeqAccess, Visitor}, Deserialize, Deserializer, Serialize, Serializer};
 use serde::ser::{SerializeMap, SerializeSeq};
@@ -473,6 +475,7 @@ fn decode_envelope(encoded: &str) -> Result<Vec<u8>,String> {
 
 fn encode_envelope(raw: &[u8]) -> String {
     let alphabet=b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    // F5-GA[BASE64-INDEX]: 두 인덱스는 &63으로 0..64 안이며 alphabet은 정확히 64바이트다.
     let mut output=String::new(); let mut bits=0u32; let mut count=0u32;
     for byte in raw {
         bits=(bits<<8)|u32::from(*byte); count+=8;
@@ -495,6 +498,8 @@ pub(crate) fn check_bytes(raw: &[u8]) -> Result<ByteCheckedAttachment,String> {
     // slash escapes, alternate integer forms, and noncanonical control escapes.
     if bytes(&node)? != raw { return Err("E_PROJECT_RUNTIME_ARTIFACT_CANONICAL".into()); }
     let top = fields(&node,&TOP)?;
+    // F5-GA[FIXED-FIELDS]: fields가 TOP 6개와 ATTACHMENT 12개의 개수/순서를 먼저 확인한다.
+    // 이후 불변 slice의 0..5/0..11 조회 동안 길이는 바뀌지 않는다. VM 입장 허가는 별도다.
     if text(&top[0].1)? != "seamgrim.project_snapshot_artifact.v1" { return Err("E_PROJECT_RUNTIME_ARTIFACT_SCHEMA".into()); }
     let attachment = fields(&top[2].1,&ATTACHMENT)?;
     if bytes(&top[2].1)?.len() > OUTER_MAX { return Err("E_PROJECT_RUNTIME_ATTACHMENT_TOO_LARGE".into()); }

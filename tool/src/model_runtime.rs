@@ -28,6 +28,7 @@ use num_bigint::BigInt;
 use num_rational::BigRational;
 use num_traits::{One, Signed, ToPrimitive, Zero};
 use serde_json::{json, Value as JsonValue};
+// F5-GA[model-json-read]: serde_json 1.0.147의 Value 읽기 인덱스는 누락/다른 종류에서 Null을 반환한다. 검증의 완전성이나 IndexMut 안전을 뜻하지 않는다.
 
 pub const MODEL_BACKEND_ID: &str = EXACT_ACYCLIC_RELATION_BACKEND_ID;
 pub const MODEL_BACKEND_DESCRIPTOR_SCHEMA: &str = "ddn.model_backend_descriptor.candidate.v1";
@@ -169,6 +170,7 @@ pub fn backend_descriptor_json() -> JsonValue {
         ]
     });
     let descriptor_hash = hash_json(&descriptor);
+    // F5-GA[model-descriptor-object]: 같은 함수의 json! 객체만 이 expect에 도달한다.
     descriptor
         .as_object_mut()
         .expect("descriptor object")
@@ -694,11 +696,13 @@ fn execute_program(
             )
         })?;
     let capsule_hash = hash_json(&capsule_body);
+    // F5-GA[model-replay-object]: first와 receipt는 private execute_program_once의 성공 객체이며 외부 JSON을 직접 받지 않는다.
     first["verified_replay"] = json!({
         "capsule": capsule_body,
         "capsule_hash": capsule_hash.clone(),
         "capsule_bytes": capsule_bytes.len(),
     });
+    // F5-GA[model-cost-serialization]: WorkCostReceipt는 문자열·bool·고정 정수 구조의 파생 Serialize이며 사용자 serializer를 호출하지 않는다.
     let updated_work_cost =
         serde_json::to_value(work_cost.borrow().receipt()).expect("WorkCostV1 receipt serializes");
     first["work_cost_receipt"] = updated_work_cost.clone();
@@ -738,6 +742,7 @@ fn execute_program_once(
             &context,
         ));
     }
+    // F5-GA[model-one-request]: 바로 앞의 len != 1 거부 뒤이며 requests는 불변이다.
     let request = &program.ir.requests[0];
     charge_model_dispatch(&context, request.span)?;
     context.request_identity = Some(request.identity.clone());
@@ -958,6 +963,7 @@ fn validate_backend_eligibility(
     context: &ReceiptContext,
 ) -> Result<(), ModelExecutionError> {
     if !definition.events.is_empty() {
+        // F5-GA[model-event-first]: 같은 불변 차림이 비어 있지 않은 분기다.
         return Err(failure(
             "E_MODEL_EVENT_RUNTIME_OPEN_CANDIDATE",
             "model_capability_candidate",
@@ -967,6 +973,7 @@ fn validate_backend_eligibility(
         ));
     }
     if !definition.connections.is_empty() {
+        // F5-GA[model-connection-first]: 같은 불변 차림이 비어 있지 않은 분기다.
         return Err(failure(
             "E_MODEL_CONNECTION_RUNTIME_OPEN_CANDIDATE",
             "model_capability_candidate",
@@ -1079,6 +1086,7 @@ fn validate_recipe(
             context,
         ));
     }
+    // F5-GA[model-recipe-one-field]: 위 OR는 단락 평가하며 통과 뒤 fields의 길이는 1로 고정된다.
     let method = recipe.method_value.as_ref().ok_or_else(|| {
         failure(
             "E_MODEL_RECIPE_METHOD_REQUIRED_CANDIDATE",
@@ -1299,6 +1307,7 @@ fn solve_relations(
                 context,
             ));
         };
+        // F5-GA[model-ready-key]: 방금 같은 BTreeMap에서 고른 key이며 find와 remove 사이 변경이 없다.
         let relation = remaining.remove(&target).expect("ready relation");
         context
             .work_cost
@@ -1389,6 +1398,7 @@ fn build_public_observations(
     result_pack: &JsonValue,
     context: &ReceiptContext,
 ) -> Result<Vec<JsonValue>, ModelExecutionError> {
+    // F5-GA[model-result-fields]: 유일한 제품 호출자는 private build_result_pack의 json! 객체/Vec 필드를 전달한다.
     let fields = result_pack["ordered_fields"]
         .as_array()
         .expect("result pack fields");
@@ -1912,6 +1922,7 @@ fn pow_quantity(
     };
     let mut exponents = [0i8; UnitDim::AXIS_COUNT];
     for (index, value) in quantity.dimension.exponents().into_iter().enumerate() {
+        // F5-GA[model-dimension-index]: 두 고정 배열은 모두 UnitDim::AXIS_COUNT이며 enumerate index가 그 길이 안이다. 지수 캐스팅 의미는 이 경계 증명 밖이다.
         exponents[index] = value.checked_mul(exponent as i8).ok_or_else(|| {
             arithmetic_failure(
                 "E_MODEL_UNIT_EXPONENT_OVERFLOW_CANDIDATE",
@@ -1937,6 +1948,7 @@ fn parse_decimal_rational(surface: &str) -> Result<BigRational, String> {
     if text.is_empty() {
         return Err("빈 수 리터럴입니다".to_string());
     }
+    // F5-GA[model-decimal-slice]: find는 단일 ASCII e/E 시작 바이트를 주므로 index와 index+1은 UTF-8 경계이자 길이 안이다.
     let (mantissa, exponent) = match text.find(['e', 'E']) {
         Some(index) => {
             let exponent = text[index + 1..]
@@ -1985,6 +1997,7 @@ fn unit_scale(unit: Option<&str>) -> Result<BigRational, String> {
     let mut index = 0usize;
     let mut divide = false;
     let mut scale = BigRational::one();
+    // F5-GA[model-unit-char-indices]: 바깥/안쪽 while의 index<len 단락 검사 뒤에만 chars[index]를 읽고, 두 slice는 0<=start<=index<=len이다.
     while index < chars.len() {
         if chars[index] == '*' {
             divide = false;
@@ -2429,6 +2442,7 @@ fn arithmetic_failure(
 }
 
 fn seal_receipt(mut receipt: JsonValue) -> JsonValue {
+    // F5-GA[model-receipt-object]: 제품 호출자는 success/failure의 json! 객체 또는 private 성공 receipt 복제뿐이다. 외부 report를 받는 공개 함수가 아니다.
     let hash = hash_json(&receipt);
     receipt
         .as_object_mut()
@@ -2438,6 +2452,7 @@ fn seal_receipt(mut receipt: JsonValue) -> JsonValue {
 }
 
 fn hash_json(value: &JsonValue) -> String {
+    // F5-GA[model-value-serialization]: JsonValue는 지원되는 JSON 종류/글 key만 가지며 to_string의 Vec writer에 외부 IO·사용자 Serialize가 없다. 할당 실패는 제외한다.
     hash_bytes(
         serde_json::to_string(value)
             .expect("candidate JSON serialization")
@@ -2465,7 +2480,7 @@ mod tests {
   결과 =:= 중간 * 2.
 }.
 실행결과 <- (대상=계산, 들임=(입력: 2@m), 방법=정밀한방법, 내줌=(결과, 입력, 중간)) 풀기.
-(계산값: 실행결과.결과, 입력값: 실행결과.입력) 보임.
+(계산값: 실행결과.결과, 입력값: 실행결과.입력) 내보임.
 "#;
 
     fn explicit_standard_contract(source: &str) -> String {

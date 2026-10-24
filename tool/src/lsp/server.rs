@@ -10,9 +10,7 @@ use super::hover::{hover_snapshot, HoverError};
 use super::position::{ByteRange, LspPosition, LspRange, PositionEncoding};
 use super::protocol::{RpcError, RpcMessage};
 use super::references::SymbolError as ReferencesError;
-use super::rename::{
-    prepare_rename_across_documents, rename_across_documents, SymbolError as RenameError,
-};
+use super::rename::SymbolError as RenameError;
 use super::selection_range::{selection_ranges_snapshot, SelectionRangeError};
 use super::semantic_tokens::{
     semantic_tokens_delta, semantic_tokens_snapshot, SemanticTokensError, SemanticTokensResolution,
@@ -151,6 +149,9 @@ pub struct LspServer {
     documents: DocumentStore,
     semantic_tokens_cache: BTreeMap<String, SemanticTokensResolution>,
     cancelled: BTreeSet<String>,
+    /// The client pulls `textDocument/diagnostic`; pushing the same report
+    /// would show every diagnostic twice in one editor.
+    pull_diagnostics: bool,
 }
 
 impl Default for LspServer {
@@ -167,6 +168,7 @@ impl LspServer {
             documents: DocumentStore::new(),
             semantic_tokens_cache: BTreeMap::new(),
             cancelled: BTreeSet::new(),
+            pull_diagnostics: false,
         }
     }
 
@@ -189,6 +191,60 @@ impl LspServer {
                 self.handle_notification(&method, params)
             }
             RpcMessage::Response { .. } => Err(ServerError::UnexpectedResponse),
+        }
+    }
+
+    /// Transport entry. A message that fails is answered or reported to the
+    /// client instead of ending the session; only `exit` ends the process.
+    /// A document whose edit could not be applied is dropped, so its last
+    /// diagnostics are never shown as the result of the newer text.
+    pub fn handle_message_or_report(&mut self, message: RpcMessage) -> ServerEvent {
+        let (request_id, method, uri) = match &message {
+            RpcMessage::Request { id, method, params } => {
+                (Some(id.clone()), method.clone(), document_uri(params.as_ref()))
+            }
+            RpcMessage::Notification { method, params } => {
+                (None, method.clone(), document_uri(params.as_ref()))
+            }
+            RpcMessage::Response { .. } => return ServerEvent::empty(),
+        };
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.handle_message(message)
+        }));
+        let (code, detail) = match outcome {
+            Ok(Ok(event)) => return event,
+            Ok(Err(ServerError::Exited)) => {
+                return ServerEvent {
+                    responses: Vec::new(),
+                    exit_status: Some(1),
+                }
+            }
+            Ok(Err(error @ ServerError::InvalidParams(_))) => (-32602, error.to_string()),
+            Ok(Err(error)) => (-32603, error.to_string()),
+            Err(panic) => (-32603, format!("서버 내부 오류: {}", panic_text(&panic))),
+        };
+        if let Some(id) = request_id {
+            return error_event(id, RpcError::new(code, detail));
+        }
+        let mut responses = vec![log_message(1, format!("{method}: {detail}"))];
+        if matches!(
+            method.as_str(),
+            "textDocument/didOpen" | "textDocument/didChange"
+        ) {
+            if let Some(uri) = uri {
+                if self.documents.close(&uri).is_ok() {
+                    self.semantic_tokens_cache.remove(&uri);
+                }
+                responses.extend(empty_diagnostics_event(&uri).responses);
+                responses.push(show_message(
+                    2,
+                    "또니랑 언어 서버가 이 문서의 편집을 반영하지 못해 진단을 지웠습니다. 파일을 닫았다 다시 열어 주세요.",
+                ));
+            }
+        }
+        ServerEvent {
+            responses,
+            exit_status: None,
         }
     }
 
@@ -1369,90 +1425,71 @@ impl LspServer {
         id: Value,
         params: Option<Value>,
     ) -> Result<ServerEvent, ServerError> {
-        let params = object_params(params)?;
-        let document = text_document(&params)?;
-        let uri = string_field(document, "uri")?;
-        let position = parse_position(
-            params
-                .get("position")
-                .ok_or_else(|| ServerError::InvalidParams("position이 없습니다".into()))?,
-        )?;
-        let Some(snapshot) = self.documents.get(uri) else {
-            return Ok(success_event(id, Value::Null));
+        let (snapshot, offset) = match self.rename_cursor(&id, params.as_ref())? {
+            Ok(found) => found,
+            Err(event) => return Ok(event),
         };
-        if let Some(requested_version) = document.get("version").and_then(Value::as_i64) {
-            if requested_version != snapshot.version {
-                return Ok(error_event(
-                    id,
-                    RpcError::with_data(
-                        -32801,
-                        "prepare rename document version이 stale합니다",
-                        json!({
-                            "requestedVersion": requested_version,
-                            "currentVersion": snapshot.version,
-                            "snapshotIdentity": snapshot.identity.as_str(),
-                        }),
-                    ),
-                ));
-            }
-        }
-        if let Some(requested_identity) = document.get("snapshotIdentity").and_then(Value::as_str) {
-            if requested_identity != snapshot.identity.as_str() {
-                return Ok(error_event(
-                    id,
-                    RpcError::with_data(
-                        -32802,
-                        "prepare rename snapshot identity가 stale합니다",
-                        json!({
-                            "requestedSnapshotIdentity": requested_identity,
-                            "currentSnapshotIdentity": snapshot.identity.as_str(),
-                        }),
-                    ),
-                ));
-            }
-        }
         let encoding = self.position_encoding.ok_or(ServerError::NotInitialized)?;
-        let documents = self
-            .documents
-            .iter()
-            .map(|(_, document)| document)
-            .collect::<Vec<_>>();
-        let result = prepare_rename_across_documents(snapshot, position, encoding, &documents)
-            .map_err(ServerError::Rename)?;
-        let Some(result) = result else {
-            return Ok(success_event(id, Value::Null));
-        };
-        let source = snapshot.text().map_err(ServerError::Document)?;
-        let range = super::position::byte_range_to_lsp_range(source, result.range, encoding)
-            .map_err(|error| {
-                ServerError::InvalidParams(format!(
-                    "prepare rename range가 잘못되었습니다: {error}"
-                ))
-            })?;
-        let placeholder = result
-            .identity
-            .strip_prefix("definition:local:")
-            .unwrap_or_default();
-        Ok(success_event(
-            id,
-            json!({
-                "range": {
-                    "start": {"line": range.start.line, "character": range.start.character},
-                    "end": {"line": range.end.line, "character": range.end.character},
-                },
-                "placeholder": placeholder,
-                "data": {
-                    "definitionIdentity": result.identity,
-                    "documentVersion": result.document_version,
-                    "snapshotIdentity": result.snapshot_identity,
-                    "sourceProfile": result.source_profile,
-                },
-            }),
-        ))
+        match super::rename::prepare_rename(&snapshot, offset) {
+            Ok(target) => {
+                let source = snapshot.text().map_err(ServerError::Document)?;
+                let range = byte_range_value(source, target.range, encoding)?;
+                Ok(success_event(id, json!({"range": range, "placeholder": target.name})))
+            }
+            Err(refusal) => Ok(rename_refused_event(id, refusal)),
+        }
     }
 
     fn rename(&mut self, id: Value, params: Option<Value>) -> Result<ServerEvent, ServerError> {
-        let params = object_params(params)?;
+        let new_name = params
+            .as_ref()
+            .and_then(|p| p.get("newName"))
+            .and_then(Value::as_str)
+            .ok_or_else(|| ServerError::InvalidParams("newName이 없습니다".into()))?
+            .to_string();
+        let (snapshot, offset) = match self.rename_cursor(&id, params.as_ref())? {
+            Ok(found) => found,
+            Err(event) => return Ok(event),
+        };
+        let encoding = self.position_encoding.ok_or(ServerError::NotInitialized)?;
+        let others: Vec<String> = self
+            .documents
+            .iter()
+            .filter(|(uri, document)| *uri != snapshot.uri && document.language_id == "ddn")
+            .filter_map(|(_, document)| document.text().ok().map(str::to_string))
+            .collect();
+        let other_refs: Vec<&str> = others.iter().map(String::as_str).collect();
+        match super::rename::plan_rename(&snapshot, offset, &new_name, &other_refs) {
+            Ok(plan) => {
+                let source = snapshot.text().map_err(ServerError::Document)?;
+                let edits = plan
+                    .ranges
+                    .iter()
+                    .map(|range| {
+                        Ok(json!({"range": byte_range_value(source, *range, encoding)?, "newText": plan.new_name}))
+                    })
+                    .collect::<Result<Vec<_>, ServerError>>()?;
+                // Versioned edit: the client applies it only to this exact version.
+                Ok(success_event(
+                    id,
+                    json!({"documentChanges": [{
+                        "textDocument": {"uri": snapshot.uri, "version": snapshot.version},
+                        "edits": edits,
+                    }]}),
+                ))
+            }
+            Err(refusal) => Ok(rename_refused_event(id, refusal)),
+        }
+    }
+
+    /// The open snapshot and byte offset of a rename request, or the response
+    /// that ends it (closed document, stale version or identity).
+    fn rename_cursor(
+        &self,
+        id: &Value,
+        params: Option<&Value>,
+    ) -> Result<Result<(super::document_store::DocumentSnapshot, usize), ServerEvent>, ServerError> {
+        let params = object_params(params.cloned())?;
         let document = text_document(&params)?;
         let uri = string_field(document, "uri")?;
         let position = parse_position(
@@ -1460,106 +1497,41 @@ impl LspServer {
                 .get("position")
                 .ok_or_else(|| ServerError::InvalidParams("position이 없습니다".into()))?,
         )?;
-        let new_name = params
-            .get("newName")
-            .and_then(Value::as_str)
-            .ok_or_else(|| ServerError::InvalidParams("newName이 없습니다".into()))?;
         let Some(snapshot) = self.documents.get(uri) else {
-            return Ok(success_event(id, Value::Null));
+            return Ok(Err(rename_refused_event(
+                id.clone(),
+                super::rename::RenameRefusal("이름을 바꿀 수 없습니다: 열려 있는 문서가 아닙니다.".into()),
+            )));
         };
-        if let Some(requested_version) = document.get("version").and_then(Value::as_i64) {
-            if requested_version != snapshot.version {
-                return Ok(error_event(
-                    id,
+        if let Some(requested) = document.get("version").and_then(Value::as_i64) {
+            if requested != snapshot.version {
+                return Ok(Err(error_event(
+                    id.clone(),
                     RpcError::with_data(
                         -32801,
                         "rename document version이 stale합니다",
-                        json!({
-                            "requestedVersion": requested_version,
-                            "currentVersion": snapshot.version,
-                            "snapshotIdentity": snapshot.identity.as_str(),
-                        }),
+                        json!({"requestedVersion": requested, "currentVersion": snapshot.version}),
                     ),
-                ));
+                )));
             }
         }
-        if let Some(requested_identity) = document.get("snapshotIdentity").and_then(Value::as_str) {
-            if requested_identity != snapshot.identity.as_str() {
-                return Ok(error_event(
-                    id,
+        if let Some(requested) = document.get("snapshotIdentity").and_then(Value::as_str) {
+            if requested != snapshot.identity.as_str() {
+                return Ok(Err(error_event(
+                    id.clone(),
                     RpcError::with_data(
                         -32802,
                         "rename snapshot identity가 stale합니다",
-                        json!({
-                            "requestedSnapshotIdentity": requested_identity,
-                            "currentSnapshotIdentity": snapshot.identity.as_str(),
-                        }),
+                        json!({"requestedSnapshotIdentity": requested, "currentSnapshotIdentity": snapshot.identity.as_str()}),
                     ),
-                ));
+                )));
             }
         }
         let encoding = self.position_encoding.ok_or(ServerError::NotInitialized)?;
-        let documents = self
-            .documents
-            .iter()
-            .map(|(_, document)| document)
-            .collect::<Vec<_>>();
-        let result = rename_across_documents(snapshot, position, encoding, new_name, &documents)
-            .map_err(ServerError::Rename)?;
-        let Some(result) = result else {
-            return Ok(success_event(id, Value::Null));
-        };
-        let mut document_changes = Vec::new();
-        let mut document_snapshots = Vec::new();
-        for document in result.documents {
-            let target = self
-                .documents
-                .get(&document.uri)
-                .ok_or_else(|| ServerError::InvalidParams("rename target가 닫혔습니다".into()))?;
-            let source = target.text().map_err(ServerError::Document)?;
-            let edits = document
-                .ranges
-                .into_iter()
-                .map(|range| {
-                    let range = super::position::byte_range_to_lsp_range(source, range, encoding)
-                        .map_err(|error| {
-                        ServerError::InvalidParams(format!(
-                            "rename range가 잘못되었습니다: {error}"
-                        ))
-                    })?;
-                    Ok(json!({
-                        "range": {
-                            "start": {"line": range.start.line, "character": range.start.character},
-                            "end": {"line": range.end.line, "character": range.end.character},
-                        },
-                        "newText": new_name,
-                    }))
-                })
-                .collect::<Result<Vec<_>, ServerError>>()?;
-            document_snapshots.push(json!({
-                "uri": document.uri,
-                "version": document.document_version,
-                "snapshotIdentity": document.snapshot_identity,
-            }));
-            document_changes.push(json!({
-                "textDocument": {
-                    "uri": document.uri,
-                    "version": document.document_version,
-                },
-                "edits": edits,
-            }));
-        }
-        Ok(success_event(
-            id,
-            json!({
-                "documentChanges": document_changes,
-                "data": {
-                    "definitionIdentity": result.identity,
-                    "documents": document_snapshots,
-                    "sourceProfile": result.source_profile,
-                },
-            }),
-        ))
+        let source = snapshot.text().map_err(ServerError::Document)?;
+        let offset = super::position::position_to_byte_offset(source, position, encoding)
+            .map_err(|error| ServerError::InvalidParams(format!("rename position이 잘못되었습니다: {error}")))?;
+        Ok(Ok((snapshot.clone(), offset)))
     }
 
     fn semantic_tokens_full(
@@ -2052,11 +2024,11 @@ impl LspServer {
             "initialized" => Ok(ServerEvent::empty()),
             "textDocument/didOpen" => {
                 let uri = self.did_open(params)?;
-                self.current_diagnostics_event(&uri)
+                self.pushed_diagnostics_event(&uri)
             }
             "textDocument/didChange" => {
                 let uri = self.did_change(params)?;
-                self.current_diagnostics_event(&uri)
+                self.pushed_diagnostics_event(&uri)
             }
             "textDocument/didClose" => {
                 let uri = self.did_close(params)?;
@@ -2075,6 +2047,10 @@ impl LspServer {
         }
         let encoding = negotiate_position_encoding(params.as_ref())?;
         self.position_encoding = Some(encoding);
+        self.pull_diagnostics = params
+            .as_ref()
+            .and_then(|params| params.pointer("/capabilities/textDocument/diagnostic"))
+            .is_some_and(Value::is_object);
         self.state = ServerState::Running;
         Ok(success_event(
             id,
@@ -2093,7 +2069,7 @@ impl LspServer {
                     "documentHighlightProvider": true,
                     "referencesProvider": true,
                     "callHierarchyProvider": true,
-                    "renameProvider": true,
+                    "renameProvider": {"prepareProvider": true},
                     "semanticTokensProvider": {
                         "full": {"delta": true},
                         "legend": {
@@ -2106,8 +2082,8 @@ impl LspServer {
                     "hoverProvider": true,
                     "diagnosticProvider": {
                         "identifier": "ddonirang-v25",
-                        "interFileDependencies": true,
-                        "workspaceDiagnostics": true
+                        "interFileDependencies": false,
+                        "workspaceDiagnostics": false
                     }
                 },
                 "serverInfo": {"name": "ddonirang-lsp0", "version": "0.1"}
@@ -2119,7 +2095,7 @@ impl LspServer {
         let params = object_params(params)?;
         let document = text_document(&params)?;
         let uri = string_field(document, "uri")?;
-        let language_id = string_field(document, "languageId")?;
+        let language_id = source_language_id(uri, string_field(document, "languageId")?);
         let version = integer_field(document, "version")?;
         let text = string_field(document, "text")?;
         self.documents
@@ -2167,6 +2143,13 @@ impl LspServer {
         self.documents.close(uri).map_err(ServerError::Document)?;
         self.semantic_tokens_cache.remove(uri);
         Ok(uri.to_string())
+    }
+
+    fn pushed_diagnostics_event(&self, uri: &str) -> Result<ServerEvent, ServerError> {
+        if self.pull_diagnostics {
+            return Ok(ServerEvent::empty());
+        }
+        self.current_diagnostics_event(uri)
     }
 
     fn current_diagnostics_event(&self, uri: &str) -> Result<ServerEvent, ServerError> {
@@ -2317,9 +2300,58 @@ fn negotiate_position_encoding(params: Option<&Value>) -> Result<PositionEncodin
             }
         }
     }
-    Err(ServerError::InvalidParams(
-        "지원하는 position encoding이 없습니다".into(),
-    ))
+    // Every client supports UTF-16; it is the protocol default.
+    Ok(PositionEncoding::Utf16)
+}
+
+/// Maps the registered editor language id to the document kind the analysis
+/// owners accept. `ddonilang` covers several file kinds, so the exact URI
+/// extension decides; only `.ddn` text is DDN source. Other kinds stay open
+/// but are not analyzed.
+fn source_language_id<'a>(uri: &str, language_id: &'a str) -> &'a str {
+    if language_id != "ddonilang" {
+        return language_id;
+    }
+    let path = uri.split(['?', '#']).next().unwrap_or(uri);
+    let name = path.rsplit('/').next().unwrap_or(path);
+    if name.ends_with(".ddn") {
+        "ddn"
+    } else if name.ends_with(".ddl") || name.ends_with(".%EC%98%AE%EA%B9%80") {
+        "ddl"
+    } else {
+        "unsupported"
+    }
+}
+
+fn document_uri(params: Option<&Value>) -> Option<String> {
+    params?
+        .pointer("/textDocument/uri")?
+        .as_str()
+        .map(str::to_string)
+}
+
+fn panic_text(panic: &Box<dyn std::any::Any + Send>) -> String {
+    if let Some(text) = panic.downcast_ref::<&str>() {
+        (*text).to_string()
+    } else if let Some(text) = panic.downcast_ref::<String>() {
+        text.clone()
+    } else {
+        "알 수 없는 오류".to_string()
+    }
+}
+
+fn log_message(kind: u8, message: String) -> RpcMessage {
+    RpcMessage::Notification {
+        method: "window/logMessage".into(),
+        params: Some(json!({"type": kind, "message": message})),
+    }
+}
+
+fn show_message(kind: u8, message: &str) -> RpcMessage {
+    RpcMessage::Notification {
+        method: "window/showMessage".into(),
+        params: Some(json!({"type": kind, "message": message})),
+    }
 }
 
 fn object_params(params: Option<Value>) -> Result<serde_json::Map<String, Value>, ServerError> {
@@ -2429,6 +2461,20 @@ fn parse_position(value: &Value) -> Result<LspPosition, ServerError> {
 
 fn request_key(id: &Value) -> String {
     id.to_string()
+}
+
+/// A refused rename: LSP RequestFailed, whose message the client shows.
+fn rename_refused_event(id: Value, refusal: super::rename::RenameRefusal) -> ServerEvent {
+    error_event(id, RpcError::new(-32803, refusal.0))
+}
+
+fn byte_range_value(source: &str, range: ByteRange, encoding: PositionEncoding) -> Result<Value, ServerError> {
+    let range = super::position::byte_range_to_lsp_range(source, range, encoding)
+        .map_err(|error| ServerError::InvalidParams(format!("rename range가 잘못되었습니다: {error}")))?;
+    Ok(json!({
+        "start": {"line": range.start.line, "character": range.start.character},
+        "end": {"line": range.end.line, "character": range.end.character},
+    }))
 }
 
 fn success_event(id: Value, result: Value) -> ServerEvent {

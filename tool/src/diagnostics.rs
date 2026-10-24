@@ -61,11 +61,14 @@ pub fn analyze_snapshot(
                 range,
             });
         } else if let Err(error) = parse_v25(source, &snapshot.uri) {
-            let range = diagnostic_range(source, error.span.start, error.span.end, encoding)?;
+            // Share the CLI formatter without changing the parser code or UTF-8 span.
+            let message = crate::ddn_runtime::format_parse_error(source, &error);
+            let span = crate::source_analysis::formatted_error_span(source, &message);
+            let range = diagnostic_range(source, span.start, span.end, encoding)?;
             diagnostics.push(Diagnostic {
                 code: error.code().to_string(),
                 severity: DIAGNOSTIC_SEVERITY_ERROR,
-                message: error.message,
+                message,
                 range,
             });
         }

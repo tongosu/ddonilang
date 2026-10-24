@@ -131,6 +131,7 @@ impl ByteSequence {
         if frame.len() != expected {
             return Err(BytesError::Length);
         }
+        // F5-GA[BYTES-PAYLOAD]: checked_add로 만든 expected==len이며 length>=0이므로 HEADER_LENGTH<=len이다.
         Ok(&frame[HEADER_LENGTH..])
     }
 
@@ -147,6 +148,7 @@ impl ByteSequence {
         const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
         let frame = self.storage_frame();
         let mut out = String::new();
+        // F5-GA[BYTES-BASE64]: chunks(3)은 비어 있지 않고 u8 비트 분할의 모든 첨자는 64글자 표 안에 있다.
         for chunk in frame.chunks(3) {
             let a = chunk[0];
             let b = chunk.get(1).copied().unwrap_or(0);

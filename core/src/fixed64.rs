@@ -213,6 +213,7 @@ impl Fixed64 {
         let a = Fixed64::from_raw_i64(0x0000_0001_0000_0000); // 1.0
         let b = Fixed64::from_raw_i64(0x0000_0000_8000_0000); // 0.5
         let c = Fixed64::NEG_ONE; // -1.0
+        // F5-GA[FIXED-VECTOR]: 두 try_div의 분모는 이 함수가 직접 만든 0이 아닌 1과 0.5이며 결과도 표현 범위 안이다.
         [
             (a + b).raw_i64(),
             (a - b).raw_i64(),
@@ -343,6 +344,7 @@ fn parse_decimal_raw_checked(input: &str) -> Option<(i64, bool)> {
             integer_digits.extend_from_slice(&digits);
             integer_digits.resize(point, b'0');
         } else {
+            // F5-GA[DECIMAL-SPLIT]: 양수 point<digits.len인 이 분기에서만 같은 바이트 Vec을 앞뒤로 나눈다.
             integer_digits.extend_from_slice(&digits[..point]);
             fractional_digits.extend_from_slice(&digits[point..]);
         }

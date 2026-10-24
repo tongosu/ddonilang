@@ -2,7 +2,7 @@
   "source_profile": "v1-core-v25-logical-alpha2",
   "input_schema": "alpha2.tetris.controls@1",
   "channel_registry": "alpha2.tetris.channels@1",
-  "source_revision": "sha256:9dffaa03034ef0a8f9f5d11fad88d677bf6ba3e4d0cfc02f5e6b7c3511c813ad",
+  "source_revision": "sha256:30053194cbf5b46cefc0cc177304a427a2fbd74a74a347ec2b4cb3c6f9f2febf",
   "initial_world": "blake3:352bd266dae53c6e6a29244011cfa029813d0ab8434b2a2b830a487d882832ba",
   "initial_rng": 7,
   "recording_policy": "alpha2.tetris.recording@1",
@@ -10,19 +10,19 @@
   "madi_hz": 60,
   "dt_raw": 4294967296,
   "channels": {
-    "왼쪽": "Control",
-    "오른쪽": "Control",
-    "아래": "Control",
-    "회전": "Control",
+    "다시시작": "Control",
     "떨어뜨리기": "Control",
-    "다시시작": "Control"
+    "아래": "Control",
+    "오른쪽": "Control",
+    "왼쪽": "Control",
+    "회전": "Control"
   },
   "initial_held": {
-    "왼쪽": false,
-    "오른쪽": false,
-    "아래": false,
-    "회전": false,
+    "다시시작": false,
     "떨어뜨리기": false,
-    "다시시작": false
+    "아래": false,
+    "오른쪽": false,
+    "왼쪽": false,
+    "회전": false
   }
 }

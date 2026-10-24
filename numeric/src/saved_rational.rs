@@ -71,6 +71,7 @@ fn read_length(bytes:&[u8],at:usize)->Result<usize,SavedRationalError> {
 fn parse_parts(bytes:&[u8])->Result<Parts<'_>,SavedRationalError> {
     // Bounded metadata only, no magnitude traversal/allocation before charge.
     if bytes.len()<42 {return Err(SavedRationalError::Invalid);}
+    // F5-GA[RATIONAL-SIGN]: 최소 42바이트 검사를 지난 같은 slice의 25번째 값이다.
     let sign=bytes[25];let nlen=read_length(bytes,26)?;
     let nend=34usize.checked_add(nlen).ok_or(SavedRationalError::LimitExceeded)?;
     let dlen=read_length(bytes,nend)?;
@@ -104,6 +105,7 @@ fn strip_twos(value:&mut Vec<u8>,mut work:Pin<&mut SavedRationalValidationContex
     }
     if shift==0 {return Ok(0);}
     charge_scale(work.as_mut(),Primitive::Shift,original,2,1)?;
+    // F5-GA[RATIONAL-STRIP]: 비공개 호출자는 정본의 0 아닌 크기만 준다. 빈 Vec은 shift==0에서 이미 반환한다.
     let old_bits=8*(original-1)+(8-value[0].leading_zeros() as usize);
     let new_length=(old_bits-shift+7)/8;
     value.truncate(original-shift/8);
@@ -120,6 +122,7 @@ fn subtract(a:&mut Vec<u8>,b:&[u8],mut work:Pin<&mut SavedRationalValidationCont
     let length=a.len();charge_scale(work.as_mut(),Primitive::Subtract,length,3,1)?;
     let mut borrow=0i16;
     for index in 0..length {
+        // F5-GA[RATIONAL-SUBTRACT]: index<고정 length, b 첨자는 양수 index+1의 checked_sub 성공 안에서만 만든다.
         let ai=length-1-index;
         let other=b.len().checked_sub(index+1).map(|i|b[i] as i16).unwrap_or(0);
         let value=a[ai] as i16-other-borrow;
@@ -138,6 +141,7 @@ fn coprime(n:&[u8],d:&[u8],mut work:Pin<&mut SavedRationalValidationContextV1>)-
     let sa=strip_twos(&mut a,work.as_mut())?;
     let sb=strip_twos(&mut b,work.as_mut())?;
     if sa!=0&&sb!=0 {return Err(SavedRationalError::NonCanonical);}
+    // F5-GA[RATIONAL-BITS]: validate의 minimal 검사와 위의 빈 분자 반환 뒤 원래 n/d만 받으므로 둘 다 비어 있지 않다.
     let bit_length=|v:&[u8]|8*(v.len()-1)+8-v[0].leading_zeros() as usize;
     let invariant=2*(bit_length(n)+bit_length(d))+4;
     let mut iterations=0;
@@ -167,6 +171,7 @@ fn write_frame(sign:u8,n:&[u8],d:&[u8],mut write:impl FnMut(&[u8])) {
 fn validate(bytes:&[u8],parts:&Parts<'_>,mut work:Pin<&mut SavedRationalValidationContextV1>)->Result<(),SavedRationalError> {
     work.as_mut().charge(Primitive::Inspect,parts.length)?;
     if bytes.get(..25)!=Some(HEADER) {return Err(SavedRationalError::Invalid);}
+    // F5-GA[RATIONAL-MINIMAL]: 같은 불변 slice가 비어 있지 않을 때만 [0]을 읽는 단락 평가다.
     let minimal=|value:&[u8]|!value.is_empty()&&value[0]!=0;
     if !minimal(parts.d) || !matches!((parts.sign,parts.n.is_empty()),(0,true)|(1|2,false))
         || (!parts.n.is_empty()&&!minimal(parts.n)) {return Err(SavedRationalError::NonCanonical);}

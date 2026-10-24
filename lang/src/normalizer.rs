@@ -521,7 +521,7 @@ impl Normalizer {
                     self.write(": ");
                     self.normalize_expr(&field.value);
                 }
-                self.write(") 보임");
+                self.write(") 내보임");
                 self.write_stmt_terminator(stmt);
             }
             Stmt::MetaBlock { kind, entries, .. } => {
