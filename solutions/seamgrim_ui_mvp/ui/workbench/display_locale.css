@@ -1,0 +1,8 @@
+.display-language-settings { position: relative; margin-left: auto; font-size: 0.8rem; }
+.display-language-settings summary { cursor: pointer; white-space: nowrap; }
+.display-language-panel { position: absolute; right: 0; top: 100%; z-index: 60;
+  width: min(310px, calc(100vw - 24px)); padding: 12px; background: var(--panel);
+  color: var(--ink); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 16px #0002; }
+.display-language-panel p { white-space: normal; line-height: 1.5; margin-bottom: 0; }
+.display-language-panel select { font: inherit; max-width: 100%; padding: 4px; }
+[data-testid="display-language-notice"] { color: var(--red); }

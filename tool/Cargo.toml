@@ -28,6 +28,8 @@ default = ["internal-tools"]
 internal-tools = []
 # Owner D10/G1-B: retained development paths, excluded from alpha builds.
 beta-project-features = []
+# WO27 V2-01: existing shared-module lifecycle only, not models/datasets.
+v2-shared-modules = []
 # WO22 development-only probe; never enable in a delivered product archive.
 beta2-crash-probe = []
 wasm = ["wasm-bindgen", "js-sys", "web-sys"]

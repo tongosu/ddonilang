@@ -1,0 +1,42 @@
+#!/usr/bin/env python
+from __future__ import annotations
+
+from pathlib import Path
+
+from run_proof_family_contract_selftest import CHECKS_TEXT
+
+
+README_PATH = Path("tests/proof_family/README.md")
+REQUIRED_SNIPPETS = (
+    "## Stable Bundle Contract",
+    "bundle `checks_text`:",
+    "`ddn.ci.proof_family_contract_selftest.progress.v1`",
+    "`proof_family_contract_selftest`",
+    "`proof_family_contract_summary_selftest`",
+    "`python tests/run_proof_family_contract_selftest.py`",
+    "`python tests/run_proof_family_contract_summary_selftest.py`",
+    "ci_sanity_gate stdout",
+    "*.progress.detjson",
+)
+
+
+def fail(msg: str) -> int:
+    print(f"[proof-family-contract-summary-selftest] fail: {msg}")
+    return 1
+
+
+def main() -> int:
+    if not README_PATH.exists():
+        return fail(f"missing readme: {README_PATH}")
+    text = README_PATH.read_text(encoding="utf-8")
+    for snippet in REQUIRED_SNIPPETS:
+        if snippet not in text:
+            return fail(f"missing snippet: {snippet}")
+    if CHECKS_TEXT not in text:
+        return fail(f"missing checks_text csv: {CHECKS_TEXT}")
+    print("[proof-family-contract-summary-selftest] ok")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

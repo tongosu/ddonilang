@@ -126,12 +126,14 @@ function completionOffset(source, position) {
 function closeCompletionPopup() {
   state.completionGeneration += 1;
   state.completionItems = [];
+  state.completionContext = null;
   state.completionSelectedIndex = 0;
   if (els.completionPopup) {
     els.completionPopup.hidden = true;
     els.completionPopup.replaceChildren();
   }
   els.sourceEditor?.removeAttribute("aria-activedescendant");
+  els.sourceEditor?.setAttribute("aria-expanded", "false");
 }
 
 function renderCompletionPopup() {
@@ -143,6 +145,7 @@ function renderCompletionPopup() {
   }
   popup.replaceChildren();
   popup.hidden = false;
+  els.sourceEditor.setAttribute("aria-expanded", "true");
   state.completionItems.forEach((item, index) => {
     const option = document.createElement("button");
     option.type = "button";
@@ -162,11 +165,24 @@ function renderCompletionPopup() {
     popup.appendChild(option);
   });
   els.sourceEditor.setAttribute("aria-activedescendant", `completion-option-${state.completionSelectedIndex}`);
+  const editor = els.sourceEditor.getBoundingClientRect();
+  const box = popup.getBoundingClientRect();
+  popup.style.left = `${Math.max(8, Math.min(editor.right - box.width - 8, window.innerWidth - box.width - 8))}px`;
+  popup.style.top = `${Math.max(8, Math.min(editor.bottom - box.height - 8, window.innerHeight - box.height - 8))}px`;
 }
 
 function selectCompletion(index = state.completionSelectedIndex) {
   const item = state.completionItems[index];
-  if (!item) return;
+  const context = state.completionContext;
+  if (!item || state.completionComposing || !context
+      || context.projectId !== state.projectId || context.filePath !== state.activeFilePath
+      || context.version !== state.completionDocumentVersion
+      || context.source !== els.sourceEditor.value
+      || context.cursor !== els.sourceEditor.selectionStart
+      || context.cursor !== els.sourceEditor.selectionEnd) {
+    closeCompletionPopup();
+    return;
+  }
   const source = els.sourceEditor.value;
   const start = completionOffset(source, item.replacement_range?.start);
   const end = completionOffset(source, item.replacement_range?.end);
@@ -185,7 +201,7 @@ function selectCompletion(index = state.completionSelectedIndex) {
 async function requestCompletion() {
   const file = activeFile();
   const source = els.sourceEditor?.value ?? "";
-  if (!file?.path?.endsWith(".ddn") || els.sourceEditor?.readOnly
+  if (state.completionComposing || !file?.path?.endsWith(".ddn") || els.sourceEditor?.readOnly
       || document.activeElement !== els.sourceEditor) {
     closeCompletionPopup();
     return;
@@ -210,10 +226,14 @@ async function requestCompletion() {
     || filePath !== state.activeFilePath
     || document.activeElement !== els.sourceEditor
     || version !== state.completionDocumentVersion
+    || state.completionComposing
+    || cursor !== els.sourceEditor.selectionStart
+    || cursor !== els.sourceEditor.selectionEnd
     || source !== els.sourceEditor.value
     || !result
   ) return;
-  state.completionItems = Array.isArray(result.candidates) ? result.candidates : [];
+  state.completionContext = { projectId, filePath, version, source, cursor };
+  state.completionItems = Array.isArray(result.candidates) ? result.candidates.slice(0, 6) : [];
   state.completionSelectedIndex = 0;
   renderCompletionPopup();
 }
@@ -235,8 +255,10 @@ function renderFirstSteps(project) {
   const row = project.course;
   if (row) {
     const documents=panel.querySelectorAll('.first-steps-documents a');
-    documents[0].href=row.asset_root ? `${row.asset_root}${row.student_pdf ?? '학생용_첫걸음_11-16차시.pdf'}` : '../../first_steps/학생용_첫걸음_10차시.pdf';
-    documents[1].href=row.asset_root ? `${row.asset_root}${row.teacher_pdf ?? '교사용_안내와_해답.pdf'}` : '../../first_steps/교사용_안내와_해답.pdf';
+    documents[0].href=row.asset_root ? `${row.asset_root}${row.student_doc ?? row.student_pdf ?? '학생용_첫걸음_11-16차시.pdf'}` : '../../first_steps/학생용_첫걸음_10차시.pdf';
+    documents[1].href=row.asset_root ? `${row.asset_root}${row.teacher_doc ?? row.teacher_pdf ?? '교사용_안내와_해답.pdf'}` : '../../first_steps/교사용_안내와_해답.pdf';
+    documents[0].textContent=row.student_doc ? '학생용 안내' : '학생용 안내 PDF';
+    documents[1].textContent=row.teacher_doc ? '교사용 안내·해답' : '교사용 안내·해답 PDF';
   }
   guide.classList.toggle("hidden", !row);
   if (!row) {

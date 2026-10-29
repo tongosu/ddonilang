@@ -45,14 +45,16 @@ impl NativeLogicalSourceWorldExecution {
     pub(crate) fn prepare(self,revision:&[u8])->Result<NativeLogicalSourceWorldPrepared,String>{
         let parent=self.session.permit.source().revision();
         self.session.permit.verify_before_world(&self.session.adapter).map_err(reject)?;
-        let artifact=self.run.export_saved_artifact(parent,revision).map_err(reject)?;
+        let artifact={let _timing=crate::storage_observation::Span::start("first.serialize_attachment");self.run.export_saved_artifact(parent,revision).map_err(reject)?};
         let checked=attachment::check_bytes(artifact.as_bytes())?;
         let context=attachment::check_saved_revision_context(&checked,&self.owned,parent,revision)?;
-        let request=ActualPreparedRequestV1::from_logical(&self.run,&context,parent,revision).map_err(reject)?;
-        self.session.permit.check_actual_world_request(&self.session.adapter,&context,&request).map_err(reject)?;
+        let produced={let _timing=crate::storage_observation::Span::start("first.serialize_hash_request");crate::snapshot_v2_durable_transaction::PreparedLogicalRequestBorrowV1::from_run(&self.run,&context,parent,revision).map_err(reject)?};
+        let request=produced.request();
+        {let _timing=crate::storage_observation::Span::start("first.verify_request");self.session.permit.check_actual_world_request(&self.session.adapter,&context,&request).map_err(reject)?;}
         let scope=self.session.permit.replay_archive_scope(&self.session.adapter).map_err(reject)?;
-        let plan=crate::replay_evidence::PlannedFirstReplayCheckpointV1::from_source_prepare(
-            &self.run,self.session.permit.source(),&request,&context,&self.session.adapter,scope)?;
+        let plan={let _timing=crate::storage_observation::Span::start("first.plan_replay");crate::replay_evidence::PlannedFirstReplayCheckpointV1::from_produced_source_prepare(
+            &produced,self.session.permit.source(),&context,&self.session.adapter,scope)?};
+        let request=produced.into_request();
         Ok(NativeLogicalSourceWorldPrepared{execution:self,artifact,request,_replay_plan:plan})
     }
 }
@@ -72,12 +74,12 @@ impl NativeLogicalSourceWorldPrepared {
         #[cfg(feature="beta2-crash-probe")]
         crate::snapshot_v2_durable_transaction::native::crash_probe::capture_candidate(
             &artifact,&run.session().summary(),&JsonValue::Null)?;
-        let (replay_row,replay_pending)=_replay_plan.begin_pending(&mut session.adapter)?;
-        let start=session.permit.start_first_world_from_saved_source(&session.adapter,&context,request).map_err(reject)?;
-        let prepared=session.adapter.write_first_source_world_prepared(start,&context).map_err(reject)?;
-        let retained=prepared.commit_with_replay(&session.adapter,&context,&_replay_plan,&replay_row)?;
+        let (replay_row,replay_pending)={let _timing=crate::storage_observation::Span::start("first.replay_pending");_replay_plan.begin_pending(&mut session.adapter)?};
+        let start={let _timing=crate::storage_observation::Span::start("first.start_protected_attempt");session.permit.start_first_world_from_saved_source(&session.adapter,&context,request).map_err(reject)?};
+        let prepared={let _timing=crate::storage_observation::Span::start("first.write_prepared");session.adapter.write_first_source_world_prepared(start,&context).map_err(reject)?};
+        let retained={let _timing=crate::storage_observation::Span::start("first.commit_verify_and_publish");prepared.commit_with_replay(&session.adapter,&context,&_replay_plan,&replay_row)?};
         if let Some(cause)=retained.outcome().failure(){return Err(format!("E_SOURCE_LOGICAL_WORLD_NOT_COMMITTED: {cause:?}"));}
-        _replay_plan.complete_ready(&mut session.adapter,&replay_row,replay_pending,&retained,&context)?;
+        {let _timing=crate::storage_observation::Span::start("first.replay_ready");_replay_plan.complete_ready(&mut session.adapter,&replay_row,replay_pending,&retained,&context)?;}
         Ok((artifact,run.session().summary()))
     }
 }
@@ -89,6 +91,15 @@ pub(crate) fn resume_logical_source_world(
     input:&LogicalRecordRequest,
     source_owner:Option<&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1>,
 )->Result<JsonValue,String>{
+    resume_logical_source_world_with_result(artifact,parent,revision,root,locator,input,source_owner,None).map(|v|v.0)
+}
+
+pub(crate) fn resume_logical_source_world_with_result(
+    artifact:&str,parent:&[u8],revision:&[u8],root:&std::path::Path,locator:&str,
+    input:&LogicalRecordRequest,
+    source_owner:Option<&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1>,
+    result_for_count:Option<usize>,
+)->Result<(JsonValue,Option<Result<JsonValue,String>>),String>{
     use crate::storage_observation::Span;
     let _total=Span::start("logical.resume_total");
     let mut adapter={let _phase=Span::start("logical.db_open");
@@ -108,7 +119,17 @@ pub(crate) fn resume_logical_source_world(
         CheckpointedLogicalRunV1::restore_native_source_checkpoint(&adapter,&admitted,&context,&input.binding).map_err(reject)?};
     {let _phase=Span::start("logical.input_suffix");for snapshot in &input.snapshots {run.step(snapshot)?;}}
     let summary={let _phase=Span::start("logical.summary");run.session().summary()};
-    Ok(summary)
+    // Only the empty resave suffix uses this result. Preserve the host's
+    // prefix/state/error ordering by returning a deferred fallible result.
+    let result=if result_for_count.and_then(|n|u64::try_from(n).ok())==summary["madi_count"].as_u64() && result_for_count.is_some(){
+        let _phase=Span::start("logical.resave_result_session_reuse");
+        Some((||{
+            let owner=crate::unit_wire::resumable_complete_state::NativeRecordingProgressOwnerV1::from_restored_checkpoint(
+                &adapter,&admitted,&context,&input.binding,run)?;
+            Ok(serde_json::json!({"result_identity":owner.result_identity(&adapter)?}))
+        })())
+    }else{None};
+    Ok((summary,result))
 }
 
 /// A follow-up logical W retains the exact previous input and receipt prefix.
@@ -484,5 +505,40 @@ mod tests {
         assert_eq!(verified["result_identity"],continuous_result.digest_label());
         let mut wrong=initial.binding.clone();wrong.initial_rng^=1;
         assert!(verify_native_logical_current_receipt(&next,&[2],&[3],&root,locator,&wrong).is_err());
+    }
+}
+
+#[cfg(all(test,windows))]
+mod prepared_request_borrow_tests {
+    use super::*;
+    #[test]
+    fn first_prepared_request_borrow_is_exact_and_rejects_other_revision() {
+        let (root,_,saved)=super::super::tests::fixture("실행:움직씨 := { (매마디)마다 { 7 보여주기. }. }.");
+        let locator=saved.grant_locator.as_deref().unwrap();
+        let initial=crate::runtime_surface::begin_first_authored_source_native(&root,&saved.project_identity,locator,
+            &saved.revision_identity,&saved.revision_integrity).unwrap();
+        let owned=initial.permit.source().recorded_execution_owner().unwrap();
+        let mut input:LogicalRecordRequest=serde_json::from_str(include_str!("../../../../solutions/seamgrim_ui_mvp/samples/beta1_logical_tetris/initial-input.json")).unwrap();
+        input.binding.source_revision=crate::runtime_surface::sha256_identity(owned.sources().preparation().source.as_bytes());
+        input.snapshots.truncate(1);
+        let execution=initial.execute_logical(&input).unwrap();
+        let parent=execution.session.permit.source().revision();
+        let artifact=execution.run.export_saved_artifact(parent,&[2]).unwrap();
+        let checked=attachment::check_bytes(artifact.as_bytes()).unwrap();
+        let context=attachment::check_saved_revision_context(&checked,&execution.owned,parent,&[2]).unwrap();
+        let produced=crate::snapshot_v2_durable_transaction::PreparedLogicalRequestBorrowV1::from_run(&execution.run,&context,parent,&[2]).unwrap();
+        let original=ActualPreparedRequestV1::from_logical(&execution.run,&context,parent,&[2]).unwrap();
+        assert_eq!(produced.request().raw(),original.raw(),"actual encoder bytes must remain identical");
+        let source=execution.session.permit.source();let adapter=&execution.session.adapter;
+        crate::replay_evidence::PlannedFirstReplayCheckpointV1::from_source_prepare(&execution.run,source,&original,&context,adapter,
+            execution.session.permit.replay_archive_scope(adapter).unwrap()).unwrap();
+        crate::replay_evidence::PlannedFirstReplayCheckpointV1::from_produced_source_prepare(&produced,source,&context,adapter,
+            execution.session.permit.replay_archive_scope(adapter).unwrap()).unwrap();
+        let foreign=execution.run.export_saved_artifact(parent,&[3]).unwrap();
+        let foreign_checked=attachment::check_bytes(foreign.as_bytes()).unwrap();
+        let foreign_context=attachment::check_saved_revision_context(&foreign_checked,&execution.owned,parent,&[3]).unwrap();
+        assert!(crate::replay_evidence::PlannedFirstReplayCheckpointV1::from_produced_source_prepare(&produced,source,&foreign_context,adapter,
+            execution.session.permit.replay_archive_scope(adapter).unwrap()).is_err());
+        assert_eq!(produced.into_request().raw(),original.raw());
     }
 }

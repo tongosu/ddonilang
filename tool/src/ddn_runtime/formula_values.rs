@@ -24,6 +24,8 @@ use super::{EvalError, checked_unit_mul, checked_unit_add, checked_unit_sub, uni
 pub(super) struct ParsedFormula {
     pub(super) expr: FormulaExpr,
     pub(super) vars: BTreeSet<String>,
+    // Original decimal spellings in left-to-right AST leaf order.
+    exact_literals: Vec<String>,
 }
 
 #[derive(Default)]
@@ -70,7 +72,7 @@ pub(super) enum FormulaOp {
 
 #[derive(Debug, Clone)]
 enum FormulaToken {
-    Number(Fixed64),
+    Number(Fixed64, String),
     Ident(String),
     Plus,
     Minus,
@@ -89,6 +91,7 @@ struct FormulaParser {
     pos: usize,
     dialect: FormulaDialect,
     vars: BTreeSet<String>,
+    exact_literals: Vec<String>,
 }
 
 impl FormulaParser {
@@ -98,6 +101,7 @@ impl FormulaParser {
             pos: 0,
             dialect,
             vars: BTreeSet::new(),
+            exact_literals: Vec::new(),
         }
     }
 
@@ -207,10 +211,10 @@ impl FormulaParser {
             return Err(EvalError::Message("FATAL:FORMULA_SYNTAX".to_string()));
         };
         match token {
-            FormulaToken::Number(value) => Ok(FormulaExpr::Number(UnitValue {
-                value,
-                dim: UnitDim::NONE,
-            })),
+            FormulaToken::Number(value, raw) => {
+                self.exact_literals.push(raw);
+                Ok(FormulaExpr::Number(UnitValue { value, dim: UnitDim::NONE }))
+            },
             FormulaToken::Ident(name) => {
                 if self.consume(&FormulaToken::LParen) {
                     if self.consume(&FormulaToken::RParen) {
@@ -269,7 +273,7 @@ impl FormulaParser {
     fn next_starts_factor(&self) -> bool {
         matches!(
             self.peek(),
-            Some(FormulaToken::Number(_))
+            Some(FormulaToken::Number(..))
                 | Some(FormulaToken::Ident(_))
                 | Some(FormulaToken::LParen)
         )
@@ -313,6 +317,7 @@ pub(super) fn parse_formula_value(formula: &Formula) -> Result<ParsedFormula, Ev
     Ok(ParsedFormula {
         expr,
         vars: parser.vars,
+        exact_literals: parser.exact_literals,
     })
 }
 
@@ -1535,7 +1540,7 @@ fn tokenize_formula(body: &str, dialect: &FormulaDialect) -> Result<Vec<FormulaT
                 }
                 let value = Fixed64::parse_decimal(&raw)
                     .ok_or_else(|| EvalError::Message("FATAL:FORMULA_TOKEN_INVALID".to_string()))?;
-                tokens.push(FormulaToken::Number(value));
+                tokens.push(FormulaToken::Number(value, raw));
             }
             'a'..='z' | 'A'..='Z' => {
                 let ident = read_formula_ident(&mut chars, dialect)?;
@@ -2159,5 +2164,105 @@ mod remainder_panic_regression {
             assert!(matches!(result, Err(EvalError::Message(ref text))
                 if text == "FATAL:FORMULA_MOD_ZERO"));
         }
+    }
+}
+
+
+// Called only with an admitted rational evaluation context. This does not
+// change UnitValue evaluation used by numerical analysis. The common lexer
+// and parser retain decimal spelling; no rounded Fixed64 is reverse-cast.
+pub(super) fn eval_formula_exact(
+    parsed: &ParsedFormula,
+    env: &BTreeMap<String, Value>,
+) -> Result<Value, EvalError> {
+    use num_bigint::BigInt;
+    use num_rational::BigRational;
+    use num_traits::Zero;
+    fn visit(expr: &FormulaExpr, env: &BTreeMap<String, Value>,
+        literals: &mut std::slice::Iter<'_, String>) -> Result<BigRational, EvalError> {
+        match expr {
+            FormulaExpr::Number(_) => {
+                let raw=literals.next().ok_or_else(||EvalError::from("정확 수식 상수 결속이 없습니다".to_string()))?;
+                let (whole,fraction)=raw.split_once('.').unwrap_or((raw.as_str(),""));
+                let numerator=BigInt::parse_bytes(format!("{whole}{fraction}").as_bytes(),10)
+                    .ok_or_else(||EvalError::from("정확 수식 상수를 읽을 수 없습니다".to_string()))?;
+                let digits=u32::try_from(fraction.len()).map_err(|_|EvalError::from("정확 수식 상수가 너무 깁니다".to_string()))?;
+                Ok(BigRational::new(numerator,BigInt::from(10).pow(digits)))
+            }
+            FormulaExpr::Var(name) => {
+                let value=env.get(name).ok_or_else(||EvalError::from(format!("풀기: 키 '{name}'가 없습니다")))?;
+                // Only exact carriers enter this path. Approximate inputs are
+                // never widened based on their runtime numeric appearance.
+                if matches!(value,Value::Fixed64(_) | Value::Unit(_)) {
+                    return Err("정확 수식에는 형식이 공급된 정확수 입력이 필요합니다".to_string().into());
+                }
+                exact_numeric_from_value(value)?.map(|exact|exact.value)
+                    .ok_or_else(||EvalError::from("정확 수식에는 정확수 입력이 필요합니다".to_string()))
+            }
+            FormulaExpr::Unary {op,expr} => {
+                let value=visit(expr,env,literals)?;
+                match op {FormulaOp::Sub=>Ok(-value),FormulaOp::Add=>Ok(value),
+                    _=>Err("정확 수식에서 지원하지 않는 단항 연산입니다".to_string().into())}
+            }
+            FormulaExpr::Binary {op,left,right} => {
+                let left=visit(left,env,literals)?;
+                let right=visit(right,env,literals)?;
+                match op {
+                    FormulaOp::Add=>Ok(left+right), FormulaOp::Sub=>Ok(left-right),
+                    FormulaOp::Mul=>Ok(left*right),
+                    FormulaOp::Div if right.is_zero()=>Err("0으로 나눌 수 없습니다".to_string().into()),
+                    FormulaOp::Div=>Ok(left/right),
+                    _=>Err("정확 수식에서 지원하지 않는 연산입니다".to_string().into()),
+                }
+            }
+            FormulaExpr::Func {..}=>Err("정확 수식에서 지원하지 않는 함수입니다".to_string().into()),
+        }
+    }
+    let mut literals=parsed.exact_literals.iter();
+    let value=visit(&parsed.expr,env,&mut literals)?;
+    if literals.next().is_some() {return Err("정확 수식 상수 결속이 남았습니다".to_string().into());}
+    Ok(super::make_rational_pack_from_big_rational(&value))
+}
+
+#[cfg(test)]
+mod exact_formula_regression {
+    use super::*;
+    fn evaluate(raw: &str) -> Result<Value,EvalError> {
+        let parsed=parse_formula_value(&Formula {raw:raw.into(),dialect:FormulaDialect::Ascii,explicit_tag:false})?;
+        eval_formula_exact(&parsed,&BTreeMap::new())
+    }
+    #[test]
+    fn decimal_and_fraction_constants_remain_exact() {
+        for raw in ["2/6-1/3", "0.1+0.2-0.3", "3*(1/3)-1", "-(1/3)+2/6"] {
+            let value=evaluate(raw).unwrap();
+            let exact=exact_numeric_from_value(&value).unwrap().unwrap();
+            assert_eq!(exact.value.numer().to_string(),"0", "{raw}");
+            assert_eq!(exact.value.denom().to_string(),"1", "{raw}");
+        }
+    }
+    #[test]
+    fn zero_divisor_and_unsupported_operations_do_not_succeed() {
+        assert!(evaluate("1/(1-1)").is_err());
+        assert!(evaluate("1%2").is_err());
+        assert!(evaluate("sin(1)").is_err());
+    }
+
+    #[test]
+    fn injected_fraction_keeps_its_denominator_and_wrong_answer_stays_wrong() {
+        let parsed=parse_formula_value(&Formula {
+            raw:"3*x-1".into(), dialect:FormulaDialect::Ascii, explicit_tag:false,
+        }).unwrap();
+        for (answer, numerator, denominator) in [("1/3","0","1"),("1/2","1","2")] {
+            let env=BTreeMap::from([("x".to_string(),evaluate(answer).unwrap())]);
+            let value=eval_formula_exact(&parsed,&env).unwrap();
+            let exact=exact_numeric_from_value(&value).unwrap().unwrap();
+            assert_eq!(exact.value.numer().to_string(),numerator);
+            assert_eq!(exact.value.denom().to_string(),denominator);
+        }
+        // A missing input or an approximate carrier cannot manufacture an
+        // exact input merely because its current bits look like an integer.
+        assert!(eval_formula_exact(&parsed,&BTreeMap::new()).is_err());
+        let approximate=BTreeMap::from([("x".to_string(),Value::Fixed64(Fixed64::from_i64(1)))]);
+        assert!(eval_formula_exact(&parsed,&approximate).is_err());
     }
 }

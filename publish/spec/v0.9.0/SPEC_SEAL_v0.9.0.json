@@ -1,0 +1,11 @@
+{
+  "status": "LOCAL_DOC_CURRENT_ACTIVE_ONLY_WHEN_POINTER_MATCHES",
+  "manifest_sha256": "039ecc25dc27f8323097d0f2c9b44c83663b235a74869d703f627911320f3678",
+  "content_inventory_sha256": "3d524165200653155655a3acd9c32bc1551b5ff407635c65a673bd9f00d4301c",
+  "approved_private_candidate_sha256": "2e85a39b12d73bc6fe7f9856d64939f918bb038213a73ce2361b3f4b404c6cca",
+  "source_public_projection_sha256": "157eba34ef0a98a37268f5cd9b307c334eda65b60609456e630ffb6f63e83eda",
+  "prepared_public_CURRENT_sha256": "4e95fc0c8887f85344b2394c71804b3ff878edae5277fff0be6f780f8e483ffe",
+  "scope": "v25.151.0 / RD001~709 + non-normative RD710/711 version-status clarification",
+  "github_publication": false,
+  "product_and_Human_pass": false
+}

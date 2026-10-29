@@ -5,6 +5,204 @@ use crate::stdlib::minimal_stdlib_sigs;
 use crate::term_map;
 use std::collections::{HashMap, HashSet};
 
+/// Bind AST occurrences by their role and the selected public declaration.
+/// Raw source/token bytes and local binder spelling remain untouched. This
+/// neither creates a translated executable body nor issues persistent IDs.
+pub(crate) fn bind_first_callable_registered_program(
+    program: &mut CanonProgram, context: &crate::parser::RegisteredFirstCallableContext,
+) -> Result<(), ParseError> {
+    let registry = crate::ddl::FIRST_CALLABLE_JA_REGISTRATION;
+    let binding = crate::ddl::bind_first_callable_ja_declaration(
+        &context.original, registry.language_profile_identity, registry.registration_revision,
+    ).map_err(|error| ParseError { span: error.span, message: format!("{}: {}", error.code, error.message) })?;
+    let original = binding.callable(registry.callable_name).unwrap();
+    let fail = |span, message: &str| ParseError { span, message: message.into() };
+    let native_entry=context.activation.is_some() && program.root_stmts.is_empty() && program.items.len()==1;
+    if !native_entry && (!program.items.is_empty() || program.root_stmts.len() != 1) {
+        return Err(fail(Span::new(0, program.origin.source.len()),
+            "E_MULTILANG_FIRST_SCOPE: 첫 범위는 원본 함수를 사용하는 식·값 정의·명시적 결과 기록 하나입니다"));
+    }
+    fn expression(
+        expr: &mut Expr, binding: &crate::ddl::FirstCallableJaDeclarationBinding<'_>,
+    ) -> Result<(), ParseError> {
+        let registry = crate::ddl::FIRST_CALLABLE_JA_REGISTRATION;
+        match &mut expr.kind {
+            ExprKind::Call { func, args } => {
+                for arg in args.iter_mut() { expression(&mut arg.expr, binding)?; }
+                if func == registry.callable_name {
+                    let original = binding.callable(func).unwrap();
+                    *func = original.canonical_name.clone();
+                    for arg in args.iter_mut() {
+                        if let Some(pin) = &mut arg.resolved_pin {
+                            let original_pin = binding.pin(pin).ok_or_else(|| ParseError {
+                                span: arg.span, message: "E_MULTILANG_PIN_UNREGISTERED: 未登録の引数名です".into(),
+                            })?;
+                            *pin = original_pin.pin_name.clone();
+                        }
+                        if let Some(particle) = &mut arg.josa {
+                            let index = registry.pin_particles.iter().position(|registered| *registered == particle)
+                                .ok_or_else(|| ParseError { span: arg.span, message: "E_MULTILANG_PARTICLE_UNREGISTERED".into() })?;
+                            *particle = original.params[index].josa_list[0].clone();
+                        }
+                    }
+                } else if func == registry.rational_type_name {
+                    let TypeRef::Named(original_type) = binding.result_type(func).unwrap() else {
+                        return Err(ParseError { span: expr.span, message: "E_MULTILANG_TYPE_SUPPLY_REQUIRED".into() });
+                    };
+                    *func = original_type.clone();
+                } else {
+                    return Err(ParseError { span: expr.span, message: "E_MULTILANG_CALL_UNREGISTERED: 未登録の呼び出しです".into() });
+                }
+            }
+            ExprKind::Literal(_) | ExprKind::Var(_) => {}
+            ExprKind::Infix { left, right, .. } => {
+                expression(left, binding)?; expression(right, binding)?;
+            }
+            _ => return Err(ParseError { span: expr.span, message: "E_MULTILANG_EXPRESSION_UNSUPPORTED".into() }),
+        }
+        Ok(())
+    }
+    if native_entry {
+        let TopLevelItem::SeedDef(seed)=&mut program.items[0];
+        if seed.seed_kind!=SeedKind::Umjikssi||!seed.params.is_empty()||!seed.type_params.is_empty()
+            ||seed.canonical_name==original.canonical_name||seed.canonical_name==registry.callable_name
+            ||!seed.alternate_forms.is_empty(){return Err(fail(seed.span,"E_MULTILANG_NATIVE_ENTRY_SCOPE"));}
+        let body=seed.body.as_mut().ok_or_else(||fail(seed.span,"E_MULTILANG_NATIVE_ENTRY_BODY_REQUIRED"))?;
+        if body.stmts.len()!=1{return Err(fail(seed.span,"E_MULTILANG_NATIVE_ENTRY_SCOPE"));}
+        match &mut body.stmts[0]{
+            Stmt::Show{expr,..}=>expression(expr,&binding)?,
+            _=>return Err(fail(seed.span,"E_MULTILANG_NATIVE_ENTRY_SCOPE")),
+        }
+    }else {match &mut program.root_stmts[0] {
+        Stmt::Definition { name, type_ref, value, reaction, span, .. } => {
+            if !registry.pin_names.contains(&name.as_str()) || reaction.is_some() {
+                return Err(fail(*span, "E_MULTILANG_FIRST_BINDER_UNSUPPORTED"));
+            }
+            match type_ref {
+                TypeRef::Named(name) if name == registry.rational_type_name => {
+                    *type_ref = original.result_type.as_ref().unwrap().clone();
+                }
+                TypeRef::Infer => {}
+                _ => return Err(fail(*span, "E_MULTILANG_TYPE_UNREGISTERED")),
+            }
+            expression(value, &binding)?;
+        }
+        Stmt::Expr { expr, .. } => expression(expr, &binding)?,
+        Stmt::Mutate { target, value, deferred, span, .. } => {
+            if *deferred || !matches!(&target.kind, ExprKind::Var(name) if registry.pin_names.contains(&name.as_str())) {
+                return Err(fail(*span, "E_MULTILANG_FIRST_BINDER_UNSUPPORTED"));
+            }
+            expression(value, &binding)?;
+        }
+        _ => return Err(fail(Span::new(0, program.origin.source.len()), "E_MULTILANG_STATEMENT_UNSUPPORTED")),
+    }
+    }
+    // Only the actual original body is supplied. DDL has body=None. The
+    // compiler context retains its distinct source owner for diagnostics.
+    program.items.push(TopLevelItem::SeedDef(original.clone()));
+    Ok(())
+}
+
+/// Format only the authored caller, through the existing N1 printer, and
+/// re-resolve it against the same immutable context. Imported original bodies
+/// are not emitted as Japanese definitions or mixed-language canonical text.
+pub fn canonicalize_first_callable_registered_source(
+    program: &CanonProgram, context: &std::sync::Arc<crate::parser::RegisteredFirstCallableContext>,
+) -> Result<String, ParseError> {
+    let registry = crate::ddl::FIRST_CALLABLE_JA_REGISTRATION;
+    let binding = crate::ddl::bind_first_callable_ja_declaration(&context.original,
+        registry.language_profile_identity, registry.registration_revision)
+        .map_err(|e| ParseError { span: e.span, message: format!("{}: {}", e.code, e.message) })?;
+    let original = binding.callable(registry.callable_name).unwrap();
+    fn expression(expr: &mut Expr, original: &SeedDef) -> Result<(), ParseError> {
+        let registry = crate::ddl::FIRST_CALLABLE_JA_REGISTRATION;
+        match &mut expr.kind {
+            ExprKind::Call { func, args } => {
+                for arg in args.iter_mut() { expression(&mut arg.expr, original)?; }
+                if func == &original.canonical_name {
+                    *func = registry.callable_name.into();
+                    for arg in args {
+                        if let Some(pin) = &mut arg.resolved_pin {
+                            let index = original.params.iter().position(|p| &p.pin_name == pin)
+                                .ok_or_else(|| ParseError { span: arg.span, message: "E_MULTILANG_CANON_PIN_BINDING".into() })?;
+                            *pin = registry.pin_names[index].into();
+                        }
+                        if let Some(particle) = &mut arg.josa {
+                            let index = original.params.iter().position(|p| p.josa_list.contains(particle))
+                                .ok_or_else(|| ParseError { span: arg.span, message: "E_MULTILANG_CANON_PARTICLE_BINDING".into() })?;
+                            *particle = registry.pin_particles[index].into();
+                        }
+                    }
+                } else if matches!(&original.result_type, Some(TypeRef::Named(name)) if name == func) {
+                    *func = registry.rational_type_name.into();
+                } else {
+                    return Err(ParseError { span: expr.span, message: "E_MULTILANG_CANON_CALL_BINDING".into() });
+                }
+            }
+            ExprKind::Infix { left, right, .. } => { expression(left, original)?; expression(right, original)?; }
+            ExprKind::Literal(_) | ExprKind::Var(_) => {}
+            _ => return Err(ParseError { span: expr.span, message: "E_MULTILANG_CANON_EXPRESSION".into() }),
+        }
+        Ok(())
+    }
+    fn shape(stmt: &Stmt) -> Result<String, ParseError> {
+        let expr = crate::normalizer::normalize_expression_identity;
+        Ok(match stmt {
+            Stmt::Definition { name, type_ref, value, .. } => format!("definition:{name}:{type_ref:?}:{}", expr(value)),
+            Stmt::Mutate { target, value, deferred, .. } => format!("record:{deferred}:{}:{}", expr(target), expr(value)),
+            Stmt::Expr { expr: value, .. } => format!("expression:{}", expr(value)),
+            _ => return Err(ParseError { span: Span::new(0, 0), message: "E_MULTILANG_CANON_STATEMENT".into() }),
+        })
+    }
+    if program.root_stmts.is_empty() && context.activation.is_some() {
+        let mut view=program.clone();
+        view.items.retain(|TopLevelItem::SeedDef(seed)|seed.canonical_name!=original.canonical_name);
+        if view.items.len()!=1{return Err(ParseError{span:Span::new(0,0),message:"E_MULTILANG_NATIVE_ENTRY_SCOPE".into()});}
+        let TopLevelItem::SeedDef(seed)=&mut view.items[0];
+        let body=seed.body.as_mut().ok_or_else(||ParseError{span:seed.span,message:"E_MULTILANG_NATIVE_ENTRY_BODY_REQUIRED".into()})?;
+        if let [Stmt::Show{expr,..}]=body.stmts.as_mut_slice(){expression(expr,original)?;}else{return Err(ParseError{span:seed.span,message:"E_MULTILANG_NATIVE_ENTRY_SCOPE".into()});}
+        let activation=context.activation.as_ref().unwrap();
+        let directive_context=crate::module_directive::ModuleDirectiveContext::default().with_known_imports([activation.binding.target.clone()]);
+        let (mut document,_)=crate::module_directive::first_callable_module_tokens(&program.origin.source,&program.origin.file_path,&directive_context,context)?;
+        document.declaration_source.clear();
+        if let Some(request)=document.imports.as_mut().and_then(|r|r.translation.as_mut()){
+            request.target_language=activation.profile.canonical_name().into();request.target_version=activation.profile.version().into();
+        }
+        let text=format!("{}{}",crate::module_directive::canonicalize_module_directive_document(&document),crate::normalize(&view,crate::NormalizationLevel::N1));
+        let reparsed=crate::parser::Parser::parse_with_first_callable_context(&text,&program.origin.file_path,context.clone())?;
+        if crate::normalize(&reparsed,crate::NormalizationLevel::N1)!=crate::normalize(program,crate::NormalizationLevel::N1){return Err(ParseError{span:Span::new(0,text.len()),message:"E_MULTILANG_CANON_BINDING_CHANGED".into()});}
+        return Ok(text);
+    }
+    let before = program.root_stmts.first().ok_or_else(|| ParseError { span: Span::new(0, 0), message: "E_MULTILANG_CANON_EMPTY".into() })?;
+    let before = shape(before)?;
+    let mut view = program.clone();
+    view.items.clear();
+    match &mut view.root_stmts[0] {
+        Stmt::Definition { type_ref, value, .. } => {
+            if *type_ref != TypeRef::Infer { *type_ref = TypeRef::Named(registry.rational_type_name.into()); }
+            expression(value, original)?;
+        }
+        Stmt::Mutate { value, .. } => expression(value, original)?,
+        Stmt::Expr { expr, .. } => expression(expr, original)?,
+        _ => return Err(ParseError { span: Span::new(0, 0), message: "E_MULTILANG_CANON_STATEMENT".into() }),
+    }
+    let header=if let Some(activation)=&context.activation {
+        let directive_context=crate::module_directive::ModuleDirectiveContext::default().with_known_imports([activation.binding.target.clone()]);
+        let (mut document,_)=crate::module_directive::first_callable_module_tokens(&program.origin.source,&program.origin.file_path,&directive_context,context)?;
+        document.declaration_source.clear();
+        if let Some(request)=document.imports.as_mut().and_then(|record|record.translation.as_mut()){
+            request.target_language=activation.profile.canonical_name().into();request.target_version=activation.profile.version().into();
+        }
+        crate::module_directive::canonicalize_module_directive_document(&document)
+    } else {"#!日本語\n".into()};
+    let text = format!("{}{}",header, crate::normalize(&view, crate::NormalizationLevel::N1));
+    let reparsed = crate::parser::Parser::parse_with_first_callable_context(&text, &program.origin.file_path, context.clone())?;
+    if reparsed.root_stmts.len() != 1 || shape(&reparsed.root_stmts[0])? != before {
+        return Err(ParseError { span: Span::new(0, program.origin.source.len()), message: "E_MULTILANG_CANON_BINDING_CHANGED".into() });
+    }
+    Ok(text)
+}
+
 pub struct LintWarning {
     pub code: &'static str,
     pub span: Span,
@@ -603,7 +801,15 @@ fn canonicalize_type_ref(
     context:&CanonicalSeedContext,
 ) -> Result<(), ParseError> {
     match type_ref {
-        TypeRef::Tuple(items) => {
+        TypeRef::AlgebraEquality {left,right} => {
+            canonicalize_algebra_term(left,warnings)?;
+            canonicalize_algebra_term(right,warnings)?;
+        }
+        TypeRef::StructureLaw { structure, member } => {
+            canonicalize_ident(structure, span, warnings)?;
+            canonicalize_ident(member, span, warnings)?;
+        }
+        TypeRef::Tuple(items) | TypeRef::PropositionConjunction(items) => {
             for item in items {
                 canonicalize_type_ref(item, span, warnings, context)?;
             }
@@ -1038,4 +1244,17 @@ mod declared_su_alias_tests {
         canonicalize_type_ref(&mut applied,span,&mut vec![],&context).unwrap();
         assert_eq!(applied,TypeRef::Applied{name:"수".into(),args:vec![TypeRef::Named("셈수".into())]});
     }
+}
+
+fn canonicalize_algebra_term(term:&mut crate::ast::AlgebraTermSyntax,warnings:&mut Vec<LintWarning>) -> Result<(),ParseError> {
+    use crate::ast::AlgebraTermKind;
+    match &mut term.kind {
+        AlgebraTermKind::Name(name)=>canonicalize_ident(name,term.span,warnings)?,
+        AlgebraTermKind::Integer(_)=>{},
+        AlgebraTermKind::Add(a,b)|AlgebraTermKind::Subtract(a,b)|AlgebraTermKind::Multiply(a,b)=>{
+            canonicalize_algebra_term(a,warnings)?;canonicalize_algebra_term(b,warnings)?;
+        }
+        AlgebraTermKind::DivideByInteger(a,_)=>canonicalize_algebra_term(a,warnings)?,
+    }
+    Ok(())
 }

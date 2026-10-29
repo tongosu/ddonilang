@@ -1,11 +1,18 @@
 use crate::lsp::{
     byte_range_to_lsp_range, ByteRange, DocumentSnapshot, LspRange, PositionEncoding,
 };
-use ddonirang_lang::{parse_v25, validate_no_legacy_boim_surface};
+use crate::ddn_runtime::V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY;
+use crate::source_analysis::{analyze_source, SourceAnalysisRequest};
 use std::fmt;
 
 pub const SOURCE_PROFILE_V25: &str = "v25";
+/// The editor checks open DDN text with the same shared analysis and profile
+/// as `ddonilang 검사 <파일> --source-profile v1-core-v25`. It reports what that
+/// analysis reports; an empty list is not a claim of further verification.
+pub const ANALYSIS_PROFILE: &str = V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY;
 pub const DIAGNOSTIC_SEVERITY_ERROR: u8 = 1;
+pub const DIAGNOSTIC_SEVERITY_WARNING: u8 = 2;
+pub const DIAGNOSTIC_SEVERITY_INFORMATION: u8 = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
@@ -20,6 +27,9 @@ pub struct DiagnosticReport {
     pub document_version: i64,
     pub source_profile: &'static str,
     pub diagnostics: Vec<Diagnostic>,
+    /// Shared analysis outcome (`ACCEPTED`/`REJECTED`/`UNSUPPORTED`), or
+    /// `NOT_ANALYZED` for an opened surface the editor does not check.
+    pub outcome: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,34 +54,49 @@ pub fn analyze_snapshot(
     encoding: PositionEncoding,
 ) -> Result<DiagnosticReport, DiagnosticError> {
     let source = snapshot.text().map_err(|_| DiagnosticError::InvalidUtf8)?;
-    let mut diagnostics = Vec::new();
-
-    if snapshot.language_id == "ddn" {
-        if let Err(message) = validate_no_legacy_boim_surface(source) {
-            let start = source.find("보임").unwrap_or(0);
-            let range = diagnostic_range(source, start, start + "보임".len(), encoding)?;
-            diagnostics.push(Diagnostic {
-                code: message
-                    .split(':')
-                    .next()
-                    .unwrap_or("E_BOIM_LEGACY_REMOVED")
+    if snapshot.language_id != "ddn" {
+        return Ok(DiagnosticReport {
+            document_version: snapshot.version,
+            source_profile: SOURCE_PROFILE_V25,
+            diagnostics: Vec::new(),
+            outcome: "NOT_ANALYZED",
+        });
+    }
+    let request = SourceAnalysisRequest {
+        source_text: source.to_string(),
+        path: snapshot.uri.clone(),
+        analysis_generation: u64::try_from(snapshot.version).unwrap_or(0),
+        source_profile_identity: ANALYSIS_PROFILE.to_string(),
+    };
+    // A failure inside the shared analysis is reported on this exact version;
+    // the previous version's diagnostics must not stay on screen as current.
+    let Ok(analysis) = std::panic::catch_unwind(|| analyze_source(request)) else {
+        return Ok(DiagnosticReport {
+            document_version: snapshot.version,
+            source_profile: SOURCE_PROFILE_V25,
+            diagnostics: vec![Diagnostic {
+                code: "E_LSP_ANALYSIS_FAILED".to_string(),
+                severity: DIAGNOSTIC_SEVERITY_ERROR,
+                message: "공통 분석기가 이 판을 분석하지 못했습니다. 오류가 없다는 뜻이 아닙니다."
                     .to_string(),
-                severity: DIAGNOSTIC_SEVERITY_ERROR,
-                message,
-                range,
-            });
-        } else if let Err(error) = parse_v25(source, &snapshot.uri) {
-            // Share the CLI formatter without changing the parser code or UTF-8 span.
-            let message = crate::ddn_runtime::format_parse_error(source, &error);
-            let span = crate::source_analysis::formatted_error_span(source, &message);
-            let range = diagnostic_range(source, span.start, span.end, encoding)?;
-            diagnostics.push(Diagnostic {
-                code: error.code().to_string(),
-                severity: DIAGNOSTIC_SEVERITY_ERROR,
-                message,
-                range,
-            });
-        }
+                range: diagnostic_range(source, 0, 0, encoding)?,
+            }],
+            outcome: "ANALYSIS_FAILED",
+        });
+    };
+    let mut diagnostics = Vec::with_capacity(analysis.diagnostics.len());
+    for diagnostic in analysis.diagnostics {
+        let range = diagnostic_range(source, diagnostic.span.start, diagnostic.span.end, encoding)?;
+        diagnostics.push(Diagnostic {
+            code: diagnostic.code,
+            severity: match diagnostic.severity {
+                "error" => DIAGNOSTIC_SEVERITY_ERROR,
+                "warning" => DIAGNOSTIC_SEVERITY_WARNING,
+                _ => DIAGNOSTIC_SEVERITY_INFORMATION,
+            },
+            message: diagnostic.message,
+            range,
+        });
     }
 
     sort_diagnostics(&mut diagnostics);
@@ -79,6 +104,7 @@ pub fn analyze_snapshot(
         document_version: snapshot.version,
         source_profile: SOURCE_PROFILE_V25,
         diagnostics,
+        outcome: analysis.outcome,
     })
 }
 

@@ -6,15 +6,19 @@ use ddonirang_tool::artifact_output::existing_input_output_alias;
 const SOURCE_PROFILE_FLAG: &str = "--source-profile";
 #[path = "ddonirang/korean_surface.rs"]
 mod korean_surface;
+#[path = "ddonirang/display_language.rs"]
+mod display_language;
 
 fn usage() -> &'static str {
     "또니랑 V1 명령줄 (정본 실행파일: ddonilang, 또니랑; 호환 별칭: ddonirang)\n\
+표시 말씨: 명령 앞 --표시말씨 ko|ja (또는 --display-language), 기본 설정 DDN_DISPLAY_LANGUAGE.\n\
 일반 실행: 등록 파일 없이 실행마다 임시 정체를 새로 만듭니다.\n\
   이름씨·원자·임자를 쓰면 같은 원문·입력도 실행 간 state_hash가 다를 수 있습니다.\n\
   결정론: 같은 초기 정체·입력·난수 상태 등 필요한 문맥을 담은 기록 재생 → 같은 결과.\n\
   입력 기록 하나만으로 모든 재생 문맥이 보존되지는 않습니다.\n\
   저장한 작품은 보존된 정체를 그대로 사용합니다. 임시 정체를 저장·내보내는 권한은 생기지 않습니다.\n\
 사용법:\n\
+  ddonilang 수학노트 <원문.ddn> --글판 v1-core-v25 | 수학노트 --작품자료 <작품.json>\n\
   ddonilang 실행 <파일.ddn> --글판 <프로필> [--마디수 <N>] [--구조출력] [--요약파일 <요약.detjson>] [--외부접근 거부|기록|재생 --외부기록 <기록.json> --외부자원 <목록.json>]\n\
   ddonilang 검사 <파일.ddn> --글판 <프로필>\n\
   ddonilang 짓기 <파일.ddn> --글판 <프로필>\n\
@@ -71,6 +75,7 @@ fn usage() -> &'static str {
 
 #[derive(Debug, PartialEq, Eq)]
 enum Command {
+    MathNotebook { input: PathBuf, authored: bool },
     Help,
     Version,
     Run(SourceCommand),
@@ -285,10 +290,20 @@ struct LintCommand {
     out: Option<PathBuf>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
 struct ExecutionError {
     message: String,
     exit_code: i32,
+    analysis: Option<Box<ddonirang_tool::source_analysis::SourceAnalysisSnapshot>>,
+}
+impl PartialEq for ExecutionError {
+    fn eq(&self, other: &Self) -> bool { self.message == other.message && self.exit_code == other.exit_code }
+}
+impl Eq for ExecutionError {}
+impl std::fmt::Debug for ExecutionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_struct("ExecutionError").field("message", &self.message)
+            .field("exit_code", &self.exit_code).finish()
+    }
 }
 
 impl ExecutionError {
@@ -296,6 +311,7 @@ impl ExecutionError {
         Self {
             message: message.into(),
             exit_code: 1,
+            analysis: None,
         }
     }
 
@@ -303,6 +319,7 @@ impl ExecutionError {
         Self {
             message: message.into(),
             exit_code: 2,
+            analysis: None,
         }
     }
 }
@@ -314,6 +331,7 @@ impl From<ddonirang_tool::source_frontdoor_workflow::SourceFrontdoorError>
         Self {
             message: error.message().to_string(),
             exit_code: error.exit_code(),
+            analysis: error.analysis().cloned().map(Box::new),
         }
     }
 }
@@ -1223,6 +1241,16 @@ fn parse_args(args: Vec<String>) -> Result<Command, String> {
         return Ok(Command::Help);
     }
     match command.as_str() {
+        "수학노트" | "math-notebook" => {
+            if rest.len()==2 && rest[0]=="--authored" {
+                return Ok(Command::MathNotebook{input:PathBuf::from(&rest[1]),authored:true});
+            }
+            if rest.len()!=3 || rest[1]!=SOURCE_PROFILE_FLAG || rest[0].starts_with("--") {
+                return Err("수학노트 <원문.ddn> --글판 v1-core-v25 또는 수학노트 --작품자료 <작품.json>".into());
+            }
+            ddonirang_tool::ddn_runtime::resolve_supported_source_profile(Some(&rest[2])).map_err(|e|e.message)?;
+            Ok(Command::MathNotebook{input:PathBuf::from(&rest[0]),authored:false})
+        },
         "작품자료" | "authored-project" => {
             if rest.first().map(String::as_str)==Some("원문전이"){
                 if rest.len()!=2{return Err("작품자료 원문전이 <Native요청.json> — 같은 Native 작업대 저장 입구".into());}
@@ -1391,6 +1419,11 @@ fn parse_args(args: Vec<String>) -> Result<Command, String> {
                 "보개등록" | "register_bogae" => "register_bogae",
                 "이름변경" | "rename" => "rename",
                 "경로변경" | "relocate" => "relocate",
+                "first_callable_source_prepare" => "first_callable_source_prepare",
+                "source_open" => "source_open",
+                "first_callable_source_run" => "first_callable_source_run",
+                "first_callable_source_save_native" => "first_callable_source_save_native",
+                "first_callable_source_reopen_native" => "first_callable_source_reopen_native",
                 _ => return Err("지원하지 않는 작품자료 작업입니다".into()),
             };
             Ok(Command::AuthoredProject { operation: operation.into(), input: PathBuf::from(&rest[1]) })
@@ -1632,6 +1665,12 @@ fn execute_control_input(command: &SourceCommand, source: &str) -> Result<(Strin
 
 fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
     match command {
+        Command::MathNotebook{input,authored}=>{
+            let source=read_utf8_input(&input,"E_NOTEBOOK_INPUT")?;
+            let result=if authored {ddonirang_tool::math_notebook::observe_uniform_motion_project(&source)}
+                else {ddonirang_tool::math_notebook::observe_uniform_motion(&source,&input.to_string_lossy())};
+            Ok((result.map_err(ExecutionError::runtime)?+"\n",0))
+        },
         Command::NativeSourceOperation{input}=>{
             let raw=String::from_utf8(read_logical_input(&input)?).map_err(|_|ExecutionError::input("E_SOURCE_UTF8_INVALID"))?;
             let result=ddonirang_tool::workbench_host::native_source_operation(&raw).map_err(ExecutionError::runtime)?;
@@ -1871,8 +1910,11 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
         Command::AuthoredProject { operation, input } => {
             let text = String::from_utf8(read_logical_input(&input)?)
                 .map_err(|_| ExecutionError::input("E_SOURCE_UTF8_INVALID: 작품자료가 UTF-8이 아닙니다"))?;
-            let result = ddonirang_tool::authored_project::operate(&operation, &text)
-                .map_err(ExecutionError::input)?;
+            let result = if operation=="first_callable_source_prepare" {
+                ddonirang_tool::authored_project::prepare_first_callable_source_with_analysis(&text).map_err(|error|ExecutionError{
+                    message:error.message().into(),exit_code:2,analysis:error.analysis().cloned().map(Box::new),
+                })?
+            }else{ddonirang_tool::authored_project::operate(&operation,&text).map_err(ExecutionError::input)?};
             Ok((result + "\n", 0))
         }
         Command::ManipulationRecord {source,request,output,v3} => {
@@ -2200,7 +2242,8 @@ fn read_workbench_exit(reader: &mut impl io::BufRead) -> io::Result<bool> {
     }
 }
 
-fn run_workbench(command: WorkbenchCommand) -> Result<(), ExecutionError> {
+fn run_workbench(command: WorkbenchCommand, language: display_language::Language) -> Result<(), ExecutionError> {
+    use std::io::IsTerminal;
     let executable = std::env::current_exe()
         .map_err(|error| ExecutionError::runtime(format!("E_WORKBENCH_EXECUTABLE_PATH {error}")))?;
     let bundle_root = executable
@@ -2238,7 +2281,7 @@ fn run_workbench(command: WorkbenchCommand) -> Result<(), ExecutionError> {
             eprintln!("E_WORKBENCH_BROWSER_OPEN {error}");
         }
     }
-    eprintln!("셈그림 서버를 종료하려면 이 창에서 Enter를 누르세요. 브라우저 창을 닫아도 서버는 계속 실행됩니다.");
+    eprintln!("{}", display_language::workbench_prompt(language, io::stderr().is_terminal()));
     let (stop_sender, stop_receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         match read_workbench_exit(&mut io::stdin().lock()) {
@@ -2323,34 +2366,67 @@ fn read_logical_input(path: &Path) -> Result<Vec<u8>, ExecutionError> {
     Ok(bytes)
 }
 
+fn execute_with_display(command: Command, language: display_language::Language) -> Result<(String, i32), ExecutionError> {
+    use std::io::IsTerminal;
+    match command {
+        Command::Check(command) | Command::Build(command) => {
+            let checked = ddonirang_tool::source_frontdoor_workflow::run_check_or_build_supported_profile_output(
+                &command.path, &command.source_profile).map_err(ExecutionError::from)?;
+            if let Some(guidance) = display_language::analysis_guidance(language, io::stderr().is_terminal(), checked.analysis()) {
+                // A supplemental display failure never replaces the check result.
+                let _ = writeln!(io::stderr(), "{guidance}");
+            }
+            Ok(checked.into_output())
+        }
+        command => execute(command),
+    }
+}
+
+fn display_execution_error(language: display_language::Language, error: &ExecutionError) {
+    use std::io::IsTerminal;
+    eprintln!("{}", display_language::error_text_with_analysis(language, io::stderr().is_terminal(),
+        display_language::ErrorPhase::Operation, &error.message, error.analysis.as_deref()));
+}
+
+fn display_cli_error(language: display_language::Language, phase: display_language::ErrorPhase, original: &str) {
+    use std::io::IsTerminal;
+    eprintln!("{}", display_language::error_text(language, io::stderr().is_terminal(), phase, original));
+}
+
 fn main() {
+    use display_language::ErrorPhase;
     let args = std::env::args().skip(1).collect::<Vec<_>>();
-    let command = match parse_args(args) {
+    let selected = match display_language::select(args, std::env::var_os(display_language::PREFERENCE_ENV)) {
+        Ok(selected) => selected,
+        Err(error) => { eprintln!("{error}"); std::process::exit(2); }
+    };
+    let language = selected.language;
+    let command = match parse_args(selected.args) {
         Ok(command) => command,
         Err(error) => {
-            eprintln!("{error}");
+            display_cli_error(language, ErrorPhase::Command, &error);
             std::process::exit(2);
         }
     };
     if let Command::Workbench(command) = command {
-        if let Err(error) = run_workbench(command) {
-            eprintln!("{}", error.message);
+        if let Err(error) = run_workbench(command, language) {
+            display_execution_error(language, &error);
             std::process::exit(error.exit_code);
         }
         return;
     }
-    match execute(command) {
+    let help = matches!(command, Command::Help);
+    match execute_with_display(command, language) {
         Ok((output, exit_code)) => {
+            let output = if help { display_language::help_text(language, &output) } else { output };
             if let Err(error) = write_stdout(&output) {
-                eprintln!("{error}");
+                display_cli_error(language, ErrorPhase::Output, &error);
                 std::process::exit(1);
             }
-            if exit_code != 0 {
-                std::process::exit(exit_code);
-            }
+            if exit_code != 0 { std::process::exit(exit_code); }
         }
         Err(error) => {
-            eprintln!("{}", error.message);
+            display_execution_error(language, &error);
             std::process::exit(error.exit_code);
         }
     }

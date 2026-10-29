@@ -1729,7 +1729,7 @@ pub fn check_value_type_with_records(
                 _ => Err(type_mismatch_detail(&canonical, value)),
             }
         }
-        TypeRef::Function { .. } => Err(type_mismatch_detail(&format_type_ref(type_ref), value)),
+        TypeRef::Function { .. } | TypeRef::PropositionConjunction(_) | TypeRef::StructureLaw { .. } | TypeRef::AlgebraEquality { .. } => Err(type_mismatch_detail(&format_type_ref(type_ref), value)),
         } })();
         if let Err(mut detail) = result {
             // The outermost container overwrites inner expected types, whereas
@@ -2042,6 +2042,16 @@ pub(crate) fn format_type_ref(type_ref: &TypeRef) -> String {
             for (index, param) in params.iter().enumerate().rev() {
                 pending.push(Job::Type(param));
                 if index > 0 { pending.push(Job::Text(", ".into())); }
+            }
+        }
+        TypeRef::AlgebraEquality {left,right} => output.push_str(&format!("{} =:= {}",left.source_text(),right.source_text())),
+        TypeRef::StructureLaw { structure, member } => output.push_str(&format!("{structure}.{member}")),
+        TypeRef::PropositionConjunction(items) => {
+            output.push('(');
+            pending.push(Job::Text(")".into()));
+            for (index, item) in items.iter().enumerate().rev() {
+                pending.push(Job::Type(item));
+                if index > 0 { pending.push(Job::Text(" 이고 ".into())); }
             }
         }
         TypeRef::Infer => output.push('_'),

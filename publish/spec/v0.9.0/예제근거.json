@@ -1,0 +1,23 @@
+{
+  "14": {
+    "source": "docs/ssot/ssot/SSOT_LANG_v25.151.0.md",
+    "source_sha256": "8946bf847a6ff6666598ed5c3dd749c89d8059cad5b55d0365c4634cef51d367",
+    "source_lines": [
+      147,
+      148,
+      149
+    ],
+    "contract": "RD709 plus existing 채비 initialization owner",
+    "source_excerpt_sha256": "46bf783feb3295a862659ea1b9098733fdb093c815943f3123b99184bf62f58f",
+    "note": "세 줄을 byte-for-byte UTF8/LF로 인용. 일반 root 대입으로 초기화 owner를 바꾸지 않음. 값11은 source의 설명 기대; 후속 마디12 주장 제거. 실행 NOT_RUN."
+  },
+  "15": {
+    "source": "docs/context/proposals/또니랑_조건별함수_작성표면과_검사증거_연결후보_R1_1_20261021.md",
+    "promoted_owner": "RD706 v25.148→v25.151",
+    "note": "공백 차이만 있는 전체 요금 예제"
+  },
+  "16": {
+    "source": "동일 RD706 계약의 명시 빈 함수 예제",
+    "note": "입력/결과씨 명시; 런타임 실행 미확인"
+  }
+}

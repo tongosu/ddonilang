@@ -55,11 +55,35 @@ impl PlannedFirstReplayCheckpointV1 {
             return Err("E_REPLAY_FIRST_PREPARE: 첫 실제 저장 계획만 초기 기록을 만듭니다".into());
         }
         let binding=request.binding();
-        let expected=run.encode_checkpoint_request(&run.encode_world_frame().map_err(rejected)?,context,
-            &binding.expected_parent,&binding.new_revision).map_err(rejected)?;
+        let world={let _timing=crate::storage_observation::Span::start("first.replay_world_frame_encode");run.encode_world_frame().map_err(rejected)?};
+        let expected={let _timing=crate::storage_observation::Span::start("first.replay_request_encode");run.encode_checkpoint_request(&world,context,
+            &binding.expected_parent,&binding.new_revision).map_err(rejected)?};
         if expected.as_slice()!=request.raw() || binding.expected_parent!=source.revision() || &binding.pesi!=source.pesi() {
             return Err("E_REPLAY_FIRST_PREPARE: 원 실행·실제 저장 계획·원문이 다릅니다".into());
         }
+        Self::finish_source_prepare(run,source,request,adapter,scope)
+    }
+    /// Reuse only bytes from the actual encoder and its immutable run borrow.
+    /// Source/revision binding and every Native/root/replay check remain live.
+    pub(crate) fn from_produced_source_prepare(
+        produced:&crate::snapshot_v2_durable_transaction::PreparedLogicalRequestBorrowV1<'_>,
+        source:&PreparedSourceOnlyRevision,context:&SourceBoundSavedRuntimeAttachment<'_>,
+        adapter:&SqliteAdapterV1,scope:ReplayArchiveRootScopeV1)->Result<Self,String>{
+        let run=produced.run();let request=produced.request();
+        run.require_native_checkpoint_provenance().map_err(rejected)?;
+        if run.checkpoint_predecessor_supply().map_err(rejected)?!=[0]{
+            return Err("E_REPLAY_FIRST_PREPARE: 첫 실제 저장 계획만 초기 기록을 만듭니다".into());
+        }
+        request.check_source(context).map_err(rejected)?;
+        let binding=request.binding();
+        if binding.expected_parent!=source.revision()||&binding.pesi!=source.pesi(){
+            return Err("E_REPLAY_FIRST_PREPARE: 원 실행·실제 저장 계획·원문이 다릅니다".into());
+        }
+        Self::finish_source_prepare(run,source,request,adapter,scope)
+    }
+    fn finish_source_prepare(run:&LogicalRecordingRunV1,source:&PreparedSourceOnlyRevision,
+        request:&ActualPreparedRequestV1,adapter:&SqliteAdapterV1,scope:ReplayArchiveRootScopeV1)->Result<Self,String>{
+        let binding=request.binding();
         let (project_hash,_,_,_)=scope.identity_fields(adapter).map_err(rejected)?;
         if project_hash!=<[u8;32]>::from(Sha256::digest(&binding.project)) {
             return Err("E_REPLAY_FIRST_PREPARE: 실제 Root의 작품이 다릅니다".into());
@@ -67,7 +91,7 @@ impl PlannedFirstReplayCheckpointV1 {
         let adapter_profile=adapter.capability().map_err(rejected)?.to_owned();
         let prospective_receipt=crate::snapshot_v2_host_bridge::encode_committed_receipt_candidate(binding,adapter_profile.as_bytes()).map_err(rejected)?;
         let first_tx=binding.transaction_digest().map_err(rejected)?;
-        let progress=run.progress_evidence()?;
+        let progress={let _timing=crate::storage_observation::Span::start("first.replay_progress_evidence");run.progress_evidence()?};
         let source_bytes=source.artifact()?.into_bytes();
         let seed=run.original_replay_seed()?.canonical_bytes();
         let parsed_seed=super::ReplaySeedCandidateV1::parse(seed)?;

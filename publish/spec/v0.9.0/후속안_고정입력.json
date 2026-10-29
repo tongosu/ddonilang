@@ -1,0 +1,78 @@
+[
+  {
+    "topic": "화살표 동등성",
+    "path": "docs/context/proposals/또니랑_화살표동등성_후속교정과_저장복구_정본영향_R1_20261021.md",
+    "bytes": 23869,
+    "sha256": "f4ea7f9493da4d0b1420a05b82bc0aefd7ba9899fa9358f215f7870d3b1c2d9b",
+    "status": "의미 방향 승인 / 내부CURRENT 미반영",
+    "scope": "양방향 동등성·작성 방향 보존, 기계 정규형 미결. RD498 현행을 이 후보로 덮지 않는다."
+  },
+  {
+    "topic": "이름 가림",
+    "path": "docs/context/proposals/이름가림_명명규칙대조_통합교정_후보_R1_1_20261022.md",
+    "bytes": 16944,
+    "sha256": "3726a1fd63982f695a225699e2e6a9392704a44b713c8b0d59f4dbf4d7b80383",
+    "status": "후속 정본 후보 채택 / 비현행",
+    "scope": "S1-A·교정 S2-A·RD173 제외 S3-A. R1.1의 OPEN은 채택 범위 제외."
+  },
+  {
+    "topic": "일반 호출·명명",
+    "path": "docs/context/proposals/일반호출표면_이름가림_RD173연결_전체계약_후보_R2_20261022.md",
+    "bytes": 24261,
+    "sha256": "c9f04da129820255d2af02603210e0bb13a3923ba95c207e4bede9aaccec3d72",
+    "status": "비현행 연결 후보",
+    "scope": "…다 정본 이름 유지·셈씨 명시 명사형/하기·움직씨 하기·무인자 하기 방향과 정확 연결의 상태를 구분."
+  },
+  {
+    "topic": "일본어 개발 순서",
+    "path": "docs/context/proposals/일본어_첫범위_R11_JSON비편집_채택범위와_개발순서_완료기준_R1_2_20261025.md",
+    "bytes": 29326,
+    "sha256": "40dc45377c288a45075fb3db46cb02f0dd367ce6733ee1ca2463c22448d22472",
+    "status": "V1 이후 기획 채택 / 비현행",
+    "scope": "한국어 원본→일본어DDL→동일 원문 검증. 제품 착수·등록·원어민 검토를 대신하지 않는다."
+  },
+  {
+    "topic": "일본어 단일 C3",
+    "path": "docs/context/proposals/일본어_세금_DDL_완전작성사례_후보_R3.1_20261025.md",
+    "bytes": 30930,
+    "sha256": "accd072a9d522d64b08894f8cdf469ec8772545bc175ca81a8f052f59631fe7e",
+    "status": "변경분 연결 충분 / 후보 채택·독립PASS 아님",
+    "scope": "정확 {A}·꼬리 비유입·저장 재해소 조건. A{A} 정확 문법·중괄호 생략 정책 OPEN."
+  },
+  {
+    "topic": "한국어 세금 원본",
+    "path": "docs/context/proposals/한국어_세금원본_공개선언_정체공급요구_후보_R1.1_20261024.md",
+    "bytes": 13684,
+    "sha256": "89323e494fe70db5b9a8636be690e805c54dfae080837d126ed0ce5659862572",
+    "status": "V1 이후 기획 채택 / 신규 작성·검증 착수 승인",
+    "scope": "전체 원문·정체 공급 미완. dev 착수 사전조건·실행 결과는 별도. 후보 핀 철자를 등록 사실로 만들지 않는다."
+  },
+  {
+    "topic": "선언된 나",
+    "path": "docs/context/proposals/선언된나_실패값과_실행경계_연결대조_보완후보_R1_1_20261021.md",
+    "bytes": 27662,
+    "sha256": "70f253c346c8e2dca804842a8966af17b8259e7caef65f494b7cd0e2faec6aed",
+    "status": "Owner 채택된 비현행 의미 / 정본 승격·제품 착수 별도",
+    "scope": "F1-A는 지정 호출 결과의 바깥 맺음 안됨 갈래 전체만 거부하고, F2-A는 실행 전에 직접 소유 호출·기존 미공개 실패 경계·바깥 공개 owner를 명시 결속한다. 무조건 typed 실패 전파·자동 rollback으로 확대하지 않는다. 정확 작성 문법·typed 공급·IR/기록·실행/저장·검증은 OPEN이다.",
+    "adoption_evidence": {
+      "path": "work/정본관리/20261021_선언된나_실패값_실행경계/OWNER_ADOPTION_AND_REFUND_MEANING_20261021.json",
+      "sha256": "b8375f0b9609820ca67834276447fed0c3a503522abd0776042971b93ef26fbe",
+      "exact_owner_text": "좋아. 선언된 나·실패경계 연결 후보 R1.1 묶음 채택을 승인할게. ssot와 기획에 전달하고 정본 승격·제품 착수는 별도 절차로 두자. 환급은 R1-A, R2-A, R3-A로 가고, 승인된 의미와 남은 기술 과제를 분리해 정리해줘.",
+      "bundle_sha256": "70f253c346c8e2dca804842a8966af17b8259e7caef65f494b7cd0e2faec6aed"
+    },
+    "design_review": {
+      "path": "docs/reports/audit/REVIEW_DECLARED_SELF_FAILURE_BOUNDARY_R1_1_DELTA_20261021.md",
+      "sha256": "e3a06384a5a89193cd8d1abd305f51ff9891063ffcf4f8abbd5fe84fb3484318",
+      "scope": "DECLARED_SELF_R11_DESIGN_ONLY_NOT_REFUND_REVIEW"
+    },
+    "technical_open": [
+      "typed 예약/의무/원차감 identity·저장형식",
+      "현재링크 단일 조건부 전환",
+      "이전실행권 차단·늦은공개차단",
+      "환급/예약/성공종결 원자성",
+      "저장작업별 OLD/NEW/RecoveryRequired",
+      "실제 join/종료·중단/경쟁 검증"
+    ],
+    "refund_meaning": "R1-A/R2-A/R3-A separate adopted meaning; review NOT_IN_DECLARED_SELF_PASS; product NOT_RUN"
+  }
+]

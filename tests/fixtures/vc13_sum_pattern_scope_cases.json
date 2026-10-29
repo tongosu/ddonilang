@@ -1,0 +1,230 @@
+[
+  {
+    "id": "exact-after-binder",
+    "source": "매마디:움직씨 := { 선택:고름씨 := { $수(내용:수). }. 값 <- 선택.$수(내용=3). 값에 따라 { 선택.$수(내용)이면 { 내용 <- 내용 + 1. 내용 보여주기. }. }. 내용 <- \"밖\". 내용 보여주기. }\n",
+    "texts": [
+      "4",
+      "밖"
+    ],
+    "origin": "review-current-RD613-exact-name-231bytes"
+  },
+  {
+    "id": "exact-top-level",
+    "source": "선택:고름씨 := { $수(내용:수). }. 값 <- 선택.$수(내용=3). 값에 따라 { 선택.$수(내용)이면 { 내용 <- 내용 + 1. 내용 보여주기. }. }. 내용 <- \"밖\". 내용 보여주기.",
+    "texts": [
+      "4",
+      "밖"
+    ]
+  },
+  {
+    "id": "declared-general-number",
+    "source": "매마디:움직씨 := { 선택:고름씨 := { $수(내용:수). }. 값 <- 선택.$수(내용=3). 값에 따라 { 선택.$수(내용)이면 { 내용 <- 3.5. 내용 보여주기. }. }. 내용 <- \"밖\". 내용 보여주기. }",
+    "texts": [
+      "3.5",
+      "밖"
+    ]
+  },
+  {
+    "id": "named-call-world-write",
+    "source": "외부증가:움직씨 := { 진행 <- 진행 + 10. }. 매마디:움직씨 := { 선택:고름씨 := { $수(내용:수). }. 진행 <- 9. 값 <- 선택.$수(내용=3). 값에 따라 { 선택.$수(내용)이면 { () 외부증가. 내용 <- 내용 + 1. 내용 보여주기. }. }. 진행 보여주기. }",
+    "texts": [
+      "4",
+      "19"
+    ]
+  },
+  {
+    "id": "nested-distinct-pin",
+    "source": "매마디:움직씨 := { 선택:고름씨 := { $수(내용:수). }. 값 <- 선택.$수(내용=3). 값에 따라 { 선택.$수(내용)이면 { 깊은선택:고름씨 := { $수(깊이:수). }. 두번째 <- 깊은선택.$수(깊이=5). 두번째에 따라 { 깊은선택.$수(깊이)이면 { 깊이 <- 깊이 + 1. 깊이 보여주기. }. }. 내용 <- 내용 + 1. 내용 보여주기. }. }. 내용 <- \"밖\". 내용 보여주기. }",
+    "texts": [
+      "6",
+      "4",
+      "밖"
+    ]
+  },
+  {
+    "id": "payload-omitted",
+    "source": "매마디:움직씨 := { 선택:고름씨 := { $수(내용:수). }. 값 <- 선택.$수(내용=3). 값에 따라 { 선택.$수이면 { \"통과\" 보여주기. }. }. 내용 <- \"밖\". 내용 보여주기. }",
+    "texts": [
+      "통과",
+      "밖"
+    ]
+  },
+  {
+    "id": "declared-integer-payload",
+    "source": "매마디:움직씨 := { 선택:고름씨 := { $수(내용:바른수). }. 값 <- 선택.$수(내용=3). 값에 따라 { 선택.$수(내용)이면 { 내용 <- 1.5. }. }. }",
+    "code": "E_RUNTIME_TYPE_MISMATCH"
+  },
+  {
+    "id": "historical-rename-is-not-current",
+    "source": "매마디:움직씨 := {\n선택:고름씨 := { $예. $수(값:수). }.\n값 <- 선택.$수(값=3). 값에 따라 { 선택.$예이면 { \"예\" 보여주기. }. 선택.$수(내용)이면 { 내용 보여주기. }. }.\n}\n",
+    "code": "E_SUM_MATCH_BINDER_UNKNOWN",
+    "origin": "60d47bef1c5c0c1603ee3d92b1a8b0d34dea6aee:vc08_exhaustive.ddn; old fixed positive preserved only historically"
+  },
+  {
+    "id": "capture-rejected",
+    "source": "매마디:움직씨 := { 선택:고름씨 := { $수(내용:수). }. 내용 <- 9. 값 <- 선택.$수(내용=3). 값에 따라 { 선택.$수(내용)이면 { 내용 <- 내용 + 1. }. }. }",
+    "code": "E_SUM_MATCH_BINDER_CAPTURE"
+  },
+  {
+    "id": "duplicate-pattern",
+    "source": "매마디:움직씨 := { 선택:고름씨 := { $수(내용:수). }. 값 <- 선택.$수(내용=3). 값에 따라 { 선택.$수(내용,내용)이면 { }. }. }",
+    "code": "E_SUM_MATCH_BINDER_DUPLICATE"
+  },
+  {
+    "id": "empty-pattern",
+    "source": "매마디:움직씨 := { 선택:고름씨 := { $수(내용:수). }. 값 <- 선택.$수(내용=3). 값에 따라 { 선택.$수()이면 { }. }. }",
+    "code": "E_SUM_MATCH_BINDER_EMPTY"
+  },
+  {
+    "id": "unknown-pattern",
+    "source": "매마디:움직씨 := { 선택:고름씨 := { $수(내용:수). }. 값 <- 선택.$수(내용=3). 값에 따라 { 선택.$수(다름)이면 { }. }. }",
+    "code": "E_SUM_MATCH_BINDER_UNKNOWN"
+  },
+  {
+    "id": "value-generation-payload-original",
+    "source": "매마디:움직씨 := {\n선택:고름씨 := { $예. $수(값:수). }.\n값 <- 선택.$수(값=3). 값 보여주기.\n}\n",
+    "texts": [
+      "선택.$수(3)"
+    ],
+    "origin": "60d47bef:vc08_payload.ddn; still current-compatible"
+  },
+  {
+    "id": "value-generation-nullary-original",
+    "source": "매마디:움직씨 := {\n선택:고름씨 := { $예. $수(값:수). }.\n값 <- 선택.$예. 값 보여주기.\n}\n",
+    "texts": [
+      "선택.$예"
+    ],
+    "origin": "60d47bef:vc08_nullary.ddn; still current-compatible"
+  },
+  {
+    "id": "general-group-expression",
+    "source": "매마디:움직씨 := { 선택:고름씨 := { $수(내용:수). }. (선택.$수(내용=3)) 에 따라 { 선택.$수(내용)이면 { 내용 <- 내용 + 1. 내용 보여주기. }. }. 내용 <- \"밖\". 내용 보여주기. }",
+    "texts": ["4", "밖"]
+  },
+  {
+    "id": "general-call-expression",
+    "source": "선택:고름씨 := { $수(내용:수). }. (값:수) 갈래만듦:선택:셈씨 := { 갈래만듦 <- 선택.$수(내용=값). }. 매마디:움직씨 := { ((값=3) 갈래만듦) 에 따라 { 선택.$수(내용)이면 { 내용 보여주기. }. }. }",
+    "texts": ["3"]
+  },
+  {
+    "id": "general-list-selection-expression",
+    "source": "검사:수:셈씨 := { 선택:고름씨 := { $수(내용:수). }. 자료 := 차림[선택.$수(내용=3)]. 자료[0] 에 따라 { 선택.$수(내용)이면 { 검사 <- 내용 + 1. }. }. }. (() 검사) 보여주기.",
+    "texts": ["4"]
+  },
+  {
+    "id": "multi-pin-subset-local-cleanup",
+    "source": "선택:고름씨 := { $쌍(가로:수,세로:수). }. 자료 <- 선택.$쌍(세로=4,가로=3). 자료에 따라 { 선택.$쌍(세로)이면 { 세로 <- 세로 + 1. 세로 보여주기. }. }. 세로 <- \"밖\". 세로 보여주기.",
+    "texts": ["5","밖"]
+  },
+  {
+    "id": "multi-pin-reversed-selection",
+    "source": "선택:고름씨 := { $쌍(가로:수,세로:수). }. 자료 <- 선택.$쌍(가로=3,세로=4). 자료에 따라 { 선택.$쌍(세로,가로)이면 { (가로 + 세로) 보여주기. }. }. 가로 <- \"밖\". 가로 보여주기.",
+    "texts": ["7","밖"]
+  },
+  {
+    "id": "multi-pin-omitted-selection",
+    "source": "선택:고름씨 := { $쌍(가로:수,세로:수). }. 자료 <- 선택.$쌍(가로=3,세로=4). 자료에 따라 { 선택.$쌍이면 { \"생략\" 보여주기. }. }.",
+    "texts": ["생략"]
+  },
+  {
+    "id": "multi-pin-value-equality",
+    "source": "선택:고름씨 := { $쌍(가로:수,세로:수). }. 첫째 <- 선택.$쌍(가로=3,세로=4). 둘째 <- 선택.$쌍(세로=4,가로=3). (첫째 == 둘째) 보여주기.",
+    "texts": ["참"]
+  },
+  {
+    "id": "multi-pin-schema-duplicate",
+    "source": "선택:고름씨 := { $쌍(가로:수,가로:수). }.",
+    "code": "E_SUM_PAYLOAD_PIN_DUPLICATE"
+  },
+  {
+    "id": "multi-pin-argument-missing",
+    "source": "선택:고름씨 := { $쌍(가로:수,세로:수). }. 자료 <- 선택.$쌍(가로=3).",
+    "code": "E_SUM_BRANCH_PAYLOAD_REQUIRED"
+  },
+  {
+    "id": "multi-pin-argument-duplicate",
+    "source": "선택:고름씨 := { $쌍(가로:수,세로:수). }. 자료 <- 선택.$쌍(가로=3,가로=4).",
+    "code": "E_SUM_BRANCH_PAYLOAD_DUPLICATE"
+  },
+  {
+    "id": "multi-pin-selection-duplicate",
+    "source": "선택:고름씨 := { $쌍(가로:수,세로:수). }. 자료 <- 선택.$쌍(가로=3,세로=4). 자료에 따라 { 선택.$쌍(가로,세로,가로)이면 { }. }.",
+    "code": "E_SUM_MATCH_BINDER_DUPLICATE"
+  },
+  {
+    "id": "applied-result-current-named-pins",
+    "source": "자료:(수,글)맺음 := (수,글)맺음.$잘됨(값=9). 자료에 따라 { (수,글)맺음.$잘됨(값)이면 { 값 보여주기. }. (수,글)맺음.$안됨(이유)이면 { 이유 보여주기. }. }.",
+    "texts": ["9"]
+  },
+  {
+    "id": "applied-result-trailing-type-default",
+    "source": "자료:(수)맺음 := (수)맺음.$안됨(이유=\"복구\"). 자료에 따라 { (수,글)맺음.$잘됨(값)이면 { 값 보여주기. }. (수,글)맺음.$안됨(이유)이면 { 이유 보여주기. }. }.",
+    "texts": ["복구"]
+  },
+  {
+    "id": "applied-result-other-owner-rejected",
+    "source": "자료 <- (수,글)맺음.$잘됨(값=9). 자료에 따라 { (글,글)맺음.$잘됨(값)이면 { 값 보여주기. }. (글,글)맺음.$안됨(이유)이면 { 이유 보여주기. }. }.",
+    "code": "E_SUM_MATCH_OWNER_MISMATCH",
+    "runtime_error": true
+  },
+  {
+    "id": "applied-result-payload-type-rejected",
+    "source": "자료 <- (수,글)맺음.$잘됨(값=\"숫자 아님\").",
+    "code": "E_RUNTIME_TYPE_MISMATCH"
+  },
+  {
+    "id": "optional-not-a-sum-protocol",
+    "source": "자료 <- (수)있없.$있음(값=3).",
+    "code": "E_SUM_OWNER_UNSUPPORTED"
+  },
+  {
+    "id": "applied-result-unknown-pin-rejected",
+    "source": "자료 <- (수,글)맺음.$잘됨(내용=9).",
+    "code": "E_SUM_BRANCH_PAYLOAD_PIN"
+  },
+  {
+    "id": "applied-result-ordered-types-distinct",
+    "source": "자료:(글,수)맺음 := (수,글)맺음.$잘됨(값=9).",
+    "code": "E_RUNTIME_TYPE_MISMATCH"
+  },
+  {
+    "id": "ordinary-optional-is-value-or-absence",
+    "source": "첫째:(수)있없 := 3. 둘째:(수)있없 := 없음. 첫째 보여주기. (둘째 == 없음) 보여주기.",
+    "texts": ["3","참"]
+  },
+  {
+    "id": "ordinary-optional-rejects-other-type",
+    "source": "자료:(수)있없 := \"숫자 아님\".",
+    "code": "E_RUNTIME_TYPE_MISMATCH"
+  },
+  {
+    "id": "applied-result-optional-payload",
+    "source": "자료 <- ((수)있없,글)맺음.$잘됨(값=없음). 자료에 따라 { ((수)있없,글)맺음.$잘됨(값)이면 { (값 == 없음) 보여주기. }. ((수)있없,글)맺음.$안됨(이유)이면 { 이유 보여주기. }. }.",
+    "texts": ["참"]
+  },
+  {
+    "id": "schema-owner-prefix-not-current",
+    "source": "선택:고름씨 := { 선택.$예. }. 자료 <- 선택.$예. 자료 보여주기.",
+    "code": "E_SUM_SCHEMA_BRANCH_NAME_REQUIRED"
+  },
+  {
+    "id": "arm-matched-keyword-not-current",
+    "source": "선택:고름씨 := { $예. }. 자료 <- 선택.$예. 자료에 따라 { 선택.$예 맞으면 { \"게시 금지\" 보여주기. }. }.",
+    "code": "E_SUM_MATCH_ARM_CONDITION"
+  },
+  {
+    "id": "arm-legacy-condition-not-current",
+    "source": "선택:고름씨 := { $예. }. 자료 <- 선택.$예. 자료에 따라 { 선택.$예 이라면 { \"게시 금지\" 보여주기. }. }.",
+    "code": "E_SUM_MATCH_ARM_CONDITION"
+  },
+  {
+    "id": "default-legacy-alias-not-current",
+    "source": "선택:고름씨 := { $예. $아니요. }. 자료 <- 선택.$아니요. 자료에 따라 { 선택.$예이면 { }. 아니라면 { \"게시 금지\" 보여주기. }. }.",
+    "code": "E_SUM_MATCH_DEFAULT_RAW"
+  },
+  {
+    "id": "schema-legacy-kind-not-current",
+    "source": "선택:갈래씨 := { $예. }. 자료 <- 선택.$예. 자료 보여주기.",
+    "code": "E_SUM_DEFINITION_KIND"
+  }
+]

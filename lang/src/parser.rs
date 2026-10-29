@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 pub struct Parser {
+    piecewise_definitions: HashMap<NodeId, PiecewiseDefinition>,
     tokens: Vec<Token>,
     source_epoch: SourceEpoch,
     source: String,
@@ -27,6 +28,10 @@ pub struct Parser {
     registered_forms: HashMap<String, String>,
     registered_form_candidates: HashMap<String, Vec<NodeId>>,
     registered_call_candidates: HashMap<NodeId, Vec<NodeId>>,
+    authored_call_candidates: HashMap<NodeId, Vec<NodeId>>,
+    authored_call_name_spans: HashMap<NodeId,Span>,
+    static_structure_calls: HashMap<NodeId, StaticStructureBinding>,
+    static_algebra_calls: HashMap<NodeId, StaticAlgebraBinding>,
     registered_call_spans: HashMap<NodeId, Span>,
     registered_definitions: HashMap<NodeId, SeedDef>,
     explicitly_registered_owners: HashSet<String>,
@@ -41,6 +46,85 @@ pub struct Parser {
     subject_reference_calls: HashMap<NodeId,SubjectReferenceCallBinding>,
     manipulation_phase_calls: HashMap<NodeId,ManipulationPhaseCallBinding>,
     mode: ParseMode,
+    first_callable_ddl: bool,
+    first_callable_context: Option<std::sync::Arc<RegisteredFirstCallableContext>>,
+}
+
+/// Immutable compilation context; neither a source-profile version nor a
+/// persisted semantic identity. The original public source and exact DDL stay
+/// owned here, so callers cannot attach a binding from a different analysis.
+#[derive(Debug, Clone)]
+pub struct RegisteredFirstCallableContext {
+    pub(crate) original: crate::frontdoor::ModuleDirectiveFrontdoorResult,
+    pub(crate) projection: SeedDef,
+    pub(crate) ddl_source: String,
+    pub(crate) ddl_path: String,
+    pub(crate) activation:Option<FirstCallableModuleActivation>,
+    pub(crate) prefix_profile:Option<crate::ddl::CheckedFirstCallableProfile>,
+}
+#[derive(Debug,Clone)]
+pub(crate) struct FirstCallableModuleActivation {
+    pub profile:crate::ddl::CheckedFirstCallableProfile,
+    pub binding:crate::module_directive::ModuleDirectiveEntry,
+}
+
+impl RegisteredFirstCallableContext {
+    /// Checked lexical supply for module-request inspection only. This does
+    /// not satisfy activation; parsing a consumer still requires `옮김`.
+    pub fn with_prefix_profile(mut self,profile:crate::ddl::CheckedFirstCallableProfile)->Self{self.prefix_profile=Some(profile);self}
+
+    pub fn from_public_and_ddl(
+        original: crate::frontdoor::ModuleDirectiveFrontdoorResult,
+        ddl_source: &str, ddl_path: &str,
+        language_profile_identity: &str, registration_revision: u32,
+    ) -> Result<Self, ParseError> {
+        let fail = |span, message: &str| ParseError { span, message: message.into() };
+        if !(ddl_path.ends_with(".ddl") || ddl_path.ends_with(".옮김")) {
+            return Err(fail(Span::new(0, 0), "E_DDL_EXTENSION_UNSUPPORTED: .ddl 또는 .옮김이 필요합니다"));
+        }
+        let binding = crate::ddl::bind_first_callable_ja_declaration(
+            &original, language_profile_identity, registration_revision,
+        ).map_err(|e| ParseError { span: e.span, message: format!("{}: {}", e.code, e.message) })?;
+        let tokens = Lexer::with_first_callable_registration(ddl_source, &binding)
+            .and_then(|mut lexer| lexer.tokenize())
+            .map_err(|e| fail(Span::new(e.pos, e.pos + ddl_source[e.pos..].chars().next().map_or(0, char::len_utf8)), &e.message))?;
+        let mut parser = Parser::new_v25_with_mode(tokens, ParseMode::Strict);
+        parser.source = ddl_source.into();
+        parser.first_callable_ddl = true;
+        let projection = parser.parse_seed_def()?;
+        if !parser.is_at_end() {
+            return Err(parser.error("E_DDL_FIRST_EXTRA_DECLARATION: 첫 범위의 공개 함수 하나만 필요합니다"));
+        }
+        let registry = crate::ddl::FIRST_CALLABLE_JA_REGISTRATION;
+        if projection.canonical_name != registry.callable_name || !projection.alternate_forms.is_empty()
+            || projection.seed_kind != SeedKind::Semssi || projection.body.is_some()
+            || projection.result_type != Some(TypeRef::Named(registry.rational_type_name.into()))
+            || projection.params.len() != 2
+        {
+            return Err(fail(projection.span, "E_DDL_FIRST_PROJECTION_MISMATCH: 실제 원본의 전체 공개 선언과 일치해야 합니다"));
+        }
+        for (index, pin) in projection.params.iter().enumerate() {
+            if pin.pin_name != registry.pin_names[index] || pin.optional || pin.default_value.is_some()
+                || pin.type_ref != TypeRef::Named(registry.rational_type_name.into())
+                || pin.josa_list.as_slice() != [registry.pin_particles[index]]
+            {
+                return Err(fail(pin.span, "E_DDL_FIRST_PIN_PROJECTION_MISMATCH: 필수 핀·타입·역할을 모두 투영해야 합니다"));
+            }
+        }
+        Ok(Self { original, projection, ddl_source: ddl_source.into(), ddl_path: ddl_path.into(),activation:None,prefix_profile:None })
+    }
+
+    /// Compilation-only handoff. Tool's original module/G1 owner remains
+    /// responsible for exported-DDL and durable admission; no serde success.
+    pub fn with_module_activation(mut self,profile:crate::ddl::CheckedFirstCallableProfile,
+        binding:crate::module_directive::ModuleDirectiveEntry)->Result<Self,ParseError>{
+        if binding.local_name.is_empty()||binding.target.is_empty(){return Err(ParseError{span:Span::new(0,0),message:"E_DDL_ACTIVATION_BINDING_REQUIRED".into()});}
+        self.activation=Some(FirstCallableModuleActivation{profile,binding});Ok(self)
+    }
+    pub fn original_public(&self) -> &crate::frontdoor::ModuleDirectiveFrontdoorResult { &self.original }
+    pub fn ddl_source(&self) -> &str { &self.ddl_source }
+    pub fn ddl_path(&self) -> &str { &self.ddl_path }
+    pub fn projection(&self) -> &SeedDef { &self.projection }
 }
 #[derive(Clone,Default)]
 struct DeclaredNames {
@@ -85,6 +169,7 @@ impl Parser {
         Self {
             tokens,
             source_epoch,
+            piecewise_definitions: HashMap::new(),
             source: String::new(),
             pos: 0,
             nid: 1,
@@ -100,6 +185,10 @@ impl Parser {
             registered_forms: HashMap::new(),
             registered_form_candidates: HashMap::new(),
             registered_call_candidates: HashMap::new(),
+            authored_call_candidates: HashMap::new(),
+            authored_call_name_spans: HashMap::new(),
+                static_structure_calls: HashMap::new(),
+                static_algebra_calls: HashMap::new(),
             registered_call_spans: HashMap::new(),
             registered_definitions: HashMap::new(),
             explicitly_registered_owners: HashSet::new(),
@@ -114,7 +203,40 @@ impl Parser {
             subject_reference_calls: HashMap::new(),
             manipulation_phase_calls: HashMap::new(),
             mode,
+            first_callable_ddl: false,
+            first_callable_context: None,
         }
+    }
+
+    pub fn parse_with_first_callable_context(
+        source: &str, path: &str, context: std::sync::Arc<RegisteredFirstCallableContext>,
+    ) -> Result<CanonProgram, ParseError> {
+        let binding = crate::ddl::bind_first_callable_ja_declaration(
+            &context.original, crate::ddl::FIRST_CALLABLE_JA_REGISTRATION.language_profile_identity,
+            crate::ddl::FIRST_CALLABLE_JA_REGISTRATION.registration_revision,
+        ).map_err(|e| ParseError { span: e.span, message: format!("{}: {}", e.code, e.message) })?;
+        let tokens=if let Some(activation)=&context.activation {
+            let directive_context=crate::module_directive::ModuleDirectiveContext::default().with_known_imports([activation.binding.target.clone()]);
+            let (document,tokens)=crate::module_directive::first_callable_module_tokens(source,path,&directive_context,&context)?;
+            let imports=document.imports.as_ref().ok_or_else(||ParseError{span:Span::new(0,0),message:"E_DDL_ACTIVATION_REQUIRED".into()})?;
+            let request=imports.translation.as_ref().ok_or_else(||ParseError{span:imports.span,message:"E_DDL_ACTIVATION_REQUIRED".into()})?;
+            let profile=crate::ddl::resolve_first_callable_profile_name(&request.target_language,&request.target_version)
+                .map_err(|e|ParseError{span:request.span,message:e.to_string()})?;
+            if imports.entries.as_slice()!=[activation.binding.clone()] || document.exports.is_some()
+                ||profile.identity()!=activation.profile.identity()||profile.version()!=activation.profile.version(){
+                return Err(ParseError{span:imports.span,message:"E_DDL_ACTIVATION_OWNER_OR_PROFILE: 명시된 실제 모듈·말씨 판본과 다릅니다".into()});
+            }
+            let start=source.len()-document.declaration_source.len();
+            tokens.into_iter().filter(|token|token.span.start>=start).collect()
+        } else {
+            Lexer::with_first_callable_registration(source, &binding).and_then(|mut lexer| lexer.tokenize())
+                .map_err(|e| ParseError { span: Span::new(e.pos, e.pos + source[e.pos..].chars().next().map_or(0, char::len_utf8)), message: e.message })?
+        };
+        let mut parser = Self::new_v25_with_mode(tokens, ParseMode::Strict);
+        parser.nid = context.original.declaration_program.as_ref().unwrap().id.checked_add(1)
+            .ok_or_else(|| ParseError { span: Span::new(0, 0), message: "E_DDL_NODE_LIMIT".into() })?;
+        parser.first_callable_context = Some(context);
+        parser.parse_program(source.into(), path.into())
     }
     fn is_sum_match_stmt_start(&self) -> bool {
         self.sum_match_boundary().is_some()
@@ -497,6 +619,13 @@ impl Parser {
         self.nid += 1;
         id
     }
+    /// Preserve the exact token span supplied by parse_call_name separately
+    /// from the whole call/argument syntax. Neither span selects a target.
+    fn parsed_source_call(&mut self,span:Span,args:Vec<ArgBinding>,func:String,name_span:Span)->Expr {
+        let id=self.next_id();self.authored_call_name_spans.insert(id,name_span);
+        Expr::new(id,span,ExprKind::Call{args,func})
+    }
+
     pub fn parse_program(
         &mut self,
         source: String,
@@ -555,12 +684,18 @@ impl Parser {
         self.registered_forms.clear();
         self.registered_form_candidates.clear();
         self.registered_call_candidates.clear();
+        self.authored_call_candidates.clear();
+        self.authored_call_name_spans.clear();
+        self.piecewise_definitions.clear();
+        self.static_structure_calls.clear();
+        self.static_algebra_calls.clear();
         self.registered_call_spans.clear();
         self.registered_definitions.clear();
         self.explicitly_registered_owners.clear();
         let mut items = Vec::new();
         let mut root_stmts = Vec::new();
         let mut top_level_decl = Vec::new();
+        let mut authored_jjaim_blocks = Vec::new();
         while !self.is_at_end() {
             if matches!(self.current().kind, TokenKind::Pragma(_)) {
                 return Err(ParseError {
@@ -594,7 +729,10 @@ impl Parser {
                 continue;
             }
             if matches!(self.current().kind, TokenKind::JjaimBlock(_)) {
-                let _ = self.parse_jjaim_block_stmt()?;
+                let stmt = self.parse_jjaim_block_stmt()?;
+                if let Stmt::MetaBlock { span, .. } = stmt {
+                    authored_jjaim_blocks.push(span);
+                }
                 continue;
             }
             if self.peek_meta_block_kind().is_some() {
@@ -611,7 +749,11 @@ impl Parser {
                 top_level_decl.push(stmt);
                 continue;
             }
-            if self.is_vc04_schema_start() {
+            if self.source_epoch == SourceEpoch::V25
+                && self.find_matching_rparen_after_current_lparen().is_some_and(|end|
+                    self.tokens.get(end + 1).is_some_and(|token| token.raw == "두고")) {
+                items.push(self.parse_top_level_item()?);
+            } else if self.is_vc04_schema_start() {
                 items.push(TopLevelItem::SeedDef(self.parse_vc04_schema()?));
             } else if self.is_sum_definition_stmt_start()
                 || self.is_sum_match_stmt_start()
@@ -630,11 +772,18 @@ impl Parser {
             items,
             root_stmts,
             origin: OriginMap {
+                lexical_names: None,
+                piecewise_definitions: self.piecewise_definitions.clone(),
                 file_path,
                 source,
+                authored_jjaim_blocks,
                 node_spans: std::collections::HashMap::new(),
                 registered_sum_pin_order:None,
                 registered_call_candidates: HashMap::new(),
+                authored_call_candidates: HashMap::new(),
+            authored_call_name_spans: HashMap::new(),
+                static_structure_calls: HashMap::new(),
+                static_algebra_calls: HashMap::new(),
                 bytes_calls: HashMap::new(),
                 atom_value_occurrences: self.atom_value_occurrences.clone(),
                 retirement_commands: HashMap::new(),
@@ -642,6 +791,9 @@ impl Parser {
                 manipulation_phase_calls: HashMap::new(),
             },
         };
+        if let Some(context) = &self.first_callable_context {
+            crate::canonicalizer::bind_first_callable_registered_program(&mut program, context)?;
+        }
         self.validate_seed_name_conflicts(&program)?;
         self.bind_registered_forms(&program)?;
         crate::ordinary_callable::validate_ordinary_callable_admission(&program).map_err(
@@ -654,6 +806,10 @@ impl Parser {
             self.apply_default_args(&mut program)?;
         }
         program.origin.registered_call_candidates = self.registered_call_candidates.clone();
+        program.origin.authored_call_candidates = self.authored_call_candidates.clone();
+        program.origin.authored_call_name_spans = self.authored_call_name_spans.clone();
+        program.origin.static_structure_calls = self.static_structure_calls.clone();
+        program.origin.static_algebra_calls = self.static_algebra_calls.clone();
         program.origin.bytes_calls = self.bytes_calls.clone();
         program.origin.retirement_commands = self.retirement_commands.clone();
         program.origin.subject_reference_calls = self.subject_reference_calls.clone();
@@ -665,6 +821,13 @@ impl Parser {
             .extend(self.registered_call_spans.clone());
         self.validate_units(&program)?;
         validate_record_field_accesses(&program)?;
+        if resolve_calls && program.source_epoch == SourceEpoch::V25 {
+            let names=crate::name_resolution::resolve(&program,&self.tokens);
+            if let Some((span,message))=names.first_admission_error() {
+                return Err(ParseError { span,message:message.into() });
+            }
+            program.origin.lexical_names=Some(names);
+        }
         Ok(program)
     }
     fn enter_scope(&mut self) {
@@ -988,6 +1151,8 @@ impl Parser {
             stmts: decls,
         };
         let seed = SeedDef {
+            type_params: Vec::new(),
+            proof_header: None,
             id: self.next_id(),
             span,
             canonical_name: "매마디".to_string(),
@@ -2324,3 +2489,132 @@ mod contracts_literals;
 mod expressions;
 
 mod callables;
+mod piecewise;
+
+#[cfg(test)]
+mod multilang_first_tests {
+    use super::*;
+    use std::sync::Arc;
+    pub const ORIGINAL: &str = "(총액합하다=총액합하다) 드러냄.\n(금액:나눔수~에, 세액:나눔수~을~를) 총액합하다{총액합하기}:나눔수:셈씨 := { 총액합하다 <- 금액 + 세액. }.\n";
+    pub const DDL: &str = "#!日本語\n(金額:有理数~に, 税額:有理数~を) 合計する:有理数:関数 :={...}.\n";
+    const CALL: &str = "#!日本語\n金額:有理数 := (金額=(100,1) 有理数, 税額=(10,1) 有理数) 合計する.\n";
+
+    fn context(ddl: &str) -> Result<Arc<RegisteredFirstCallableContext>, ParseError> {
+        let public = crate::parse_module_directive_frontdoor_with_mode(ORIGINAL, "세금.ddn", ParseMode::Strict,
+            &crate::ModuleDirectiveContext::default().with_public_definitions(["총액합하다"])).unwrap();
+        RegisteredFirstCallableContext::from_public_and_ddl(public, ddl, "세금.일본어.ddl", "language-profile:ja", 1).map(Arc::new)
+    }
+
+    #[test]
+    fn multilang_first_common_ddl_parser_preserves_source_and_has_no_executable_projection_body() {
+        let context = context(DDL).unwrap();
+        assert!(context.projection.body.is_none());
+        assert!(context.original.declaration_program.as_ref().unwrap().items.iter().all(|TopLevelItem::SeedDef(seed)| seed.body.is_some()));
+        let binding = crate::ddl::bind_first_callable_ja_declaration(&context.original, "language-profile:ja", 1).unwrap();
+        let tokens = Lexer::with_first_callable_registration(DDL, &binding).unwrap().tokenize().unwrap();
+        for token in tokens.iter().filter(|token| !matches!(token.kind, TokenKind::Eof)) {
+            assert_eq!(&DDL[token.span.start..token.span.end], token.raw);
+        }
+        assert_eq!(context.ddl_source(), DDL);
+        assert_eq!(context.projection.params[0].josa_list, ["に"]);
+    }
+
+    #[test]
+    fn multilang_first_scoped_binding_keeps_local_names_and_original_definition_candidates() {
+        let context = context(DDL).unwrap();
+        let program = Parser::parse_with_first_callable_context(CALL, "利用.ddn", context.clone()).unwrap();
+        assert_eq!(program.origin.source, CALL);
+        let TopLevelItem::SeedDef(original) = &context.original.declaration_program.as_ref().unwrap().items[0];
+        let TopLevelItem::SeedDef(actual) = &program.items[0];
+        assert_eq!(actual.id, original.id);
+        assert_eq!(actual.params[0].id, original.params[0].id);
+        assert_eq!(actual.params[1].id, original.params[1].id);
+        let Stmt::Definition { name, value, type_ref, .. } = &program.root_stmts[0] else { panic!("definition"); };
+        assert_eq!(name, "金額"); // a local binder is not the public pin
+        assert_eq!(*type_ref, TypeRef::Named("나눔수".into()));
+        let ExprKind::Call { func, args } = &value.kind else { panic!("call"); };
+        assert_eq!(func, &original.canonical_name);
+        assert_eq!(args[0].resolved_pin.as_deref(), Some("금액"));
+        assert_eq!(args[1].resolved_pin.as_deref(), Some("세액"));
+        assert_eq!(program.origin.authored_call_candidates.get(&value.id), Some(&vec![original.id]));
+    }
+
+    #[test]
+    fn multilang_first_ddl_refuses_partial_projection_actual_body_and_unsupported_forms() {
+        for ddl in [DDL.replace(", 税額:有理数~を", ""), DDL.replace("{...}", "{ 合計する. }"),
+            DDL.replace("金額:有理数", "金額:関数"), DDL.replace("合計する:", "合計する{合計する}:"),
+            format!("{DDL}{DDL}"), DDL.replace("#!日本語", "#!ja")] {
+            assert!(context(&ddl).is_err(), "{ddl}");
+        }
+    }
+
+    #[test]
+    fn multilang_first_refuses_unknown_fullwidth_and_language_fallback_with_utf8_spans() {
+        let context = context(DDL).unwrap();
+        for source in [CALL.replace("100", "１００"), CALL.replace("合計する", "合計する余"),
+            CALL.replace("有理数", "rational"), CALL.replace("税額", "세액"), format!("{CALL}#!日本語\n")] {
+            assert!(Parser::parse_with_first_callable_context(&source, "利用.ddn", context.clone()).is_err(), "{source}");
+        }
+        let source = CALL.replace("\n金額", "\r\n// 😀\r\n余金額");
+        let failure = Parser::parse_with_first_callable_context(&source, "利用.ddn", context).unwrap_err();
+        assert_eq!(failure.span.start, source.find('余').unwrap());
+        assert_eq!(&source[failure.span.start..failure.span.end], "余");
+    }
+
+    #[test]
+    fn multilang_first_common_required_pin_and_unknown_pin_rejections() {
+        let context = context(DDL).unwrap();
+        for source in [CALL.replace(", 税額=(10,1) 有理数", ""),
+            CALL.replace("税額=(10,1)", "有理数=(10,1)"),
+            CALL.replace("税額=(10,1)", "金額=(10,1)")] {
+            assert!(Parser::parse_with_first_callable_context(&source, "利用.ddn", context.clone()).is_err(), "{source}");
+        }
+        assert!(Lexer::new(DDL).tokenize().is_err());
+        assert!(crate::parse_v25(CALL, "利用.ddn").is_err());
+    }
+}
+
+#[cfg(test)]
+mod r14_closed_profile_activation_tests {
+use super::*;
+const ORIGINAL:&str="(총액합하다=총액합하다) 드러냄.\n(금액:나눔수~에, 세액:나눔수~을~를)\n총액합하다{총액합하기}:나눔수:셈씨 := {\n    총액합하다 <- 금액 + 세액.\n}.\n";
+const DDL:&str="#!日本語\n(金額:有理数~に, 税額:有理数~を)\n合計する:有理数:関数 :={...}.\n";
+
+ fn context()->std::sync::Arc<RegisteredFirstCallableContext>{
+  let public=crate::parse_module_directive_frontdoor_with_mode(ORIGINAL,"세금.ddn",ParseMode::Strict,&crate::ModuleDirectiveContext::default().with_public_definitions(["총액합하다"])).unwrap();
+  let base=RegisteredFirstCallableContext::from_public_and_ddl(public,DDL,"세금.ddl","language-profile:ja",1).unwrap();
+  std::sync::Arc::new(base.with_module_activation(crate::ddl::issued_first_callable_profile().unwrap(),crate::module_directive::ModuleDirectiveEntry{local_name:"세금".into(),target:"./세금".into()}).unwrap())
+ }
+ fn source()->String{format!("#!日本語\n(세금=\"./세금\", 옮김=(대상말씨=\"日本語\", 대상판본=\"{}\")) 쓰임.\n金額 <- (金額=(100,1) 有理数, 税額=(10,1) 有理数) 合計する.\n",crate::ddl::issued_first_callable_profile().unwrap().version())}
+ #[test]fn r14_real_registry_exact_and_legacy_labels_refuse(){
+  let p=crate::ddl::issued_first_callable_profile().unwrap();assert!(p.identity().starts_with("language-profile:"));assert_ne!(p.identity(),"language-profile:ja");
+  crate::ddl::lookup_first_callable_profile(p.identity(),p.version(),p.content_sha256(),p.registration_revision()).unwrap();
+  for (id,v,h,rev) in [("language-profile:ja",p.version(),p.content_sha256(),1),(p.identity(),"first-callable-ja-r1",p.content_sha256(),1),(p.identity(),p.version(),"0000000000000000000000000000000000000000000000000000000000000000",1),(p.identity(),p.version(),p.content_sha256(),0)]{
+   assert!(crate::ddl::lookup_first_callable_profile(id,v,h,rev).is_err());
+  }
+  for name in ["ja","日本語 ","日本","English"]{assert!(crate::ddl::resolve_first_callable_profile_name(name,p.version()).is_err());}
+ }
+ #[test]fn r14_module_activation_uses_common_body_and_canon(){
+  let ctx=context();let raw=source();let program=Parser::parse_with_first_callable_context(&raw,"利用.ddn",ctx.clone()).unwrap();assert_eq!(program.origin.source,raw);assert_eq!(program.root_stmts.len(),1);assert_eq!(program.items.len(),1);
+  let canon=crate::canonicalizer::canonicalize_first_callable_registered_source(&program,&ctx).unwrap();assert!(canon.contains("옮김="));assert!(canon.starts_with("#!日本語\n"));Parser::parse_with_first_callable_context(&canon,"正本.ddn",ctx).unwrap();
+ }
+
+ #[test]fn r14_korean_entry_japanese_call_preserves_raw_and_rejects_unregistered_surface(){
+  let ctx=context();let prefix=source().lines().nth(1).unwrap().to_string();
+  let raw=format!("{prefix}\n실행:움직씨 := {{ ((金額=(100,1) 有理数, 税額=(10,1) 有理数) 合計する) 보여주기. }}.\n");
+  let program=Parser::parse_with_first_callable_context(&raw,"main.ddn",ctx.clone()).unwrap();
+  assert_eq!(program.origin.source,raw);assert!(program.root_stmts.is_empty());assert_eq!(program.items.len(),2);
+  let entry=program.items.iter().find_map(|TopLevelItem::SeedDef(seed)|(seed.canonical_name=="실행").then_some(seed)).unwrap();
+  assert_eq!(&raw[entry.span.start..entry.span.end],"실행:움직씨 := { ((金額=(100,1) 有理数, 税額=(10,1) 有理数) 合計する) 보여주기. }.");
+  let canon=crate::canonicalizer::canonicalize_first_callable_registered_source(&program,&ctx).unwrap();
+  assert!(canon.contains("움직씨"));assert!(canon.contains("合計する"));assert!(!canon.contains("총액합하다"));assert!(!canon.starts_with("#!日本語"));
+  Parser::parse_with_first_callable_context(&canon,"main.ddn",ctx.clone()).unwrap();
+  assert!(crate::parse_v25_with_mode(&raw,"main.ddn",ParseMode::Strict).is_err());
+  for bad in [raw.replace("合計する","未登録"),raw.replace("(100,1)","（100,1）"),raw.replace("税額=","余分="),raw.replace("실행:움직씨","실행:셈씨"),raw.replace("움직씨 := {","움직씨 := { 0 보여주기."),raw.replace("대상판본=\"1\"","대상판본=\"latest\"")]{
+   assert!(Parser::parse_with_first_callable_context(&bad,"main.ddn",ctx.clone()).is_err(),"{bad}");
+  }
+ }
+ #[test]fn r14_missing_duplicate_wrong_profile_module_and_bad_pin_refuse(){
+  let ctx=context();let raw=source();let prefix=raw.lines().nth(1).unwrap();for bad in [raw.replace(prefix,""),raw.replace("./세금","./다른모듈"),raw.replace("대상판본=\"1\"","대상판본=\"latest\""),raw.replace(", 税額=(10,1) 有理数",""),raw.replace(prefix,&format!("{prefix}\n{prefix}"))]{assert!(Parser::parse_with_first_callable_context(&bad,"利用.ddn",ctx.clone()).is_err(),"{bad}");}
+ }
+}

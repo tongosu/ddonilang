@@ -29,7 +29,7 @@ impl InitialGeneralReplaySeedBoundaryV1<'_>{
         // The common supplier checks actual zero work counters and entry,
         // rather than accepting a caller-provided 'fresh' success flag.
         let boundary=complete::encode_general_boundary_supplies(self.owned,self.runner,&[],self.base,0).map_err(fail)?;
-        let issued=crate::project_snapshot_identity::current::issue_saved_local_project(self.owned)?;
+        let issued=crate::project_snapshot_identity::current::issue_saved_project(self.owned)?;
         let payload=crate::unit_wire::project_runtime_attachment::saved_runtime_project_payload_json(self.owned)?;
         if self.source.pesi()!=issued.pesi().as_raw()||self.source.payload()!=payload.as_bytes(){
             return Err("E_GENERAL_REPLAY_SEED_SOURCE: 원 시작과 원문 봉인이 다릅니다".into());
@@ -134,7 +134,7 @@ impl CommittedGeneralResultBoundaryV1<'_>{
         if collector.outputs.next_madi()!=execution.next_tick||collector.base!=self.base||collector.age!=self.age{
             return Err("E_GENERAL_RESULT_POSITION: 실제 일반 실행의 출력·난수 위치가 다릅니다".into());
         }
-        let issued=crate::project_snapshot_identity::current::issue_saved_local_project(self.owned)?;
+        let issued=crate::project_snapshot_identity::current::issue_saved_project(self.owned)?;
         let seed=crate::replay_evidence::ReplaySeedCandidateV1::parse(collector.seed.canonical_bytes())?;
         if seed.payload(1)!=Some(issued.pesi().as_raw().as_slice()){
             return Err("E_GENERAL_RESULT_SOURCE: 원 시작과 현재 일반 실행이 다릅니다".into());

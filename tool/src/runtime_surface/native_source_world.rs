@@ -10,7 +10,7 @@ mod recording_finish;
 pub(crate) use recording_finish::{NativeLogicalFinishSessionV1,recover_native_logical_finish};
 mod restart;
 pub use restart::{begin_new_authored_source_native,NativeRestartSourceWorldSession,NativeRestartSourceWorldExecution,NativeRestartSourceWorldPrepared};
-pub(crate) use logical::{resume_logical_source_world,save_continued_logical_source_world,verify_native_logical_current_receipt};
+pub(crate) use logical::{resume_logical_source_world,resume_logical_source_world_with_result,save_continued_logical_source_world,verify_native_logical_current_receipt};
 
 /// Consumes the real Native session. Not Clone, serde, or constructible from
 /// a successful JSON response; failed VM execution never resets Started.
@@ -230,7 +230,7 @@ impl NativeFirstSourceWorldExecution {
         // below remain mandatory, and default JSON export still rejects any
         // Subject lifetime whose saved runtime context is not connected yet.
         let encoded=self.run.encode_world_frame().map_err(|cause|format!("E_SOURCE_FIRST_WORLD_FRAME: {cause:?}"))?;
-        let issued=crate::project_snapshot_identity::current::issue_saved_local_project(&self.run.owned)?;
+        let issued=crate::project_snapshot_identity::current::issue_saved_project(&self.run.owned)?;
         let frame=crate::unit_wire::check_complete_state_frame_v1(&encoded,issued.pesi().as_raw())
             .map_err(|cause|format!("E_SOURCE_FIRST_WORLD_FRAME: {cause:?}"))?;
         let catalog=self.run.owned.registration().map(|registration|registration.saved_nominal_catalog(&self.run.owned)).transpose()?;

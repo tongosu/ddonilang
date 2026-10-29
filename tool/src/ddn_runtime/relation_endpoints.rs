@@ -43,6 +43,7 @@ use super::{
     make_rational_pack_from_big_rational,
     numeric_pack_approx,
     parse_bigint_text,
+    parse_formula_value,
     unit_value_to_value,
 };
 
@@ -2159,10 +2160,37 @@ pub(super) fn eval_relation_solve_result_with_meter(
     Ok(match outcome {
         ddonirang_symbolic::RelationSolveOutcome::Solution(solution) => {
             let mut bindings = BTreeMap::new();
+            let mut exact_bindings = BTreeMap::new();
             for (variable, binding) in solution {
+                if relations.len() == 1 {
+                    let numerator = parse_bigint_text(&binding.numerator, "relation solve numerator")?;
+                    let denominator = parse_bigint_text(&binding.denominator, "relation solve denominator")?;
+                    if denominator == BigInt::from(0u8) {
+                        return Err("방정식 해의 분모는 0일 수 없습니다".to_string().into());
+                    }
+                    exact_bindings.insert(variable.clone(), make_rational_pack_from_big_rational(
+                        &BigRational::new(numerator, denominator)));
+                }
                 bindings.insert(variable, relation_binding_value_from_text(&binding)?);
             }
-            make_relation_solve_success_bindings(bindings)
+            let mut result = make_relation_solve_success_bindings(bindings);
+            if relations.len() == 1 {
+                let Value::Pack(fields) = &mut result else { unreachable!() };
+                for (source_field, result_field) in [(RELATION_LEFT_FIELD, "왼쪽입력"), (RELATION_RIGHT_FIELD, "오른쪽입력")] {
+                    let Some(Value::Formula(formula)) = relations[0].get(source_field) else { unreachable!() };
+                    // Use precisely the parser and required-key set used by 풀기;
+                    // do not discard a variable merely because it cancels.
+                    let parsed = parse_formula_value(formula)?;
+                    let mut injection = BTreeMap::new();
+                    for name in parsed.vars {
+                        let value = exact_bindings.get(&name).ok_or_else(||
+                            EvalError::from(format!("검산 입력에 필요한 해가 없습니다: {name}")))?;
+                        injection.insert(name, value.clone());
+                    }
+                    fields.insert(result_field.into(), Value::Pack(injection));
+                }
+            }
+            result
         }
         ddonirang_symbolic::RelationSolveOutcome::NoSolution => {
             make_relation_solve_failure("no_solution")

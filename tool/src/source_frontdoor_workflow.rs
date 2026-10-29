@@ -11,10 +11,25 @@ use crate::runtime_surface::canonicalize_shared_source_with_supported_profile;
 use crate::source_analysis::{analyze_source, SourceAnalysisRequest};
 use ddonirang_lang::{Body, Expr, ExprKind, Literal, ParseMode, Stmt, TopLevelItem};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct SourceFrontdoorError {
     message: String,
     exit_code: i32,
+    // Display-only data from this exact analysis, not decoded from message.
+    analysis: Option<Box<crate::source_analysis::SourceAnalysisSnapshot>>,
+}
+
+// Preserve the existing public comparison and Debug contract. A message/equal
+// error is never evidence that typed analysis or execution authority exists.
+impl PartialEq for SourceFrontdoorError {
+    fn eq(&self, other: &Self) -> bool { self.message == other.message && self.exit_code == other.exit_code }
+}
+impl Eq for SourceFrontdoorError {}
+impl fmt::Debug for SourceFrontdoorError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.debug_struct("SourceFrontdoorError")
+            .field("message", &self.message).field("exit_code", &self.exit_code).finish()
+    }
 }
 
 impl SourceFrontdoorError {
@@ -22,6 +37,7 @@ impl SourceFrontdoorError {
         Self {
             message: message.into(),
             exit_code: 1,
+            analysis: None,
         }
     }
 
@@ -29,6 +45,7 @@ impl SourceFrontdoorError {
         Self {
             message: message.into(),
             exit_code: 2,
+            analysis: None,
         }
     }
 
@@ -38,6 +55,12 @@ impl SourceFrontdoorError {
 
     pub fn message(&self) -> &str {
         &self.message
+    }
+
+    /// Candidate analysis from the actual producer. This is display data only,
+    /// not a proof, parse bypass, execution admission, or durable permission.
+    pub fn analysis(&self) -> Option<&crate::source_analysis::SourceAnalysisSnapshot> {
+        self.analysis.as_deref()
     }
 }
 
@@ -102,17 +125,39 @@ struct CheckSchemaEntry {
     type_name: String,
 }
 
-pub fn run_check_or_build_supported_profile(
+/// The same check producer's exact output and typed candidate analysis.
+/// No Serialize implementation: this does not add fields to the check wire.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SourceFrontdoorCheckOutput {
+    stdout: String,
+    exit_code: i32,
+    analysis: crate::source_analysis::SourceAnalysisSnapshot,
+}
+impl SourceFrontdoorCheckOutput {
+    pub fn analysis(&self) -> &crate::source_analysis::SourceAnalysisSnapshot { &self.analysis }
+    pub fn into_output(self) -> (String, i32) { (self.stdout, self.exit_code) }
+}
+
+pub fn run_check_or_build_supported_profile_output(
     file: &Path,
     source_profile: &str,
-) -> Result<(String, i32), SourceFrontdoorError> {
+) -> Result<SourceFrontdoorCheckOutput, SourceFrontdoorError> {
     let source = read_source(file, "E_CLI_SOURCE_READ", "E_CLI_SOURCE_UTF8", false)?;
     let snapshot = analyze_supported_source(&source, file, source_profile);
     let exit_code = if snapshot.outcome == "ACCEPTED" { 0 } else { 1 };
     let output = serde_json::to_string_pretty(&snapshot)
         .map(|text| format!("{text}\n"))
         .map_err(|error| SourceFrontdoorError::runtime(format!("E_CLI_JSON_SERIALIZE {error}")))?;
-    Ok((output, exit_code))
+    Ok(SourceFrontdoorCheckOutput { stdout: output, exit_code, analysis: snapshot })
+}
+
+/// Existing tuple API remains byte/exit compatible and uses the same producer.
+pub fn run_check_or_build_supported_profile(
+    file: &Path,
+    source_profile: &str,
+) -> Result<(String, i32), SourceFrontdoorError> {
+    run_check_or_build_supported_profile_output(file, source_profile)
+        .map(SourceFrontdoorCheckOutput::into_output)
 }
 
 pub fn validate_supported_source_for_execution(
@@ -126,7 +171,7 @@ pub fn validate_supported_source_for_execution(
     }
     let output = serde_json::to_string_pretty(&snapshot)
         .map_err(|error| SourceFrontdoorError::runtime(format!("E_CLI_JSON_SERIALIZE {error}")))?;
-    Err(SourceFrontdoorError::runtime(output))
+    Err(SourceFrontdoorError { message: output, exit_code: 1, analysis: Some(Box::new(snapshot)) })
 }
 
 fn analyze_supported_source(
@@ -440,5 +485,60 @@ mod tests {
         assert!(output.contains("/check_schema/"));
         assert!(output.ends_with(".ddn.schema.json"));
         assert!(!output.contains("/lessons/foo/ddn.schema.json"));
+    }
+}
+
+
+#[cfg(test)]
+mod display_diagnostic_tests {
+    use super::*;
+
+    #[test]
+    fn display_analysis_is_exact_producer_data_and_preserves_old_error_contract() {
+        let source = "합 := (2 + ).\n";
+        let error = validate_supported_source_for_execution(source, Path::new("한글.ddn"), "v1-core-v25").unwrap_err();
+        let snapshot = error.analysis().unwrap();
+        assert_eq!(snapshot.outcome, "REJECTED");
+        assert_eq!(snapshot.diagnostics[0].code, "E_PARSE");
+        assert_eq!(snapshot.source_revision_identity, format!("blake3:{}", blake3::hash(source.as_bytes()).to_hex()));
+        assert_eq!(error.message(), serde_json::to_string_pretty(snapshot).unwrap());
+        assert_eq!(error.exit_code(), 1);
+        let opaque = SourceFrontdoorError::runtime(error.message());
+        assert!(opaque.analysis().is_none()); // A JSON-looking message never supplies typed facts.
+        assert_eq!(error, opaque); // Old equality is intentionally not admission evidence.
+        assert_eq!(format!("{error:?}"), format!("{opaque:?}"));
+        assert_eq!(error.to_string(), error.message());
+        assert_eq!(&*error, error.message());
+    }
+
+    #[test]
+    fn display_check_output_matches_old_wire_and_keeps_source_revisions_separate() {
+        let directory = std::env::temp_dir().join(format!("ddn-display-analysis-{}-check", std::process::id()));
+        fs::create_dir(&directory).unwrap(); // Own fixture only; preserve it for evidence.
+        let file = directory.join("한글.ddn");
+        fs::write(&file, "합 := (2 + ).\n").unwrap();
+        let rejected = run_check_or_build_supported_profile_output(&file, "v1-core-v25").unwrap();
+        let before = rejected.analysis().clone();
+        let old_api = run_check_or_build_supported_profile(&file, "v1-core-v25").unwrap();
+        assert_eq!(rejected.clone().into_output(), old_api);
+        let wire: serde_json::Value = serde_json::from_str(&old_api.0).unwrap();
+        assert_eq!(wire.as_object().unwrap().len(), 6);
+        assert_eq!(wire, serde_json::to_value(&before).unwrap());
+        assert_eq!(old_api.1, 1);
+        fs::write(&file, "합 := 2 + 3.\n합 보여주기.\n").unwrap();
+        let accepted = run_check_or_build_supported_profile_output(&file, "v1-core-v25").unwrap();
+        assert_eq!(accepted.analysis().outcome, "ACCEPTED");
+        assert_ne!(accepted.analysis().source_revision_identity, before.source_revision_identity);
+        assert_eq!(rejected.analysis(), &before);
+        assert_eq!(accepted.into_output().1, 0);
+    }
+
+    #[test]
+    fn display_input_and_runtime_strings_never_acquire_analysis_by_content() {
+        for error in [SourceFrontdoorError::input("{\"diagnostics\":[{\"code\":\"E_PARSE\"}]}"),
+                      SourceFrontdoorError::runtime("E_PARSE: user content")] {
+            assert!(error.analysis().is_none());
+        }
+        assert!(validate_supported_source_for_execution("합 := 2 + 3.", Path::new("정상.ddn"), "v1-core-v25").is_ok());
     }
 }

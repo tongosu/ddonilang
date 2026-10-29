@@ -126,6 +126,10 @@ fn seed_kind_name(kind: &SeedKind) -> String {
 
 fn type_ref_name(type_ref: &TypeRef) -> String {
     match type_ref {
+        // Syntax descriptions only: these do not issue proof or runtime types.
+        TypeRef::AlgebraEquality {left,right} => format!("{} =:= {}",left.source_text(),right.source_text()),
+        TypeRef::StructureLaw {structure,member} => format!("{structure}.{member}"),
+        TypeRef::PropositionConjunction(items) => format!("({})",items.iter().map(type_ref_name).collect::<Vec<_>>().join(" 이고 ")),
         TypeRef::Tuple(items)=>format!("({})",items.iter().map(type_ref_name).collect::<Vec<_>>().join(", ")),
         TypeRef::Tensor {element,shape} => {
             let mut axes = shape.iter().map(u64::to_string).collect::<Vec<_>>().join(", ");
@@ -160,6 +164,9 @@ fn type_ref_name(type_ref: &TypeRef) -> String {
 
 fn collect_type_names(type_ref: &TypeRef, types: &mut BTreeSet<String>) {
     match type_ref {
+        // A static proposition's value/structure names are not nominal type names.
+        TypeRef::AlgebraEquality {..} | TypeRef::StructureLaw {..} => {},
+        TypeRef::PropositionConjunction(items) => for item in items {collect_type_names(item,types);},
         TypeRef::Tuple(items)=>for item in items {collect_type_names(item,types);},
         TypeRef::Tensor {element,..} => {
             types.insert("텐서씨".into());
@@ -213,4 +220,29 @@ fn load_asset_manifest_summary() -> Result<AssetManifestSummary, String> {
         hash_algo: manifest.hash_algo,
         entry_count: manifest.entries.len(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ddonirang_lang::ast::{AlgebraTermSyntax,AlgebraTermKind,Span};
+
+    #[test]
+    fn static_propositions_have_descriptions_without_issuing_runtime_types() {
+        let term=|name:&str|AlgebraTermSyntax {span:Span{start:0,end:name.len()},kind:AlgebraTermKind::Name(name.into())};
+        let equality=TypeRef::AlgebraEquality {left:term("x"),right:term("y")};
+        let law=TypeRef::StructureLaw {structure:"항등구조".into(),member:"항등법칙".into()};
+        assert_eq!(type_ref_name(&equality),"x =:= y");
+        assert_eq!(type_ref_name(&law),"항등구조.항등법칙");
+        assert_eq!(type_ref_name(&TypeRef::PropositionConjunction(vec![equality,law])),"(x =:= y 이고 항등구조.항등법칙)");
+    }
+
+    #[test]
+    fn schema_type_inventory_does_not_promote_structure_or_term_spelling() {
+        let law=TypeRef::StructureLaw {structure:"항등구조".into(),member:"항등법칙".into()};
+        let proof=TypeRef::Applied{name:"보임".into(),args:vec![TypeRef::PropositionConjunction(vec![law])]};
+        let callable=TypeRef::Function {params:vec![TypeRef::Named("나눔수".into())],result:Box::new(proof)};
+        let mut names=BTreeSet::new();collect_type_names(&callable,&mut names);
+        assert_eq!(names,BTreeSet::from(["나눔수".into(),"보임".into()]));
+    }
 }

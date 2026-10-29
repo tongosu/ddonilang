@@ -9,6 +9,16 @@ impl<'a> EvalContext<'a> {
         args: Vec<Value>,
         source_span: Option<SourceSpan>,
     ) -> Result<Value, EvalError> {
+        self.eval_call_with_formula_context(locals,func,args,source_span,None)
+    }
+
+    pub(super) fn eval_call_with_formula_context(
+        &mut self, locals:&HashMap<String,Value>, func:&str, args:Vec<Value>,
+        source_span:Option<SourceSpan>, exact_formula_inputs:Option<BTreeSet<String>>,
+    )->Result<Value,EvalError> {
+        if exact_formula_inputs.is_some() && func!="풀기" {
+            return Err("정확 수식 문맥은 풀기 호출에만 사용할 수 있습니다".to_string().into());
+        }
         use ddonirang_lang::ordinary_callable::{resolve_scalar_math_callable,ScalarMathCallableOwner};
         let math_owner=resolve_scalar_math_callable(&self.program.program,func);
         if !locals.contains_key(func) && matches!(math_owner,Some(ScalarMathCallableOwner::Declared(_))) {
@@ -731,6 +741,22 @@ impl<'a> EvalContext<'a> {
                         }
                     }
                     self.work_cost.borrow_mut().charge_solver_evaluations(1)?;
+                    if let Some(integer_inputs)=&exact_formula_inputs {
+                        let mut exact_pack=pack.clone();
+                        for (name,value) in &mut exact_pack {
+                            if let Value::Fixed64(number)=value {
+                                // Only the admitted integer source can widen.
+                                // A fractional fixed-point carrier cannot be
+                                // reconstructed into an exact rational input.
+                                let scale=1i64<<32;
+                                if !integer_inputs.contains(name) || number.raw_i64()%scale!=0 {
+                                    return Err("정확 수식 입력의 정적 수 종류와 값 표현이 다릅니다".to_string().into());
+                                }
+                                *value=make_rational_pack_from_big_rational(&BigRational::from_integer(BigInt::from(number.raw_i64()/scale)));
+                            }
+                        }
+                        return super::formula_values::eval_formula_exact(&parsed,&exact_pack);
+                    }
                     let value = eval_formula_expr(&parsed.expr, pack)?;
                     Ok(unit_value_to_value(value))
                 }),

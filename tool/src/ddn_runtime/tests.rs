@@ -1,6 +1,165 @@
 
     use super::*;
     #[test]
+    fn equation_inputs_same_helper_checks_both_sides_and_constants() {
+        let helper=include_str!("../../tests/fixtures/student_equation_helper.ddn");
+        for (left,right,answer) in [("2*x","x+3","3"),("5*x","x+2","1/2"),
+            ("y+3","7","4"),("7","x+3","4"),("x-x+2*x","4","2"),("3*x","1","1/3")] {
+            let source=format!("{helper}\n((수식{{{left}}} =:= 수식{{{right}}}) 풀어검산하기) 보여주기.");
+            let program=DdnProgram::from_v25_source(&source,"equation-inputs.ddn").unwrap();
+            let output=DdnRunner::new(program,DEFAULT_UPDATE_NAME)
+                .run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+            let text=&output.display_outputs.last().unwrap().text;
+            assert!(text.contains("검산: 참")&&text.contains(&format!("값={answer}")),"{source}\n{text}");
+        }
+    }
+
+    #[test]
+    fn equation_inputs_preserve_exact_values_and_required_variable_sets() {
+        let formula=|raw:&str|Formula{raw:raw.into(),dialect:FormulaDialect::Ascii,explicit_tag:true};
+        for (left,right,name,num,den,left_has,right_has) in [
+            ("2*x","x+3","x",3,1,true,true), ("y+3","7","y",4,1,true,false),
+            ("7","x+3","x",4,1,false,true),("x-x+2*x","4","x",2,1,true,false),
+            ("3*x","1","x",1,3,true,false)] {
+            let Value::Pack(ref relation)=make_relation_pack(formula(left),formula(right)) else{unreachable!()};
+            let Value::Pack(ref result)=eval_relation_solve_result(&[relation.clone()]).unwrap() else{unreachable!()};
+            for (field,present) in [("왼쪽입력",left_has),("오른쪽입력",right_has)] {
+                let Value::Pack(inputs)=&result[field] else{panic!("{field}")};
+                assert_eq!(inputs.len(),usize::from(present));
+                if present {
+                    let exact=exact_numeric_from_value(&inputs[name]).unwrap().unwrap();
+                    assert_eq!(exact.value,BigRational::new(BigInt::from(num),BigInt::from(den)));
+                }
+            }
+        }
+        for (left,right) in [("x+1","x+2"),("x+1","x+1"),("x^3","1")] {
+            let Value::Pack(ref relation)=make_relation_pack(formula(left),formula(right)) else{unreachable!()};
+            let Value::Pack(ref result)=eval_relation_solve_result(&[relation.clone()]).unwrap() else{unreachable!()};
+            assert!(!result.contains_key("왼쪽입력")&&!result.contains_key("오른쪽입력"));
+        }
+    }
+    #[test]
+    fn equation_inputs_saved_project_restores_only_with_source_custody() {
+        use crate::authored_project::{ProjectArtifact, SourceSnapshot, SourceFile};
+        let root = "(글판=\"v25\", 모듬=차림[(이름=앱, 머리=\"app/main.ddn\", 원문=\"app/main.ddn\")], 시작=(모듈=앱, 정의=실행)) 얽음.\n";
+        let body="실행:움직씨 := { 관계 := 수식{3*x} =:= 수식{1}. 결과 <- (관계) 방정식풀기. 결과 보여주기. }.";
+        let artifact=ProjectArtifact::create("v1-core-v25".into(),SourceSnapshot{
+            root_path:Some("root.ddn".into()),entry_path:"app/main.ddn".into(),files:vec![
+                SourceFile{path:"root.ddn".into(),text:root.into()},SourceFile{path:"app/main.ddn".into(),text:body.into()}]
+        },String::new()).unwrap();
+        let saved=artifact.save().unwrap();
+        let owned=crate::project_revision_envelope_supply::admit_fresh_authored_project(saved.as_bytes()).unwrap();
+        let make_runner=|| {
+            let program=DdnProgram::from_saved_v25_project_with_mode(owned.sources().clone(),ParseMode::Strict,AgeTarget::Age3).unwrap();
+            let mut runner=DdnRunner::new(program,"실행");runner.configure_project_entry("실행").unwrap();runner
+        };
+        let mut runner=make_runner();
+        assert!(runner.tuple_type_plan.equation_result("결과"),"{:?}; {:?}",runner.tuple_type_plan,runner.program.numeric_constraint_plan);
+        let output=runner.run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+        let mut world=DetNuri::new();
+        world.apply_patch(&output.patch,0,&mut ddonirang_core::signals::VecSignalSink::default());
+        let snapshot=crate::runtime_surface::runtime_state_snapshot(&world,Vec::new(),1)["resources"].clone();
+        let raw=crate::unit_wire::serialize_resource_snapshot_json(&snapshot);
+        let parsed=crate::unit_wire::parse_snapshot_json(&raw).unwrap();
+        let mut restored=NuriWorld::new();
+        assert!(crate::unit_wire::restore_world_resources_snapshot(&mut restored,&parsed).is_err());
+        let mut reopened=make_runner();
+        let plan=reopened.saved_tuple_restore_plan().unwrap();
+        crate::unit_wire::restore_world_resources_with_tuple_plan(&mut restored,&parsed,Some(&plan)).unwrap();
+        assert_eq!(restored.state_hash(),world.world().state_hash());
+        let output=reopened.run_update(&restored,&empty_input(),&HashMap::new()).unwrap();
+        assert!(output.display_outputs.last().unwrap().text.contains("값=1/3"));
+        let value=world.world().get_resource_value("결과").unwrap();
+        let unrelated=SavedTupleRestorePlan{plan:crate::tuple_saved_type_plan::TupleSavedTypePlan::default()};
+        assert!(unrelated.admit_resource("결과",&value).is_err());
+        let mut altered=equation_saved_value::decode(&value).unwrap();
+        let Value::Pack(fields)=&mut altered else{panic!("result")};
+        let Some(Value::Pack(inputs))=fields.get_mut("왼쪽입력") else{panic!("inputs")};
+        inputs.insert("x".into(),make_rational_pack_from_big_rational(&BigRational::from_integer(2.into())));
+        assert!(equation_saved_value::encode(&altered).is_err());
+    }
+
+    #[test]
+    fn learning_formula_errors_preserve_innermost_source_range() {
+        for newline in ["\n","\r\n"] {
+            for (body,marker,reason) in [
+                ("(수식{x+1} 해서 () 풀기) 보여주기.","() 풀기","주입 키가 누락"),
+                ("(수식{7} 해서 (x=4) 풀기) 보여주기.","(x=4) 풀기","주입 키가 여분"),
+                ("((수식{sin(x)} =:= 수식{0}) 방정식풀기) 보여주기.","방정식풀기","E_SYMBOLIC_PARSE"),
+                ("결과 := (수식{x} =:= 수식{1}) 방정식풀기.\n(수식{1/(x-x)} 해서 (주입=결과.왼쪽입력) 풀기) 보여주기.","(주입=결과.왼쪽입력) 풀기","0"),
+            ] {
+                let source=format!("// 한글 🍎{newline}{newline}{}",body.replace('\n',newline));
+                let program=DdnProgram::from_v25_source(&source,"학습_진단.ddn").unwrap();
+                let error=DdnRunner::new(program,DEFAULT_UPDATE_NAME)
+                    .run_update_diagnostic(&NuriWorld::new(),&empty_input(),&HashMap::new()).err().expect("actual runtime rejection");
+                let (_,message,span)=error.diagnostic_parts();
+                assert!(message.contains(reason),"{message}");
+                let (start,end)=span.expect("source range retained");
+                let slice=source.get(start..end).expect("UTF-8 boundary");
+                assert!(slice.contains(marker),"{slice:?}: {message}");
+                assert!(!slice.contains("보여주기")&&!slice.contains("🍎"),"outer call must not replace inner source: {slice}");
+            }
+        }
+    }
+
+    // The authored helper is ordinary DDN; no test-side lowering.
+    const EXACT_FORMULA_STUDENT_HELPER:&str=r#"
+(관계:묶음~을) 풀어검산하다{풀어검산하기}:묶음:셈씨 := {
+    결과 := (관계) 방정식풀기.
+    { 결과.__풀이결과종류 == "성공" }이면 {
+        확인 := (관계.왼쪽 해서 (x=결과.값) 풀기) == (관계.오른쪽 해서 () 풀기).
+        풀어검산하다 <- (풀이: 결과, 검산: 확인).
+    } 아니면 {
+        풀어검산하다 <- (풀이: 결과).
+    }.
+}.
+"#;
+    #[test]
+    fn exact_formula_student_helper_preserves_fraction_answers() {
+        let helper=EXACT_FORMULA_STUDENT_HELPER;
+        for (left,right,answer) in [("2*x","1","1/2"),("3*x","1","1/3"),("x+3","7","4")] {
+            let source=format!("{helper}\n((수식{{{left}}} =:= 수식{{{right}}}) 풀어검산하기) 보여주기.");
+            let program=DdnProgram::from_v25_source(&source,"exact-formula-student.ddn").unwrap();
+            assert_eq!(program.numeric_constraint_plan.as_ref().unwrap().exact_formula_calls.len(),2,"{source}\n{:#?}",program.program);
+            let output=DdnRunner::new(program,DEFAULT_UPDATE_NAME)
+                .run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+            let text=&output.display_outputs.last().unwrap().text;
+            assert!(text.contains("검산: 참"),"{text}");
+            assert!(text.contains(&format!("값={answer}")),"{text}");
+        }
+    }
+    #[test]
+    fn exact_formula_student_helper_preserves_solver_failure_reasons() {
+        let helper=EXACT_FORMULA_STUDENT_HELPER;
+        for (left,right,reason) in [("x+1","x+2","no_solution"),("x+1","x+1","non_unique"),("x^3","1","unsupported")] {
+            let source=format!("{helper}\n((수식{{{left}}} =:= 수식{{{right}}}) 풀어검산하기) 보여주기.");
+            let program=DdnProgram::from_v25_source(&source,"exact-formula-failure.ddn").unwrap();
+            let output=DdnRunner::new(program,DEFAULT_UPDATE_NAME)
+                .run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).unwrap();
+            let text=&output.display_outputs.last().unwrap().text;
+            assert!(text.contains(reason),"{text}");
+            assert!(!text.contains("검산:"),"{text}");
+        }
+        // DDN admission succeeds; the solver's symbolic parser rejects this
+        // expression during execution. Preserve that actual error boundary.
+        let source=format!("{helper}\n((수식{{sin(x)}} =:= 수식{{0}}) 풀어검산하기) 보여주기.");
+        let program=DdnProgram::from_v25_source(&source,"exact-formula-syntax.ddn").unwrap();
+        let error=DdnRunner::new(program,DEFAULT_UPDATE_NAME)
+            .run_update(&NuriWorld::new(),&empty_input(),&HashMap::new()).err().expect("symbolic parse rejection during execution");
+        assert!(error.contains("E_SYMBOLIC_PARSE"),"{error}");
+    }
+    #[test]
+    fn exact_formula_pack_fields_do_not_forge_source_relation_ownership() {
+        let helper=EXACT_FORMULA_STUDENT_HELPER;
+        let fake="((왼쪽: 수식{2*x}, 오른쪽: 수식{1}) 풀어검산하기) 보여주기.";
+        let source=format!("{helper}\n{fake}");
+        let program=DdnProgram::from_v25_source(&source,"exact-formula-fake.ddn").unwrap();
+        assert!(program.numeric_constraint_plan.as_ref().unwrap().exact_formula_calls.is_empty());
+        let source=format!("{helper}\n((수식{{2*x}} =:= 수식{{1}}) 풀어검산하기) 보여주기.\n{fake}");
+        let error=DdnProgram::from_v25_source(&source,"exact-formula-mixed.ddn").err().expect("mixed provenance rejected");
+        assert!(error.contains("방정식 생성자"),"{error}");
+    }
+    #[test]
     fn vc04_read_snapshot_runtime_backstop_walks_deep_values_and_captures(){
         let table=Arc::new(ddonirang_core::nominal::NominalSlotTableV1::from_slots([1;32],&[],2_000_000,1_000_000).unwrap());
         let view=Arc::new(ddonirang_lang::runtime::FrozenSubjectViewV1::from_resolved_slots(table,BTreeMap::new()));
@@ -1341,7 +1500,8 @@
         }
         let mut fast_locals = HashMap::new();
         let mut legacy_locals = HashMap::new();
-        let fast_error = fast.eval_body(&mut fast_locals, body).err().map(|e| e.message());
+        // This comparator feeds the program root statement list, not a lexical child block.
+        let fast_error = fast.eval_body_unscoped(&mut fast_locals, body).err().map(|e| e.message());
         let legacy_error = wo09_output_snapshot_replay_body(&mut legacy, &mut legacy_locals, body)
             .err().map(|e| e.message());
         assert_eq!(fast_error, legacy_error);

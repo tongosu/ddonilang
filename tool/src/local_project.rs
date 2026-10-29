@@ -930,8 +930,12 @@ pub fn build_project_execution_recipe(
     })
 }
 
+mod saved_dependencies;
+pub(crate) use saved_dependencies::{VerifiedSavedDependencySupply, verify_saved_dependency_supply};
+
 mod gaji_lifecycle;
 use gaji_lifecycle::*;
+pub(crate) use gaji_lifecycle::v25_package_metadata_roles;
 pub use gaji_lifecycle::{build_gaji_extraction_plan_json, build_local_gaji_artifact_json, verify_local_gaji_artifact_json, publish_local_gotgan_json, search_local_gotgan_json, build_gaji_lifecycle_plan_json, build_gaji_lifecycle_plan, publish_local_gotgan, search_local_gotgan, build_local_gaji_artifact, verify_local_gaji_artifact, build_gaji_extraction_plan};
 
 pub fn virtual_project_source_sha256_json(input_json: &str) -> Result<String, LocalProjectError> {
@@ -1259,6 +1263,11 @@ pub fn build_disk_project_run_summary_with_supported_profile_prepared_host_resou
 pub fn build_project_graph(
     source: VirtualProjectSource,
 ) -> Result<LocalProjectGraph, LocalProjectError> {
+    if let Some(file) = source.files.iter().find(|file| normalize_role(&file.role) == "ddn_source"
+        && crate::ddn_runtime::first_callable_header_requires_context(&file.utf8_text)) {
+        return Err(LocalProjectError::with_path("E_MULTILANG_PROJECT_CONTEXT_REQUIRED", &file.path,
+            "日本語のDDL・原本・版を既存のモジュール結束に渡す実際の契約が必要です"));
+    }
     if source.files.iter().any(|file| matches!(normalize_role(&file.role).as_str(), "root" | "ddn_source")
         && ddonirang_lang::has_model_surface(&file.utf8_text)) {
         require_beta_project_feature("E_ALPHA_MODEL_PROJECT_UNSUPPORTED", "정식 작품의 모형 연결은 알파에서 지원하지 않습니다. 한 파일 모형 실행과는 별도 기능입니다")?;
@@ -1383,7 +1392,7 @@ pub fn build_project_graph(
     let project_name = root_path.clone(); // Display only; no source authority.
     let mut targets = BTreeMap::new();
     if let Some(definition) = &start_definition { targets.insert(definition.clone(), entry_path.clone()); }
-    let gaji_aliases = BTreeMap::new();
+    let gaji_aliases = v25_installed_gaji_aliases(&module_paths, &module_sources, &text_by_path)?;
     let files = normalized_manifest.files.clone();
     let hash_input = serde_json::to_string(&json!({
         "schema": "ddn.local_project_graph.hash_input.v1",
@@ -1454,6 +1463,10 @@ impl AuthoredPreparation {
             _ => Err("E_AUTHORED_BOGAE_SOURCE_MAP: 연결 정의의 원래 byte 범위를 해소할 수 없습니다".into()),
         }
     }
+}
+
+pub(crate) fn prepare_authored_execution_with_first_callable(source:VirtualProjectSource,first:&crate::authored_project::FirstCallableAuthoredContext)->Result<AuthoredPreparation,LocalProjectError>{
+    project_linking::prepare_first_callable_authored_execution(source,first)
 }
 
 pub(crate) fn prepare_authored_execution(source: VirtualProjectSource)
@@ -1964,6 +1977,10 @@ fn current_module_directives(
         )
     })?;
 
+    if let Some(request)=parsed.imports.as_ref().and_then(|directive|directive.translation.as_ref()){
+        return Err(LocalProjectError::with_path_span("E_DDL_ACTIVATION_SUPPLY_REQUIRED",path,
+            "옮김 요청에는 실제 원본 모듈의 공개 DDL과 등록된 정확 말씨 판본 공급이 필요합니다",(request.span.start,request.span.end)));
+    }
     let declared_names = if parsed.exports.is_some() {
         let program = ddonirang_lang::parse_v25_with_mode(&parsed.declaration_source, path, ParseMode::Strict)
             .map_err(|error| {
@@ -2030,6 +2047,40 @@ fn current_module_directives(
         .transpose()?
         .unwrap_or_default();
     Ok(Some(CurrentModuleDirectives { imports, exports }))
+}
+
+/// A resolved location request, deliberately not an activated/exported DDL.
+/// The caller retains its actual original ModuleIdentity and must obtain the
+/// profile registry and module's public DDL owner before execution admission.
+#[derive(Debug,Clone)]
+pub(crate) struct FirstCallableModuleTranslationRequest {
+    pub head:String,
+    pub closure:Vec<String>,
+    pub request:ddonirang_lang::module_directive::ModuleTranslationRequest,
+    pub binding:ddonirang_lang::module_directive::ModuleDirectiveEntry,
+}
+pub(crate) fn resolve_first_callable_module_translation_request(
+    text:&str,path:&str,original:&VirtualProjectSource,expected_head:&str,
+    first:&ddonirang_lang::parser::RegisteredFirstCallableContext,
+)->Result<FirstCallableModuleTranslationRequest,LocalProjectError>{
+    let graph=build_project_graph(original.clone())?;
+    let texts=original.files.iter().map(|file|(file.path.clone(),file.utf8_text.clone())).collect::<BTreeMap<_,_>>();
+    let mut targets=graph.module_paths.keys().cloned().collect::<BTreeSet<_>>();
+    for name in texts.keys(){targets.insert(name.clone());targets.insert(format!("./{name}"));if let Some(stem)=name.strip_suffix(".ddn"){targets.insert(stem.into());targets.insert(format!("./{stem}"));}}
+    let parsed=ddonirang_lang::module_directive::parse_module_directive_prefix_with_first_callable_context(text,path,&ModuleDirectiveContext::default().with_known_imports(targets),first)
+        .map_err(|e|LocalProjectError::with_path_span("E_DDL_ACTIVATION_PARSE",path,e.message,(e.span.start,e.span.end)))?;
+    let binding=parsed.imports.ok_or_else(||LocalProjectError::with_path("E_DDL_ACTIVATION_REQUIRED",path,"옮김이 선언된 쓰임이 없습니다"))?;
+    let request=binding.translation.ok_or_else(||LocalProjectError::with_path("E_DDL_ACTIVATION_REQUIRED",path,"쓰임만으로 말씨를 활성화하지 않습니다"))?;
+    let entry=&binding.entries[0];
+    let head=if graph.module_paths.contains_key(&entry.target){resolve_work_import_source_path(original,&entry.target)?}
+        else{resolve_import_source_path(path,&entry.target)?};
+    let (module,closure)=graph.module_sources.iter().find(|(name,_)|graph.module_paths[*name]==head)
+        .ok_or_else(||LocalProjectError::with_path("E_DDL_ORIGINAL_MODULE_REQUIRED",path,"기존 모듈 그래프에 결속되지 않은 대상입니다"))?;
+    if head!=expected_head || !texts.contains_key(&head){return Err(LocalProjectError::with_path("E_DDL_ORIGINAL_MODULE_MISMATCH",path,"옮김 대상이 실제 선택 원본 모듈과 다릅니다"));}
+    // Existing graph already checks dependency/cycle/closure rules. Do not
+    // redirect locators, probe the disk or make a path-based identity.
+    let _=module;
+    Ok(FirstCallableModuleTranslationRequest{head,closure:closure.clone(),request,binding:entry.clone()})
 }
 
 /// Resolve a module's import/export metadata through the current typed
@@ -2683,3 +2734,25 @@ fn to_canonical_json_line<T: Serialize>(value: &T) -> String {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod multilang_first_graph_tests {
+    use super::*;
+    #[test]
+    fn multilang_first_graph_preserves_metadata_roles_and_refuses_unsupplied_executable_context() {
+        let root = "(글판=\"v25\", 모듬=차림[(이름=앱, 머리=\"app.ddn\", 원문=\"app.ddn\")], 시작=(모듈=앱, 정의=실행)) 얽음.\n";
+        let file = |path: &str, role: &str, text: &str| VirtualProjectFileSource {
+            path: path.into(), role: role.into(), utf8_text: text.into(),
+        };
+        let mut source = VirtualProjectSource { schema: VIRTUAL_PROJECT_SOURCE_SCHEMA.into(), kind: None, package_hash: None,
+            root_path: "root.ddn".into(), entry_path: "app.ddn".into(), files: vec![
+                file("root.ddn", "root", root), file("app.ddn", "ddn_source", "실행:움직씨 := { 값:수 := 1. }."),
+                file("note.txt", "metadata", "#!日本語\nこれは実行原文ではない説明資料です。"),
+            ] };
+        let graph = build_project_graph(source.clone()).unwrap();
+        assert_eq!(graph.module_paths.len(), 1);
+        source.files[1].utf8_text = "#!日本語\n(金額=(100,1) 有理数, 税額=(10,1) 有理数) 合計する.".into();
+        let error = build_project_graph(source).unwrap_err();
+        assert_eq!(error.code, "E_MULTILANG_PROJECT_CONTEXT_REQUIRED");
+    }
+}

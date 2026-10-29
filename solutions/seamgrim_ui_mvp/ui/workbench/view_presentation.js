@@ -1,5 +1,40 @@
 // Existing view controls, observation and diagnostic presentation; original state references and bodies retained.
+import { appendDiagnosticPresentation, diagnosticSummary } from './diagnostic_display.js';
+import {runStatusPresentation,persistencePresentation,displayMessage} from './display_locale.js';
+import {extractObservationOutputLogFromState} from '../seamgrim_runtime_state.js';
 export function createViewPresentation({ activeFrame, activeRun, activeRuntimeSourceText, applyExplorationPreset, applySourceReadinessFixIt, authoredCompositionHost, buildCommittedCanonicalViewHistory, buildCommittedFrameCanonicalViewPayloads, buildCommittedSemanticViewPayload, currentLogicalPresentation, currentProject, currentVirtualProjectSourceHash, describePersistenceStatus, els, escapeHtml, EXECUTION_STATES, executionStatusLabel, extractObservationOutputRowsFromState, formatNumber, getSourceReadinessCandidate, loadLocalFallbackSnapshot, localProjectRunEvidenceFromProject, overlayViewInstances, primaryViewInstance, pushDiagnostic, reconcileViewWorkspace, renderAll, renderCommittedSemanticView, renderCurrentMadi, resizeCanvasToDisplaySize, selectCommittedOutputView, selectViewTarget, sideViewInstances, sourceReadinessViewOnly, stableHash, state, viewRoleCapabilities, workbenchHostExecutionState }) {
+let lastRunStatus = null;
+let lastPersistenceFeedback = null;
+function paintPersistenceFeedback() {
+  if (!lastPersistenceFeedback) return;
+  const locale = document.documentElement.dataset.displayLocale ?? 'ko';
+  const shown = persistencePresentation(lastPersistenceFeedback,locale);
+  const saveButton = document.querySelector("[data-testid='project-save']");
+  if (saveButton) saveButton.textContent = shown.buttonText;
+  els.saveStatus.textContent = shown.text;
+  els.saveStatus.title = shown.title;
+  if (shown.fallback) els.saveStatus.dataset.displayFallback = 'ko';
+  else delete els.saveStatus.dataset.displayFallback;
+}
+function paintRunStatus() {
+  if (!els.runStatus || !lastRunStatus || els.root?.dataset.executionOwner === 'logical_input') return;
+  const locale = document.documentElement.dataset.displayLocale ?? 'ko';
+  const shown = runStatusPresentation(lastRunStatus, locale);
+  els.runStatus.textContent = shown.text;
+  if (shown.fallback) els.runStatus.dataset.displayFallback = 'ko';
+  else delete els.runStatus.dataset.displayFallback;
+}
+function rememberRunStatus(kind, code = undefined) {
+  lastRunStatus = Object.freeze({kind, code,
+    lifecycle:Object.freeze({...state.executionLifecycle}),
+    stepInFlight:Boolean(workbenchHostExecutionState.hostStepInFlight)});
+  // The normal render order may subsequently display the logical-input owner.
+  const locale = document.documentElement.dataset.displayLocale ?? 'ko';
+  const shown = runStatusPresentation(lastRunStatus, locale);
+  els.runStatus.textContent = shown.text;
+  if (shown.fallback) els.runStatus.dataset.displayFallback = 'ko';
+  else delete els.runStatus.dataset.displayFallback;
+}
 function renderMode() {
   els.layout.dataset.mode = state.mode;
   document.querySelector('.app-frame').dataset.experimentMode = String(state.mode === 'bogae-full');
@@ -304,6 +339,25 @@ function selectPrimaryCanvasTarget(event) {
   return true;
 }
 
+function appendCommittedExactOutput(frame) {
+  const committed=frame?.wasm_state;
+  // Opaque rational resources must not be decoded/coerced in JavaScript.
+  // Show the existing committed Rust output text verbatim; this is display,
+  // never a numeric type, mathematical participation, or observation issuer.
+  const exact=Object.values(committed?.resources?.value_json ?? {}).some(value=>
+    value?.type==='rational_v1'&&value.version===1&&value.resource_value_tag==='10');
+  const display=committed?.output_display;
+  // Ordinary output remains visible when no observations were declared.
+  const noObservations=Number(els.semanticObservations.dataset.rowCount||0)===0;
+  const outputRows=(exact||noObservations)&&display?.schema==='ddn.output-display.v1'
+    &&display.world_state_hash===frame?.state_hash
+    ?extractObservationOutputLogFromState(committed).filter(row=>row.kind==='output'&&row.tick===frame.madi).slice(-4):[];
+  if (noObservations && outputRows.length) els.semanticObservations.innerHTML='';
+  const label=displayMessage('output',document.documentElement.dataset.displayLocale ?? 'ko').text;
+  els.semanticObservations.innerHTML+=outputRows.map(row=>`<span class="semantic-observation" data-committed-output="${escapeHtml(row.text)}" data-committed-madi="${frame.madi}" data-state-hash-participation="0"><strong data-committed-output-label>${escapeHtml(label)}</strong><span>${escapeHtml(row.text)}</span></span>`).join('');
+  els.semanticObservations.dataset.rowCount=String(Number(els.semanticObservations.dataset.rowCount||0)+outputRows.length);
+}
+
 function renderSemanticObservations(project) {
   if (!els.semanticObservations) return;
   const logical=currentLogicalPresentation()?.value;
@@ -315,6 +369,7 @@ function renderSemanticObservations(project) {
     els.semanticObservations.dataset.rowCount=String(rows.length);
     els.semanticObservations.dataset.committedStateHash=logical.state_hash ?? logical.frame?.state_hash ?? '';
     els.semanticObservations.innerHTML=rows.map(([name,value])=>`<span class="semantic-observation" data-logical-resource-name="${escapeHtml(name)}"><strong>${escapeHtml(name)}</strong><span>${escapeHtml(formatNumber(value))}</span></span>`).join('');
+    appendCommittedExactOutput(activeFrame());
     return;
   }
   const runEvidence = localProjectRunEvidenceFromProject(project);
@@ -338,6 +393,7 @@ function renderSemanticObservations(project) {
       const display = formatNumber(row.value ?? row.value_text);
       return `<span class="semantic-observation" title="${escapeHtml(row.value_text)}" data-project-observation-id="${escapeHtml(row.observation_id)}" data-project-observation-name="${escapeHtml(row.name)}" data-project-observation-value="${escapeHtml(row.value_text)}" data-state-hash-participation="${row.state_hash_participation ? "1" : "0"}"><strong>${escapeHtml(row.name)}</strong><span>${escapeHtml(display)} ${escapeHtml(row.unit)}</span></span>`;
     }).join("");
+    appendCommittedExactOutput(activeFrameValue);
     if (project.lessonDisposition === "알파1 새 구현" && activeFrameValue?.wasm_state) {
       // Presentation of existing committed DDN output rows only. This does not
       // synthesize a canonical Table, world value, source lowering or library.
@@ -359,6 +415,7 @@ function renderSemanticObservations(project) {
   els.semanticObservations.dataset.rowCount = "0";
   els.semanticObservations.dataset.committedStateHash = "";
   els.semanticObservations.innerHTML = `<span class="semantic-observation" data-observation-status="awaiting-committed-frame"><strong>관찰값</strong><span>${activeFrameValue ? "이번 실행에는 관찰값이 없습니다." : "아직 실행 결과가 없습니다."}</span></span>`;
+  appendCommittedExactOutput(activeFrameValue);
 }
 
 function renderRunMetadata(project) {
@@ -369,8 +426,7 @@ function renderRunMetadata(project) {
   const sourceHash = `candidate:fnv1a32:${stableHash(`${project.id}\n${source}`)}`;
   const activeSourceHash = currentVirtualProjectSourceHash(project) || `candidate:fnv1a32:${stableHash(source)}`;
   const sourceDirty = Boolean(run && run.source_hash !== activeSourceHash);
-  const lifecycleText = workbenchHostExecutionState.hostStepInFlight && state.executionLifecycle.status === EXECUTION_STATES.PREPARING
-    ? "실행 중" : executionStatusLabel(state.executionLifecycle);
+  // Display labels are derived from typed presentation inputs below; hashes stay unchanged.
   const frameHash = frame?.state_hash ?? "-";
   const executionState = runEvidence
     ? "current_success"
@@ -395,28 +451,26 @@ function renderRunMetadata(project) {
   els.root.dataset.projectRunFailureSourceHash = state.projectExecution?.failure?.source_hash ?? "";
   els.root.dataset.importedProjectRecordSourceHash = state.projectExecution?.importedRecord?.source_hash ?? "";
   if (state.sourceReadinessRunBlocked) {
-    els.runStatus.textContent = "실행 실패 · 원문을 고친 뒤 다시 실행해 주세요.";
+    rememberRunStatus('readiness_blocked');
     els.runHash.textContent = `source_hash: ${sourceHash}`;
   } else if (runEvidence) {
-    els.runStatus.textContent = lifecycleText;
+    rememberRunStatus('lifecycle');
     els.runHash.textContent = runEvidence.bounded_state_sha256
       ? `state_hash: ${runEvidence.runtime_state_hash || "-"} · bounded_state: ${runEvidence.bounded_state_sha256}`
       : `state_hash: ${runEvidence.runtime_state_hash || frameHash}`;
   } else if (state.projectExecution?.failure) {
     const failure = state.projectExecution.failure;
-    els.runStatus.textContent = `실행 실패 · ${failure.diagnostic?.code ?? "E_PROJECT_RUN_FAILED"}`;
+    rememberRunStatus('failure', failure.diagnostic?.code);
     els.runHash.textContent = `failed_source: ${failure.source_hash || "-"}`;
   } else if (state.projectExecution?.previousSuccess) {
     const previous = state.projectExecution.previousSuccess;
-    els.runStatus.textContent = `이전 성공 기록 보존 · ${lifecycleText}`;
+    rememberRunStatus('previous_success');
     els.runHash.textContent = `previous_state_hash: ${previous.evidence?.runtime_state_hash || "-"}`;
   } else if (state.projectExecution?.importedRecord) {
-    els.runStatus.textContent = "불러온 기록입니다. 원문을 실행해 주세요.";
+    rememberRunStatus('imported_record');
     els.runHash.textContent = `imported_source: ${state.projectExecution.importedRecord.source_hash || "-"}`;
   } else {
-    els.runStatus.textContent = sourceDirty
-      ? `${lifecycleText} · 수정한 원문은 새 실행에 적용됩니다.`
-      : lifecycleText;
+    rememberRunStatus(sourceDirty ? 'dirty_source' : 'lifecycle');
     els.runHash.textContent = frameHash === "-" ? `source_hash: ${sourceHash}` : `state_hash: ${frameHash}`;
   }
   const logicalCommitted = currentLogicalPresentation()?.value;
@@ -460,40 +514,37 @@ function renderRunMetadata(project) {
   renderPersistenceFeedback();
 }
 
-function renderPersistenceFeedback() {
+function renderPersistenceFeedback(presentation = null) {
   const saving = state.persistenceOperation?.phase === "saving";
   const saveButton = document.querySelector("[data-testid='project-save']");
   // Keep focus on the admitted input control: disabling it can emit focusout
   // and change the logical input snapshot while a save is frozen.
   if (saveButton) {
     saveButton.dataset.disabledReason = saving ? "persistence_in_flight" : saveButton.disabled ? "view_write_forbidden" : "";
-    saveButton.textContent = saving ? "저장 중…" : "저장";
     saveButton.setAttribute("aria-busy", String(saving));
     saveButton.setAttribute("aria-disabled", String(saving || saveButton.disabled));
   }
-  els.saveStatus.textContent = saving
-    ? "저장 중… 완료될 때까지 창을 닫지 마세요."
-    : describePersistenceStatus(state.persistenceStatus);
-  els.saveStatus.title = saving
-    ? "저장소 확인에 시간이 걸릴 수 있습니다. 완료 또는 실패 안내가 나올 때까지 기다려 주세요."
-    : "";
+  lastPersistenceFeedback = Object.freeze({phase:presentation?.phase ?? state.persistenceOperation?.phase ?? '',
+    outcome:state.persistenceOperation?.outcome ?? '',statusMode:state.persistenceStatus?.mode ?? '',
+    original:saving?'':presentation?.original ?? describePersistenceStatus(state.persistenceStatus)});
+  paintPersistenceFeedback();
 }
 
 function renderDiagnostics() {
   if (!els.diagnostics) return;
+  const locale = document.documentElement?.dataset.displayLocale === 'ja' ? 'ja' : 'ko';
   const errorCount = state.diagnostics.filter((diag) => diag.severity === "error").length;
+  const labels = diagnosticSummary(locale, state.diagnostics.length, errorCount);
   if (els.projectVerificationOpen) {
-    els.projectVerificationOpen.textContent = state.diagnostics.length ? `검증 (${state.diagnostics.length})` : "검증";
+    els.projectVerificationOpen.textContent = labels.label;
     els.projectVerificationOpen.dataset.hasErrors = errorCount ? "true" : "false";
-    els.projectVerificationOpen.setAttribute("aria-label", state.diagnostics.length
-      ? `오류와 진단 열기, 진단 ${state.diagnostics.length}개${errorCount ? `, 오류 ${errorCount}개` : ""}`
-      : "오류와 진단 열기, 진단 없음");
+    els.projectVerificationOpen.setAttribute("aria-label", labels.aria);
   }
   els.diagnostics.innerHTML = "";
   const readinessDiagnostic = state.sourceReadiness?.diagnostics?.[0] ?? null;
   if (!readinessDiagnostic && !state.diagnostics.length) {
     const row = document.createElement("li");
-    row.textContent = "문제가 발견되지 않았습니다.";
+    row.textContent = labels.empty;
     els.diagnostics.appendChild(row);
     return;
   }
@@ -502,7 +553,8 @@ function renderDiagnostics() {
     row.dataset.severity = readinessDiagnostic.severity;
     row.dataset.diagnosticCode = readinessDiagnostic.code;
     const message = document.createElement("span");
-    message.textContent = `${readinessDiagnostic.code}: ${readinessDiagnostic.message} `;
+    appendDiagnosticPresentation(message, readinessDiagnostic,
+      `${readinessDiagnostic.code}: ${readinessDiagnostic.message} `, locale);
     row.append(message);
     const candidate = getSourceReadinessCandidate();
     if (candidate && readinessDiagnostic.fix_it) {
@@ -521,11 +573,17 @@ function renderDiagnostics() {
   [...state.diagnostics].sort((a, b) => Number(b.severity === "error") - Number(a.severity === "error")).forEach((diag) => {
     const row = document.createElement("li");
     row.dataset.severity = diag.severity;
-    row.textContent = diag.message.includes(diag.code) || ["E_PROJECT_RUN_FAILED", "E_WASM_STEP_FAILED"].includes(diag.code)
+    const original = diag.message.includes(diag.code) || ["E_PROJECT_RUN_FAILED", "E_WASM_STEP_FAILED"].includes(diag.code)
       ? diag.message : `${diag.code}: ${diag.message}`;
+    appendDiagnosticPresentation(row, diag, original, locale);
     els.diagnostics.appendChild(row);
   });
 }
 
+  document.addEventListener?.('ddn-display-locale-change', () => {
+    renderDiagnostics();paintRunStatus();paintPersistenceFeedback();
+    const label=displayMessage('output',document.documentElement.dataset.displayLocale ?? 'ko').text;
+    els.semanticObservations?.querySelectorAll('[data-committed-output-label]').forEach(node=>{node.textContent=label;});
+  });
   return { renderMode, buildViewInstanceSemanticPayload, setViewActionState, renderSideViewInstances, initialDragPoint, renderViewPolicy, selectPrimaryCanvasTarget, renderSemanticObservations, renderRunMetadata, renderPersistenceFeedback, renderDiagnostics };
 }

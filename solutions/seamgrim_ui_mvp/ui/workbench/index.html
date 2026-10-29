@@ -6,6 +6,9 @@
     <title>셈그림 결정적 작업대 · 1.0.0-rc.1 · 검증 후보</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./workbench.css" />
+    <link rel="stylesheet" href="./display_locale.css" />
+    <link rel="stylesheet" href="./proof_source_inspection.css" />
+    <link rel="stylesheet" href="./notebook/notebook.css" />
   </head>
   <body>
     <div class="app-frame" data-testid="approved-workbench-root">
@@ -18,22 +21,34 @@
           </span>
         </div>
         <nav class="global-nav" aria-label="전역 탐색">
-          <button type="button" class="global-nav-btn" data-testid="project-rail-toggle" aria-expanded="false" aria-controls="project-rail" title="프로젝트 목록 열기">
+          <button type="button" class="global-nav-btn" data-testid="math-notebook-open" aria-haspopup="dialog">탐구 노트</button>
+          <button type="button" class="global-nav-btn" data-testid="project-rail-toggle" data-display-key="projects" aria-expanded="false" aria-controls="project-rail" title="프로젝트 목록 열기">
             프로젝트
           </button>
-          <button type="button" class="global-nav-btn active" data-global-entry="ddn-search" data-testid="global-ddn-search" title="DDN 찾기">
+          <button type="button" class="global-nav-btn active" data-global-entry="ddn-search" data-testid="global-ddn-search" data-display-key="search" title="DDN 찾기">
             DDN 찾기
           </button>
-          <button type="button" class="global-nav-btn" data-global-entry="first-steps" data-testid="global-first-steps" disabled aria-disabled="true" title="이 최소판에는 전체 교재를 포함하지 않습니다">
+          <button type="button" class="global-nav-btn" data-global-entry="first-steps" data-testid="global-first-steps" data-display-key="lessons" title="정의 중심 입문과 알파2 보기·입력 첫걸음">
             첫걸음
           </button>
-          <button type="button" class="global-nav-btn" data-global-entry="official-collection" data-testid="global-official-collection" title="공식 모음">
+          <button type="button" class="global-nav-btn" data-global-entry="official-collection" data-testid="global-official-collection" data-display-key="collection" title="공식 모음">
             공식 모음
           </button>
-          <button type="button" class="global-nav-btn" data-global-entry="my-work" data-testid="global-my-work" title="내 작업">
+          <button type="button" class="global-nav-btn" data-global-entry="my-work" data-testid="global-my-work" data-display-key="myWork" title="내 작업">
             내 작업
           </button>
         </nav>
+        <details class="display-language-settings" data-testid="display-language-settings">
+          <summary data-display-key="language">표시 언어</summary>
+          <div class="display-language-panel">
+            <select data-testid="display-language" aria-label="표시 언어 / 表示言語">
+              <option value="ko" lang="ko">한국어</option>
+              <option value="ja" lang="ja">日本語</option>
+            </select>
+            <p data-display-key="boundary">원문·실행 결과·오류 원문은 번역하지 않습니다.</p>
+            <p data-testid="display-language-notice" role="status" hidden></p>
+          </div>
+        </details>
       </header>
 
       <main class="main-shell" aria-label="결정적 프로젝트 작업대">
@@ -42,10 +57,10 @@
             <strong>프로젝트</strong>
             <span id="project-count">0</span>
           </div>
-          <button type="button" class="panel-action new-ddn-button" data-testid="new-ddn-project" title="새 DDN 프로젝트 만들기" aria-label="새 DDN 프로젝트 만들기">새 프로젝트</button>
+          <button type="button" class="panel-action new-ddn-button" data-testid="new-ddn-project" data-display-key="newProject" title="새 DDN 프로젝트 만들기" aria-label="새 DDN 프로젝트 만들기">새 프로젝트</button>
           <label class="search-box">
             <span>찾기</span>
-            <input id="project-search" data-testid="project-search" type="search" autocomplete="off" placeholder="DDN 이름, 태그" />
+            <input id="project-search" data-testid="project-search" data-display-placeholder-key="searchPlaceholder" type="search" autocomplete="off" placeholder="DDN 이름, 태그" />
           </label>
           <section class="my-work-panel hidden" data-testid="my-work-panel" aria-label="내 작업">
             <div class="rail-heading">
@@ -66,19 +81,19 @@
             </div>
             <div class="project-actions" aria-label="프로젝트 저장">
               <details class="first-steps-guide hidden" data-testid="first-steps-guide">
-                <summary class="panel-action" data-testid="first-steps-open">학습 안내</summary>
+                <summary class="panel-action" data-testid="first-steps-open" data-display-key="lessonGuide">학습 안내</summary>
                 <section class="first-steps-panel" data-testid="first-steps-panel" aria-label="첫걸음 활동">
                   <div class="drawer-header">
                     <strong data-testid="first-steps-title"></strong>
-                    <button type="button" class="panel-action" data-testid="first-steps-close">닫기</button>
+                    <button type="button" class="panel-action" data-testid="first-steps-close" data-display-key="close">닫기</button>
                   </div>
                   <p>안내 읽기 → 결과 예상 → 실행 → 값과 규칙 수정 → 해설 확인</p>
                   <div class="first-steps-documents">
                     <a href="../../first_steps/학생용_첫걸음_10차시.pdf" target="_blank" rel="noopener">학생용 안내 PDF</a>
                     <a href="../../first_steps/교사용_안내와_해답.pdf" target="_blank" rel="noopener">교사용 안내·해답 PDF</a>
                   </div>
-                  <button type="button" class="panel-action" data-testid="first-steps-previous">이전 활동</button>
-                  <button type="button" class="panel-action" data-testid="first-steps-next">다음 활동</button>
+                  <button type="button" class="panel-action" data-testid="first-steps-previous" data-display-key="previous">이전 활동</button>
+                  <button type="button" class="panel-action" data-testid="first-steps-next" data-display-key="next">다음 활동</button>
                   <button type="button" class="panel-action" data-testid="first-steps-input-contract" hidden>이 활동의 논리 입력 계약 선택</button>
                   <details data-testid="first-steps-expected">
                     <summary>먼저 예상한 뒤 결과·해설 확인</summary>
@@ -87,26 +102,26 @@
                   </details>
                 </section>
               </details>
-              <button type="button" class="panel-action icon-label-action" data-testid="portable-project-export" title="휴대형 프로젝트 내보내기" aria-label="휴대형 프로젝트 내보내기">⇩ 내보내기</button>
-              <button type="button" class="panel-action icon-label-action" data-testid="portable-project-import" title="작품 자료 또는 휴대형 프로젝트 가져오기" aria-label="작품 자료 가져오기">⇧ 가져오기</button>
+              <button type="button" class="panel-action icon-label-action" data-testid="portable-project-export" data-display-key="exportProject" title="휴대형 프로젝트 내보내기" aria-label="휴대형 프로젝트 내보내기">⇩ 내보내기</button>
+              <button type="button" class="panel-action icon-label-action" data-testid="portable-project-import" data-display-key="importProject" title="작품 자료 또는 휴대형 프로젝트 가져오기" aria-label="작품 자료 가져오기">⇧ 가져오기</button>
               <input type="file" class="hidden-file-input" data-testid="portable-project-import-input" accept=".json,.seamgrim-project.json,application/json" aria-label="휴대형 프로젝트 파일 선택" />
-              <button type="button" class="panel-action" data-testid="project-save" title="프로젝트 저장" aria-label="프로젝트 저장">저장</button>
-              <button type="button" class="panel-action" data-testid="project-reopen" title="마지막으로 저장한 작품 자료 다시 열기" aria-label="저장 자료 다시 열기">다시 열기</button>
+              <button type="button" class="panel-action" data-testid="project-save" data-display-key="save" title="프로젝트 저장" aria-label="프로젝트 저장">저장</button>
+              <button type="button" class="panel-action" data-testid="project-reopen" data-display-key="reopen" title="마지막으로 저장한 작품 자료 다시 열기" aria-label="저장 자료 다시 열기">다시 열기</button>
               <span data-testid="project-save-status">아직 저장하지 않음</span>
               <span class="portable-status" data-testid="portable-project-export-status" aria-live="polite"></span>
-              <button type="button" class="panel-action" data-testid="project-verification-open">오류·진단</button>
+              <button type="button" class="panel-action" data-testid="project-verification-open" data-display-key="diagnostics">오류·진단</button>
               <details class="project-more-menu" data-testid="project-more-menu">
-                <summary title="프로젝트 세부 도구">세부</summary>
+                <summary data-display-key="moreTools" title="프로젝트 세부 도구">세부</summary>
                 <div class="project-more-actions">
-                  <button type="button" class="panel-action" data-testid="source-file-open" title="파일의 글판을 v25로 명시하여 열기">v25 원문 열기</button>
+                  <button type="button" class="panel-action" data-testid="source-file-open" data-display-key="sourceOpen" title="파일의 글판을 v25로 명시하여 열기">v25 원문 열기</button>
                   <input type="file" class="hidden-file-input" data-testid="source-file-input" accept=".ddn,.또니" aria-label="v25 단일 원문 파일 선택" />
-                  <button type="button" class="panel-action" data-testid="project-storage-open">저장·리비전</button>
-                  <button type="button" class="panel-action" data-testid="logical-record-open">입력 기록</button>
-                  <button type="button" class="panel-action" data-testid="project-files-open">프로젝트 파일</button>
-                  <button type="button" class="panel-action" data-testid="authored-project-open">작성 정체 자료</button>
-                  <button type="button" class="panel-action" data-testid="project-history-open">기록</button>
-                  <button type="button" class="panel-action" data-testid="portable-project-settings">가져오기·내보내기 설정</button>
-                  <button type="button" class="panel-action" data-testid="gaji-shelf-open" title="표준·나눔·내 가지곳간 검색" aria-label="가지 선반 열기">가지 관리</button>
+                  <button type="button" class="panel-action" data-testid="project-storage-open" data-display-key="revisions">저장·리비전</button>
+                  <button type="button" class="panel-action" data-testid="logical-record-open" data-display-key="inputRecord">입력 기록</button>
+                  <button type="button" class="panel-action" data-testid="project-files-open" data-display-key="files">프로젝트 파일</button>
+                  <button type="button" class="panel-action" data-testid="authored-project-open" data-display-key="identity">작성 정체 자료</button>
+                  <button type="button" class="panel-action" data-testid="project-history-open" data-display-key="history">기록</button>
+                  <button type="button" class="panel-action" data-testid="portable-project-settings" data-display-key="transferSettings">가져오기·내보내기 설정</button>
+                  <button type="button" class="panel-action" data-testid="gaji-shelf-open" data-display-key="packages" title="표준·나눔·내 가지곳간 검색" aria-label="가지 선반 열기">가지 관리</button>
                 </div>
               </details>
             </div>
@@ -126,7 +141,7 @@
           <dialog class="workbench-drawer" data-testid="project-storage-drawer" aria-labelledby="project-storage-title">
             <div class="drawer-header">
               <strong id="project-storage-title">저장·리비전</strong>
-              <button type="button" class="panel-action" data-testid="project-storage-close" title="저장 창 닫기">닫기</button>
+              <button type="button" class="panel-action" data-testid="project-storage-close" data-display-key="close" title="저장 창 닫기">닫기</button>
             </div>
           <section class="project-server-panel" data-testid="project-server-panel" aria-label="서버 프로젝트 저장소">
             <div class="project-server-summary">
@@ -136,7 +151,7 @@
             <div class="project-link-row" aria-label="프로젝트 링크">
               <a data-testid="project-edit-link" href="#" aria-disabled="true">편집 링크 없음</a>
               <a data-testid="project-view-link" href="#" aria-disabled="true">보기 링크 없음</a>
-              <button type="button" class="panel-action" data-testid="project-clone" title="현재 프로젝트를 내 편집본으로 복제">내 버전 만들기</button>
+              <button type="button" class="panel-action" data-testid="project-clone" data-display-key="clone" title="현재 프로젝트를 내 편집본으로 복제">내 버전 만들기</button>
             </div>
             <div class="project-revision-list" data-testid="project-revision-list" aria-label="리비전 목록">
               <span>저장 이력 없음</span>
@@ -146,7 +161,7 @@
               <span data-testid="project-conflict-server">server: -</span>
               <span data-testid="project-conflict-local">local: -</span>
               <textarea data-testid="project-conflict-local-package" readonly aria-label="보존된 로컬 프로젝트 패키지"></textarea>
-              <button type="button" class="panel-action" data-testid="project-conflict-copy-local" title="로컬 변경 보존 확인">로컬 변경 보존</button>
+              <button type="button" class="panel-action" data-testid="project-conflict-copy-local" data-display-key="preserve" title="로컬 변경 보존 확인">로컬 변경 보존</button>
             </div>
           </section>
           </dialog>
@@ -154,7 +169,7 @@
           <dialog class="workbench-drawer" data-testid="project-history-drawer" aria-labelledby="project-history-title">
             <div class="drawer-header">
               <strong id="project-history-title">실행·프로젝트 기록</strong>
-              <button type="button" class="panel-action" data-testid="project-history-close" title="기록 창 닫기">닫기</button>
+              <button type="button" class="panel-action" data-testid="project-history-close" data-display-key="close" title="기록 창 닫기">닫기</button>
             </div>
             <div class="project-lineage-row" data-testid="portable-lineage-panel" aria-label="프로젝트 계보">
               <span data-testid="portable-lineage-origin">원본: -</span>
@@ -181,7 +196,7 @@
           <dialog class="portable-project-dialog" data-testid="portable-project-dialog" aria-labelledby="portable-project-dialog-title">
             <div class="drawer-header">
               <strong id="portable-project-dialog-title">가져오기·내보내기 설정</strong>
-              <button type="button" class="panel-action" data-testid="portable-project-dialog-close" title="가져오기·내보내기 창 닫기">닫기</button>
+              <button type="button" class="panel-action" data-testid="portable-project-dialog-close" data-display-key="close" title="가져오기·내보내기 창 닫기">닫기</button>
             </div>
           <section class="portable-import-panel hidden" data-testid="portable-project-import-preview" aria-label="휴대형 프로젝트 가져오기 미리보기" aria-live="polite">
             <div class="portable-import-summary">
@@ -251,7 +266,7 @@
           <dialog class="workbench-drawer" data-testid="project-verification-drawer" aria-labelledby="project-verification-title">
             <div class="drawer-header">
               <strong id="project-verification-title">검증·진단</strong>
-              <button type="button" class="panel-action" data-testid="project-verification-close" title="진단 닫기">닫기</button>
+              <button type="button" class="panel-action" data-testid="project-verification-close" data-display-key="close" title="진단 닫기">닫기</button>
             </div>
             <ul class="diagnostic-list" data-testid="diagnostic-list" aria-live="polite">
               <li>문제가 발견되지 않았습니다.</li>
@@ -291,14 +306,21 @@
             <section class="panel source-panel" data-testid="source-panel" aria-label="DDN 원문">
               <div class="panel-header">
                 <strong id="source-panel-title">lesson.ddn</strong>
-                <button type="button" class="panel-action" data-testid="source-access-button" title="DDN 원문 보기" aria-label="DDN 원문 보기">
+                <button type="button" class="panel-action" data-testid="proof-source-check" data-display-key="proofCheck" title="현재 파일의 조건부 보임 원문 검사">보임 검사</button>
+                <button type="button" class="panel-action" data-testid="multilang-open" aria-controls="multilang-dialog">다국어 확인</button>
+                <button type="button" class="panel-action" data-testid="completion-request" data-display-key="completion" data-display-title-key="completionHelp" title="추천 열기: Ctrl+Space. 선택: 클릭 또는 Ctrl+Enter. 닫기: Esc." aria-label="추천 열기">추천</button>
+                <button type="button" class="panel-action" data-testid="source-access-button" data-display-key="source" title="DDN 원문 보기" aria-label="DDN 원문 보기">
                   원문
                 </button>
               </div>
               <div class="source-editor-shell">
-                <textarea id="source-editor" data-testid="source-editor" spellcheck="false" aria-label="DDN 원문" aria-controls="completion-popup" aria-autocomplete="list"></textarea>
+                <textarea id="source-editor" data-testid="source-editor" spellcheck="false" aria-label="DDN 원문" aria-controls="completion-popup" aria-autocomplete="none" aria-expanded="false" title="추천은 버튼 또는 Ctrl+Space로만 엽니다."></textarea>
                 <div id="completion-popup" data-testid="completion-popup" class="completion-popup" role="listbox" aria-label="또니랑 자동완성" hidden></div>
               </div>
+              <section class="proof-source-result" data-testid="proof-source-result" data-proof-status="not-checked" hidden aria-label="보임 원문 검사 결과">
+                <p data-testid="proof-source-status" role="status"></p>
+                <pre data-testid="proof-source-detail"></pre>
+              </section>
             </section>
 
             <div class="panel-divider" data-testid="panel-divider" role="separator" tabindex="0" aria-label="원문과 보개 너비 조절" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="75" aria-valuenow="60"></div>
@@ -466,7 +488,7 @@
           <button type="button" class="panel-action" data-testid="gaji-store-export">곳간 내보내기</button>
           <button type="button" class="panel-action" data-testid="gaji-store-import">곳간 가져오기</button>
           <input type="file" class="hidden-file-input" data-testid="gaji-store-import-input" aria-label="가지 artifact 파일 가져오기" accept=".json,.detjson,application/json" />
-          <button type="button" class="panel-action" data-testid="gaji-shelf-close" title="가지 선반 닫기" aria-label="가지 선반 닫기">닫기</button>
+          <button type="button" class="panel-action" data-testid="gaji-shelf-close" data-display-key="close" title="가지 선반 닫기" aria-label="가지 선반 닫기">닫기</button>
         </div>
         <label>검색 <input type="search" data-testid="gaji-shelf-search" autocomplete="off" placeholder="이름·설명·태그·공개 심볼" /></label>
         <fieldset class="gaji-profile-filters" data-testid="gaji-profile-filters">
@@ -499,6 +521,11 @@
       <div data-testid="logical-record-content"></div>
     </dialog>
     <script type="module" src="./workbench.js"></script>
+    <script type="module" src="./display_locale_entry.js"></script>
+    <dialog id="multilang-dialog" class="workbench-drawer multilang-dialog" data-testid="multilang-dialog" aria-label="다국어 소비 패널">
+      <div class="drawer-header"><strong>다국어 소비 패널</strong><button type="button" data-testid="multilang-close">닫기</button></div>
+      <div data-testid="multilang-root"></div>
+    </dialog>
     <dialog data-testid="authored-project-drawer" aria-label="작성 정체 자료">
       <h2>작성 정체 자료</h2>
       <p>명시적으로 정체를 만들 때만 영구 ID를 만듭니다. 편집·저장·재열기는 ID를 유지하고 명시 복제는 새 ID를 만듭니다. 한 파일이나 여러 모듈의 보개짜임 정의를 소유 모듈과 원문으로 등록합니다. 여러 모듈은 명시한 얽음 뿌리와 쓰임·드러냄으로 연결합니다. 모듈 소유 변경은 아직 지원하지 않습니다.</p>
@@ -537,5 +564,6 @@
       <p data-authored-status role="status">한 파일 실행만으로는 영구 정체를 만들지 않습니다.</p>
       <label>새 버전 저장 구간 (읽기 전용)<br><textarea data-authored-contents readonly rows="12" cols="80" aria-label="작성 정체 저장 구간"></textarea></label>
     </dialog>
+    <dialog class="notebook-dialog" data-testid="math-notebook-dialog" aria-label="탐구 노트"></dialog>
   </body>
 </html>

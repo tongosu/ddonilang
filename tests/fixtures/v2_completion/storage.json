@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "storage_cases": [
+    {
+      "id": "helper-A2-world",
+      "row": "V2-01",
+      "kind": "world",
+      "source": {
+        "path": "helper/A2.project.json",
+        "sha256": "84545cab0cdd2daf3d58852628ce107bc18433c2f18a0e878accc250d4fef035"
+      },
+      "checkpoint_ticks": 3,
+      "additional_ticks": 2,
+      "checkpoint_expected": {
+        "path": "helper/A2.expected.json",
+        "sha256": "42626f117ce8de7055805761ee7a0124abb9a36581e36bc79dd20f37a9b6cbfe"
+      }
+    },
+    {
+      "id": "proof-algebra-source",
+      "row": "V2-03",
+      "kind": "source",
+      "source": {
+        "path": "storage/algebra.project.json",
+        "sha256": "ebff62bc6dd574276c5ca432d92ac4dceda0559804d8a63e2f9e6aa3be5f5aa3"
+      }
+    },
+    {
+      "id": "proof-structure-source",
+      "row": "V2-03",
+      "kind": "source",
+      "source": {
+        "path": "storage/structure.project.json",
+        "sha256": "a7fc097bf1f8fc5ee78a1734d35384778de14aeaedcf23640ce6a39e5f983b4f"
+      }
+    },
+    {
+      "id": "fee-world",
+      "row": "V2-05",
+      "kind": "world",
+      "checkpoint_ticks": 3,
+      "additional_ticks": 2,
+      "source": {
+        "path": "storage/fee.project.json",
+        "sha256": "f3ddf8fb12579b7a1fad4ae54d8e5510ad2049fda19e7992d01d752a84b2d6fe"
+      },
+      "checkpoint_expected": {
+        "path": "storage/fee3.expected.json",
+        "sha256": "254082af030e9cb124b0d11f5b41a86f5f953d23f0cbc64b37c4ae6397696aa7"
+      }
+    }
+  ],
+  "scope": "exact existing Native source/world APIs; same parsed source, no hidden lowering; failure artifacts retained"
+}

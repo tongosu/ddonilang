@@ -1,0 +1,377 @@
+{
+  "version": 1,
+  "authority": "author runner inputs from existing fixed plan/SSOT and actual product raw evidence; not official membership or independent PASS",
+  "cases": [
+    {
+      "id": "helper-A1",
+      "row": "V2-01",
+      "kind": "project",
+      "ticks": 3,
+      "source": {
+        "path": "helper/A1.project.json",
+        "sha256": "3073c2da77191ddd946f2de526ae12d0362d8941d93c052be5cb15a675016395"
+      },
+      "expected": {
+        "path": "helper/A1.expected.json",
+        "sha256": "50a30acfdd7264738d24f1ad3c1f6b9e49ce3bc7518b72383590046d5ab32d85"
+      }
+    },
+    {
+      "id": "helper-B1",
+      "row": "V2-01",
+      "kind": "project",
+      "ticks": 3,
+      "source": {
+        "path": "helper/B1.project.json",
+        "sha256": "8f1dd74fb1547fc8586515e0c9efd7c68995bc901c5e146c5fb73f979b039f80"
+      },
+      "expected": {
+        "path": "helper/B1.expected.json",
+        "sha256": "9cc1fff4e0e4d556672bad13fd6d150768b3306b3ed64e281ea501c06e8df315"
+      }
+    },
+    {
+      "id": "helper-A2",
+      "row": "V2-01",
+      "kind": "project",
+      "ticks": 3,
+      "source": {
+        "path": "helper/A2.project.json",
+        "sha256": "84545cab0cdd2daf3d58852628ce107bc18433c2f18a0e878accc250d4fef035"
+      },
+      "expected": {
+        "path": "helper/A2.expected.json",
+        "sha256": "42626f117ce8de7055805761ee7a0124abb9a36581e36bc79dd20f37a9b6cbfe"
+      }
+    },
+    {
+      "id": "helper-B2",
+      "row": "V2-01",
+      "kind": "project",
+      "ticks": 3,
+      "source": {
+        "path": "helper/B2.project.json",
+        "sha256": "15e6485eb8c4a9824190c83362e164caad35ba4c213fc0fc1d6d00b604b6c78e"
+      },
+      "expected": {
+        "path": "helper/B2.expected.json",
+        "sha256": "fec4e15289f1a5913a24804bd65c001b8f3c710a5294ecdfcd5690e4c9a2d33c"
+      }
+    },
+    {
+      "id": "proof-algebra",
+      "row": "V2-03",
+      "kind": "proof",
+      "product_path": "lib/proof.ddn",
+      "source": {
+        "path": "proof/algebra.ddn",
+        "sha256": "d47cf160389f437e7d46a063eb43eea8c54acd8ac0bd6758fa7b2347e7c13ede"
+      },
+      "expected": {
+        "path": "proof/algebra.expected.json",
+        "sha256": "f8fcec07506f59771ae4ba69e8d7ba5574c99760fa55d979c56445fda054352f"
+      }
+    },
+    {
+      "id": "proof-structure",
+      "row": "V2-03",
+      "kind": "proof",
+      "product_path": "lib/proof.ddn",
+      "source": {
+        "path": "proof/structure.ddn",
+        "sha256": "c7532a2f516f83cdbaaf9e370c99b9b95d08f7c2e54b3d1fcb2e4f390acec0c7"
+      },
+      "expected": {
+        "path": "proof/structure.expected.json",
+        "sha256": "8076df574b8e3d35c69ebd4774cf788e0eaa82b87b10b411afb1e55b93ff6363"
+      }
+    },
+    {
+      "id": "fee-inside4",
+      "row": "V2-05",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "요금.ddn",
+      "source": {
+        "path": "fee/inside4.ddn",
+        "sha256": "7627df6c8048213889207a268e5a11a3c4438253701e475de9d6cda55d605483"
+      },
+      "expected": {
+        "path": "fee/inside4.expected.json",
+        "sha256": "1dac94c7df690d10ef529218d883bc80b4a9682a88e3571525794d26ef841220"
+      }
+    },
+    {
+      "id": "fee-boundary3",
+      "row": "V2-05",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "요금.ddn",
+      "source": {
+        "path": "fee/boundary3.ddn",
+        "sha256": "76e4b456e8990d3de99a583c17a93d2a817e6bc23a9dbacab5afd67527ae9468"
+      },
+      "expected": {
+        "path": "fee/boundary3.expected.json",
+        "sha256": "a992f7cd186b732eeff8b8252d09ca0ec229b348368b237cda200cb46df228df"
+      }
+    },
+    {
+      "id": "fee-boundary6",
+      "row": "V2-05",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "요금.ddn",
+      "source": {
+        "path": "fee/boundary6.ddn",
+        "sha256": "9842e4a8a5e57d9972acc382c8eedae005030c2938e8e82b7e02dc66f1677e30"
+      },
+      "expected": {
+        "path": "fee/boundary6.expected.json",
+        "sha256": "b3bd8123e8e30cdc841272214aee8d79e830a44a0e760578b4e0f542afb0fe0c"
+      }
+    },
+    {
+      "id": "fee-fraction",
+      "row": "V2-05",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "요금.ddn",
+      "source": {
+        "path": "fee/fraction.ddn",
+        "sha256": "fc5ce0233bb55db8d95c8653767fb419447b0bef34b88924c517321e5e941017"
+      },
+      "expected": {
+        "path": "fee/fraction.expected.json",
+        "sha256": "2ac01d16d5a049b171495aef96cf6b26878299ae50c3444f4b611fdb27acd30c"
+      }
+    },
+    {
+      "id": "fee-lazy",
+      "row": "V2-05",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "요금.ddn",
+      "source": {
+        "path": "fee/lazy.ddn",
+        "sha256": "61aa98a6a45f5988a2f21ad411bae42d210ec8a230d32abb17543a16333e6b87"
+      },
+      "expected": {
+        "path": "fee/lazy.expected.json",
+        "sha256": "4b53efb392b5666b84ad307e9a4a0e7438015554f5b8f96795a700c9fb98448e"
+      }
+    },
+    {
+      "id": "fee-outside",
+      "row": "V2-05",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "요금.ddn",
+      "source": {
+        "path": "fee/outside.ddn",
+        "sha256": "3c73e608b78628af2b5ed68493df24faf0f79d7066a32ce5653d7fce1f9259d9"
+      },
+      "expected": {
+        "path": "fee/outside.expected.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "reject_contains": "정의역 밖"
+    },
+    {
+      "id": "fee-overlap",
+      "row": "V2-05",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "요금.ddn",
+      "source": {
+        "path": "fee/overlap.ddn",
+        "sha256": "b47f2e7d53dc92c9f83192e3546f63f8bb86e497573e577dabd0a52cdacc50bc"
+      },
+      "expected": {
+        "path": "fee/overlap.expected.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "reject_contains": "겹침"
+    },
+    {
+      "id": "fee-gap",
+      "row": "V2-05",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "요금.ddn",
+      "source": {
+        "path": "fee/gap.ddn",
+        "sha256": "96933648b9d5d060000ef84b5b1cff1889e9244cfff6b417432195531ac2a3e7"
+      },
+      "expected": {
+        "path": "fee/gap.expected.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "reject_contains": "덮지"
+    },
+    {
+      "id": "fee-zero",
+      "row": "V2-05",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "요금.ddn",
+      "source": {
+        "path": "fee/zero.ddn",
+        "sha256": "113acc426c6ba97f56ad58ac82a222f55bffc327aee94d453dc8c0b604103057"
+      },
+      "expected": {
+        "path": "fee/zero.expected.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "reject_contains": "원래 분모"
+    },
+    {
+      "id": "fee-foreign",
+      "row": "V2-05",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "요금.ddn",
+      "source": {
+        "path": "fee/foreign.ddn",
+        "sha256": "1f36da7f7798e658c67610ecc5b6ebd10dec70f5defcf6e9a26b0af3d0795c6f"
+      },
+      "expected": {
+        "path": "fee/foreign.expected.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "reject_contains": "capture"
+    },
+    {
+      "id": "fee-unknown",
+      "row": "V2-05",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "요금.ddn",
+      "source": {
+        "path": "fee/unknown.ddn",
+        "sha256": "23a939f76cb6f6b1925e35bc7879a66918134603b3ea0974ea9bbf8d0104fb64"
+      },
+      "expected": {
+        "path": "fee/unknown.expected.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "reject_contains": "미확인"
+    },
+    {
+      "id": "fee-empty",
+      "row": "V2-05",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "요금.ddn",
+      "source": {
+        "path": "fee/empty.ddn",
+        "sha256": "e3bde330cd3d9e5ff870526040223c3cb1dc7e09a9e665fba03e5d4307668a90"
+      },
+      "expected": {
+        "path": "fee/empty.expected.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "reject_contains": "명시 빈 함수"
+    },
+    {
+      "id": "identity-01",
+      "row": "V2-04",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "항등짜임.ddn",
+      "source": {
+        "path": "structure/identity-01.ddn",
+        "sha256": "afae51f59516e15451e823f004b305c23554bd441f52c95fd5f45250ded45426"
+      },
+      "expected": {
+        "path": "structure/identity-01.expected.json",
+        "sha256": "4a488fe5635097a63cfe846ecb87b7549aa55ccd474efc5d7c19ff9961ebde80"
+      }
+    },
+    {
+      "id": "identity-02",
+      "row": "V2-04",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "항등짜임.ddn",
+      "source": {
+        "path": "structure/identity-02.ddn",
+        "sha256": "974ca332b9fb8d9747a293f73738aff878c3296cdf14227b41be06f5568baa8e"
+      },
+      "expected": {
+        "path": "structure/identity-02.expected.json",
+        "sha256": "f4d61bec69c46fcf273af0bdbe6a22227b54ce4dad4db38cec072d79017e9131"
+      }
+    },
+    {
+      "id": "identity-03",
+      "row": "V2-04",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "항등짜임.ddn",
+      "source": {
+        "path": "structure/identity-03.ddn",
+        "sha256": "146a1c4ba0c975adcf33e34e8d3003c652cfcddf97b2989531686668d9bdfbe1"
+      },
+      "expected": {
+        "path": "structure/rejected.expected.json",
+        "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f"
+      },
+      "reject_contains": "E_PROOF_STRUCTURE_POLICY"
+    },
+    {
+      "id": "identity-04",
+      "row": "V2-04",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "항등짜임.ddn",
+      "source": {
+        "path": "structure/identity-04.ddn",
+        "sha256": "e92a75ac430a5b29848dca67afb201310ea9ffdce2533ccbf96681edb8a87318"
+      },
+      "expected": {
+        "path": "structure/rejected.expected.json",
+        "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f"
+      },
+      "reject_contains": "E_CALL_REQUIRED_PIN_MISSING"
+    },
+    {
+      "id": "identity-05",
+      "row": "V2-04",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "항등짜임.ddn",
+      "source": {
+        "path": "structure/identity-05.ddn",
+        "sha256": "a62cb9333943b4c9f30cdecdfd489f87b08ea3279fbaf3b3c21a0cca195deae0"
+      },
+      "expected": {
+        "path": "structure/rejected.expected.json",
+        "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f"
+      },
+      "reject_contains": "E_PROOF_STRUCTURE_CONSUMPTION"
+    },
+    {
+      "id": "identity-06",
+      "row": "V2-04",
+      "kind": "source",
+      "ticks": 1,
+      "product_path": "항등짜임.ddn",
+      "source": {
+        "path": "structure/identity-06.ddn",
+        "sha256": "8f48c8804e7d6f1fabd0530f4f1c2d7ca60adb4219de0f6ed7de1957c750d260"
+      },
+      "expected": {
+        "path": "structure/rejected.expected.json",
+        "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f"
+      },
+      "reject_contains": "E_PROOF_STRUCTURE_CONSUMPTION"
+    }
+  ],
+  "missing": [
+    "V2-02 exact final LSP/Host supplier",
+    "Workbench/cold/refusal preservation gates reuse existing evidence but not rerun or promoted by this runner",
+    "official examples/independent verdicts remain separate",
+    "V2-04 fixed source/expected6 supplied; final candidate execution, Workbench/Native cold and independent gates not claimed by fixture presence"
+  ]
+}

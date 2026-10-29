@@ -16,6 +16,20 @@ use serde_json::{json, Map, Value as JsonValue};
 use wasm_bindgen::prelude::*;
 
 use crate::canon;
+
+/// Whole authored source adapter for the existing M6 explicit recheck callback.
+#[wasm_bindgen]
+pub fn wasm_math_notebook_observe_project(artifact: &str) -> Result<String, JsValue> {
+    crate::math_notebook::observe_uniform_motion_project(artifact)
+        .map_err(|message| JsValue::from_str(&message))
+}
+
+/// Same original-source observation producer used by Native. Not Proof.
+#[wasm_bindgen]
+pub fn wasm_math_notebook_observe(source: &str, path: &str) -> Result<String, JsValue> {
+    crate::math_notebook::observe_uniform_motion(source, path)
+        .map_err(|message| JsValue::from_str(&message))
+}
 use crate::completion;
 use crate::corpus_csv;
 use crate::ddn_runtime::{
@@ -448,6 +462,21 @@ fn require_wasm_source_path(source_path: &str) -> Result<&str, JsValue> {
 fn canonicalize_for_wasm(source: &str) -> Result<canon::CanonOutput, JsValue> {
     runtime_surface::canonicalize_shared_source(source)
         .map_err(|err| JsValue::from_str(&format!("WASM canon 실패: {err}")))
+}
+
+/// Observation-only summary; this JSON cannot be imported as proof authority.
+#[wasm_bindgen]
+pub fn wasm_verify_assumption_source_json(source: &str, source_path: &str) -> Result<String, JsValue> {
+    let path = require_wasm_source_path(source_path)?;
+    let checked = crate::proof_workflow::verify_conditional_source(source, path)
+        .map_err(|error| JsValue::from_str(&crate::proof_workflow::format_source_error(source, path, &error)))?;
+    Ok(serde_json::json!({
+        "source_path": path,
+        "conditional_definition_count": checked.len(),
+        "assumption_dependent": true,
+        "unconditional_proof_issued": false,
+        "message": "가정 의존 정의 검사 수용; 무가정 증명 발급 아님"
+    }).to_string())
 }
 
 fn canonicalize_for_wasm_with_supported_profile(
@@ -1228,7 +1257,7 @@ fn native_source_exchange(request:&JsonValue,catalog:Option<&crate::authored_pro
     xhr.send_with_opt_str(Some(&request.to_string()))?;
     let text=xhr.response_text()?.ok_or_else(||JsValue::from_str("E_NATIVE_SOURCE_RESPONSE_EMPTY"))?;
     if text.len()>8*1024*1024{return Err(JsValue::from_str("E_NATIVE_SOURCE_RESPONSE_LIMIT"));}
-    let parsed=crate::unit_wire::parse_snapshot_json_with_catalog(&text,catalog).map_err(|e|JsValue::from_str(&e))?;
+    let parsed=crate::unit_wire::parse_native_source_reply_json(&text,catalog).map_err(|e|JsValue::from_str(&e))?;
     if xhr.status()?!=200{return Err(JsValue::from_str(parsed["error"].as_str().unwrap_or("E_NATIVE_SOURCE_REQUEST_REJECTED")));}
     Ok(parsed)
 }
@@ -1286,7 +1315,7 @@ impl DdnWasmVm {
         let bytes=crate::unit_wire::project_runtime_attachment::check_bytes(artifact.as_bytes()).map_err(|e|JsValue::from_str(&e))?;
         let owned=crate::unit_wire::project_runtime_attachment::restore_saved_runtime_payload(&bytes).map_err(|e|JsValue::from_str(&e))?;
         if owned.project().save().map_err(|e|JsValue::from_str(&e))?!=authored{return Err(JsValue::from_str("E_NATIVE_SOURCE_SOURCE_CHANGED"));}
-        let pesi=crate::project_snapshot_identity::current::issue_saved_local_project(&owned).map_err(|e|JsValue::from_str(&e))?;
+        let pesi=crate::project_snapshot_identity::current::issue_saved_project(&owned).map_err(|e|JsValue::from_str(&e))?;
         let layout=crate::unit_wire::check_resumable_complete_state_layout_v2(&snapshot,pesi.pesi().as_raw())
             .map_err(|e|JsValue::from_str(&format!("E_NATIVE_SOURCE_FRAME: {e:?}")))?;
         let context=crate::unit_wire::project_runtime_attachment::check_saved_revision_context_with_frame(&bytes,&owned,&parent,&revision,layout.world)
@@ -1631,7 +1660,7 @@ fn build_saved_authored_project_vm(
     owned:Arc<crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1>,
 ) -> Result<DdnWasmVm,JsValue> {
     // Prove the supported local-only closure before publishing any candidate.
-    crate::project_snapshot_identity::current::issue_saved_local_project(&owned)
+    crate::project_snapshot_identity::current::issue_saved_project(&owned)
         .map_err(|error|JsValue::from_str(&error))?;
     let saved=owned.sources();
     let mut program=DdnProgram::from_saved_v25_project_with_mode(
@@ -2866,3 +2895,11 @@ mod tests;
 mod resource_projection;
 use resource_projection::*;
 
+
+
+/// Explicit observation opt-in. Default verification API remains unchanged.
+#[wasm_bindgen]
+pub fn wasm_observe_algebra_source_json(source:&str,source_path:&str)->Result<String,JsValue> {
+    let path=require_wasm_source_path(source_path)?;
+    Ok(crate::proof_workflow::observe_algebra_source(source,path).to_string())
+}

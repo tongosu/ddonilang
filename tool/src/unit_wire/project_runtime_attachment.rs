@@ -224,16 +224,34 @@ struct SavedRuntimeProjectPayloadV1 {
     source_capture_catalog_json_utf8: String,
     #[serde(default,skip_serializing_if="Option::is_none")]
     registration_resources:Option<Vec<crate::authored_project::registration::RecordedRegistrationBlob>>,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    first_callable_original_registration:Option<crate::authored_project::FirstCallableOriginalRegistration>,
 }
 
 pub(crate) fn saved_runtime_project_payload_json(
     owned: &crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
 ) -> Result<String,String> {
+    saved_runtime_project_payload_json_selected(owned,None)
+}
+
+pub(crate) fn saved_runtime_project_payload_json_with_first_callable(
+    owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
+    first:&crate::authored_project::FirstCallableAuthoredContext,
+)->Result<String,String>{saved_runtime_project_payload_json_selected(owned,Some(first))}
+
+fn saved_runtime_project_payload_json_selected(
+    owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
+    first:Option<&crate::authored_project::FirstCallableAuthoredContext>,
+)->Result<String,String>{
+    let original=if owned.project().schema==crate::authored_project::SCHEMA_V3 {
+        Some(first.ok_or("E_DDL_V3_RECORDED_CONTEXT_REQUIRED")?.registration_record_for_consumer(owned.project())?)
+    }else{None};
     let payload=SavedRuntimeProjectPayloadV1 {
-        schema:if owned.registration().is_some(){"ddn.saved_runtime_project.v2"}else{"ddn.saved_runtime_project.v1"}.into(),
+        schema:if original.is_some(){"ddn.saved_runtime_project.v3"}else if owned.registration().is_some(){"ddn.saved_runtime_project.v2"}else{"ddn.saved_runtime_project.v1"}.into(),
         authored_project_json_utf8:owned.project().save()?,
         source_capture_catalog_json_utf8:owned.sources().recorded_capture_catalog_json()?,
         registration_resources:owned.registration().map(|draft|draft.recorded_blobs()),
+        first_callable_original_registration:original,
     };
     serde_json::to_string(&payload).map_err(|_|"E_PROJECT_RUNTIME_PAYLOAD_ENCODING: 저장 작품을 만들 수 없습니다".into())
 }
@@ -243,9 +261,20 @@ fn read_saved_runtime_payload(raw: &str) -> Result<SavedRuntimeProjectPayloadV1,
     let value=super::parse_snapshot_json(raw)?;
     let payload=<SavedRuntimeProjectPayloadV1 as serde::Deserialize>::deserialize(&*value)
         .map_err(|_|"E_PROJECT_RUNTIME_PAYLOAD_FIELDS: 저장 작품 필드가 다릅니다")?;
-    if !matches!((payload.schema.as_str(),payload.registration_resources.is_some()),("ddn.saved_runtime_project.v1",false)|("ddn.saved_runtime_project.v2",true))
+    if !matches!((payload.schema.as_str(),payload.registration_resources.is_some(),payload.first_callable_original_registration.is_some()),
+        ("ddn.saved_runtime_project.v1",false,false)|("ddn.saved_runtime_project.v2",true,false)|("ddn.saved_runtime_project.v3",false,true))
         || serde_json::to_string(&payload).map_err(|_|"E_PROJECT_RUNTIME_PAYLOAD_ENCODING")?!=raw {
         return Err("E_PROJECT_RUNTIME_PAYLOAD_CANONICAL: 저장 작품이 정본이 아닙니다".into());
+    }
+    if payload.schema=="ddn.saved_runtime_project.v3" {
+        let project=crate::authored_project::open(payload.authored_project_json_utf8.as_bytes())?;
+        if project.schema!=crate::authored_project::SCHEMA_V3{return Err("E_DDL_V3_PAYLOAD_SCHEMA".into());}
+        // Deserialize transport once more to consume it in the checked owner;
+        // no serde payload or cached success bit is itself public-DDL proof.
+        let record=serde_json::from_value(serde_json::to_value(payload.first_callable_original_registration.as_ref().unwrap()).map_err(|_|"E_DDL_ORIGINAL_RECORD_ENCODING")?).map_err(|_|"E_DDL_ORIGINAL_RECORD_ENCODING")?;
+        project.restore_language_context(record)?;
+    } else if crate::authored_project::open(payload.authored_project_json_utf8.as_bytes())?.schema==crate::authored_project::SCHEMA_V3 {
+        return Err("E_DDL_V3_RECORDED_CONTEXT_REQUIRED".into());
     }
     Ok(payload)
 }
@@ -258,7 +287,7 @@ fn issue_saved_source_envelope(
 ) -> Result<(crate::project_snapshot_identity::current::IssuedSavedLocalProjectIdentity,Vec<u8>),String> {
     use crate::project_revision_envelope_supply::{CanonicalIdentityBytesV1,
         issue_rd631_identity_projection,IdentityFamily};
-    let issued=crate::project_snapshot_identity::current::issue_saved_local_project(owned)?;
+    let issued=crate::project_snapshot_identity::current::issue_saved_project(owned)?;
     let projection=|family,raw:&[u8]| -> Result<String,String> {
         let value=CanonicalIdentityBytesV1::from_owner_bytes(raw)
             .map_err(|_|"E_PROJECT_RUNTIME_IDENTITY_LIMIT: 저장 정체 바이트가 올바르지 않습니다")?;
@@ -285,7 +314,8 @@ fn issue_saved_source_envelope(
         "project_semantic_configuration_identity":projection(IdentityFamily::ProjectSemanticConfiguration,issued.constituents()[1].as_raw())?,
         "official_entry_path":owned.sources().saved().manifest().entry_path,
         "official_entry_definition_identity":projection(IdentityFamily::Definition,owned.definition_identity().as_bytes())?,
-        "source_manifest":manifest,"dependency_resolution_identity":null,
+        "source_manifest":manifest,"dependency_resolution_identity":issued.dependency_identity()
+            .map(|identity|projection(IdentityFamily::DependencyResolution,identity.as_raw())).transpose()?,
         "declared_resource_members":registration_members(owned),"revision_integrity_sha256":"",
     });
     stamp(&mut envelope,"revision_integrity_sha256")?;
@@ -308,7 +338,7 @@ pub(crate) fn encode_saved_runtime_artifact_with_frame(owned:&crate::project_rev
     }
     let catalog=owned.registration().map(|registration|registration.saved_nominal_catalog(owned)).transpose()?;
     if let Some(frame)=world_frame{
-        let issued=crate::project_snapshot_identity::current::issue_saved_local_project(owned)?;
+        let issued=crate::project_snapshot_identity::current::issue_saved_project(owned)?;
         if frame.pesi!=issued.pesi().as_raw(){return Err("E_VC04_COMPLETE_RESOURCE_BINDING: 원문·binary PESI가 다릅니다".into());}
         check_runtime_resource_binding_with_frame(runtime,resources,catalog.as_ref(),&frame)?;
     }else{check_runtime_resource_binding_with_catalog(runtime,resources,catalog.as_ref())?;}
@@ -346,12 +376,33 @@ pub(crate) fn restore_saved_runtime_payload(
 fn restore_recorded_project_payload(
     project_snapshot_json:&str, revision_envelope:&[u8],
 ) -> Result<crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,String> {
+    restore_recorded_project_payload_selected(project_snapshot_json,revision_envelope,None)
+}
+
+pub(crate) fn restore_recorded_first_callable_project_payload(
+    project_snapshot_json:&str,revision_envelope:&[u8],first:&crate::authored_project::FirstCallableAuthoredContext,
+)->Result<crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,String>{
+    restore_recorded_project_payload_selected(project_snapshot_json,revision_envelope,Some(first))
+}
+fn restore_recorded_project_payload_selected(
+    project_snapshot_json:&str,revision_envelope:&[u8],first:Option<&crate::authored_project::FirstCallableAuthoredContext>,
+)->Result<crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,String>{
     use crate::project_revision_envelope_supply::{collect_saved_source_supply,
         restore_saved_v25_sources,admit_saved_authored_project,SavedSourceBlobV1,
         admit_precanon_authored_source,finalize_registered_authored_source,
         verify_rd631_identity_projection,IdentityFamily};
     let payload=read_saved_runtime_payload(project_snapshot_json)?;
     let project=crate::authored_project::open(payload.authored_project_json_utf8.as_bytes())?;
+    let restored_first=if project.schema==crate::authored_project::SCHEMA_V3 {
+        let record=payload.first_callable_original_registration.ok_or("E_DDL_V3_RECORDED_CONTEXT_REQUIRED")?;
+        if let Some(first)=first {
+            let supplied=first.registration_record_for_consumer(&project)?;
+            if serde_json::to_vec(&supplied).map_err(|_|"E_DDL_ORIGINAL_RECORD_ENCODING")?!=serde_json::to_vec(&record).map_err(|_|"E_DDL_ORIGINAL_RECORD_ENCODING")?{return Err("E_DDL_ORIGINAL_RECORD_MISMATCH".into());}
+        }
+        Some(std::sync::Arc::new(project.restore_language_context(record)?))
+    }else{None};
+    let first=restored_first.as_deref().or(first);
+    if restored_first.is_none()&&first.is_some_and(|first|first.original_artifact()!=&project){return Err("E_MULTILANG_ORIGINAL_OWNER: 기록과 선택한 원본이 다릅니다".into());}
     let snapshot=&project.source_snapshot;
     let root=snapshot.root_path.as_deref()
         .ok_or("E_PROJECT_RUNTIME_ROOT_REQUIRED: 실행 복원에는 명시 얽음 뿌리가 필요합니다")?;
@@ -364,17 +415,29 @@ fn restore_recorded_project_payload(
     // issuer below independently resolves it; revision admission compares both.
     let carrier=verify_rd631_identity_projection(IdentityFamily::Definition,declaration)
         .map_err(|_|"E_PROJECT_RUNTIME_REVISION_DEFINITION: 시작 정의 표기가 다릅니다")?;
-    let blobs:Vec<_>=snapshot.files.iter().map(|file|SavedSourceBlobV1 {
-        path:&file.path,role:if file.path==root {"root"} else {"ddn_source"},bytes:file.text.as_bytes(),
-    }).collect();
+    let roles=crate::project_revision_envelope_supply::saved_authored_source_roles(snapshot)?;
+    let blobs=snapshot.files.iter().map(|file|Ok(SavedSourceBlobV1 {
+        path:&file.path,role:roles.get(&file.path)
+            .ok_or("E_PROJECT_RUNTIME_PAYLOAD_SOURCE: 저장 원자료의 역할이 없습니다")?.as_str(),
+        bytes:file.text.as_bytes(),
+    })).collect::<Result<Vec<_>,String>>()?;
     let saved=collect_saved_source_supply(root,&snapshot.entry_path,&carrier,&blobs)
         .map_err(|_|"E_PROJECT_RUNTIME_PAYLOAD_SOURCE: 저장 원문 공급이 다릅니다")?;
-    let sources=std::sync::Arc::new(restore_saved_v25_sources(saved,&payload.source_capture_catalog_json_utf8)?);
+    let sources=std::sync::Arc::new(match &restored_first {
+        Some(first)=>crate::project_revision_envelope_supply::restore_saved_v25_sources_with_first_callable(saved,&payload.source_capture_catalog_json_utf8,first.clone())?,
+        None=>restore_saved_v25_sources(saved,&payload.source_capture_catalog_json_utf8)?,
+    });
     if let Some(resources)=payload.registration_resources {
         let source=admit_precanon_authored_source(sources,payload.authored_project_json_utf8.as_bytes())?;
-        let draft=crate::authored_project::registration::restore_precanon_recorded_candidate(&source,resources)?;
+        let draft=match first {
+            Some(first)=>crate::authored_project::restore_first_callable_original_registration(&source,first,resources)?,
+            None=>crate::authored_project::registration::restore_precanon_recorded_candidate(&source,resources)?,
+        };
         finalize_registered_authored_source(source,draft)
-    } else {admit_saved_authored_project(sources,payload.authored_project_json_utf8.as_bytes())}
+    } else {
+        if first.is_some()&&restored_first.is_none(){return Err("E_MULTILANG_REGISTRATION_REQUIRED: 원본 함수 등록 기록이 없습니다".into());}
+        admit_saved_authored_project(sources,payload.authored_project_json_utf8.as_bytes())
+    }
 }
 
 fn registration_members(owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1)->serde_json::Value {
@@ -405,7 +468,7 @@ pub(crate) fn check_saved_source_context<'a>(attachment:&'a ByteCheckedAttachmen
     let recorded=payload.registration_resources.as_ref().map(serde_json::to_vec).transpose().map_err(|_|"E_PROJECT_REGISTRATION_ENCODING")?;
     let expected=owned.registration().map(|draft|serde_json::to_vec(&draft.recorded_blobs())).transpose().map_err(|_|"E_PROJECT_REGISTRATION_ENCODING")?;
     if recorded!=expected{return Err("E_PROJECT_REGISTRATION_OWNER: 등록 자료가 소유자와 다릅니다".into());}
-    let issued=crate::project_snapshot_identity::current::issue_saved_local_project(owned)?;
+    let issued=crate::project_snapshot_identity::current::issue_saved_project(owned)?;
     let project=hex::decode(owned.project().authored_identity.logical_dependency_id.as_str())
         .map_err(|_|"E_PROJECT_RUNTIME_PROJECT_IDENTITY: 작품 정체 바이트를 해소할 수 없습니다")?;
     let supply=owned.resolved_revision_supply();
@@ -427,7 +490,9 @@ pub(crate) fn check_saved_source_context<'a>(attachment:&'a ByteCheckedAttachmen
     // The local-only owner above proved that the external dependency set is
     // empty. RD-631 permits null for no dependency; a supplied identity must
     // nevertheless match the actual empty graph, never a caller's graph.
-    if !envelope["dependency_resolution_identity"].is_null() {
+    if let Some(expected)=issued.dependency_identity() {
+        check_projection("dependency_resolution_identity",IdentityFamily::DependencyResolution,expected.as_raw())?;
+    } else if !envelope["dependency_resolution_identity"].is_null() {
         check_projection("dependency_resolution_identity",IdentityFamily::DependencyResolution,
             issued.constituents()[2].as_raw())?;
     }
@@ -709,7 +774,7 @@ pub(crate) mod tests {
             files:blobs.iter().map(|b|SourceFile {path:b.path.into(),text:std::str::from_utf8(b.bytes).unwrap().into()}).collect(),
         },String::new()).unwrap();
         let owned=admit_saved_authored_project(sources,project.save().unwrap().as_bytes()).unwrap();
-        let issued=crate::project_snapshot_identity::current::issue_saved_local_project(&owned).unwrap();
+        let issued=crate::project_snapshot_identity::current::issue_saved_project(&owned).unwrap();
         let project_raw=hex::decode(project.authored_identity.logical_dependency_id.as_str()).unwrap();
         let projection=|family,raw:&[u8]|issue_rd631_identity_projection(family,
             &CanonicalIdentityBytesV1::from_owner_bytes(raw).unwrap()).unwrap();

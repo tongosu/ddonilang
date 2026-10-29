@@ -1,5 +1,5 @@
 // Existing one-file, portable and native project registry model; original templates and state references unchanged.
-export function createWorkbenchProjectRegistry({ currentProject, FIRST_STEPS_PROJECTS, localProjectEntryPath, ONE_FILE_DDN_DRAFT_KEY, ONE_FILE_DDN_PROJECT_ID, PORTABLE_PROJECT_CATALOG_KEY, PROJECTS, pushDiagnostic, rememberMyWorkProject, renderAll, selectProject, selectUnversionedDocumentProfile, SOURCE_ANALYSIS_PROFILE_IDENTITY, stableCanonicalJson, stableHash, state, workbenchProjectRegistryState, writeNativeProjectCatalog, readPortableProjectCatalog }) {
+export function createWorkbenchProjectRegistry({ nativeSourceAvailable, currentProject, FIRST_STEPS_PROJECTS, localProjectEntryPath, ONE_FILE_DDN_DRAFT_KEY, ONE_FILE_DDN_PROJECT_ID, PORTABLE_PROJECT_CATALOG_KEY, PROJECTS, pushDiagnostic, rememberMyWorkProject, renderAll, selectProject, selectUnversionedDocumentProfile, SOURCE_ANALYSIS_PROFILE_IDENTITY, stableCanonicalJson, stableHash, state, workbenchProjectRegistryState, writeNativeProjectCatalog, readPortableProjectCatalog }) {
 function defaultOneFileDdnSource(title = "새 한 파일 DDN") {
   // The user-facing one-file template is current V25 source. Its title is
   // Workbench presentation metadata, not hidden source syntax.
@@ -409,6 +409,11 @@ async function createNativeProject(name, template, initialSource = null) {
   if(initialSource!==null) {
     if(template!=='single' || typeof initialSource!=='string') throw new Error('한 파일 시작 원문을 명시하세요.');
     project.files[0].fallback=initialSource;
+  }
+  // Only an explicit root plus a confirmed Native host selects protected
+  // source saving. Browser-only and rootless templates retain local recovery.
+  if (project.portableSnapshot.local_package_payload?.root_path && await nativeSourceAvailable?.()) {
+    project.nativeSaveOnFirstUse = true;
   }
   workbenchProjectRegistryState.nativeProjects = [project, ...workbenchProjectRegistryState.nativeProjects];
   writeNativeProjectCatalog();

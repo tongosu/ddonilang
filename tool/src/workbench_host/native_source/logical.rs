@@ -69,7 +69,7 @@ pub(super) fn dispatch(authored:&str,input:&LogicalRecordRequest,expected:Option
         let recorded=crate::unit_wire::project_runtime_attachment::restore_saved_runtime_payload(&bytes)?;
         if recorded.project().save()?!=authored{return Err("E_NATIVE_SOURCE_SOURCE_CHANGED".into());}
         let parent=identity(&saved.parent_hex)?;let revision=identity(&saved.revision_hex)?;
-        let old=runtime::resume_logical_source_world(&saved.saved_artifact_json_utf8,&parent,&revision,&path,&source.grant_locator,&empty,Some(&recorded))?;
+        let (old,resave_result)=runtime::resume_logical_source_world_with_result(&saved.saved_artifact_json_utf8,&parent,&revision,&path,&source.grant_locator,&empty,Some(&recorded),expected_result.map(|_|input.snapshots.len()))?;
         let count=old["madi_count"].as_u64().and_then(|v|usize::try_from(v).ok()).ok_or("E_NATIVE_SOURCE_LOGICAL_COUNT")?;
         if let Some(expected)=expected {
             let frames=old["frames"].as_array().ok_or("E_NATIVE_SOURCE_LOGICAL_INPUTS")?;
@@ -83,14 +83,21 @@ pub(super) fn dispatch(authored:&str,input:&LogicalRecordRequest,expected:Option
             // save owner below. Do not separately restore and execute it just
             // for the same state check. Legacy/empty-prefix paths stay intact.
             let candidate=if suffix.snapshots.is_empty()||expected_result.is_none(){
-                let value=runtime::resume_logical_source_world(&saved.saved_artifact_json_utf8,&parent,&revision,&path,&source.grant_locator,&suffix,Some(&recorded))?;
+                // The exact empty suffix was already restored above for
+                // this request's prefix check. With a result identity, the
+                // protected recording owner below is still freshly opened;
+                // final authoring-head admission also remains mandatory.
+                // Reuse only the observation, never a permit or authority.
+                let value=if suffix.snapshots.is_empty()&&expected_result.is_some(){old.clone()}else{
+                    runtime::resume_logical_source_world(&saved.saved_artifact_json_utf8,&parent,&revision,&path,&source.grant_locator,&suffix,Some(&recorded))?
+                };
                 if value["state_hash"].as_str()!=Some(expected){return Err("E_NATIVE_SOURCE_SAVE_WORLD_MISMATCH".into());}
                 Some(value)
             }else{None};
             if suffix.snapshots.is_empty(){
                 if let Some(expected)=expected_result{
-                    let actual=runtime::NativeLogicalFinishSessionV1::open(&saved.saved_artifact_json_utf8,&parent,&revision,&path,&source.grant_locator,&input.binding,Some(&recorded))?;
-                    if actual.result_identity()?["result_identity"].as_str()!=Some(expected){return Err("E_NATIVE_SOURCE_SAVE_RESULT_MISMATCH: 원 형식 결과가 다릅니다. 기존 저장본을 보존했습니다".into());}
+                    let identity=resave_result.ok_or("E_NATIVE_SOURCE_SAVE_RESULT_MISMATCH: 실제 복원 결과가 없습니다")??;
+                    if identity["result_identity"].as_str()!=Some(expected){return Err("E_NATIVE_SOURCE_SAVE_RESULT_MISMATCH: 원 형식 결과가 다릅니다. 기존 저장본을 보존했습니다".into());}
                 }
                 (saved.saved_artifact_json_utf8,saved.parent_hex,saved.revision_hex,candidate.ok_or("E_NATIVE_SOURCE_SAVE_WORLD_MISMATCH")?)
             }else{
@@ -200,8 +207,8 @@ mod tests {
     #[test]
     #[ignore = "requires the exact existing task-owned Ready fixture and explicit observation flags"]
     fn wo25_existing_ready_query_compilation_observation(){
-        let request_path=std::env::var("DDN_WO25_EXISTING_READY_REQUEST_PATH").expect("explicit existing Ready fixture path required");
-        let local=std::env::var("DDN_WO25_EXISTING_READY_LOCALAPPDATA").expect("explicit existing Ready storage path required");
+        let request_path=std::env::var("DDN_WO25_READY_FIXTURE").expect("explicit Ready fixture path required");
+        let local=std::env::var("DDN_WO25_READY_LOCALAPPDATA").expect("explicit fixture owner location required");
         assert_eq!(std::env::var("DDN_WO25_TEST_COMPILE_OBSERVATION").as_deref(),Ok("1"));
         assert_eq!(std::env::var("DDN_PRIVATE_STORAGE_TIMING").as_deref(),Ok("1"));
         assert_eq!(std::env::var("LOCALAPPDATA").as_deref(),Ok(local.as_str()));

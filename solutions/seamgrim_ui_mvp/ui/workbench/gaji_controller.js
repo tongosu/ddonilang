@@ -111,6 +111,12 @@ async function refreshGajiShelf() {
   els.gajiInstallStatus.textContent = `검색 ${result.rows?.length ?? 0}개 · ${selectedShelfProfiles().join("/") || "선택 없음"}`;
 }
 
+function gajiEditContext() {
+  return JSON.stringify([state.projectId,state.projectEditGeneration,currentVirtualProjectSource()]);
+}
+function requireGajiEditContext(expected) {
+  if(gajiEditContext()!==expected)throw new Error("E_PROJECT_EDIT_SOURCE_CONFLICT: 작품이나 원문이 바뀌어 가지 변경을 취소했습니다");
+}
 function reportGajiShelfError(err) {
   workbenchGajiPresentationState.pendingGajiInstall = null;
   els.gajiInstallApply.disabled = true;
@@ -136,7 +142,7 @@ async function previewShelfInstall(row, button) {
     return;
   }
   const source = currentVirtualProjectSource();
-  if (!source || !workbenchProjectRegistryState.nativeProjects.some((item) => item.id === state.projectId)) {
+  if (!source || !(currentProject().authoredArtifact?.source_snapshot?.root_path || workbenchProjectRegistryState.nativeProjects.some((item) => item.id === state.projectId))) {
     throw new Error("E_GAJI_INSTALL_PROJECT_REQUIRED 네이티브 프로젝트를 먼저 여세요");
   }
   const alias = String(els.gajiInstallAlias.value || artifact.gaji_id).trim();
@@ -146,7 +152,9 @@ async function previewShelfInstall(row, button) {
   const installedMetadata = source.files.find((file) => file.path === `vendor/${installedId}/artifact.detjson`);
   const installedArtifact = installedMetadata ? JSON.parse(installedMetadata.utf8_text) : null;
   const kind = installedPath ? "update" : "install";
+  const context=gajiEditContext();
   const sourceHash = await runtimeBridge.projectSourceSha256(source);
+  requireGajiEditContext(context);
   const request = {
     schema: "ddn.gaji_lifecycle_plan.v1",
     source,
@@ -155,7 +163,8 @@ async function previewShelfInstall(row, button) {
     operation: { kind, alias, artifact },
   };
   const plan = await runtimeBridge.planGajiLifecycle(request);
-  workbenchGajiPresentationState.pendingGajiInstall = { row, artifact, request, plan };
+  requireGajiEditContext(context);
+  workbenchGajiPresentationState.pendingGajiInstall = { row, artifact, request, plan, context };
   document.querySelectorAll(".gaji-shelf-row").forEach((node) => node.classList.toggle("active", node === button));
   els.gajiInstallPreview.textContent = [
     `${row.gaji_id}@${row.version} · ${row.profile} 가지곳간`,
@@ -185,11 +194,12 @@ async function previewShelfInstall(row, button) {
 async function applyShelfInstall() {
   if (!workbenchGajiPresentationState.pendingGajiInstall) return;
   if (currentCapabilityIsViewOnly()) throw new Error("E_GAJI_VIEW_CAPABILITY_WRITE 보기 권한으로 가지를 설치할 수 없습니다");
-  const source = currentVirtualProjectSource();
-  const sourceHash = await runtimeBridge.projectSourceSha256(source);
-  const request = { ...workbenchGajiPresentationState.pendingGajiInstall.request, source, expected_source_sha256: sourceHash };
-  const plan = await runtimeBridge.planGajiLifecycle(request);
-  applyVirtualProjectSource(plan.project_source);
+  const pending=workbenchGajiPresentationState.pendingGajiInstall;
+  requireGajiEditContext(pending.context);
+  const plan=await runtimeBridge.planGajiLifecycle(pending.request);
+  requireGajiEditContext(pending.context);
+  if(workbenchGajiPresentationState.pendingGajiInstall!==pending)throw new Error("E_PROJECT_EDIT_SOURCE_CONFLICT: 가지 선택이 바뀌었습니다");
+  await applyVirtualProjectSource(plan.project_source);
   workbenchGajiPresentationState.pendingGajiInstall = null;
   els.gajiInstallApply.disabled = true;
   els.gajiInstallStatus.textContent = `${plan.alias} ${plan.operation === "install" ? "설치" : "갱신"} 완료 · lock ${plan.after_lock_sha256}`;
@@ -200,14 +210,16 @@ async function applyShelfInstall() {
 async function removeShelfInstall() {
   if (!workbenchGajiPresentationState.pendingGajiInstall) return;
   if (currentCapabilityIsViewOnly()) throw new Error("E_GAJI_VIEW_CAPABILITY_WRITE 보기 권한으로 가지를 제거할 수 없습니다");
-  const source = currentVirtualProjectSource();
-  const sourceHash = await runtimeBridge.projectSourceSha256(source);
+  const pending=workbenchGajiPresentationState.pendingGajiInstall;
+  requireGajiEditContext(pending.context);
   const request = {
-    schema: "ddn.gaji_lifecycle_plan.v1", source, expected_source_sha256: sourceHash, expected_lock_sha256: null,
+    ...pending.request,
     operation: { kind: "remove", alias: String(els.gajiInstallAlias.value).trim() },
   };
   const plan = await runtimeBridge.planGajiLifecycle(request);
-  applyVirtualProjectSource(plan.project_source);
+  requireGajiEditContext(pending.context);
+  if(workbenchGajiPresentationState.pendingGajiInstall!==pending)throw new Error("E_PROJECT_EDIT_SOURCE_CONFLICT: 가지 선택이 바뀌었습니다");
+  await applyVirtualProjectSource(plan.project_source);
   workbenchGajiPresentationState.pendingGajiInstall = null;
   els.gajiInstallApply.disabled = true;
   els.gajiInstallRemove.disabled = true;

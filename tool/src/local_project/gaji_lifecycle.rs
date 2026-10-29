@@ -1,9 +1,29 @@
 //! 가지 추출·설치·곳간의 기존 구현. 공개 경로와 자료형 정체는 부모가 유지한다.
-// F5: 현재 출하 Native 기본/WASM 프로필은 beta-project-features를 켜지 않으며,
-// lifecycle 입구의 require_beta_project_feature가 graph 접근 전에 거부한다.
-// 해당 feature를 켠 별도 빌드까지 안전하다는 뜻은 아니다.
+// RC1 keeps its alpha gate. WO27 V2 builds enable only the existing module
+// lifecycle, without enabling the unrelated beta model/dataset paths.
 // artifact manifest의 gaji.toml find는 같은 불변 files의 존재 검사를 먼저 통과한다.
 use super::*;
+
+// Only metadata implied by explicit installed module heads is admitted.
+pub(crate) fn v25_package_metadata_roles(root_text: &str) -> Result<BTreeMap<String, String>, LocalProjectError> {
+    let mut roles = BTreeMap::new();
+    if !cfg!(feature = "v2-shared-modules") { return Ok(roles); }
+    let root = ddonirang_lang::work_root::parse_work_root(root_text).map_err(|e|
+        LocalProjectError::new("E_PROJECT_ROOT_PARSE", e.message))?;
+    let modules = root.typed_modules().map_err(|e|
+        LocalProjectError::new("E_PROJECT_MODULE_DECLARATION", e.message))?;
+    for module in modules {
+        let head = normalize_project_reference(&module.head)?;
+        let parts: Vec<_> = head.split('/').collect();
+        if parts.len() >= 4 && parts[0] == "vendor" {
+            let prefix = format!("vendor/{}", parts[1]);
+            roles.insert(format!("{prefix}/artifact.detjson"), "metadata".into());
+            roles.insert(format!("{prefix}/gaji.toml"), "gaji_manifest".into());
+        }
+    }
+    if !roles.is_empty() { roles.insert("ddn.lock".into(), "lock".into()); }
+    Ok(roles)
+}
 
 pub fn build_gaji_extraction_plan_json(input_json: &str) -> Result<String, LocalProjectError> {
     let request: GajiExtractionPlanRequest = serde_json::from_str(input_json).map_err(|err| {
@@ -98,7 +118,9 @@ pub fn build_gaji_lifecycle_plan_json(input_json: &str) -> Result<String, LocalP
 pub fn build_gaji_lifecycle_plan(
     request: GajiLifecyclePlanRequest,
 ) -> Result<GajiLifecyclePlan, LocalProjectError> {
-    require_beta_project_feature("E_ALPHA_GAJI_LIFECYCLE_UNSUPPORTED", "가지 설치·제거·갱신은 알파에서 지원하지 않습니다. 베타에서 지원할 예정입니다")?;
+    if !cfg!(feature = "v2-shared-modules") {
+        require_beta_project_feature("E_ALPHA_GAJI_LIFECYCLE_UNSUPPORTED", "가지 설치·제거·갱신은 알파에서 지원하지 않습니다. 베타에서 지원할 예정입니다")?;
+    }
     if request.schema != GAJI_LIFECYCLE_PLAN_SCHEMA {
         return Err(LocalProjectError::new(
             "E_GAJI_LIFECYCLE_SCHEMA",
@@ -164,6 +186,12 @@ pub fn build_gaji_lifecycle_plan(
             let old_path = before_graph.gaji_aliases.get(&alias).expect("alias");
             let old_id = gaji_id_from_vendor_path(old_path)?.to_string();
             let old_artifact = installed_artifact_from_source(&source, &old_id)?;
+            if cfg!(feature="v2-shared-modules") && old_artifact.gaji_id==artifact.gaji_id
+                && old_artifact.version==artifact.version
+                && to_canonical_json_line(&old_artifact)!=to_canonical_json_line(&artifact) {
+                return Err(LocalProjectError::new("E_GAJI_ARTIFACT_PACKAGE_HASH",
+                    "같은 고정 판본의 내용을 바꿀 수 없습니다. 새 판본으로 명시 갱신하세요"));
+            }
             let version_diff = diff_gaji_artifacts(Some(&old_artifact), Some(&artifact));
             let root_text = source
                 .files
@@ -174,7 +202,7 @@ pub fn build_gaji_lifecycle_plan(
                 .files
                 .retain(|file| !file.path.starts_with(&format!("vendor/{old_id}/")));
             let affected = install_artifact_into_source(&mut source, &alias, &artifact, true)?;
-            if old_id == artifact.gaji_id {
+            if old_id == artifact.gaji_id && !cfg!(feature = "v2-shared-modules") {
                 if let (Some(original), Some(root)) = (
                     root_text,
                     source
@@ -199,8 +227,13 @@ pub fn build_gaji_lifecycle_plan(
                 if file.path.starts_with("vendor/") || file.path == source.root_path {
                     continue;
                 }
-                if parse_imports(&file.utf8_text, &file.path)?
-                    .iter()
+                if file.role != "ddn_source" { continue; }
+                let imports = if cfg!(feature = "v2-shared-modules") {
+                    resolve_work_project_module_directives(&source, &file.path)?.imports
+                } else {
+                    parse_imports(&file.utf8_text, &file.path)?
+                };
+                if imports.iter()
                     .any(|item| {
                         item.alias == alias
                             || resolve_import_source_path(&file.path, &item.source)
@@ -414,6 +447,103 @@ pub(super) fn diff_gaji_artifacts(
     }
 }
 
+// V2-01 binds the existing closed artifact to an authored v25 module entry.
+// No root pin, alias registry, or ambient file lookup is introduced.
+fn v25_single_gaji_head(prefix: &str, artifact: &LocalGajiArtifact) -> Result<String, LocalProjectError> {
+    verify_local_gaji_artifact(artifact)?;
+    let sources = artifact.files.iter().filter(|file| file.path.starts_with("ddn/"))
+        .map(|file| file.path.as_str()).collect::<Vec<_>>();
+    if artifact.provenance.extraction_modules.len() != 1 || sources.len() != 1 {
+        return Err(LocalProjectError::new("E_GAJI_MODULE_SELECTION_INVALID",
+            "현재 설치는 한 원문으로 된 명시 모듈 하나를 지원합니다. 여러 모듈을 임의로 합치지 않습니다"));
+    }
+    let entry = format!("ddn/{}", normalize_project_path(&artifact.provenance.extraction_modules[0])?);
+    if sources[0] != entry {
+        return Err(LocalProjectError::new("E_GAJI_ENTRY_MODULE_MISSING", "추출 머리와 artifact 원문이 일치하지 않습니다"));
+    }
+    Ok(format!("{prefix}/{entry}"))
+}
+
+pub(super) fn v25_installed_gaji_aliases(
+    module_paths: &BTreeMap<String, String>,
+    module_sources: &BTreeMap<String, Vec<String>>,
+    texts: &BTreeMap<String, String>,
+) -> Result<BTreeMap<String, String>, LocalProjectError> {
+    let mut aliases = BTreeMap::new();
+    if !cfg!(feature = "v2-shared-modules") { return Ok(aliases); }
+    for (alias, head) in module_paths {
+        let Some(tail) = head.strip_prefix("vendor/") else { continue; };
+        let id = tail.split('/').next().unwrap_or_default();
+        let prefix = format!("vendor/{id}");
+        let metadata = format!("{prefix}/artifact.detjson");
+        let raw = texts.get(&metadata).ok_or_else(|| LocalProjectError::with_path(
+            "E_GAJI_ARTIFACT_SOURCE_MISSING", &metadata, "설치한 가지의 고정 artifact 자료가 없습니다"))?;
+        let artifact: LocalGajiArtifact = serde_json::from_str(raw).map_err(|error|
+            LocalProjectError::with_path("E_GAJI_ARTIFACT_JSON", &metadata, error.to_string()))?;
+        if artifact.gaji_id != id || v25_single_gaji_head(&prefix, &artifact)? != *head
+            || module_sources.get(alias) != Some(&vec![head.clone()]) {
+            return Err(LocalProjectError::with_path("E_GAJI_ALIAS_INVALID", head,
+                "명시 모듈·가지 정체·고정 artifact 머리가 일치하지 않습니다"));
+        }
+        for file in &artifact.files {
+            let path = format!("{prefix}/{}", file.path);
+            if texts.get(&path) != Some(&file.utf8_text) {
+                return Err(LocalProjectError::with_path("E_GAJI_ARTIFACT_FILE_HASH", &path,
+                    "설치 원문이 고정 artifact와 다릅니다. 명시 갱신 또는 원본 복원이 필요합니다"));
+            }
+        }
+        let manifest = load_gaji_manifest_for_path(&prefix, texts)?;
+        if manifest.id != artifact.gaji_id || manifest.version != artifact.version {
+            return Err(LocalProjectError::with_path("E_GAJI_VERSION_INVALID", &metadata,
+                "가지 manifest와 고정 artifact의 정체·판본이 다릅니다"));
+        }
+        aliases.insert(alias.clone(), prefix);
+    }
+    Ok(aliases)
+}
+
+fn set_v25_gaji_module(source: &mut VirtualProjectSource, alias: &str, path: Option<&str>)
+    -> Result<(), LocalProjectError> {
+    use ddonirang_lang::work_root::{parse_work_root, RootField};
+    let root_index = source.files.iter().position(|file| file.path == source.root_path)
+        .ok_or_else(|| LocalProjectError::new("E_PROJECT_ROOT_MISSING", "뿌리.ddn이 없습니다"))?;
+    let original = &source.files[root_index].utf8_text;
+    let root = parse_work_root(original).map_err(|e| LocalProjectError::new("E_PROJECT_ROOT_PARSE", e.message))?;
+    let mut modules = root.typed_modules().map_err(|e| LocalProjectError::new("E_PROJECT_MODULE_DECLARATION", e.message))?;
+    if let Some(current) = modules.iter().find(|module| module.name == alias) {
+        if !current.head.starts_with("vendor/") {
+            return Err(LocalProjectError::new("E_GAJI_ALIAS_EXISTS", "같은 이름의 지역 모듈을 가지로 덮어쓸 수 없습니다"));
+        }
+    }
+    modules.retain(|module| module.name != alias);
+    if let Some(prefix) = path {
+        let id = gaji_id_from_vendor_path(prefix)?;
+        let artifact = installed_artifact_from_source(source, id)?;
+        let head = v25_single_gaji_head(prefix, &artifact)?;
+        modules.push(ddonirang_lang::work_root::ModuleDeclaration {
+            name: alias.to_string(), head: head.clone(), sources: vec![head], span: root.span,
+        });
+    }
+    let rows = modules.iter().map(|module| {
+        let quoted = |value: &str| serde_json::to_string(value).expect("closed string");
+        format!("(이름={}, 머리={}, 원문=차림[{}])", module.name, quoted(&module.head),
+            module.sources.iter().map(|value| quoted(value)).collect::<Vec<_>>().join(","))
+    }).collect::<Vec<_>>().join(",");
+    let span = root.field(RootField::Modules).ok_or_else(|| LocalProjectError::new(
+        "E_PROJECT_MODULE_DECLARATION", "모듬이 없습니다"))?.span;
+    let mut next = original.clone();
+    next.replace_range(span.start..span.end, &format!("차림[{rows}]"));
+    let checked = parse_work_root(&next).and_then(|root| root.typed_modules())
+        .map_err(|e| LocalProjectError::new("E_GAJI_ALIAS_INVALID", e.message))?;
+    let expected = modules.iter().map(|m| (&m.name, &m.head, &m.sources)).collect::<Vec<_>>();
+    let actual = checked.iter().map(|m| (&m.name, &m.head, &m.sources)).collect::<Vec<_>>();
+    if actual != expected {
+        return Err(LocalProjectError::new("E_GAJI_ALIAS_INVALID", "작성한 모듈 결속이 요청과 다릅니다"));
+    }
+    source.files[root_index].utf8_text = next;
+    Ok(())
+}
+
 pub(super) fn set_project_gaji_alias(
     source: &mut VirtualProjectSource,
     alias: &str,
@@ -424,6 +554,9 @@ pub(super) fn set_project_gaji_alias(
             "E_GAJI_ALIAS_INVALID",
             "가지 alias가 올바르지 않습니다",
         ));
+    }
+    if cfg!(feature = "v2-shared-modules") {
+        return set_v25_gaji_module(source, alias, path);
     }
     let root = source
         .files
@@ -558,6 +691,18 @@ pub fn search_local_gotgan(
     Ok(rows)
 }
 
+/// Existing creator-owned manifest bytes for the closed local helper profile.
+/// Native equivalent-seal admission reuses this owner; it does not ignore
+/// unknown requirements or invent a conformance verdict for another profile.
+pub(super) fn local_gaji_artifact_manifest(id:&str,version:&str,content:&str)->String {
+    let mut manifest = format!(
+        "id = \"{}\"\nversion = \"{}\"\ncontent_sha256 = \"{}\"\n",
+        id, version, content
+    );
+    manifest.push_str("\n[requires]\ndet_tier = \"D-STRICT\"\nopenness = \"closed\"\n");
+    manifest
+}
+
 pub fn build_local_gaji_artifact(
     request: GajiExtractionPlanRequest,
 ) -> Result<LocalGajiArtifact, LocalProjectError> {
@@ -584,11 +729,7 @@ pub fn build_local_gaji_artifact(
         .into_iter()
         .map(|file| (file.path, file.utf8_text))
         .collect::<BTreeMap<_, _>>();
-    let mut manifest = format!(
-        "id = \"{}\"\nversion = \"{}\"\ncontent_sha256 = \"{}\"\n",
-        plan.gaji_id, plan.version, plan.content_sha256
-    );
-    manifest.push_str("\n[requires]\ndet_tier = \"D-STRICT\"\nopenness = \"closed\"\n");
+    let manifest = local_gaji_artifact_manifest(&plan.gaji_id,&plan.version,&plan.content_sha256);
     let mut files = vec![local_gaji_artifact_file("gaji.toml", manifest)];
     for path in &plan.included_modules {
         let text = text_by_path.get(path).ok_or_else(|| {

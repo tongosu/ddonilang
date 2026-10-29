@@ -49,6 +49,7 @@ async function saveCurrentRuntimeProject(artifactText) {
       if(result.kind!=='native_logical_world'||result.summary?.state_hash!==current.state_hash||result.summary?.madi_count!==current.madi_count)
         throw new Error('E_NATIVE_SOURCE_LOGICAL_SAVE_MISMATCH: Native 저장 결과가 현재 세계와 다릅니다.');
       workbenchAuthoredPanelAccess.current.rememberNativeSelection(result.authoring_selection);
+      context.rememberNativeCheckpoint(result);
       return '논리 입력과 세계를 Native에 저장하고 검증했습니다. 종료 후 다시 열어 이어갈 수 있습니다.';
     }
     if(workbenchAuthoredPanelAccess.current.hasNativeSourceContext())throw new Error('E_NATIVE_SOURCE_HOST_REQUIRED: 같은 Native 작업대에서 저장하세요.');

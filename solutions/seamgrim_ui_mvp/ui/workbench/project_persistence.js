@@ -13,7 +13,7 @@ function beginPersistenceOperation() {
   return generation;
 }
 
-function completePersistenceOperation(generation, phase, outcome) {
+function completePersistenceOperation(generation, phase, outcome, replacesLocalProjectId = "") {
   state.persistenceOperation = {
     generation: Math.max(Number(state.persistenceOperation?.generation ?? 0), Number(generation ?? 0)),
     completedGeneration: Number(generation ?? 0),
@@ -28,9 +28,13 @@ function completePersistenceOperation(generation, phase, outcome) {
     try{
       const nativeLocator=localStorage.getItem('ddn.authored_project.last.v1'),locator=JSON.parse(nativeLocator);
       rememberMyWorkProject({projectId:locator.native_source_project_id,title:currentProject().title,source:'native_source',
-        nativeLocator,logicalInput:currentProject().logicalInput??null});
+        nativeLocator,replacesLocalProjectId:replacesLocalProjectId||currentProject().id,logicalInput:currentProject().logicalInput??null});
     }catch{pushDiagnostic('W_NATIVE_WORK_LIST_NOT_UPDATED','Native 저장은 완료했지만 내 작업 목록을 갱신하지 못했습니다. 작성 정체 자료에서 저장 자료를 다시 열 수 있습니다.','warning');}
   }
+  // Publish only presentation after the existing operation result. Locale
+  // repaint never calls this producer or starts another save.
+  renderPersistenceFeedback({original:phase==='saved'
+    ?describePersistenceStatus(state.persistenceStatus):els.saveStatus.textContent});
 }
 
 async function saveProjectSnapshot() {
@@ -46,11 +50,12 @@ async function saveProjectSnapshot() {
         if(state.runtimeBusy||state.livePump?.in_flight||state.runtimeStatus==='running')
           throw new Error('E_NATIVE_SOURCE_PAUSE_REQUIRED: 일시정지한 뒤 내 작업으로 저장하세요.');
         const project=currentProject();
+        const localProjectId=project.id;
         const saved=await workbenchAuthoredPanelAccess.current.createAndSaveSource({title:project.title,logicalInput:project.logicalInput});
         await selectProjectInputContract(currentProject());
         state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'source_only',server_saved:false,
           local_saved:true,user_label:saved.message};
-        completePersistenceOperation(persistenceGeneration,'saved','source_only');renderAll();return saved;
+        completePersistenceOperation(persistenceGeneration,'saved','source_only',localProjectId);renderAll();return saved;
       }
       if(workbenchAuthoredPanelAccess.current.hasSourceEdits()) {
         if(state.runtimeBusy||state.livePump?.in_flight||state.runtimeStatus==='running')
@@ -158,11 +163,12 @@ async function saveProjectSnapshot() {
 async function reopenProjectSnapshot() {
   try {
     const source=await workbenchAuthoredPanelAccess.current.reopenIfRegisteredSource(currentProject().authoredArtifact?.authored_identity?.logical_dependency_id??'',{allowLast:true});
-    if(source){state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'source_only',server_saved:false,local_saved:true,user_label:source.message};els.saveStatus.textContent=source.message;return source;}
+    if(source){state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'source_only',server_saved:false,local_saved:true,user_label:source.message};els.saveStatus.textContent=source.message;renderPersistenceFeedback({phase:'source_reopened',original:source.message});return source;}
   }catch(error) {
     pushDiagnostic('E_SOURCE_REOPEN_FAILED',sourceStorageErrorMessage(error),'error');
     state.persistenceStatus={...(state.persistenceStatus??{}),last_error:`원문 재열기 실패: ${sourceStorageErrorMessage(error)}`};
-    els.saveStatus.textContent=describePersistenceStatus(state.persistenceStatus);throw error;
+    els.saveStatus.textContent=describePersistenceStatus(state.persistenceStatus);
+    renderPersistenceFeedback({phase:'error',original:els.saveStatus.textContent});throw error;
   }
   if (state.capabilitySession?.project_id || state.serverProject.projectId) {
     try {

@@ -70,6 +70,7 @@ impl<'a> EvalContext<'a> {
             tick_id,
             const_scopes: Vec::new(),
             binding_type_scopes: vec![HashMap::new()],
+            local_body_scopes: Vec::new(),
             pending_top_level_decl_names: program.top_level_decl_names.clone(),
             factor_route_counts: BTreeMap::new(),
             factor_bits_total: 0,
@@ -119,9 +120,7 @@ impl<'a> EvalContext<'a> {
     pub(super) fn check_binding_type(&self, name: &str, value: &Value) -> Result<(), EvalError> {
         // A call may see its own locals and persistent root resources, never a
         // caller's local type just because the spelling is the same.
-        let binding_type = self.binding_type_scopes.last().and_then(|scope| scope.get(name))
-            .or_else(|| self.binding_type_scopes.first().and_then(|scope| scope.get(name)));
-        if let Some((type_ref, optional)) = binding_type {
+        if let Some((type_ref, optional)) = self.visible_binding_type(name) {
             if *optional && matches!(value, Value::None) {
                 return Ok(());
             }
@@ -132,6 +131,13 @@ impl<'a> EvalContext<'a> {
         Ok(())
     }
 
+    pub(super) fn visible_binding_type(&self,name:&str)->Option<&(TypeRef,bool)> {
+        let floor=self.local_body_scopes.last().map(|scope|scope.type_floor)
+            .unwrap_or(self.binding_type_scopes.len()-1);
+        self.binding_type_scopes[floor..].iter().rev().find_map(|scope|scope.get(name))
+            .or_else(||self.binding_type_scopes.first().and_then(|scope|scope.get(name)))
+    }
+
     pub(super) fn declare_const(&mut self, name: &str) {
         if let Some(scope) = self.const_scopes.last_mut() {
             scope.insert(name.to_string());
@@ -139,10 +145,18 @@ impl<'a> EvalContext<'a> {
     }
 
     pub(super) fn is_const(&self, name: &str) -> bool {
-        self.const_scopes
-            .iter()
-            .rev()
-            .any(|scope| scope.contains(name))
+        if self.local_body_scopes.is_empty() {
+            return self.const_scopes.iter().rev().any(|scope|scope.contains(name));
+        }
+        let floor = self.local_body_scopes.last().map(|scope| scope.type_floor)
+            .unwrap_or(self.binding_type_scopes.len() - 1);
+        for index in (floor..self.binding_type_scopes.len()).rev() {
+            if self.binding_type_scopes[index].contains_key(name) {
+                return index.checked_sub(1).and_then(|i| self.const_scopes.get(i))
+                    .is_some_and(|scope| scope.contains(name));
+            }
+        }
+        self.const_scopes.first().is_some_and(|scope| scope.contains(name))
     }
 
     /// Only an explicitly unique rational expectation may issue exact decimal
@@ -1060,6 +1074,7 @@ impl<'a> EvalContext<'a> {
             guard_rejected: self.guard_rejected,
             const_scopes: self.const_scopes.clone(),
             binding_type_scopes: self.binding_type_scopes.clone(),
+            local_body_scopes: self.local_body_scopes.clone(),
             factor_route_counts: self.factor_route_counts.clone(),
             factor_bits_total: self.factor_bits_total,
             factor_bits_min: self.factor_bits_min,
@@ -1088,6 +1103,7 @@ impl<'a> EvalContext<'a> {
         self.guard_rejected = snapshot.guard_rejected;
         self.const_scopes = snapshot.const_scopes.clone();
         self.binding_type_scopes = snapshot.binding_type_scopes.clone();
+        self.local_body_scopes = snapshot.local_body_scopes.clone();
         self.factor_route_counts = snapshot.factor_route_counts.clone();
         self.factor_bits_total = snapshot.factor_bits_total;
         self.factor_bits_min = snapshot.factor_bits_min;
@@ -1188,7 +1204,9 @@ impl<'a> EvalContext<'a> {
             return Some(value.clone());
         }
         if let Some(value) = self.world.get_resource_value(name) {
-            let v = value_from_resource_value(&value);
+            let v = if self.tuple_type_plan.equation_result(name) {
+                equation_saved_value::decode(&value).ok()?
+            } else { value_from_resource_value(&value) };
             self.resources.insert(name.to_string(), v.clone());
             return Some(v);
         }
@@ -1223,7 +1241,9 @@ impl<'a> EvalContext<'a> {
     pub(super) fn set_source_resource(&mut self, name: &str, value: Value, site: NodeId) -> Result<(), EvalError> {
         if value.contains_transient_subject_view(){return Err("E_VC04_READ_SNAPSHOT_ESCAPE: 임자 읽기값은 현재 실행 안에서만 사용할 수 있습니다".to_string().into());}
         let kind = self.tuple_type_plan.for_write(site, name).cloned();
-        self.set_resource_with_type(name, value, kind.as_ref())
+        if self.program.derived_plan.contains(name){return Err(format!("E_DERIVED_DIRECT_WRITE: {name}: 파생 대상에 직접 값을 넣을 수 없습니다").into());}
+        let equation=self.tuple_type_plan.equation_write(site,name);
+        self.set_resource_with_source_owner(name, value, kind.as_ref(), equation)
     }
 
     pub(super) fn set_resource_with_type(&mut self, name: &str, value: Value, kind: Option<&ddonirang_core::platform::RecordFieldType>) -> Result<(), EvalError> {
@@ -1231,6 +1251,9 @@ impl<'a> EvalContext<'a> {
         self.set_resource_with_type_owner(name,value,kind)
     }
     pub(super) fn set_resource_with_type_owner(&mut self, name: &str, value: Value, kind: Option<&ddonirang_core::platform::RecordFieldType>) -> Result<(), EvalError> {
+        self.set_resource_with_source_owner(name,value,kind,false)
+    }
+    fn set_resource_with_source_owner(&mut self, name:&str, value:Value, kind:Option<&ddonirang_core::platform::RecordFieldType>, equation:bool)->Result<(),EvalError> {
         if value.contains_transient_subject_view(){return Err("E_VC04_READ_SNAPSHOT_ESCAPE: 임자 읽기값은 지속 상태에 넣을 수 없습니다".to_string().into());}
         // A value may replace its own lane, never shadow another committed
         // lane or an earlier write in this same candidate patch.
@@ -1386,7 +1409,9 @@ impl<'a> EvalContext<'a> {
                             .into(),
                     );
                 }
-                let resource_value = if runtime_value_contains_tuple(&value) {
+                let resource_value = if equation {
+                    equation_saved_value::encode(&value)?
+                } else if runtime_value_contains_tuple(&value) {
                     let kind = kind.ok_or_else(|| EvalError::from("E_TUPLE_PERSISTENCE_UNBOUND: 중첩 위치형의 원문 씨가 필요합니다".to_owned()))?;
                     resource_value_from_typed_value(&value, kind)?
                 } else { resource_value_from_value(&value)? };

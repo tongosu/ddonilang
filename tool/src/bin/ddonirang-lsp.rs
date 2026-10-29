@@ -25,9 +25,7 @@ fn run() -> Result<i32, String> {
             .push(&input[..read])
             .map_err(|error| error.to_string())?;
         for message in messages {
-            let event = server
-                .handle_message(message)
-                .map_err(|error| error.to_string())?;
+            let event = server.handle_message_or_report(message);
             for response in event.responses {
                 let frame = encode_message(&response).map_err(|error| error.to_string())?;
                 stdout

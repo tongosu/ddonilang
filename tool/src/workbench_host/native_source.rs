@@ -23,8 +23,10 @@ impl NativeSourceController {
             for (request,reply,submitted) in receiver {
                 let rebuild_scope=crate::ddn_runtime::SavedProgramRebuildScope::begin();
                 let observation=crate::storage_observation::Request::begin(submitted);
+                #[cfg(windows)] let source_readback_scope=crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1::source_readback_scope();
                 #[cfg(windows)] let result=dispatch(&request,&mut retained,&mut finishes);
                 #[cfg(not(windows))] let result={let _=request;Err("E_SOURCE_FIRST_USE_UNSUPPORTED: Native 보호 실행을 지원하지 않습니다".into())};
+                #[cfg(windows)] drop(source_readback_scope);
                 drop(observation);
                 drop(rebuild_scope);
                 let _=reply.send(result);
@@ -322,7 +324,7 @@ fn dispatch(text:&str,retained:&mut BTreeMap<String,crate::runtime_surface::Nati
                     else{runtime::native_source_browser_snapshot(&world.saved_artifact_json_utf8,&identity(&world.parent_hex)?,&identity(&world.revision_hex)?,&path,&source.grant_locator)?};
                 let bytes=crate::unit_wire::project_runtime_attachment::check_bytes(world.saved_artifact_json_utf8.as_bytes())?;
                 let owned=crate::unit_wire::project_runtime_attachment::restore_saved_runtime_payload(&bytes)?;
-                let pesi=crate::project_snapshot_identity::current::issue_saved_local_project(&owned)?;
+                let pesi=crate::project_snapshot_identity::current::issue_saved_project(&owned)?;
                 let layout=crate::unit_wire::check_resumable_complete_state_layout_v2(&snapshot,pesi.pesi().as_raw()).map_err(|_|"E_NATIVE_SOURCE_FRAME")?;
                 let suffix=next.checked_sub(layout.world.next_tick).and_then(|n|u32::try_from(n).ok()).filter(|n|*n<=2000).ok_or("E_NATIVE_SOURCE_MADI_LIMIT")?;
                 suffix

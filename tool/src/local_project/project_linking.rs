@@ -15,6 +15,21 @@ pub(super) fn build_linked_project(
     build_linked_project_with_options(source, target_path_override, true, project_asset_registry)
 }
 
+pub(super) fn prepare_first_callable_authored_execution(
+    source:VirtualProjectSource,first:&crate::authored_project::FirstCallableAuthoredContext,
+)->Result<AuthoredPreparation,LocalProjectError>{
+    let (path,text)=first.checked_native_source(&source).map_err(|e|LocalProjectError::new("E_DDL_NATIVE_SOURCE_OWNER",e))?;
+    let graph=build_project_graph(source.clone())?;
+    if graph.entry_path!=path||graph.module_sources.len()!=1||graph.module_sources.values().next().map(Vec::len)!=Some(1){return Err(LocalProjectError::new("E_DDL_NATIVE_SINGLE_ENTRY_SCOPE","한정 일본어 호출은 실제 시작 원문 하나를 사용합니다"));}
+    let program=first.parse_consumer_owned_program(text,path).map_err(|e|LocalProjectError::with_path("E_DDL_NATIVE_SOURCE_PARSE",path,e))?;
+    if !program.root_stmts.is_empty(){return Err(LocalProjectError::with_path("E_PROJECT_TOP_LEVEL_EXECUTION",path,"실행 문장은 실제 시작 움직씨 본문에 작성해 주세요"));}
+    let matches=program.items.iter().filter_map(|TopLevelItem::SeedDef(seed)|(Some(&seed.canonical_name)==graph.start_definition.as_ref()).then_some(seed)).collect::<Vec<_>>();
+    if matches.len()!=1||matches[0].seed_kind!=ddonirang_lang::SeedKind::Umjikssi||!matches[0].params.is_empty()||matches[0].body.is_none(){return Err(LocalProjectError::new("E_PROJECT_START_DEFINITION","시작은 같은 모듈의 인자 없는 움직씨 정의 하나를 가리켜야 합니다"));}
+    Ok(AuthoredPreparation{source:text.into(),target_path:path.into(),start_definition:graph.start_definition,
+        source_map:vec![LinkedSourceSegment{generated_start:0,generated_end:text.len(),source_path:path.into(),source_boundaries:(0..=text.len()).collect()}],
+        imported_definitions:BTreeSet::new()})
+}
+
 pub(super) fn build_linked_project_with_options(
     source: VirtualProjectSource,
     target_path_override: Option<&str>,

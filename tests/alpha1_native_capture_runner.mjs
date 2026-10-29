@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {createHash} from 'node:crypto';
+import {captureNative} from './alpha1_native_capture.mjs';
+const directory = process.env.DDN_LESSON_STDOUT_DIR;
+assert(directory, 'explicit external evidence directory required');
+const options = {encoding:'utf8', timeout:60000, maxBuffer:64*1024*1024};
+const script = 'process.stdout.write(JSON.stringify({text:"x".repeat(65*1024*1024), tail:"완전한 끝"}))';
+const pipe = captureNative(process.execPath, ['-e', script], options, null, process.cwd());
+assert.equal(pipe.error?.code, 'ENOBUFS');
+const file = captureNative(process.execPath, ['-e', script], options, directory, process.cwd());
+assert.equal(file.status, 0);
+const parsed = JSON.parse(file.stdout);
+assert.equal(parsed.text.length, 65*1024*1024);
+assert.equal(parsed.tail, '완전한 끝');
+assert.equal(file.stdoutEvidence.sha256, createHash('sha256').update(file.stdout).digest('hex'));
+assert.deepEqual(fs.readFileSync(file.stdoutEvidence.path), Buffer.from(file.stdout));
+assert.throws(()=>captureNative(process.execPath, ['-e',''], options, path.join(process.cwd(),'build'),process.cwd()), /outside/);
+const failure = captureNative(process.execPath, ['-e','process.stderr.write("원래 실패");process.exit(7)'],options,directory,process.cwd());
+assert.equal(failure.status,7);
+assert.equal(failure.stderr,'원래 실패');
+const timeout = captureNative(process.execPath,['-e','setTimeout(()=>{},5000)'],{...options,timeout:50},directory,process.cwd());
+assert.equal(timeout.error?.code,'ETIMEDOUT');
+console.log(JSON.stringify({status:'NATIVE_CAPTURE_PASS',bytes:file.stdoutEvidence.bytes,full_bytes_sha256:file.stdoutEvidence.sha256,
+  original_pipe_failure:'ENOBUFS',deadline_failure:'ETIMEDOUT',nonzero_failure_preserved:7,product_input_format_change:0}));

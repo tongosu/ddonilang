@@ -1,0 +1,2067 @@
+{
+  "canonical_ddn": "채비 {\n    횟수:바른수 := 0.\n}.\n\n속도:셈수 := 7.\n\n앱:움직씨 := {\n    (매마디)마다 {\n        횟수 <- 횟수 + 1.\n        속도 + 1 보여주기.\n        횟수 보여주기.\n    }.\n}",
+  "channels": [
+    {
+      "dtype": "num",
+      "key": "속도",
+      "role": "state"
+    },
+    {
+      "dtype": "num",
+      "key": "횟수",
+      "role": "state"
+    }
+  ],
+  "configured_ticks": 0,
+  "effective_ticks": 3,
+  "engine_state": {
+    "channels": [
+      {
+        "dtype": "num",
+        "key": "속도",
+        "role": "state"
+      },
+      {
+        "dtype": "num",
+        "key": "횟수",
+        "role": "state"
+      }
+    ],
+    "committed_madi": 2,
+    "input": {
+      "ai_injections": [],
+      "dt": "1",
+      "frame_source": "사람",
+      "frame_source_code": 0,
+      "input_encoding": "ddn.input_snapshot.exact_fixed64.v1",
+      "keys_pressed": 0,
+      "last_key_name": "",
+      "net_events": [],
+      "pointer_x_i32": 0,
+      "pointer_y_i32": 0,
+      "rng_base_seed": 0,
+      "rng_seed": 2
+    },
+    "observation_columns": [],
+    "output_display": {
+      "fraction_digits": 6,
+      "rounding": "roundTiesToEven",
+      "rows": [
+        {
+          "line_no": 1,
+          "madi": 0,
+          "text": "8"
+        },
+        {
+          "line_no": 2,
+          "madi": 0,
+          "text": "1"
+        },
+        {
+          "line_no": 3,
+          "madi": 1,
+          "text": "8"
+        },
+        {
+          "line_no": 4,
+          "madi": 1,
+          "text": "2"
+        },
+        {
+          "line_no": 5,
+          "madi": 2,
+          "text": "8"
+        },
+        {
+          "line_no": 6,
+          "madi": 2,
+          "text": "3"
+        }
+      ],
+      "schema": "ddn.output-display.v1",
+      "texts": [
+        "8",
+        "1",
+        "8",
+        "2",
+        "8",
+        "3"
+      ],
+      "world_hash_participation": false,
+      "world_state_hash": "blake3:cae514c86c287e05b05915b9a50a3cc54273b23f9cd73e43c816d4176bae35b8"
+    },
+    "output_rows": [
+      {
+        "cells": [],
+        "committed_madi": 0,
+        "state_hash": "blake3:534cb44994d0b5f5985cd86aeb0440d6446bd21561892ecef97333882c87d77e"
+      },
+      {
+        "cells": [],
+        "committed_madi": 1,
+        "state_hash": "blake3:1826eda92a9b7e4f117f592724e97bd0e1a3a7cf409fa0e55d6a1cce0b3313aa"
+      },
+      {
+        "cells": [],
+        "committed_madi": 2,
+        "state_hash": "blake3:cae514c86c287e05b05915b9a50a3cc54273b23f9cd73e43c816d4176bae35b8"
+      }
+    ],
+    "patch": [
+      {
+        "op": "set_resource_fixed64",
+        "tag": "횟수",
+        "value": "3"
+      },
+      {
+        "op": "set_resource_value",
+        "tag": "output_log",
+        "value": "차림[짝맞춤{\"kind\"=>\"output\", \"line_no\"=>1, \"text\"=>\"8\", \"tick\"=>0}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>2, \"text\"=>\"1\", \"tick\"=>0}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>3, \"text\"=>\"8\", \"tick\"=>1}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>4, \"text\"=>\"2\", \"tick\"=>1}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>5, \"text\"=>\"8\", \"tick\"=>2}]",
+        "value_json": [
+          {
+            "kind": "output",
+            "line_no": 1,
+            "text": "8",
+            "tick": 0
+          },
+          {
+            "kind": "output",
+            "line_no": 2,
+            "text": "1",
+            "tick": 0
+          },
+          {
+            "kind": "output",
+            "line_no": 3,
+            "text": "8",
+            "tick": 1
+          },
+          {
+            "kind": "output",
+            "line_no": 4,
+            "text": "2",
+            "tick": 1
+          },
+          {
+            "kind": "output",
+            "line_no": 5,
+            "text": "8",
+            "tick": 2
+          }
+        ]
+      },
+      {
+        "op": "set_resource_value",
+        "tag": "output_log",
+        "value": "차림[짝맞춤{\"kind\"=>\"output\", \"line_no\"=>1, \"text\"=>\"8\", \"tick\"=>0}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>2, \"text\"=>\"1\", \"tick\"=>0}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>3, \"text\"=>\"8\", \"tick\"=>1}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>4, \"text\"=>\"2\", \"tick\"=>1}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>5, \"text\"=>\"8\", \"tick\"=>2}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>6, \"text\"=>\"3\", \"tick\"=>2}]",
+        "value_json": [
+          {
+            "kind": "output",
+            "line_no": 1,
+            "text": "8",
+            "tick": 0
+          },
+          {
+            "kind": "output",
+            "line_no": 2,
+            "text": "1",
+            "tick": 0
+          },
+          {
+            "kind": "output",
+            "line_no": 3,
+            "text": "8",
+            "tick": 1
+          },
+          {
+            "kind": "output",
+            "line_no": 4,
+            "text": "2",
+            "tick": 1
+          },
+          {
+            "kind": "output",
+            "line_no": 5,
+            "text": "8",
+            "tick": 2
+          },
+          {
+            "kind": "output",
+            "line_no": 6,
+            "text": "3",
+            "tick": 2
+          }
+        ]
+      }
+    ],
+    "primary_view_decision": {
+      "available_families": [],
+      "bounded_candidate": true,
+      "canonical_ddn_sha256": "65cd7c04504c3a560a7944944d7222da9c084266639bcdb40fc76d1b7b20bd46",
+      "diagnostic": null,
+      "primary": null,
+      "schema": "seamgrim.primary_view_decision.v1",
+      "source_bytes_sha256": "4da99695ce42dd34386a19564c2cee5174cd71d5d6fb58124d67e52c24b697cc",
+      "state_hash": "blake3:cae514c86c287e05b05915b9a50a3cc54273b23f9cd73e43c816d4176bae35b8",
+      "state_hash_participates": false,
+      "status": "absent",
+      "view_hash": "blake3:6e46dd10defc9b56c29a6ec56b508c21f54c08192194e4df25bf36f0c9c3c279"
+    },
+    "public_observation_table_projection": {
+      "presentation_state": "no_opportunity",
+      "projection_hash": "sha256:222898e03133a4a11bd30a522b27e8a5cde2962802787b2efa4e96152fdd8990",
+      "run": {
+        "failure": null,
+        "lock_identity": "",
+        "revision_identity": "sha256:6690ff16645cba15e20f5227f02ea267d396643cc930ebf23b3719651e425fca",
+        "run_id": "run:92a0fd32594faff0495ef5961ad62b53fc1fc1842347e06c8c74e940c30eb0fe",
+        "source_identity": "sha256:4da99695ce42dd34386a19564c2cee5174cd71d5d6fb58124d67e52c24b697cc",
+        "status": "completed"
+      },
+      "schema": "ddn.public_observation_table_projection.v2",
+      "source_schema": "ddn.public_observation_trace.v1",
+      "source_trace_hash": "sha256:83fb975a233ddd8b621fda69f5ace7d4fd518b6bae98f80e8051c744efdfb05b",
+      "tables": []
+    },
+    "public_observation_trace": {
+      "branch_madi": null,
+      "branch_state_hash": "",
+      "columns": [],
+      "lock_identity": "",
+      "parent_run_id": "",
+      "project_id": "",
+      "retention": {
+        "limit": 2000
+      },
+      "revision_identity": "sha256:6690ff16645cba15e20f5227f02ea267d396643cc930ebf23b3719651e425fca",
+      "run_failure": null,
+      "run_id": "run:92a0fd32594faff0495ef5961ad62b53fc1fc1842347e06c8c74e940c30eb0fe",
+      "run_status": "completed",
+      "samples": [
+        {
+          "cells": [],
+          "committed_madi": 0,
+          "state_hash": "blake3:534cb44994d0b5f5985cd86aeb0440d6446bd21561892ecef97333882c87d77e"
+        },
+        {
+          "cells": [],
+          "committed_madi": 1,
+          "state_hash": "blake3:1826eda92a9b7e4f117f592724e97bd0e1a3a7cf409fa0e55d6a1cce0b3313aa"
+        },
+        {
+          "cells": [],
+          "committed_madi": 2,
+          "state_hash": "blake3:cae514c86c287e05b05915b9a50a3cc54273b23f9cd73e43c816d4176bae35b8"
+        }
+      ],
+      "schema": "ddn.public_observation_trace.v1",
+      "source_identity": "sha256:4da99695ce42dd34386a19564c2cee5174cd71d5d6fb58124d67e52c24b697cc"
+    },
+    "public_observation_trace_hash": "sha256:83fb975a233ddd8b621fda69f5ace7d4fd518b6bae98f80e8051c744efdfb05b",
+    "resources": {
+      "fixed64": {
+        "속도": "7",
+        "횟수": "3"
+      },
+      "handle": {},
+      "json": {},
+      "schema": "ddn.resource_snapshot.v2",
+      "unit_wire_schema": "ddn.unit_value_wire.v2",
+      "value": {
+        "output_log": "차림[짝맞춤{\"kind\"=>\"output\", \"line_no\"=>1, \"text\"=>\"8\", \"tick\"=>0}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>2, \"text\"=>\"1\", \"tick\"=>0}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>3, \"text\"=>\"8\", \"tick\"=>1}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>4, \"text\"=>\"2\", \"tick\"=>1}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>5, \"text\"=>\"8\", \"tick\"=>2}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>6, \"text\"=>\"3\", \"tick\"=>2}]"
+      },
+      "value_det": {
+        "output_log": {
+          "items": [
+            {
+              "entries": [
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "kind"
+                  },
+                  "value": {
+                    "type": "string",
+                    "value": "output"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "line_no"
+                  },
+                  "value": {
+                    "raw_i64": "4294967296",
+                    "type": "fixed64"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "text"
+                  },
+                  "value": {
+                    "type": "string",
+                    "value": "8"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "tick"
+                  },
+                  "value": {
+                    "raw_i64": "0",
+                    "type": "fixed64"
+                  }
+                }
+              ],
+              "type": "map"
+            },
+            {
+              "entries": [
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "kind"
+                  },
+                  "value": {
+                    "type": "string",
+                    "value": "output"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "line_no"
+                  },
+                  "value": {
+                    "raw_i64": "8589934592",
+                    "type": "fixed64"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "text"
+                  },
+                  "value": {
+                    "type": "string",
+                    "value": "1"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "tick"
+                  },
+                  "value": {
+                    "raw_i64": "0",
+                    "type": "fixed64"
+                  }
+                }
+              ],
+              "type": "map"
+            },
+            {
+              "entries": [
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "kind"
+                  },
+                  "value": {
+                    "type": "string",
+                    "value": "output"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "line_no"
+                  },
+                  "value": {
+                    "raw_i64": "12884901888",
+                    "type": "fixed64"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "text"
+                  },
+                  "value": {
+                    "type": "string",
+                    "value": "8"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "tick"
+                  },
+                  "value": {
+                    "raw_i64": "4294967296",
+                    "type": "fixed64"
+                  }
+                }
+              ],
+              "type": "map"
+            },
+            {
+              "entries": [
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "kind"
+                  },
+                  "value": {
+                    "type": "string",
+                    "value": "output"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "line_no"
+                  },
+                  "value": {
+                    "raw_i64": "17179869184",
+                    "type": "fixed64"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "text"
+                  },
+                  "value": {
+                    "type": "string",
+                    "value": "2"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "tick"
+                  },
+                  "value": {
+                    "raw_i64": "4294967296",
+                    "type": "fixed64"
+                  }
+                }
+              ],
+              "type": "map"
+            },
+            {
+              "entries": [
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "kind"
+                  },
+                  "value": {
+                    "type": "string",
+                    "value": "output"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "line_no"
+                  },
+                  "value": {
+                    "raw_i64": "21474836480",
+                    "type": "fixed64"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "text"
+                  },
+                  "value": {
+                    "type": "string",
+                    "value": "8"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "tick"
+                  },
+                  "value": {
+                    "raw_i64": "8589934592",
+                    "type": "fixed64"
+                  }
+                }
+              ],
+              "type": "map"
+            },
+            {
+              "entries": [
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "kind"
+                  },
+                  "value": {
+                    "type": "string",
+                    "value": "output"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "line_no"
+                  },
+                  "value": {
+                    "raw_i64": "25769803776",
+                    "type": "fixed64"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "text"
+                  },
+                  "value": {
+                    "type": "string",
+                    "value": "3"
+                  }
+                },
+                {
+                  "key": {
+                    "type": "string",
+                    "value": "tick"
+                  },
+                  "value": {
+                    "raw_i64": "8589934592",
+                    "type": "fixed64"
+                  }
+                }
+              ],
+              "type": "map"
+            }
+          ],
+          "type": "list"
+        }
+      },
+      "value_json": {
+        "output_log": [
+          {
+            "kind": "output",
+            "line_no": 1,
+            "text": "8",
+            "tick": 0
+          },
+          {
+            "kind": "output",
+            "line_no": 2,
+            "text": "1",
+            "tick": 0
+          },
+          {
+            "kind": "output",
+            "line_no": 3,
+            "text": "8",
+            "tick": 1
+          },
+          {
+            "kind": "output",
+            "line_no": 4,
+            "text": "2",
+            "tick": 1
+          },
+          {
+            "kind": "output",
+            "line_no": 5,
+            "text": "8",
+            "tick": 2
+          },
+          {
+            "kind": "output",
+            "line_no": 6,
+            "text": "3",
+            "tick": 2
+          }
+        ],
+        "속도": 7,
+        "횟수": 3
+      }
+    },
+    "row": [
+      7,
+      3
+    ],
+    "schema": "seamgrim.engine_response.v0",
+    "state": {
+      "channels": [
+        {
+          "dtype": "num",
+          "key": "속도",
+          "role": "state"
+        },
+        {
+          "dtype": "num",
+          "key": "횟수",
+          "role": "state"
+        }
+      ],
+      "committed_madi": 2,
+      "input": {
+        "ai_injections": [],
+        "dt": "1",
+        "frame_source": "사람",
+        "frame_source_code": 0,
+        "input_encoding": "ddn.input_snapshot.exact_fixed64.v1",
+        "keys_pressed": 0,
+        "last_key_name": "",
+        "net_events": [],
+        "pointer_x_i32": 0,
+        "pointer_y_i32": 0,
+        "rng_base_seed": 0,
+        "rng_seed": 2
+      },
+      "patch": [
+        {
+          "op": "set_resource_fixed64",
+          "tag": "횟수",
+          "value": "3"
+        },
+        {
+          "op": "set_resource_value",
+          "tag": "output_log",
+          "value": "차림[짝맞춤{\"kind\"=>\"output\", \"line_no\"=>1, \"text\"=>\"8\", \"tick\"=>0}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>2, \"text\"=>\"1\", \"tick\"=>0}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>3, \"text\"=>\"8\", \"tick\"=>1}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>4, \"text\"=>\"2\", \"tick\"=>1}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>5, \"text\"=>\"8\", \"tick\"=>2}]",
+          "value_json": [
+            {
+              "kind": "output",
+              "line_no": 1,
+              "text": "8",
+              "tick": 0
+            },
+            {
+              "kind": "output",
+              "line_no": 2,
+              "text": "1",
+              "tick": 0
+            },
+            {
+              "kind": "output",
+              "line_no": 3,
+              "text": "8",
+              "tick": 1
+            },
+            {
+              "kind": "output",
+              "line_no": 4,
+              "text": "2",
+              "tick": 1
+            },
+            {
+              "kind": "output",
+              "line_no": 5,
+              "text": "8",
+              "tick": 2
+            }
+          ]
+        },
+        {
+          "op": "set_resource_value",
+          "tag": "output_log",
+          "value": "차림[짝맞춤{\"kind\"=>\"output\", \"line_no\"=>1, \"text\"=>\"8\", \"tick\"=>0}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>2, \"text\"=>\"1\", \"tick\"=>0}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>3, \"text\"=>\"8\", \"tick\"=>1}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>4, \"text\"=>\"2\", \"tick\"=>1}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>5, \"text\"=>\"8\", \"tick\"=>2}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>6, \"text\"=>\"3\", \"tick\"=>2}]",
+          "value_json": [
+            {
+              "kind": "output",
+              "line_no": 1,
+              "text": "8",
+              "tick": 0
+            },
+            {
+              "kind": "output",
+              "line_no": 2,
+              "text": "1",
+              "tick": 0
+            },
+            {
+              "kind": "output",
+              "line_no": 3,
+              "text": "8",
+              "tick": 1
+            },
+            {
+              "kind": "output",
+              "line_no": 4,
+              "text": "2",
+              "tick": 1
+            },
+            {
+              "kind": "output",
+              "line_no": 5,
+              "text": "8",
+              "tick": 2
+            },
+            {
+              "kind": "output",
+              "line_no": 6,
+              "text": "3",
+              "tick": 2
+            }
+          ]
+        }
+      ],
+      "resources": {
+        "fixed64": {
+          "속도": "7",
+          "횟수": "3"
+        },
+        "handle": {},
+        "json": {},
+        "schema": "ddn.resource_snapshot.v2",
+        "unit_wire_schema": "ddn.unit_value_wire.v2",
+        "value": {
+          "output_log": "차림[짝맞춤{\"kind\"=>\"output\", \"line_no\"=>1, \"text\"=>\"8\", \"tick\"=>0}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>2, \"text\"=>\"1\", \"tick\"=>0}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>3, \"text\"=>\"8\", \"tick\"=>1}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>4, \"text\"=>\"2\", \"tick\"=>1}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>5, \"text\"=>\"8\", \"tick\"=>2}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>6, \"text\"=>\"3\", \"tick\"=>2}]"
+        },
+        "value_det": {
+          "output_log": {
+            "items": [
+              {
+                "entries": [
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "kind"
+                    },
+                    "value": {
+                      "type": "string",
+                      "value": "output"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "line_no"
+                    },
+                    "value": {
+                      "raw_i64": "4294967296",
+                      "type": "fixed64"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "text"
+                    },
+                    "value": {
+                      "type": "string",
+                      "value": "8"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "tick"
+                    },
+                    "value": {
+                      "raw_i64": "0",
+                      "type": "fixed64"
+                    }
+                  }
+                ],
+                "type": "map"
+              },
+              {
+                "entries": [
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "kind"
+                    },
+                    "value": {
+                      "type": "string",
+                      "value": "output"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "line_no"
+                    },
+                    "value": {
+                      "raw_i64": "8589934592",
+                      "type": "fixed64"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "text"
+                    },
+                    "value": {
+                      "type": "string",
+                      "value": "1"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "tick"
+                    },
+                    "value": {
+                      "raw_i64": "0",
+                      "type": "fixed64"
+                    }
+                  }
+                ],
+                "type": "map"
+              },
+              {
+                "entries": [
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "kind"
+                    },
+                    "value": {
+                      "type": "string",
+                      "value": "output"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "line_no"
+                    },
+                    "value": {
+                      "raw_i64": "12884901888",
+                      "type": "fixed64"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "text"
+                    },
+                    "value": {
+                      "type": "string",
+                      "value": "8"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "tick"
+                    },
+                    "value": {
+                      "raw_i64": "4294967296",
+                      "type": "fixed64"
+                    }
+                  }
+                ],
+                "type": "map"
+              },
+              {
+                "entries": [
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "kind"
+                    },
+                    "value": {
+                      "type": "string",
+                      "value": "output"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "line_no"
+                    },
+                    "value": {
+                      "raw_i64": "17179869184",
+                      "type": "fixed64"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "text"
+                    },
+                    "value": {
+                      "type": "string",
+                      "value": "2"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "tick"
+                    },
+                    "value": {
+                      "raw_i64": "4294967296",
+                      "type": "fixed64"
+                    }
+                  }
+                ],
+                "type": "map"
+              },
+              {
+                "entries": [
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "kind"
+                    },
+                    "value": {
+                      "type": "string",
+                      "value": "output"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "line_no"
+                    },
+                    "value": {
+                      "raw_i64": "21474836480",
+                      "type": "fixed64"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "text"
+                    },
+                    "value": {
+                      "type": "string",
+                      "value": "8"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "tick"
+                    },
+                    "value": {
+                      "raw_i64": "8589934592",
+                      "type": "fixed64"
+                    }
+                  }
+                ],
+                "type": "map"
+              },
+              {
+                "entries": [
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "kind"
+                    },
+                    "value": {
+                      "type": "string",
+                      "value": "output"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "line_no"
+                    },
+                    "value": {
+                      "raw_i64": "25769803776",
+                      "type": "fixed64"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "text"
+                    },
+                    "value": {
+                      "type": "string",
+                      "value": "3"
+                    }
+                  },
+                  {
+                    "key": {
+                      "type": "string",
+                      "value": "tick"
+                    },
+                    "value": {
+                      "raw_i64": "8589934592",
+                      "type": "fixed64"
+                    }
+                  }
+                ],
+                "type": "map"
+              }
+            ],
+            "type": "list"
+          }
+        },
+        "value_json": {
+          "output_log": [
+            {
+              "kind": "output",
+              "line_no": 1,
+              "text": "8",
+              "tick": 0
+            },
+            {
+              "kind": "output",
+              "line_no": 2,
+              "text": "1",
+              "tick": 0
+            },
+            {
+              "kind": "output",
+              "line_no": 3,
+              "text": "8",
+              "tick": 1
+            },
+            {
+              "kind": "output",
+              "line_no": 4,
+              "text": "2",
+              "tick": 1
+            },
+            {
+              "kind": "output",
+              "line_no": 5,
+              "text": "8",
+              "tick": 2
+            },
+            {
+              "kind": "output",
+              "line_no": 6,
+              "text": "3",
+              "tick": 2
+            }
+          ],
+          "속도": 7,
+          "횟수": 3
+        }
+      },
+      "row": [
+        7,
+        3
+      ],
+      "snapshot_v2": {
+        "next_tick_id": 3,
+        "param_overrides": {},
+        "public_observation_frames": [
+          {
+            "committed_madi": 0,
+            "input_snapshot": {
+              "ai_injections": [],
+              "dt": "1",
+              "frame_source": "사람",
+              "frame_source_code": 0,
+              "input_encoding": "ddn.input_snapshot.exact_fixed64.v1",
+              "keys_pressed": 0,
+              "last_key_name": "",
+              "net_events": [],
+              "pointer_x_i32": 0,
+              "pointer_y_i32": 0,
+              "rng_base_seed": 0,
+              "rng_seed": 0
+            },
+            "public_observations": [],
+            "revision_identity": "sha256:6690ff16645cba15e20f5227f02ea267d396643cc930ebf23b3719651e425fca",
+            "run_id": "run:92a0fd32594faff0495ef5961ad62b53fc1fc1842347e06c8c74e940c30eb0fe",
+            "source_identity": "sha256:4da99695ce42dd34386a19564c2cee5174cd71d5d6fb58124d67e52c24b697cc",
+            "state_hash": "blake3:534cb44994d0b5f5985cd86aeb0440d6446bd21561892ecef97333882c87d77e"
+          },
+          {
+            "committed_madi": 1,
+            "input_snapshot": {
+              "ai_injections": [],
+              "dt": "1",
+              "frame_source": "사람",
+              "frame_source_code": 0,
+              "input_encoding": "ddn.input_snapshot.exact_fixed64.v1",
+              "keys_pressed": 0,
+              "last_key_name": "",
+              "net_events": [],
+              "pointer_x_i32": 0,
+              "pointer_y_i32": 0,
+              "rng_base_seed": 0,
+              "rng_seed": 1
+            },
+            "public_observations": [],
+            "revision_identity": "sha256:6690ff16645cba15e20f5227f02ea267d396643cc930ebf23b3719651e425fca",
+            "run_id": "run:92a0fd32594faff0495ef5961ad62b53fc1fc1842347e06c8c74e940c30eb0fe",
+            "source_identity": "sha256:4da99695ce42dd34386a19564c2cee5174cd71d5d6fb58124d67e52c24b697cc",
+            "state_hash": "blake3:1826eda92a9b7e4f117f592724e97bd0e1a3a7cf409fa0e55d6a1cce0b3313aa"
+          },
+          {
+            "committed_madi": 2,
+            "input_snapshot": {
+              "ai_injections": [],
+              "dt": "1",
+              "frame_source": "사람",
+              "frame_source_code": 0,
+              "input_encoding": "ddn.input_snapshot.exact_fixed64.v1",
+              "keys_pressed": 0,
+              "last_key_name": "",
+              "net_events": [],
+              "pointer_x_i32": 0,
+              "pointer_y_i32": 0,
+              "rng_base_seed": 0,
+              "rng_seed": 2
+            },
+            "public_observations": [],
+            "revision_identity": "sha256:6690ff16645cba15e20f5227f02ea267d396643cc930ebf23b3719651e425fca",
+            "run_id": "run:92a0fd32594faff0495ef5961ad62b53fc1fc1842347e06c8c74e940c30eb0fe",
+            "source_identity": "sha256:4da99695ce42dd34386a19564c2cee5174cd71d5d6fb58124d67e52c24b697cc",
+            "state_hash": "blake3:cae514c86c287e05b05915b9a50a3cc54273b23f9cd73e43c816d4176bae35b8"
+          }
+        ],
+        "resource_snapshot_schema": "ddn.resource_snapshot.v2",
+        "resources": {
+          "components": [],
+          "fixed64": {
+            "속도": {
+              "raw_i64": "30064771072"
+            },
+            "횟수": {
+              "raw_i64": "12884901888"
+            }
+          },
+          "handle": {},
+          "json": {},
+          "next_entity": 0,
+          "schema": "ddn.resource_snapshot.v2",
+          "unit_wire_schema": "ddn.unit_value_wire.v2",
+          "value_det": {
+            "output_log": {
+              "items": [
+                {
+                  "entries": [
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "kind"
+                      },
+                      "value": {
+                        "type": "string",
+                        "value": "output"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "line_no"
+                      },
+                      "value": {
+                        "raw_i64": "4294967296",
+                        "type": "fixed64"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "text"
+                      },
+                      "value": {
+                        "type": "string",
+                        "value": "8"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "tick"
+                      },
+                      "value": {
+                        "raw_i64": "0",
+                        "type": "fixed64"
+                      }
+                    }
+                  ],
+                  "type": "map"
+                },
+                {
+                  "entries": [
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "kind"
+                      },
+                      "value": {
+                        "type": "string",
+                        "value": "output"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "line_no"
+                      },
+                      "value": {
+                        "raw_i64": "8589934592",
+                        "type": "fixed64"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "text"
+                      },
+                      "value": {
+                        "type": "string",
+                        "value": "1"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "tick"
+                      },
+                      "value": {
+                        "raw_i64": "0",
+                        "type": "fixed64"
+                      }
+                    }
+                  ],
+                  "type": "map"
+                },
+                {
+                  "entries": [
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "kind"
+                      },
+                      "value": {
+                        "type": "string",
+                        "value": "output"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "line_no"
+                      },
+                      "value": {
+                        "raw_i64": "12884901888",
+                        "type": "fixed64"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "text"
+                      },
+                      "value": {
+                        "type": "string",
+                        "value": "8"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "tick"
+                      },
+                      "value": {
+                        "raw_i64": "4294967296",
+                        "type": "fixed64"
+                      }
+                    }
+                  ],
+                  "type": "map"
+                },
+                {
+                  "entries": [
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "kind"
+                      },
+                      "value": {
+                        "type": "string",
+                        "value": "output"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "line_no"
+                      },
+                      "value": {
+                        "raw_i64": "17179869184",
+                        "type": "fixed64"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "text"
+                      },
+                      "value": {
+                        "type": "string",
+                        "value": "2"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "tick"
+                      },
+                      "value": {
+                        "raw_i64": "4294967296",
+                        "type": "fixed64"
+                      }
+                    }
+                  ],
+                  "type": "map"
+                },
+                {
+                  "entries": [
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "kind"
+                      },
+                      "value": {
+                        "type": "string",
+                        "value": "output"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "line_no"
+                      },
+                      "value": {
+                        "raw_i64": "21474836480",
+                        "type": "fixed64"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "text"
+                      },
+                      "value": {
+                        "type": "string",
+                        "value": "8"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "tick"
+                      },
+                      "value": {
+                        "raw_i64": "8589934592",
+                        "type": "fixed64"
+                      }
+                    }
+                  ],
+                  "type": "map"
+                },
+                {
+                  "entries": [
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "kind"
+                      },
+                      "value": {
+                        "type": "string",
+                        "value": "output"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "line_no"
+                      },
+                      "value": {
+                        "raw_i64": "25769803776",
+                        "type": "fixed64"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "text"
+                      },
+                      "value": {
+                        "type": "string",
+                        "value": "3"
+                      }
+                    },
+                    {
+                      "key": {
+                        "type": "string",
+                        "value": "tick"
+                      },
+                      "value": {
+                        "raw_i64": "8589934592",
+                        "type": "fixed64"
+                      }
+                    }
+                  ],
+                  "type": "map"
+                }
+              ],
+              "type": "list"
+            }
+          }
+        },
+        "schema": "ddn.wasm_state_snapshot.v2",
+        "unit_wire_schema": "ddn.unit_value_wire.v2"
+      },
+      "streams": {},
+      "tick_id": 3
+    },
+    "state_hash": "blake3:cae514c86c287e05b05915b9a50a3cc54273b23f9cd73e43c816d4176bae35b8",
+    "streams": {},
+    "tick_id": 3,
+    "view_hash": "blake3:6e46dd10defc9b56c29a6ec56b508c21f54c08192194e4df25bf36f0c9c3c279",
+    "view_meta": {}
+  },
+  "execution_envelope": {
+    "canonical_ddn_sha256": "65cd7c04504c3a560a7944944d7222da9c084266639bcdb40fc76d1b7b20bd46",
+    "configured_madi": 0,
+    "dialect_or_mode": "strict",
+    "dt": "1",
+    "effective_ticks": 3,
+    "execution_mode_decision": {
+      "authority": "parsed_program",
+      "every_madi_hook_count": 1,
+      "every_n_madi_hook_count": 0,
+      "live_hook_count": 1,
+      "mode": "live",
+      "reason": "parsed_tick_hook",
+      "schema": "ddn.execution_mode_decision.v1"
+    },
+    "frame_source": "사람",
+    "frame_source_code": 0,
+    "input_record_sha256": null,
+    "input_snapshot": {
+      "dt": "1",
+      "frame_source": "사람",
+      "frame_source_code": 0,
+      "keys_pressed": 0,
+      "last_key_name": "",
+      "pointer_x_i32": 0,
+      "pointer_y_i32": 0,
+      "rng_base_seed": 0
+    },
+    "preprocessed_source_sha256": "4da99695ce42dd34386a19564c2cee5174cd71d5d6fb58124d67e52c24b697cc",
+    "requested_ticks": 3,
+    "resource_snapshot_schema": "ddn.resource_snapshot.v2",
+    "rng_seed": 0,
+    "runtime_schema": "seamgrim.engine_response.v0",
+    "sealed_dataset_assets": [],
+    "sealed_dataset_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "source_bytes_sha256": "4da99695ce42dd34386a19564c2cee5174cd71d5d6fb58124d67e52c24b697cc",
+    "stripped_source_sha256": "4da99695ce42dd34386a19564c2cee5174cd71d5d6fb58124d67e52c24b697cc",
+    "unit_wire_schema": "ddn.unit_value_wire.v2"
+  },
+  "final_row": {
+    "속도": 7,
+    "횟수": 3
+  },
+  "input_receipts": [
+    {
+      "input_reads": [],
+      "input_snapshot": {
+        "input": {
+          "ai_injections": [],
+          "dt": "1",
+          "frame_source": "사람",
+          "frame_source_code": 0,
+          "input_encoding": "ddn.input_snapshot.exact_fixed64.v1",
+          "keys_pressed": 0,
+          "last_key_name": "",
+          "net_events": [],
+          "pointer_x_i32": 0,
+          "pointer_y_i32": 0,
+          "rng_seed": 0
+        },
+        "madi": 0
+      },
+      "input_snapshot_sha256": "3c12d40131f74c0fed1ab52f45b79f86f24f7721f555e7847629b427a61f08b2",
+      "tape_v1_recording_error": null
+    },
+    {
+      "input_reads": [],
+      "input_snapshot": {
+        "input": {
+          "ai_injections": [],
+          "dt": "1",
+          "frame_source": "사람",
+          "frame_source_code": 0,
+          "input_encoding": "ddn.input_snapshot.exact_fixed64.v1",
+          "keys_pressed": 0,
+          "last_key_name": "",
+          "net_events": [],
+          "pointer_x_i32": 0,
+          "pointer_y_i32": 0,
+          "rng_seed": 1
+        },
+        "madi": 1
+      },
+      "input_snapshot_sha256": "c54637d25768e9afeb9892d1f15360b297f63715590de60d0c808cb3d0d44cd3",
+      "tape_v1_recording_error": null
+    },
+    {
+      "input_reads": [],
+      "input_snapshot": {
+        "input": {
+          "ai_injections": [],
+          "dt": "1",
+          "frame_source": "사람",
+          "frame_source_code": 0,
+          "input_encoding": "ddn.input_snapshot.exact_fixed64.v1",
+          "keys_pressed": 0,
+          "last_key_name": "",
+          "net_events": [],
+          "pointer_x_i32": 0,
+          "pointer_y_i32": 0,
+          "rng_seed": 2
+        },
+        "madi": 2
+      },
+      "input_snapshot_sha256": "2e0da9403df4e043b3c44958d0d9842b3874b4537a6df1b4d829dd98a2f662e2",
+      "tape_v1_recording_error": null
+    }
+  ],
+  "input_record_sha256": null,
+  "meta_lines": 0,
+  "observation_columns": [],
+  "output_display": {
+    "fraction_digits": 6,
+    "rounding": "roundTiesToEven",
+    "rows": [
+      {
+        "line_no": 1,
+        "madi": 0,
+        "text": "8"
+      },
+      {
+        "line_no": 2,
+        "madi": 0,
+        "text": "1"
+      },
+      {
+        "line_no": 3,
+        "madi": 1,
+        "text": "8"
+      },
+      {
+        "line_no": 4,
+        "madi": 1,
+        "text": "2"
+      },
+      {
+        "line_no": 5,
+        "madi": 2,
+        "text": "8"
+      },
+      {
+        "line_no": 6,
+        "madi": 2,
+        "text": "3"
+      }
+    ],
+    "schema": "ddn.output-display.v1",
+    "texts": [
+      "8",
+      "1",
+      "8",
+      "2",
+      "8",
+      "3"
+    ],
+    "world_hash_participation": false,
+    "world_state_hash": "blake3:cae514c86c287e05b05915b9a50a3cc54273b23f9cd73e43c816d4176bae35b8"
+  },
+  "output_log_texts": [
+    "8",
+    "1",
+    "8",
+    "2",
+    "8",
+    "3"
+  ],
+  "output_rows": [
+    {
+      "cells": [],
+      "committed_madi": 0,
+      "state_hash": "blake3:534cb44994d0b5f5985cd86aeb0440d6446bd21561892ecef97333882c87d77e"
+    },
+    {
+      "cells": [],
+      "committed_madi": 1,
+      "state_hash": "blake3:1826eda92a9b7e4f117f592724e97bd0e1a3a7cf409fa0e55d6a1cce0b3313aa"
+    },
+    {
+      "cells": [],
+      "committed_madi": 2,
+      "state_hash": "blake3:cae514c86c287e05b05915b9a50a3cc54273b23f9cd73e43c816d4176bae35b8"
+    }
+  ],
+  "parity_surface": {
+    "domain": "ddonirang_tool_shared_runtime",
+    "state_hash_formula_change": false,
+    "view_prefix_exclusion": [
+      "보개_",
+      "__view_"
+    ]
+  },
+  "parse_warnings": [],
+  "preprocessed_source": "                          \n속도:수 := 7.\n                  채비 { 횟수:바른수 := 0. }. 앱:움직씨 := { (매마디)마다 { 횟수 <- 횟수 + 1. (속도 + 1) 보여주기. 횟수 보여주기. }. }.\n",
+  "primary_view_decision": {
+    "available_families": [],
+    "bounded_candidate": true,
+    "canonical_ddn_sha256": "65cd7c04504c3a560a7944944d7222da9c084266639bcdb40fc76d1b7b20bd46",
+    "diagnostic": null,
+    "primary": null,
+    "schema": "seamgrim.primary_view_decision.v1",
+    "source_bytes_sha256": "4da99695ce42dd34386a19564c2cee5174cd71d5d6fb58124d67e52c24b697cc",
+    "state_hash": "blake3:cae514c86c287e05b05915b9a50a3cc54273b23f9cd73e43c816d4176bae35b8",
+    "state_hash_participates": false,
+    "status": "absent",
+    "view_hash": "blake3:6e46dd10defc9b56c29a6ec56b508c21f54c08192194e4df25bf36f0c9c3c279"
+  },
+  "public_observation_table_projection": {
+    "presentation_state": "no_opportunity",
+    "projection_hash": "sha256:222898e03133a4a11bd30a522b27e8a5cde2962802787b2efa4e96152fdd8990",
+    "run": {
+      "failure": null,
+      "lock_identity": "",
+      "revision_identity": "sha256:6690ff16645cba15e20f5227f02ea267d396643cc930ebf23b3719651e425fca",
+      "run_id": "run:92a0fd32594faff0495ef5961ad62b53fc1fc1842347e06c8c74e940c30eb0fe",
+      "source_identity": "sha256:4da99695ce42dd34386a19564c2cee5174cd71d5d6fb58124d67e52c24b697cc",
+      "status": "completed"
+    },
+    "schema": "ddn.public_observation_table_projection.v2",
+    "source_schema": "ddn.public_observation_trace.v1",
+    "source_trace_hash": "sha256:83fb975a233ddd8b621fda69f5ace7d4fd518b6bae98f80e8051c744efdfb05b",
+    "tables": []
+  },
+  "public_observation_trace": {
+    "branch_madi": null,
+    "branch_state_hash": "",
+    "columns": [],
+    "lock_identity": "",
+    "parent_run_id": "",
+    "project_id": "",
+    "retention": {
+      "limit": 2000
+    },
+    "revision_identity": "sha256:6690ff16645cba15e20f5227f02ea267d396643cc930ebf23b3719651e425fca",
+    "run_failure": null,
+    "run_id": "run:92a0fd32594faff0495ef5961ad62b53fc1fc1842347e06c8c74e940c30eb0fe",
+    "run_status": "completed",
+    "samples": [
+      {
+        "cells": [],
+        "committed_madi": 0,
+        "state_hash": "blake3:534cb44994d0b5f5985cd86aeb0440d6446bd21561892ecef97333882c87d77e"
+      },
+      {
+        "cells": [],
+        "committed_madi": 1,
+        "state_hash": "blake3:1826eda92a9b7e4f117f592724e97bd0e1a3a7cf409fa0e55d6a1cce0b3313aa"
+      },
+      {
+        "cells": [],
+        "committed_madi": 2,
+        "state_hash": "blake3:cae514c86c287e05b05915b9a50a3cc54273b23f9cd73e43c816d4176bae35b8"
+      }
+    ],
+    "schema": "ddn.public_observation_trace.v1",
+    "source_identity": "sha256:4da99695ce42dd34386a19564c2cee5174cd71d5d6fb58124d67e52c24b697cc"
+  },
+  "public_observation_trace_hash": "sha256:83fb975a233ddd8b621fda69f5ace7d4fd518b6bae98f80e8051c744efdfb05b",
+  "resources": {
+    "fixed64": {
+      "속도": "7",
+      "횟수": "3"
+    },
+    "handle": {},
+    "json": {},
+    "schema": "ddn.resource_snapshot.v2",
+    "unit_wire_schema": "ddn.unit_value_wire.v2",
+    "value": {
+      "output_log": "차림[짝맞춤{\"kind\"=>\"output\", \"line_no\"=>1, \"text\"=>\"8\", \"tick\"=>0}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>2, \"text\"=>\"1\", \"tick\"=>0}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>3, \"text\"=>\"8\", \"tick\"=>1}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>4, \"text\"=>\"2\", \"tick\"=>1}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>5, \"text\"=>\"8\", \"tick\"=>2}, 짝맞춤{\"kind\"=>\"output\", \"line_no\"=>6, \"text\"=>\"3\", \"tick\"=>2}]"
+    },
+    "value_det": {
+      "output_log": {
+        "items": [
+          {
+            "entries": [
+              {
+                "key": {
+                  "type": "string",
+                  "value": "kind"
+                },
+                "value": {
+                  "type": "string",
+                  "value": "output"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "line_no"
+                },
+                "value": {
+                  "raw_i64": "4294967296",
+                  "type": "fixed64"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "text"
+                },
+                "value": {
+                  "type": "string",
+                  "value": "8"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "tick"
+                },
+                "value": {
+                  "raw_i64": "0",
+                  "type": "fixed64"
+                }
+              }
+            ],
+            "type": "map"
+          },
+          {
+            "entries": [
+              {
+                "key": {
+                  "type": "string",
+                  "value": "kind"
+                },
+                "value": {
+                  "type": "string",
+                  "value": "output"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "line_no"
+                },
+                "value": {
+                  "raw_i64": "8589934592",
+                  "type": "fixed64"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "text"
+                },
+                "value": {
+                  "type": "string",
+                  "value": "1"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "tick"
+                },
+                "value": {
+                  "raw_i64": "0",
+                  "type": "fixed64"
+                }
+              }
+            ],
+            "type": "map"
+          },
+          {
+            "entries": [
+              {
+                "key": {
+                  "type": "string",
+                  "value": "kind"
+                },
+                "value": {
+                  "type": "string",
+                  "value": "output"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "line_no"
+                },
+                "value": {
+                  "raw_i64": "12884901888",
+                  "type": "fixed64"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "text"
+                },
+                "value": {
+                  "type": "string",
+                  "value": "8"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "tick"
+                },
+                "value": {
+                  "raw_i64": "4294967296",
+                  "type": "fixed64"
+                }
+              }
+            ],
+            "type": "map"
+          },
+          {
+            "entries": [
+              {
+                "key": {
+                  "type": "string",
+                  "value": "kind"
+                },
+                "value": {
+                  "type": "string",
+                  "value": "output"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "line_no"
+                },
+                "value": {
+                  "raw_i64": "17179869184",
+                  "type": "fixed64"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "text"
+                },
+                "value": {
+                  "type": "string",
+                  "value": "2"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "tick"
+                },
+                "value": {
+                  "raw_i64": "4294967296",
+                  "type": "fixed64"
+                }
+              }
+            ],
+            "type": "map"
+          },
+          {
+            "entries": [
+              {
+                "key": {
+                  "type": "string",
+                  "value": "kind"
+                },
+                "value": {
+                  "type": "string",
+                  "value": "output"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "line_no"
+                },
+                "value": {
+                  "raw_i64": "21474836480",
+                  "type": "fixed64"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "text"
+                },
+                "value": {
+                  "type": "string",
+                  "value": "8"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "tick"
+                },
+                "value": {
+                  "raw_i64": "8589934592",
+                  "type": "fixed64"
+                }
+              }
+            ],
+            "type": "map"
+          },
+          {
+            "entries": [
+              {
+                "key": {
+                  "type": "string",
+                  "value": "kind"
+                },
+                "value": {
+                  "type": "string",
+                  "value": "output"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "line_no"
+                },
+                "value": {
+                  "raw_i64": "25769803776",
+                  "type": "fixed64"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "text"
+                },
+                "value": {
+                  "type": "string",
+                  "value": "3"
+                }
+              },
+              {
+                "key": {
+                  "type": "string",
+                  "value": "tick"
+                },
+                "value": {
+                  "raw_i64": "8589934592",
+                  "type": "fixed64"
+                }
+              }
+            ],
+            "type": "map"
+          }
+        ],
+        "type": "list"
+      }
+    },
+    "value_json": {
+      "output_log": [
+        {
+          "kind": "output",
+          "line_no": 1,
+          "text": "8",
+          "tick": 0
+        },
+        {
+          "kind": "output",
+          "line_no": 2,
+          "text": "1",
+          "tick": 0
+        },
+        {
+          "kind": "output",
+          "line_no": 3,
+          "text": "8",
+          "tick": 1
+        },
+        {
+          "kind": "output",
+          "line_no": 4,
+          "text": "2",
+          "tick": 1
+        },
+        {
+          "kind": "output",
+          "line_no": 5,
+          "text": "8",
+          "tick": 2
+        },
+        {
+          "kind": "output",
+          "line_no": 6,
+          "text": "3",
+          "tick": 2
+        }
+      ],
+      "속도": 7,
+      "횟수": 3
+    }
+  },
+  "row": [
+    7,
+    3
+  ],
+  "runtime_schema": "seamgrim.engine_response.v0",
+  "schema": "ddn.ddonirang_tool.shared_run_summary.v1",
+  "sealed_dataset_assets": [],
+  "sealed_dataset_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "source_path": "app/main.ddn",
+  "source_profile_identity": "v1-core-v25",
+  "state_hash": "blake3:cae514c86c287e05b05915b9a50a3cc54273b23f9cd73e43c816d4176bae35b8",
+  "ticks_run": 3,
+  "update_name": "앱",
+  "view_hash": "blake3:6e46dd10defc9b56c29a6ec56b508c21f54c08192194e4df25bf36f0c9c3c279",
+  "work_cost_receipt": {
+    "continuation_present": false,
+    "counters": {
+      "base_dispatches": 40,
+      "bigint_rational_signed_magnitude_byte_visits": 0,
+      "call_depth_current": 0,
+      "call_depth_peak": 1,
+      "canonical_utf8_byte_visits": 4,
+      "collection_tensor_element_visits": 0,
+      "committed_madi": 3,
+      "created_identities": 0,
+      "external_events": 0,
+      "public_observation_samples": 0,
+      "replay_capsule_bytes": 0,
+      "result_artifact_bytes": 30379,
+      "sealed_input_bytes": 212,
+      "solver_evaluations": 0,
+      "work_cost": 44
+    },
+    "independent_result_row_limit_present": false,
+    "limits": {
+      "call_depth": 512,
+      "created_identities": 100000,
+      "public_observation_samples": 2000000,
+      "replay_capsule_bytes": 268435456,
+      "result_artifact_bytes": 268435456,
+      "sealed_input_bytes": 67108864,
+      "slice_committed_madi": 100000,
+      "slice_external_events": 100000,
+      "slice_solver_evaluations": 1000000,
+      "slice_work_cost": 100000000
+    },
+    "rd206_resource_capability": false,
+    "schema": "ddonirang.work_cost.v1-candidate",
+    "semantic_memory_limit_present": false,
+    "slice_limits_enforced": false,
+    "standard_limit_schema": "ddonirang.standard_limit.v1-candidate"
+  }
+}

@@ -1,0 +1,6 @@
+[package]
+name = "p5-offline-probe-fixture"
+version = "0.0.0"
+edition = "2021"
+
+[workspace]

@@ -54,6 +54,11 @@ mod failed_input_tests{
             let reuse_owned=attachment::restore_saved_runtime_payload(&reuse_checked).unwrap();
             let reuse_session=NativeLogicalFinishSessionV1::open(&artifact,&[1],&[2],&root,locator,&input.binding,Some(&reuse_owned)).unwrap();
             let reused_result=reuse_session.result_identity().unwrap();drop(reuse_session);
+            let empty=crate::logical_input_tape::LogicalRecordRequest{binding:input.binding.clone(),snapshots:vec![]};
+            let (same_summary,same_result)=super::super::logical::resume_logical_source_world_with_result(
+                &artifact,&[1],&[2],&root,locator,&empty,Some(&reuse_owned),Some(1)).unwrap();
+            assert_eq!(same_summary,before,"consumed actual restore must preserve the complete summary");
+            assert_eq!(same_result.unwrap().unwrap(),reused_result,"fresh protected progress/result admission must match standalone open");
             let mut session=NativeLogicalFinishSessionV1::open(&artifact,&[1],&[2],&root,locator,&input.binding,None).unwrap();
             assert_eq!(session.result_identity().unwrap(),reused_result,"request-local source reuse changes no result or authority");
             let bytes=attachment::check_bytes(artifact.as_bytes()).unwrap();

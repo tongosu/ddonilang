@@ -1,0 +1,6 @@
+.proof-source-result { flex: 0 0 auto; max-height: 180px; overflow: auto; margin: 0 10px 10px;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-soft); }
+.proof-source-result[hidden] { display: none; }
+.proof-source-result p { margin: 0; font-size: 0.8rem; line-height: 1.5; }
+.proof-source-result pre { margin: 5px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.75rem; }
+.proof-source-result[data-proof-status="rejected"] { border-color: var(--red); }

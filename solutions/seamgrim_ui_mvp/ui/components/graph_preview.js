@@ -70,6 +70,8 @@ export function buildGraphPreviewHtml(
     axisClass = "runtime-graph-axis",
     lineClass = "runtime-graph-line",
     lineVariantClasses = ["runtime-graph-line--a", "runtime-graph-line--b", "runtime-graph-line--c"],
+    axisLabels = null,
+    clipId = null,
   } = {},
 ) {
   if (!graph || typeof graph !== "object") return "";
@@ -94,7 +96,7 @@ export function buildGraphPreviewHtml(
     .filter(Boolean);
   if (!usable.length) return "";
 
-  const margin = 14;
+  const margin = axisLabels ? 40 : 14;
   const xValues = [];
   const yValues = [];
   usable.forEach((row) => {
@@ -141,14 +143,24 @@ export function buildGraphPreviewHtml(
     .join("");
   const title = String(graph?.meta?.title ?? "").trim();
   const titleHtml = title ? `<div class="${titleClass}">${escapeGraphHtml(title)}</div>` : "";
+  const labelsHtml = axisLabels ? `
+    <g class="notebook-axis-labels" font-size="11" fill="currentColor">
+      <text x="${margin}" y="${height - margin + 16}">${escapeGraphHtml(xMin)}</text>
+      <text x="${width - margin}" y="${height - margin + 16}" text-anchor="end">${escapeGraphHtml(xMax)}</text>
+      <text x="${margin - 6}" y="${height - margin}" text-anchor="end">${escapeGraphHtml(yMin)}</text>
+      <text x="${margin - 6}" y="${margin + 4}" text-anchor="end">${escapeGraphHtml(yMax)}</text>
+      <text x="${width / 2}" y="${height - 3}" text-anchor="middle">${escapeGraphHtml(axisLabels.x)}</text>
+      <text x="${margin}" y="13">${escapeGraphHtml(axisLabels.y)}</text>
+    </g>` : "";
   return `
     <div class="${containerClass}">
       ${titleHtml}
       <svg class="${canvasClass}" viewBox="0 0 ${width} ${height}" role="img" aria-label="graph preview">
+        ${clipId ? `<defs><clipPath id="${escapeGraphHtml(clipId)}"><rect x="${margin}" y="${margin}" width="${width - margin * 2}" height="${height - margin * 2}" /></clipPath></defs>` : ''}
         <line x1="${margin}" y1="${height - margin}" x2="${width - margin}" y2="${height - margin}" class="${axisClass}" />
         <line x1="${margin}" y1="${margin}" x2="${margin}" y2="${height - margin}" class="${axisClass}" />
-        ${pathSvg}
-        ${pointSvg}
+        ${clipId ? `<g clip-path="url(#${escapeGraphHtml(clipId)})">` : ''}${pathSvg}${pointSvg}${clipId ? '</g>' : ''}
+        ${labelsHtml}
       </svg>
     </div>
   `;

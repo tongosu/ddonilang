@@ -312,10 +312,31 @@ pub(crate) fn parse_snapshot_json_with_value_context(raw:&str,
     references:Option<&crate::subject_reference_owner::SubjectReferenceContextV1<'_>>,
     catalog:Option<&crate::authored_project::registration::SavedNominalCatalogV1>,
 ) -> Result<SnapshotJsonOwner,String> {
+    parse_bounded_json_with_value_context(raw,contracts,references,catalog,2_000_000)
+}
+
+/// Native replies are transport envelopes, not snapshot_v2 documents. Keep
+/// the transport's existing 8 MiB ceiling separate from the unchanged 2 MB
+/// snapshot parser. The exact same duplicate-key/carrier/catalog validation
+/// and heap parser still run; this does not admit an inner stored artifact.
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) fn parse_native_source_reply_json(raw:&str,
+    catalog:Option<&crate::authored_project::registration::SavedNominalCatalogV1>,
+) -> Result<SnapshotJsonOwner,String> {
+    if raw.len()>8*1024*1024 {return Err("E_NATIVE_SOURCE_RESPONSE_LIMIT".into());}
+    parse_bounded_json_with_value_context(raw,&[],None,catalog,8*1024*1024)
+}
+
+fn parse_bounded_json_with_value_context(raw:&str,
+    contracts:&[crate::registered_atom_contract::RecordedAtomContract],
+    references:Option<&crate::subject_reference_owner::SubjectReferenceContextV1<'_>>,
+    catalog:Option<&crate::authored_project::registration::SavedNominalCatalogV1>,
+    byte_limit:usize,
+) -> Result<SnapshotJsonOwner,String> {
     // F5-GA[WIRE_JSON_STATE] A pending value either completes a scalar (then continues) or pushes a container before the frame match. Object child jobs are requested only after storing their key; close only pops the still-present matched frame and completes it for the next loop.
     // RD-694: structural depth has no authority. Heap frames/owned JSON roots
     // keep parsing and error cleanup iterative within the existing byte gate.
-    if raw.len() > 2_000_000 { return Err("저장 스냅샷 크기 상한 초과".into()); }
+    if raw.len() > byte_limit { return Err("저장 스냅샷 크기 상한 초과".into()); }
     // Parsing all carrier leaves is itself one staging invocation. Do not
     // reset rational work for each JSON object before world admission.
     let mut carrier_budget=saved_resource_value::ValueDecodeBudget::new();
@@ -569,6 +590,26 @@ pub const UNIT_VALUE_WIRE_SCHEMA_V2: &str = "ddn.unit_value_wire.v2";
 mod alpha3_tensor_snapshot_tests {
     use super::*;
     use ddonirang_lang::{ast::TypeRef,runtime::Value};
+
+    #[test]
+    fn native_reply_envelope_keeps_snapshot_and_transport_limits_separate() {
+        // A stored JSON string is still under snapshot_v2's 2 MB ceiling;
+        // escaped JSON in its transport envelope can exceed 2 MB. This test
+        // grants no artifact, world or execution admission.
+        let inner=serde_json::json!({"data":"\"".repeat(700_000)}).to_string();
+        assert!(inner.len()<2_000_000);
+        assert!(parse_snapshot_json(&inner).is_ok());
+        let reply=serde_json::json!({"saved_artifact_json_utf8":inner,"kind":"native_general_world"}).to_string();
+        assert!(reply.len()>2_000_000 && reply.len()<8*1024*1024);
+        assert!(parse_snapshot_json(&reply).is_err(),"snapshot_v2 limit must not rise");
+        let parsed=parse_native_source_reply_json(&reply,None).unwrap();
+        assert_eq!(parsed["kind"].as_str(),Some("native_general_world"));
+        assert_eq!(parsed["saved_artifact_json_utf8"].as_str(),Some(inner.as_str()));
+        assert!(parse_native_source_reply_json("{\"x\":1,\"x\":2}",None).is_err());
+        assert!(parse_native_source_reply_json("[1-2]",None).is_err());
+        let too_large=" ".repeat(8*1024*1024+1);
+        assert_eq!(parse_native_source_reply_json(&too_large,None).unwrap_err(),"E_NATIVE_SOURCE_RESPONSE_LIMIT");
+    }
 
     #[test]
     fn frame_json_parser_preserves_bounded_oracle_results_and_diagnostics() {

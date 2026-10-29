@@ -1,0 +1,357 @@
+#!/usr/bin/env node
+
+import path from "path";
+import { pathToFileURL } from "url";
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function enginePayload({ tickId, stateHash, channels, row }) {
+  return JSON.stringify({
+    schema: "seamgrim.engine_response.v0",
+    tick_id: tickId,
+    state_hash: stateHash,
+    input: {},
+    resources: {
+      json: {},
+      fixed64: {},
+      handle: {},
+      value: {},
+    },
+    channels,
+    row,
+    state: {
+      tick_id: tickId,
+      channels,
+      row,
+      resources: {
+        json: {},
+        fixed64: {},
+        handle: {},
+        value: {},
+      },
+      patch: [],
+      streams: {},
+    },
+    view_meta: {},
+    view_hash: "blake3:viewhash",
+  });
+}
+
+async function main() {
+  const root = process.cwd();
+  const wrapperPath = path.resolve(root, "solutions/seamgrim_ui_mvp/ui/wasm_ddn_wrapper.js");
+  const wrapper = await import(pathToFileURL(wrapperPath).href);
+
+  const { DdnWasmVmClient, parseStateJson } = wrapper;
+  assert(typeof DdnWasmVmClient === "function", "wrapper export: DdnWasmVmClient");
+  assert(typeof parseStateJson === "function", "wrapper export: parseStateJson");
+
+  const parsed = parseStateJson(
+    enginePayload({
+      tickId: 3,
+      stateHash: "blake3:abc",
+      channels: [{ key: "g", dtype: "fixed64", role: "state" }],
+      row: [9.8],
+    }),
+  );
+  assert(parsed.schema === "seamgrim.state.v0", "parseStateJson: normalized schema");
+  assert(parsed.engine_schema === "seamgrim.engine_response.v0", "parseStateJson: engine schema");
+  assert(Array.isArray(parsed.channels) && parsed.channels.length === 1, "parseStateJson: channels");
+  assert(Array.isArray(parsed.row) && parsed.row.length === 1, "parseStateJson: row");
+
+  let compatUpdated = "";
+  let compatModeError = "";
+  const vmCompatOnly = {
+    update_logic(source) {
+      compatUpdated = String(source ?? "");
+    },
+    set_rng_seed() {},
+    set_input_fixed64_v1() {},
+    step_one() {
+      return enginePayload({
+        tickId: 0,
+        stateHash: "blake3:s0",
+        channels: [{ key: "x", dtype: "fixed64", role: "state" }],
+        row: [1],
+      });
+    },
+    step_one_with_input_fixed64_v1() {
+      return enginePayload({
+        tickId: 1,
+        stateHash: "blake3:s1",
+        channels: [{ key: "x", dtype: "fixed64", role: "state" }],
+        row: [2],
+      });
+    },
+    get_state_hash() {
+      return "blake3:state";
+    },
+    get_state_json() {
+      return enginePayload({
+        tickId: 2,
+        stateHash: "blake3:s2",
+        channels: [{ key: "x", dtype: "fixed64", role: "state" }],
+        row: [3],
+      });
+    },
+    get_execution_mode_decision_json() {
+      return JSON.stringify({
+        schema: "ddn.execution_mode_decision.v1",
+        mode: "live",
+        authority: "parsed_program",
+      });
+    },
+  };
+  const compatClient = new DdnWasmVmClient(vmCompatOnly);
+  const executionModeDecision = compatClient.executionModeDecisionParsed();
+  assert(executionModeDecision.mode === "live", "executionModeDecisionParsed: mode");
+  assert(
+    executionModeDecision.authority === "parsed_program",
+    "executionModeDecisionParsed: parsed authority",
+  );
+  try {
+    compatClient.updateLogicWithMode("매틱:움직씨 = {}.", "strict");
+  } catch (err) {
+    compatModeError = String(err?.message ?? err);
+  }
+  assert(
+    compatModeError.includes("update_logic_with_mode"),
+    "updateLogicWithMode missing mode API must fail",
+  );
+  assert(compatUpdated === "", "updateLogicWithMode must not fallback to update_logic");
+  let caught = false;
+  try {
+    compatClient.columnsParsed();
+  } catch (err) {
+    caught = String(err?.message ?? err).includes("columns");
+  }
+  assert(caught, "columnsParsed: missing function error");
+  caught = false;
+  try {
+    compatClient.parseWarningsParsed();
+  } catch (err) {
+    caught = String(err?.message ?? err).includes("get_parse_warnings");
+  }
+  assert(caught, "parseWarningsParsed: missing function error");
+  try {
+    compatClient.setParamParsed("g", 1);
+  } catch (err) {
+    caught = String(err?.message ?? err).includes("set_param");
+  }
+  assert(caught, "setParamParsed: missing function error");
+  caught = false;
+  try {
+    compatClient.setParamFixed64Parsed("g", 4294967296);
+  } catch (err) {
+    caught = String(err?.message ?? err).includes("set_param_fixed64");
+  }
+  assert(caught, "setParamFixed64Parsed: missing function error");
+  caught = false;
+  try {
+    compatClient.setParamFixed64StringParsed("g", "4294967296");
+  } catch (err) {
+    caught = String(err?.message ?? err).includes("set_param_fixed64_str");
+  }
+  assert(caught, "setParamFixed64StringParsed: missing function error");
+  caught = false;
+  try {
+    compatClient.resetParsed(false);
+  } catch (err) {
+    caught = String(err?.message ?? err).includes("reset");
+  }
+  assert(caught, "resetParsed: missing function error");
+  caught = false;
+  try {
+    compatClient.restoreStateParsed("{}");
+  } catch (err) {
+    caught = String(err?.message ?? err).includes("restore_state");
+  }
+  assert(caught, "restoreStateParsed: missing function error");
+
+  let stepSeq = 0;
+  let lastMode = "";
+  let lastSetParam = null;
+  let lastSetParamFixed = null;
+  let lastSetParamFixedStr = null;
+  let lastResetKeep = null;
+  let lastRestoreRaw = "";
+  const viewPrefixes = [];
+  const aiActions = [];
+  const vmFull = {
+    update_logic() {},
+    update_logic_with_mode(_source, mode) {
+      lastMode = String(mode ?? "");
+    },
+    set_rng_seed() {},
+    set_input_fixed64_v1() {
+      return JSON.stringify({ ok: true, value: { high_i32: 0, low_u32: 1 } });
+    },
+    fixed64_from_decimal_v1(text) {
+      assert(String(text) === "0.016", "fixed64 decimal admission forwards raw text");
+      return JSON.stringify({ ok: true, value: { high_i32: 0, low_u32: 68719477 } });
+    },
+    columns() {
+      return JSON.stringify({
+        columns: [{ key: "g", dtype: "fixed64", role: "state" }],
+        row: [15],
+      });
+    },
+    get_parse_warnings() {
+      return JSON.stringify({
+        warnings: [
+          {
+            code: "W_BLOCK_HEADER_COLON_DEPRECATED",
+            message: "블록 헤더 콜론 비권장",
+            span: { start: 1, end: 6 },
+          },
+        ],
+      });
+    },
+    set_param(key, value) {
+      lastSetParam = { key, value };
+      return JSON.stringify({ ok: true, state_hash: "blake3:setparam" });
+    },
+    set_param_fixed64(key, raw_i64) {
+      lastSetParamFixed = { key, raw_i64 };
+      return JSON.stringify({ ok: true, state_hash: "blake3:setparamfixed" });
+    },
+    set_param_fixed64_str(key, raw_i64) {
+      lastSetParamFixedStr = { key, raw_i64 };
+      return JSON.stringify({ ok: true, state_hash: "blake3:setparamfixedstr" });
+    },
+    add_view_prefix(prefix) {
+      viewPrefixes.push(String(prefix ?? ""));
+    },
+    clear_view_prefixes() {
+      viewPrefixes.length = 0;
+    },
+    inject_ai_action(key, value_json) {
+      aiActions.push({ key: String(key ?? ""), value_json: String(value_json ?? "") });
+    },
+    clear_ai_injections() {
+      aiActions.length = 0;
+    },
+    reset(keep) {
+      lastResetKeep = Boolean(keep);
+      return JSON.stringify({
+        ok: true,
+        keep_params: Boolean(keep),
+        columns: [{ key: "g" }],
+        row: [Boolean(keep) ? 15 : 0],
+      });
+    },
+    restore_state(raw) {
+      lastRestoreRaw = String(raw ?? "");
+      return JSON.stringify({ ok: true, tick: 2 });
+    },
+    step_one() {
+      const idx = stepSeq++;
+      return enginePayload({
+        tickId: idx,
+        stateHash: `blake3:step${idx}`,
+        channels: [{ key: "x", dtype: "fixed64", role: "state" }],
+        row: [idx + 1],
+      });
+    },
+    step_one_with_input_fixed64_v1() {
+      const idx = stepSeq++;
+      return enginePayload({
+        tickId: idx,
+        stateHash: `blake3:input${idx}`,
+        channels: [{ key: "x", dtype: "fixed64", role: "state" }],
+        row: [idx + 10],
+      });
+    },
+    get_state_hash() {
+      return "blake3:full";
+    },
+    get_state_json() {
+      return enginePayload({
+        tickId: 77,
+        stateHash: "blake3:state77",
+        channels: [{ key: "x", dtype: "fixed64", role: "state" }],
+        row: [77],
+      });
+    },
+  };
+
+  const client = new DdnWasmVmClient(vmFull);
+  client.updateLogicWithMode("x<-1.", "strict");
+  assert(lastMode === "strict", "updateLogicWithMode: uses wasm mode API");
+
+  const cols = client.columnsParsed();
+  assert(Array.isArray(cols.columns) && cols.columns.length === 1, "columnsParsed: columns");
+  assert(Array.isArray(cols.row) && cols.row.length === 1, "columnsParsed: row");
+  const parseWarnings = client.parseWarningsParsed();
+  assert(Array.isArray(parseWarnings) && parseWarnings.length === 1, "parseWarningsParsed: size");
+  assert(
+    parseWarnings[0].code === "W_BLOCK_HEADER_COLON_DEPRECATED",
+    "parseWarningsParsed: warning code",
+  );
+
+  const setResult = client.setParamParsed("g", "15");
+  assert(setResult.ok === true, "setParamParsed: ok");
+  assert(lastSetParam?.key === "g" && lastSetParam?.value === "15", "setParamParsed: forwarded");
+  let numericParamRejected = false;
+  try {
+    client.setParamParsed("g", 15);
+  } catch (err) {
+    numericParamRejected = String(err?.message ?? err).includes("raw Fixed64 setter");
+  }
+  assert(numericParamRejected, "setParamParsed: JS number must not enter Fixed64 path");
+  const setFixedResult = client.setParamFixed64Parsed("g", 4294967296);
+  assert(setFixedResult.ok === true, "setParamFixed64Parsed: ok");
+  assert(
+    lastSetParamFixed?.key === "g" && lastSetParamFixed?.raw_i64 === 4294967296,
+    "setParamFixed64Parsed: forwarded",
+  );
+  const setFixedStrResult = client.setParamFixed64StringParsed("g", "9223372036854775807");
+  assert(setFixedStrResult.ok === true, "setParamFixed64StringParsed: ok");
+  assert(
+    lastSetParamFixedStr?.key === "g" && lastSetParamFixedStr?.raw_i64 === "9223372036854775807",
+    "setParamFixed64StringParsed: forwarded",
+  );
+  assert(client.addViewPrefix("__view_") === true, "addViewPrefix: available");
+  assert(viewPrefixes.length === 1 && viewPrefixes[0] === "__view_", "addViewPrefix: forwarded");
+  assert(client.clearViewPrefixes() === true, "clearViewPrefixes: available");
+  assert(viewPrefixes.length === 0, "clearViewPrefixes: forwarded");
+  assert(
+    client.injectAiAction("agent_action", "{\"dir\":\"left\"}") === true,
+    "injectAiAction: available",
+  );
+  assert(aiActions.length === 1, "injectAiAction: forwarded");
+  assert(client.clearAiInjections() === true, "clearAiInjections: available");
+  assert(aiActions.length === 0, "clearAiInjections: forwarded");
+
+  const s0 = client.stepOneParsed();
+  const s1 = client.stepOneParsed();
+  assert(s0.frame_id === 0, "stepOneParsed: first frame_id");
+  assert(s1.frame_id === 1, "stepOneParsed: second frame_id");
+
+  const g0 = client.getStateParsed();
+  assert(g0.frame_id === 2, "getStateParsed: uses current frame_id");
+
+  const r0 = client.resetParsed(true);
+  assert(r0.ok === true && lastResetKeep === true, "resetParsed: forwarded");
+  const s2 = client.stepOneParsed();
+  assert(s2.frame_id === 0, "resetParsed: frame_id reset");
+
+  const restoreResult = client.restoreStateParsed("{\"schema\":\"seamgrim.engine_response.v0\"}");
+  assert(restoreResult.ok === true, "restoreStateParsed: ok");
+  assert(lastRestoreRaw.includes("seamgrim.engine_response.v0"), "restoreStateParsed: forwarded");
+  const raw = client.fixed64FromDecimalV1Parsed("0.016");
+  assert(raw.ok === true && raw.value.low_u32 === 68719477, "fixed64 canonical admission");
+  const s3 = client.stepOneWithInputFixed64V1Parsed(0, "", 0, 0, 0, 68719477);
+  assert(s3.frame_id === 0, "restoreStateParsed: frame_id reset");
+
+  console.log("seamgrim wasm wrapper ok");
+}
+
+main().catch((err) => {
+  console.error(String(err?.stack ?? err));
+  process.exit(1);
+});

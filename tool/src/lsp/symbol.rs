@@ -851,6 +851,9 @@ fn seed_kind_surface(kind: &SeedKind) -> &str {
 
 pub(crate) fn type_surface(type_ref: &TypeRef) -> String {
     match type_ref {
+        TypeRef::AlgebraEquality {left,right} => format!("{} =:= {}",left.source_text(),right.source_text()),
+        TypeRef::StructureLaw { structure, member } => format!("{structure}.{member}"),
+        TypeRef::PropositionConjunction(items) => format!("({})", items.iter().map(type_surface).collect::<Vec<_>>().join(" 이고 ")),
         TypeRef::Tuple(items) => format!("({})", items.iter().map(type_surface).collect::<Vec<_>>().join(", ")),
         TypeRef::Tensor { element, shape } => {
             let mut axes = shape.iter().map(u64::to_string).collect::<Vec<_>>().join(", ");

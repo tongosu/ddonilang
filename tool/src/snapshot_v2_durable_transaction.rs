@@ -7,7 +7,7 @@ mod recovery_custody;
 #[cfg(not(target_arch="wasm32"))]
 mod retained_attempt;
 #[cfg(not(target_arch="wasm32"))]
-pub(crate) use retained_attempt::ActualPreparedRequestV1;
+pub(crate) use retained_attempt::{ActualPreparedRequestV1,PreparedLogicalRequestBorrowV1};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod native;

@@ -23,12 +23,18 @@ enum Node {
 
 /// Flat arena: verification/encoding/drop never recurse through a type tree.
 pub(super) struct StaticTypeProof {nodes:Vec<Node>,root:usize}
+impl StaticTypeProof {
+    pub(super) fn is_rational_scalar(&self) -> bool {
+        matches!(self.nodes.get(self.root), Some(Node::Leaf { scalar: Some(Scalar::Rational), .. }))
+    }
+}
 
 /// This owner is built from the already admitted project closure and actual
 /// linked declarations. Names locate candidates; ambiguity/shadowing is
 /// resolved before a private typed owner is returned, never first-wins.
 pub(super) struct StaticTypeOwner {program:CanonProgram,symbols:Vec<Symbol>}
 impl StaticTypeOwner {
+    pub(super) fn checked_program(&self) -> &CanonProgram { &self.program }
     pub(super) fn from_source(source:&Source,nominals:&super::super::RegistrationDraft,templates:&[Template])->Result<Self,String> {
         source.verify_nominals(nominals)?;
         // Run the actual shared static checker (including declared numeric
@@ -109,6 +115,9 @@ impl StaticTypeOwner {
             let node=match job {
                 Work::Text=>leaf(Scalar::Text),
                 Work::Type(TypeRef::Infer)=>return Err(fail("미해소 형식으로 증명을 발급할 수 없습니다")),
+                Work::Type(TypeRef::AlgebraEquality { .. })=>return Err(fail("대수 명제는 실행값의 형식 증명으로 발급할 수 없습니다")),
+                Work::Type(TypeRef::StructureLaw { .. })=>return Err(fail("구조 법칙 목표는 실행값의 형식 증명으로 발급할 수 없습니다")),
+                Work::Type(TypeRef::PropositionConjunction(_))=>return Err(fail("논리곱 명제는 실행값의 형식 증명으로 발급할 수 없습니다")),
                 Work::Type(TypeRef::Named(name))=>{
                     let name=ddonirang_lang::canonicalizer::resolve_declared_type_spelling(name,true,&declared,false);
                     if let Some(symbol)=self.lookup(&visible,&name)? {match symbol.kind {

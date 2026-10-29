@@ -76,6 +76,12 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
   let timer = null, running = false, busy = false, settling = false, generation = 0, inFlightPump = null;
   let boundSource = null;
   let authoredSource = null, boundAuthoredSource = null;
+  // Performance hint only. Native still admits its current owner and checks
+  // the original result and complete finish candidate before publication.
+  let nativeCheckpointSummary = null;
+  const stableCheckpoint = value => JSON.stringify(value,(_key,part)=>part&&typeof part==='object'&&!Array.isArray(part)
+    ?Object.fromEntries(Object.entries(part).sort(([a],[b])=>a<b?-1:a>b?1:0)):part);
+  const checkpointMatches = summary => nativeCheckpointSummary!==null&&nativeCheckpointSummary===stableCheckpoint(summary);
   const typedBinding = json => JSON.parse(json).source_profile==='v1-core-v25-manipulation-alpha4-provisional';
   let valueIntake = Promise.resolve();
   function renderValueControls(binding) {
@@ -195,6 +201,7 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
   }
   async function close() {
     pause(); generation++;
+    nativeCheckpointSummary=null;
     valueControls.replaceChildren(); valueControls.hidden = true;
     compositionHost.reset(); committedView = null;
     onPresentation?.(null, generation);
@@ -292,13 +299,14 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
             const stable=value=>JSON.stringify(value,(_key,part)=>part&&typeof part==='object'&&!Array.isArray(part)
               ?Object.fromEntries(Object.entries(part).sort(([a],[b])=>a<b?-1:a>b?1:0)):part);
             if(stable(await session.summary())!==stable(nativeSummary))throw new Error('E_NATIVE_SOURCE_LOGICAL_REPLAY_MISMATCH');
+            nativeCheckpointSummary=stableCheckpoint(nativeSummary);
           }
           const channels=typed?Object.fromEntries(Object.entries(binding.channels).filter(([,value])=>value.kind==='Control').map(([name])=>[name,'Control'])):binding.channels;
           const finishGeneration=generation,finishSession=session;
           const finishUnchanged=()=>{unchanged();if(generation!==finishGeneration||session!==finishSession)
             throw new Error('E_NATIVE_FINISH_SESSION_CHANGED: 기록 생산자가 바뀌었습니다.');};
           host = new LogicalActionInput({ session, channels, initialHeld:binding.initial_held, actionMap, maxEvents, valueChannels:typed?binding.channels:null,nextMadi:nativeSummary?1:0,
-            finishBarrier:!typed&&authoredSource?createNativeLogicalFinishBarrier({authored:authoredSource,binding,unchanged:finishUnchanged,onCheckpoint:onNativeCheckpoint,
+            finishBarrier:!typed&&authoredSource?createNativeLogicalFinishBarrier({authored:authoredSource,binding,unchanged:finishUnchanged,onCheckpoint:onNativeCheckpoint,checkpointMatches,
               onProgress:message=>{finishUnchanged();field('feedback').textContent=message;}}):null });
           renderValueControls(binding);
           host.attach(inputRegion ?? field('region'), { controls: [...playbackControls,...viewControls,
@@ -511,7 +519,11 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
           ||host?.events.length||host?.inFlight||JSON.stringify(host?.held)!==held)
           throw new Error('E_PROJECT_RUNTIME_CHANGED: 저장 중 입력이나 실행이 바뀌었습니다.');
       };
-      return {unchanged:requireCurrent,async export(parent,revision){
+      return {unchanged:requireCurrent,rememberNativeCheckpoint(value){
+        requireCurrent();
+        if(value?.kind!=='native_logical_world'||!value.summary)throw new Error('E_NATIVE_SOURCE_LOGICAL_SAVE_MISMATCH');
+        nativeCheckpointSummary=stableCheckpoint(value.summary);
+      },async export(parent,revision){
         requireCurrent();const artifact=await retained.exportSavedProjectArtifact(parent,revision);requireCurrent();
         const checkpoint=await retained.exportProjectCheckpoint(parent,revision);requireCurrent();
         return {artifact,checkpoint};
@@ -569,7 +581,7 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
           throw new Error('E_PROJECT_RUNTIME_LOGICAL: 완료된 마디와 실제 입력이 필요합니다.');
         const nextHost=new LogicalActionInput({session:candidate,channels:binding.channels,initialHeld:last.held,
           actionMap:JSON.parse(selectedActions),maxEvents:Number(selectedCapacity),nextMadi:summary.madi_count,
-          finishBarrier:createNativeLogicalFinishBarrier({authored:selectedAuthored,binding,onCheckpoint:onNativeCheckpoint,
+          finishBarrier:createNativeLogicalFinishBarrier({authored:selectedAuthored,binding,onCheckpoint:onNativeCheckpoint,checkpointMatches,
             onProgress:message=>{if(session===candidate&&host===nextHost)field('feedback').textContent=message;},unchanged:()=>{
             unchanged();if(session!==candidate||host!==nextHost)
               throw new Error('E_NATIVE_FINISH_SESSION_CHANGED: 다시 연 기록 생산자가 바뀌었습니다.');
@@ -587,6 +599,7 @@ export function installLogicalInputPanel({ parent, readSource, readAuthoredProje
           const old=session;host?.detach?.();pause();generation++;
           source=selectedSource;authoredSource=selectedAuthored;bindingJson=selectedBinding;
           actionsJson=selectedActions;capacityText=selectedCapacity;session=candidate;host=nextHost;
+          nativeCheckpointSummary=nativeSummary?stableCheckpoint(summary):null;
           renderValueControls(binding);show(displaySummary);onStateChange();
           return old?.close();
         }};

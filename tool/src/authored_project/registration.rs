@@ -140,7 +140,7 @@ impl RegistrationDraft {
     pub(crate) fn bind_resolved_program(&self,owned:&Project,program:&mut ddonirang_lang::CanonProgram)->Result<(),String> {
         let source=resolved_supply::Source::saved(&owned.precanon_view());
         if let Some(catalog)=self.resolved.as_deref() {
-            let checked=resolved_supply::ResolvedCatalog::restore(&source,self,catalog.bytes())?;
+            let checked=catalog.recheck(&source,self)?;
             checked.bind_program(&source,program)?;
         } else if resolved_supply::requires_resolved_program(program) {
             return Err("E_RESOLVED_SUPPLY_CATALOG_REQUIRED: 실행 원문의 검증된 등록 자료가 없습니다".into());
@@ -149,13 +149,25 @@ impl RegistrationDraft {
     }
     fn attach_resolved(&mut self,source:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,
         previous:Option<&RegistrationDraft>,entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>)->Result<(),String> {
+        self.attach_resolved_selected(source,previous,None,entropy)
+    }
+    fn attach_resolved_selected(&mut self,source:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,
+        previous:Option<&RegistrationDraft>,first:Option<&crate::authored_project::FirstCallableAuthoredContext>,
+        entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>)->Result<(),String> {
         let view=resolved_supply::Source::saved(source);
-        if !resolved_supply::ResolvedCatalog::needed(&view)? {return Ok(());}
+        if let Some(first)=first {resolved_supply::ResolvedCatalog::validate_first_callable(&view,first)?;}
+        if first.is_none()&&!resolved_supply::ResolvedCatalog::needed(&view)? {return Ok(());}
         let resolved=if let Some(old)=previous.and_then(|old|old.resolved.as_deref()) {
             // Unchanged source retains IDs. An unproved successor is refused,
             // never repaired by entropy or a spelling-based transfer.
-            resolved_supply::ResolvedCatalog::restore(&view,self,old.bytes())?
-        } else {resolved_supply::ResolvedCatalog::issue(&view,self,entropy)?};
+            match first {
+                Some(first)=>resolved_supply::ResolvedCatalog::restore_first_callable(&view,self,first,old.bytes())?,
+                None=>resolved_supply::ResolvedCatalog::restore(&view,self,old.bytes())?,
+            }
+        } else {match first {
+            Some(first)=>resolved_supply::ResolvedCatalog::issue_first_callable(&view,self,first,entropy)?,
+            None=>resolved_supply::ResolvedCatalog::issue(&view,self,entropy)?,
+        }};
         if self.artifacts.iter().any(|blob|blob.path==resolved_supply::RESOLVED_PATH)
             ||source.project().source_snapshot.files.iter().any(|file|file.path.eq_ignore_ascii_case(resolved_supply::RESOLVED_PATH)) {
             return Err(fail("고름씨 등록 자료 경로가 중복됩니다"));
@@ -180,7 +192,7 @@ impl RegistrationDraft {
         let source=resolved_supply::Source::saved(source);
         match self.resolved.as_deref() {
             Some(resolved)=>{
-                let checked=resolved_supply::ResolvedCatalog::restore(&source,self,resolved.bytes())?;
+                let checked=resolved.recheck(&source,self)?;
                 Ok(Some((checked.checked_canon(&source,self)?,checked.bytes().into(),resolved_supply::builtin_manifest_bytes()?)))
             },
             None if resolved_supply::ResolvedCatalog::needed(&source)?=>Err("E_RESOLVED_SUPPLY_CATALOG_REQUIRED: 원문 등록 자료가 없습니다".into()),
@@ -488,6 +500,47 @@ pub(super) fn prepare_precanon_under_candidate_owner(
 )->Result<RegistrationDraft,String> {
     let mut draft=prepare_from_source_view(&SavedRegistrationSource::precanon(owned),previous,entropy)?;
     draft.attach_resolved(owned,previous,entropy)?;Ok(draft)
+}
+/// Explicit source-owner entry only. The complete first-callable context is
+/// verified before any entropy; ordinary v1/v2 producers remain unchanged.
+/// Read-only facts rebuilt by the original registration owner, never a serde
+/// success handle or a new PURE-provider/identity family.
+#[derive(Clone,Debug)]
+pub(super) struct FirstCallableExportFacts {
+    pub module:String,pub capture:String,pub definition:String,
+    pub pins:[(String,String,String);2],pub result_type:String,
+}
+impl RegistrationDraft {
+    pub(super) fn checked_first_callable_export(&self,owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,
+        first:&crate::authored_project::FirstCallableAuthoredContext)->Result<FirstCallableExportFacts,String>{
+        self.verify_precanon_binding(owned)?;
+        self.resolved.as_deref().ok_or("E_DDL_ORIGINAL_G1_CATALOG_REQUIRED")?
+            .checked_first_callable_export(&resolved_supply::Source::saved(owned),self,first)
+    }
+}
+
+pub(super) fn prepare_first_callable_under_candidate_owner(
+    owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,
+    first:&crate::authored_project::FirstCallableAuthoredContext,previous:Option<&RegistrationDraft>,
+    entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>,
+)->Result<RegistrationDraft,String> {
+    resolved_supply::ResolvedCatalog::validate_first_callable(&resolved_supply::Source::saved(owned),first)?;
+    let mut draft=prepare_from_source_view(&SavedRegistrationSource::precanon(owned),previous,entropy)?;
+    draft.attach_resolved_selected(owned,previous,Some(first),entropy)?;Ok(draft)
+}
+/// Cold recorded readback never calls the issuer. The caller must reconstruct
+/// the actual source context; a JSON selection flag cannot supply it.
+pub(super) fn restore_precanon_first_callable_candidate(
+    owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,
+    first:&crate::authored_project::FirstCallableAuthoredContext,records:Vec<RecordedRegistrationBlob>,
+)->Result<RegistrationDraft,String> {
+    let view=resolved_supply::Source::saved(owned);
+    resolved_supply::ResolvedCatalog::validate_first_callable(&view,first)?;
+    let mut draft=restore_recorded_candidate_parts(owned.project(),owned.sources(),records)?;
+    let rows=draft.artifacts.iter().filter(|row|row.role==Some(resolved_supply::RESOLVED_ROLE)).collect::<Vec<_>>();
+    if rows.len()!=1||rows[0].path!=resolved_supply::RESOLVED_PATH {return Err(fail("선택 함수의 기록 catalog가 누락·중복됐습니다"));}
+    let resolved=resolved_supply::ResolvedCatalog::restore_first_callable(&view,&draft,first,rows[0].bytes())?;
+    draft.resolved=Some(std::sync::Arc::new(resolved));Ok(draft)
 }
 pub(super) fn requires_resolved_program(program:&ddonirang_lang::CanonProgram)->bool {
     resolved_supply::requires_resolved_program(program)

@@ -1,0 +1,79 @@
+[
+  {
+    "id": "source-0001",
+    "bytes": 1005241,
+    "sha256": "99d9da51acac2bbdc3b01aa239e0012b1696a83a02b8523a4e9f2e0d1a43f3de",
+    "visibility": "SOURCE_CONTENT_NOT_INCLUDED_IN_PUBLIC_PROJECTION",
+    "logical_source": "SSOT_DECISIONS_v25.151.0.md"
+  },
+  {
+    "id": "source-0002",
+    "bytes": 515285,
+    "sha256": "c2404e482746cb37305ab0b169c83664f24ca949ea96891c172c53af15827487",
+    "visibility": "SOURCE_CONTENT_NOT_INCLUDED_IN_PUBLIC_PROJECTION",
+    "logical_source": "DECISION_INPUT_DISPOSITION_REGISTRY_v25.148.0.md"
+  },
+  {
+    "id": "source-0003",
+    "bytes": 23869,
+    "sha256": "f4ea7f9493da4d0b1420a05b82bc0aefd7ba9899fa9358f215f7870d3b1c2d9b",
+    "visibility": "SOURCE_CONTENT_NOT_INCLUDED_IN_PUBLIC_PROJECTION",
+    "logical_source": "또니랑_화살표동등성_후속교정과_저장복구_정본영향_R1_20261021.md"
+  },
+  {
+    "id": "source-0004",
+    "bytes": 16944,
+    "sha256": "3726a1fd63982f695a225699e2e6a9392704a44b713c8b0d59f4dbf4d7b80383",
+    "visibility": "SOURCE_CONTENT_NOT_INCLUDED_IN_PUBLIC_PROJECTION",
+    "logical_source": "이름가림_명명규칙대조_통합교정_후보_R1_1_20261022.md"
+  },
+  {
+    "id": "source-0005",
+    "bytes": 24261,
+    "sha256": "c9f04da129820255d2af02603210e0bb13a3923ba95c207e4bede9aaccec3d72",
+    "visibility": "SOURCE_CONTENT_NOT_INCLUDED_IN_PUBLIC_PROJECTION",
+    "logical_source": "일반호출표면_이름가림_RD173연결_전체계약_후보_R2_20261022.md"
+  },
+  {
+    "id": "source-0006",
+    "bytes": 29326,
+    "sha256": "40dc45377c288a45075fb3db46cb02f0dd367ce6733ee1ca2463c22448d22472",
+    "visibility": "SOURCE_CONTENT_NOT_INCLUDED_IN_PUBLIC_PROJECTION",
+    "logical_source": "일본어_첫범위_R11_JSON비편집_채택범위와_개발순서_완료기준_R1_2_20261025.md"
+  },
+  {
+    "id": "source-0007",
+    "bytes": 30930,
+    "sha256": "accd072a9d522d64b08894f8cdf469ec8772545bc175ca81a8f052f59631fe7e",
+    "visibility": "SOURCE_CONTENT_NOT_INCLUDED_IN_PUBLIC_PROJECTION",
+    "logical_source": "일본어_세금_DDL_완전작성사례_후보_R3.1_20261025.md"
+  },
+  {
+    "id": "source-0008",
+    "bytes": 13684,
+    "sha256": "89323e494fe70db5b9a8636be690e805c54dfae080837d126ed0ce5659862572",
+    "visibility": "SOURCE_CONTENT_NOT_INCLUDED_IN_PUBLIC_PROJECTION",
+    "logical_source": "한국어_세금원본_공개선언_정체공급요구_후보_R1.1_20261024.md"
+  },
+  {
+    "id": "source-0009",
+    "bytes": 2309,
+    "sha256": "b8375f0b9609820ca67834276447fed0c3a503522abd0776042971b93ef26fbe",
+    "visibility": "SOURCE_CONTENT_NOT_INCLUDED_IN_PUBLIC_PROJECTION",
+    "logical_source": "OWNER_ADOPTION_AND_REFUND_MEANING_20261021.json"
+  },
+  {
+    "id": "source-0010",
+    "bytes": 6121,
+    "sha256": "e3a06384a5a89193cd8d1abd305f51ff9891063ffcf4f8abbd5fe84fb3484318",
+    "visibility": "SOURCE_CONTENT_NOT_INCLUDED_IN_PUBLIC_PROJECTION",
+    "logical_source": "REVIEW_DECLARED_SELF_FAILURE_BOUNDARY_R1_1_DELTA_20261021.md"
+  },
+  {
+    "id": "source-0011",
+    "bytes": 27662,
+    "sha256": "70f253c346c8e2dca804842a8966af17b8259e7caef65f494b7cd0e2faec6aed",
+    "visibility": "SOURCE_CONTENT_NOT_INCLUDED_IN_PUBLIC_PROJECTION",
+    "logical_source": "선언된나_실패값과_실행경계_연결대조_보완후보_R1_1_20261021.md"
+  }
+]

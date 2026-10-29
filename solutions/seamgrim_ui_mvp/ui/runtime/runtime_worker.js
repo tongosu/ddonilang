@@ -18,7 +18,9 @@ const logicalOperations = new Map([
 const sessionOperations = new Set(["updateLogic", "reset", "getStateJson", "step", "setParam", "exportSavedProjectArtifact", "saveNativeCheckpoint", "close"]);
 const adapterOperations = new Set([
   "authoredProjectOperation",
+  "observeMathNotebook",
   "compareGeneralOriginalRecording",
+  "verifyAssumptionSource",
   "canonMaegimPlan", "sourceAnalysis", "moduleDirectiveAnalysis", "sharedCompletion",
   "runSummaryWithSourceProfile", "planGajiExtraction", "projectSourceSha256",
   "exportInputTapeV1", "runSummaryWithTapeV1",

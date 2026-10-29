@@ -897,14 +897,7 @@ impl Parser {
                 .map(|arg| arg.span)
                 .unwrap_or(first_expr.span)
                 .merge(&func_span);
-            return Ok(Expr::new(
-                self.next_id(),
-                span,
-                ExprKind::Call {
-                    args,
-                    func: func_name,
-                },
-            ));
+            return Ok(self.parsed_source_call(span,args,func_name,func_span));
         }
 
         self.pos = checkpoint;
@@ -913,7 +906,40 @@ impl Parser {
 
     pub(super) fn parse_call_arg(&mut self) -> Result<ArgBinding, ParseError> {
         if self.check_ident() && self.peek_is_equals() {
-            let pin = self.expect_ident("핀")?.raw.clone();
+            // Only the owning parenthesized coordinate helper has this adopted
+            // label. Nested calls cannot inherit the outer call's exception.
+            // This admits syntax only; elaboration still checks shadowing and
+            // issues the static binding independently.
+            let coordinate_input = self.current().raw == "입력" && {
+                let mut nesting = Vec::new();
+                let mut accepted = false;
+                for (offset, token) in self.tokens[self.pos..].iter().enumerate() {
+                    match token.kind {
+                        TokenKind::LParen => nesting.push(0),
+                        TokenKind::LBracket => nesting.push(1),
+                        TokenKind::LBrace => nesting.push(2),
+                        TokenKind::RParen if nesting.is_empty() => {
+                            let name_pos = self.pos + offset + 1;
+                            let qualified = self.tokens.get(name_pos..name_pos + 3)
+                                .is_some_and(|tail| matches!(tail[1].kind, TokenKind::Dot)
+                                    && tail[0].span.end == tail[1].span.start
+                                    && tail[1].span.end == tail[2].span.start
+                                    && matches!(tail[2].kind, TokenKind::Ident(_) | TokenKind::Josa(_)));
+                            accepted = !qualified && self.tokens.get(name_pos)
+                                .is_some_and(|next| next.raw == "좌표합성가정짜임"
+                                    && matches!(next.kind, TokenKind::Ident(_)));
+                            break;
+                        }
+                        TokenKind::RParen => { if nesting.pop() != Some(0) { break; } }
+                        TokenKind::RBracket => { if nesting.pop() != Some(1) { break; } }
+                        TokenKind::RBrace => { if nesting.pop() != Some(2) { break; } }
+                        _ => {}
+                    }
+                }
+                accepted
+            };
+            let pin = if coordinate_input { self.advance().raw }
+                else { self.expect_ident("핀")?.raw.clone() };
             self.expect(&TokenKind::Equals, "=")?;
             let arg_expr = self.parse_expr()?;
             let suffix = self.parse_arg_suffix()?;

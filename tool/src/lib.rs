@@ -31,6 +31,7 @@ pub mod repl_workflow;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod replay_diff;
 pub mod ddn_runtime;
+pub mod math_notebook;
 pub mod result_place;
 pub mod deterministic_debug;
 #[cfg(not(target_arch = "wasm32"))]
@@ -94,7 +95,6 @@ pub mod gateway_workflow;
 pub mod imitation_workflow;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod infer_workflow;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod proof_workflow;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod reward_workflow;

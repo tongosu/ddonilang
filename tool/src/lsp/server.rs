@@ -1,4 +1,4 @@
-use super::definition::DefinitionError;
+use super::definition::{DefinitionError, ProjectLookup, ProjectView, SiteLocation};
 use super::diagnostics::{analyze_snapshot, DiagnosticError, DiagnosticReport, SOURCE_PROFILE_V25};
 use super::document_highlight::{document_highlights_snapshot, DocumentHighlightError};
 use super::document_store::{
@@ -435,61 +435,58 @@ impl LspServer {
             }
         }
         let encoding = self.position_encoding.ok_or(ServerError::NotInitialized)?;
-        let documents = self
-            .documents
-            .iter()
-            .map(|(_, document)| document)
-            .collect::<Vec<_>>();
-        let Some(symbol) =
-            resolve_symbol_across_documents(snapshot, position, encoding, &documents)
-                .map_err(ServerError::Definition)?
-        else {
-            return Ok(success_event(id, Value::Null));
-        };
-        let mut definitions = Vec::new();
-        for (target_uri, target) in self.documents.iter() {
-            for candidate in collect_document_symbols(target).map_err(ServerError::Definition)? {
-                if candidate.identity != symbol.identity {
-                    continue;
-                }
-                let source = target.text().map_err(ServerError::Document)?;
-                let range = super::position::byte_range_to_lsp_range(
-                    source,
-                    candidate.selection_range,
-                    encoding,
-                )
-                .map_err(|error| {
-                    ServerError::InvalidParams(format!(
-                        "definition range가 잘못되었습니다: {error}"
-                    ))
-                })?;
-                definitions.push((
-                    target_uri.to_string(),
-                    range,
-                    candidate.document_version,
-                    candidate.snapshot_identity,
-                    candidate.source_profile,
+        match self.project_lookup(snapshot) {
+            ProjectLookup::NotMember => {}
+            ProjectLookup::Ambiguous => return Ok(success_event(id, Value::Null)),
+            ProjectLookup::Member(view) => {
+                // A project member: the common project binding only, which
+                // may lead into another file of the same project.
+                let offset = request_offset(snapshot, position, encoding)
+                    .map_err(ServerError::Definition)?;
+                let Ok(target) = view.target_at(offset) else {
+                    return Ok(success_event(id, Value::Null));
+                };
+                let Some(location) = view.location(target.definition()) else {
+                    return Ok(success_event(id, Value::Null));
+                };
+                return Ok(success_event(
+                    id,
+                    json!({
+                        "uri": location.uri,
+                        "range": site_range_value(&location, encoding)?,
+                        "data": {
+                            "definitionIdentity": ProjectView::identity(target.definition()),
+                            "documentVersion": snapshot.version,
+                            "snapshotIdentity": snapshot.identity.as_str(),
+                            "sourceProfile": super::definition::SOURCE_PROFILE_V25,
+                        },
+                    }),
                 ));
             }
         }
-        if definitions.len() != 1 {
+        // Only an exactly bound name of this document revision; never another
+        // file chosen by spelling.
+        let Some(result) = super::definition::definition_snapshot(snapshot, position, encoding)
+            .map_err(ServerError::Definition)?
+        else {
             return Ok(success_event(id, Value::Null));
-        }
-        let (target_uri, range, document_version, snapshot_identity, source_profile) =
-            definitions.pop().expect("definition count checked");
+        };
+        let source = snapshot.text().map_err(ServerError::Document)?;
+        let range = super::position::byte_range_to_lsp_range(source, result.range, encoding)
+            .map_err(|error| ServerError::InvalidParams(format!("definition range가 잘못되었습니다: {error}")))?;
         Ok(success_event(
             id,
             json!({
-                "uri": target_uri,
+                "uri": snapshot.uri,
                 "range": {
                     "start": {"line": range.start.line, "character": range.start.character},
                     "end": {"line": range.end.line, "character": range.end.character},
                 },
                 "data": {
-                    "definitionIdentity": symbol.identity,
-                    "documentVersion": document_version,
-                    "snapshotIdentity": snapshot_identity,
-                    "sourceProfile": source_profile,
+                    "definitionIdentity": result.identity,
+                    "documentVersion": result.document_version,
+                    "snapshotIdentity": result.snapshot_identity,
+                    "sourceProfile": result.source_profile,
                 },
             }),
         ))
@@ -979,52 +976,35 @@ impl LspServer {
             }
         }
         let encoding = self.position_encoding.ok_or(ServerError::NotInitialized)?;
-        let documents = self
-            .documents
-            .iter()
-            .map(|(_, document)| document)
-            .collect::<Vec<_>>();
-        let Some(symbol) =
-            resolve_symbol_across_documents(snapshot, position, encoding, &documents)
-                .map_err(ServerError::References)?
-        else {
-            return Ok(success_event(id, json!([])));
-        };
-        let mut definition_count = 0;
-        for document in &documents {
-            definition_count += collect_document_symbols(document)
-                .map_err(ServerError::References)?
-                .into_iter()
-                .filter(|candidate| candidate.identity == symbol.identity)
-                .count();
-        }
-        if !symbol.identity.starts_with("definition:local:") || definition_count != 1 {
-            return Ok(success_event(id, json!([])));
-        }
-        let mut locations = Vec::new();
-        for (target_uri, target) in self.documents.iter() {
-            let ranges = collect_local_references_for_identity(
-                target,
-                &symbol.identity,
-                include_declaration,
-            )
-            .map_err(ServerError::References)?;
-            let source = target.text().map_err(ServerError::Document)?;
-            for range in ranges {
-                let range = super::position::byte_range_to_lsp_range(source, range, encoding)
-                    .map_err(|error| {
-                        ServerError::InvalidParams(format!(
-                            "references range가 잘못되었습니다: {error}"
-                        ))
-                    })?;
-                locations.push(json!({
-                    "uri": target_uri,
-                    "range": {
-                        "start": {"line": range.start.line, "character": range.start.character},
-                        "end": {"line": range.end.line, "character": range.end.character},
-                    },
-                }));
+        match self.project_lookup(snapshot) {
+            ProjectLookup::NotMember => {}
+            ProjectLookup::Ambiguous => return Ok(success_event(id, json!([]))),
+            ProjectLookup::Member(view) => {
+                let offset = request_offset(snapshot, position, encoding)
+                    .map_err(ServerError::References)?;
+                let locations = super::references::project_references(&view, offset, include_declaration)
+                    .iter()
+                    .map(|location| {
+                        Ok(json!({"uri": location.uri, "range": site_range_value(location, encoding)?}))
+                    })
+                    .collect::<Result<Vec<_>, ServerError>>()?;
+                return Ok(success_event(id, json!(locations)));
             }
+        }
+        let ranges = super::references::references_snapshot(snapshot, position, encoding, include_declaration)
+            .map_err(ServerError::References)?;
+        let source = snapshot.text().map_err(ServerError::Document)?;
+        let mut locations = Vec::new();
+        for range in ranges {
+            let range = super::position::byte_range_to_lsp_range(source, range, encoding)
+                .map_err(|error| ServerError::InvalidParams(format!("references range가 잘못되었습니다: {error}")))?;
+            locations.push(json!({
+                "uri": snapshot.uri,
+                "range": {
+                    "start": {"line": range.start.line, "character": range.start.character},
+                    "end": {"line": range.end.line, "character": range.end.character},
+                },
+            }));
         }
         Ok(success_event(id, json!(locations)))
     }
@@ -1391,9 +1371,17 @@ impl LspServer {
             }
         }
         let encoding = self.position_encoding.ok_or(ServerError::NotInitialized)?;
-        let Some(result) = document_highlights_snapshot(snapshot, position, encoding)
-            .map_err(ServerError::DocumentHighlights)?
-        else {
+        let result = match self.project_lookup(snapshot) {
+            ProjectLookup::NotMember => document_highlights_snapshot(snapshot, position, encoding)
+                .map_err(ServerError::DocumentHighlights)?,
+            ProjectLookup::Ambiguous => None,
+            ProjectLookup::Member(view) => {
+                let offset = request_offset(snapshot, position, encoding)
+                    .map_err(ServerError::DocumentHighlights)?;
+                super::document_highlight::project_document_highlights(&view, snapshot, offset)
+            }
+        };
+        let Some(result) = result else {
             return Ok(success_event(id, json!([])));
         };
         let source = snapshot.text().map_err(ServerError::Document)?;
@@ -1430,7 +1418,12 @@ impl LspServer {
             Err(event) => return Ok(event),
         };
         let encoding = self.position_encoding.ok_or(ServerError::NotInitialized)?;
-        match super::rename::prepare_rename(&snapshot, offset) {
+        let prepared = match self.project_lookup(&snapshot) {
+            ProjectLookup::NotMember => super::rename::prepare_rename(&snapshot, offset),
+            ProjectLookup::Ambiguous => Err(ambiguous_project_refusal()),
+            ProjectLookup::Member(view) => super::rename::prepare_project_rename(&view, offset),
+        };
+        match prepared {
             Ok(target) => {
                 let source = snapshot.text().map_err(ServerError::Document)?;
                 let range = byte_range_value(source, target.range, encoding)?;
@@ -1452,6 +1445,11 @@ impl LspServer {
             Err(event) => return Ok(event),
         };
         let encoding = self.position_encoding.ok_or(ServerError::NotInitialized)?;
+        let planned = match self.project_lookup(&snapshot) {
+            ProjectLookup::NotMember => None,
+            ProjectLookup::Ambiguous => Some(Err(ambiguous_project_refusal())),
+            ProjectLookup::Member(view) => Some(super::rename::plan_project_rename(&view, offset, &new_name)),
+        };
         let others: Vec<String> = self
             .documents
             .iter()
@@ -1459,7 +1457,11 @@ impl LspServer {
             .filter_map(|(_, document)| document.text().ok().map(str::to_string))
             .collect();
         let other_refs: Vec<&str> = others.iter().map(String::as_str).collect();
-        match super::rename::plan_rename(&snapshot, offset, &new_name, &other_refs) {
+        let planned = match planned {
+            Some(planned) => planned,
+            None => super::rename::plan_rename(&snapshot, offset, &new_name, &other_refs),
+        };
+        match planned {
             Ok(plan) => {
                 let source = snapshot.text().map_err(ServerError::Document)?;
                 let edits = plan
@@ -1480,6 +1482,18 @@ impl LspServer {
             }
             Err(refusal) => Ok(rename_refused_event(id, refusal)),
         }
+    }
+
+    /// The project that declares this document, bound with every open document.
+    fn project_lookup(&self, snapshot: &super::document_store::DocumentSnapshot) -> ProjectLookup {
+        let open: Vec<(&str, &str, &str)> = self
+            .documents
+            .iter()
+            .filter_map(|(uri, document)| {
+                document.text().ok().map(|text| (uri, document.language_id.as_str(), text))
+            })
+            .collect();
+        super::definition::project_lookup(snapshot, &open)
     }
 
     /// The open snapshot and byte offset of a rename request, or the response
@@ -2461,6 +2475,31 @@ fn parse_position(value: &Value) -> Result<LspPosition, ServerError> {
 
 fn request_key(id: &Value) -> String {
     id.to_string()
+}
+
+fn request_offset(
+    snapshot: &super::document_store::DocumentSnapshot,
+    position: LspPosition,
+    encoding: PositionEncoding,
+) -> Result<usize, super::symbol::SymbolError> {
+    let source = snapshot.text().map_err(|_| super::symbol::SymbolError::InvalidUtf8)?;
+    super::position::position_to_byte_offset(source, position, encoding)
+        .map_err(super::symbol::SymbolError::InvalidPosition)
+}
+
+fn site_range_value(location: &SiteLocation, encoding: PositionEncoding) -> Result<Value, ServerError> {
+    let range = super::position::byte_range_to_lsp_range(&location.source, location.range, encoding)
+        .map_err(|error| ServerError::InvalidParams(format!("project range가 잘못되었습니다: {error}")))?;
+    Ok(json!({
+        "start": {"line": range.start.line, "character": range.start.character},
+        "end": {"line": range.end.line, "character": range.end.character},
+    }))
+}
+
+fn ambiguous_project_refusal() -> super::rename::RenameRefusal {
+    super::rename::RenameRefusal(
+        "이름을 바꿀 수 없습니다: 이 문서를 선언한 얽음 뿌리가 둘 이상 열려 있습니다.".into(),
+    )
 }
 
 /// A refused rename: LSP RequestFailed, whose message the client shows.

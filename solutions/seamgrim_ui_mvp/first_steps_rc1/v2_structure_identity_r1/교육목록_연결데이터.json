@@ -1,0 +1,40 @@
+{
+  "not_a_product_schema": true,
+  "activation": "CLI_AND_NODE_SUPPORTED_BROWSER_INTEGRATION_PENDING",
+  "prefix": "first_steps_rc1/v2_structure_identity_r1/",
+  "examples": [
+    {
+      "id": "v2_structure_identity_7",
+      "title": "정의와 근거를 읽기",
+      "student_doc": "학생용.html#definition",
+      "teacher_doc": "교사용.html",
+      "source": "원문/01_실제7.ddn",
+      "expected": [
+        "7"
+      ],
+      "frontdoors": [
+        "CLI",
+        "Node_WASM"
+      ],
+      "browser": "NOT_RUN"
+    },
+    {
+      "id": "v2_structure_identity_other",
+      "title": "상수7과 항등을 구별하기",
+      "student_doc": "학생용.html#counterexample",
+      "teacher_doc": "교사용.html",
+      "source": "원문/02_실제다른값.ddn",
+      "expected": [
+        "23",
+        "-2"
+      ],
+      "frontdoors": [
+        "CLI",
+        "Node_WASM"
+      ],
+      "browser": "NOT_RUN"
+    }
+  ],
+  "native_root_entry": "NOT_SUPPLIED_FOR_THIS_LESSON",
+  "proof_storage": "NOT_CLAIMED"
+}

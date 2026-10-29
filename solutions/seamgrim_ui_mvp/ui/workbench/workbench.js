@@ -1,4 +1,11 @@
+import { displayMessage } from './display_locale.js';
+import { installMultilangHost } from './multilang/host.js';
+import { installProofSourceInspection } from "./proof_source_inspection.js";
+import { installNotebookHost } from './notebook_host.js';
+import { createUniformMotionProvider } from './notebook/uniform_motion.js';
+let notebookHost = null;
 import { createGajiController } from "./gaji_controller.js";
+import { prepareAuthoredGajiDraft } from "./authored_gaji_draft.js";
 import { createEditorPresentation } from "./editor_presentation.js";
 import { createApprovedWorkbenchApi } from "./approved_workbench_api.js";
 import { createProjectMetadata } from "./project_metadata.js";
@@ -179,6 +186,10 @@ import {
 } from "./project_control_model.js";
 
 const runtimeBridge = createRuntimeBridgeV1();
+const proofSourceInspection = installProofSourceInspection({
+  runtimeBridge,
+  readSource: () => ({projectId: currentProject().id, path: activeFile().path, sourceText: state.fileTexts.get(activeFile().path) ?? ""}),
+});
 const hostBridge = createHostBridgeV1();
 
 const { PROJECTS, FALLBACK_PENDULUM_DDN, FALLBACK_PROJECTILE_DDN } = createWorkbenchProjectCatalog({ SOURCE_ANALYSIS_PROFILE_IDENTITY, FIRST_STEPS_PROJECTS, FIRST_STEPS_ALPHA3_PROJECTS, FIRST_STEPS_ALPHA4_PROJECTS });
@@ -343,6 +354,7 @@ const state = {
   lastPortableExport: null,
   pendingPortableImport: null,
   projectEditUndo: [],
+  projectEditGeneration: 0,
   pendingProjectEdit: null,
   projectGraph: null,
   portableMetadataDraft: null,
@@ -730,7 +742,7 @@ const { inferContentKinds, inferSubject, defaultPortableMetadata, trimPortableTe
 
 const { displayedProjectTitle, renderGlobalNav, setProjectRailOpen, readMyWorkIndex, writeMyWorkIndex, rememberMyWorkProject, refreshMyWorkIndex, renderMyWork, appendMyWorkRow, renderProjects, renderFileTabs } = createProjectNavigation({ state, els, MY_WORK_INDEX_KEY, localProjectEntryPath, currentProject, openServerProject, readPortableProjectCatalog, projectLink, escapeHtml, projectsForGlobalEntry, includesFilter, DEFERRED_LESSONS, selectProject, selectFile });
 
-const { defaultOneFileDdnSource, readOneFileDraft, writeOneFileDraft, writePortableProjectCatalog, normalizePortableTextArray, localProjectTreePayloadFromSnapshot, projectRunLineageFromPayload, localProjectRunEvidenceFromProject, importedProjectRunEvidenceFromProject, gajiIdsFromLocalProjectPayload, filesFromLocalProjectPayload, portableProjectFromArtifact, loadPortableProjectCatalog, rememberPortableProject, buildOneFileProject, ddnQuotedText, nativeProjectFiles, buildNativeProject, createNativeProject, allProjects } = createWorkbenchProjectRegistry({ currentProject, FIRST_STEPS_PROJECTS, localProjectEntryPath, ONE_FILE_DDN_DRAFT_KEY, ONE_FILE_DDN_PROJECT_ID, PORTABLE_PROJECT_CATALOG_KEY, PROJECTS, pushDiagnostic, rememberMyWorkProject, renderAll, selectProject, selectUnversionedDocumentProfile, SOURCE_ANALYSIS_PROFILE_IDENTITY, stableCanonicalJson, stableHash, state, workbenchProjectRegistryState, writeNativeProjectCatalog, readPortableProjectCatalog });
+const { defaultOneFileDdnSource, readOneFileDraft, writeOneFileDraft, writePortableProjectCatalog, normalizePortableTextArray, localProjectTreePayloadFromSnapshot, projectRunLineageFromPayload, localProjectRunEvidenceFromProject, importedProjectRunEvidenceFromProject, gajiIdsFromLocalProjectPayload, filesFromLocalProjectPayload, portableProjectFromArtifact, loadPortableProjectCatalog, rememberPortableProject, buildOneFileProject, ddnQuotedText, nativeProjectFiles, buildNativeProject, createNativeProject, allProjects } = createWorkbenchProjectRegistry({ nativeSourceAvailable, currentProject, FIRST_STEPS_PROJECTS, localProjectEntryPath, ONE_FILE_DDN_DRAFT_KEY, ONE_FILE_DDN_PROJECT_ID, PORTABLE_PROJECT_CATALOG_KEY, PROJECTS, pushDiagnostic, rememberMyWorkProject, renderAll, selectProject, selectUnversionedDocumentProfile, SOURCE_ANALYSIS_PROFILE_IDENTITY, stableCanonicalJson, stableHash, state, workbenchProjectRegistryState, writeNativeProjectCatalog, readPortableProjectCatalog });
 
 function escapeHtml(value = "") {
   return String(value ?? "")
@@ -763,10 +775,10 @@ function updateProjectLink(node, { href = "", label = "" } = {}) {
 }
 
 const EXECUTION_CONTROL_BINDINGS = Object.freeze([
-  ["lifecycle-step", "canStep", "한 마디 앞으로", "최신 마디에서 멈춘 연속 실행만 한 마디 진행할 수 있습니다."],
-  ["lifecycle-stop", "canStop", "중지", "준비 중이거나 활성 상태인 실행이 없습니다."],
-  ["history-back", "canBack", "한 마디 뒤로 보기", "읽을 수 있는 이전 마디가 없습니다."],
-  ["history-branch", "canBranch", "현재 마디에서 갈라 이어가기", "갈라 이어갈 기록 마디가 없습니다."],
+  ["lifecycle-step", "canStep", "한 마디 앞으로", "최신 마디에서 멈춘 연속 실행만 한 마디 진행할 수 있습니다.", "step", "stepUnavailable"],
+  ["lifecycle-stop", "canStop", "중지", "준비 중이거나 활성 상태인 실행이 없습니다.", "stop", "stopUnavailable"],
+  ["history-back", "canBack", "한 마디 뒤로 보기", "읽을 수 있는 이전 마디가 없습니다.", "back", "backUnavailable"],
+  ["history-branch", "canBranch", "현재 마디에서 갈라 이어가기", "갈라 이어갈 기록 마디가 없습니다.", "branch", "branchUnavailable"],
 ]);
 
 function renderExecutionControls() {
@@ -774,7 +786,9 @@ function renderExecutionControls() {
   const primary = document.querySelector("[data-testid='lifecycle-run']");
   const changed = activeRunSourceChanged();
   const action = policy.canPause ? "pause" : policy.canResume && !changed ? "resume" : "start";
-  const label = action === "pause" ? "일시정지" : action === "resume" ? "재개" : changed && policy.canResume ? "수정본 실행" : "실행";
+  const locale = document.documentElement.dataset.displayLocale ?? 'ko';
+  const labelKey = action === "pause" ? "pause" : action === "resume" ? "resume" : changed && policy.canResume ? "runChanged" : "run";
+  const label = displayMessage(labelKey, locale).text;
   primary.textContent = action === "pause" ? "Ⅱ" : "▶";
   primary.dataset.action = action;
   primary.title = label;
@@ -786,7 +800,7 @@ function renderExecutionControls() {
   const bogaeEntryInput=document.querySelector('[data-testid="bogae-entry"]');
   if(bogaeEntryInput) bogaeEntryInput.disabled=blockConcurrentCommand || policy.canPause || policy.canResume;
   const stepInFlight = Boolean(state.livePump.inFlight);
-  for (const [testId, policyKey, label, unavailable] of EXECUTION_CONTROL_BINDINGS) {
+  for (const [testId, policyKey, label, unavailable, labelKey, reasonKey] of EXECUTION_CONTROL_BINDINGS) {
     const button = document.querySelector(`[data-testid='${testId}']`);
     if (!button) continue;
     const preparingStop = testId === "lifecycle-stop" && policy.status === EXECUTION_STATES.PREPARING;
@@ -798,8 +812,10 @@ function renderExecutionControls() {
     const reasonText = concurrentBlocked ? "이전 실행 명령이 완료되는 중입니다." : unavailable;
     button.disabled = !enabled;
     button.dataset.disabledReason = reasonCode;
-    button.title = enabled ? label : `${label}: ${reasonText}`;
-    button.setAttribute("aria-label", enabled ? label : `${label}, 사용 불가: ${reasonText}`);
+    const shownLabel = locale === 'ko' ? label : displayMessage(labelKey, locale).text;
+    const shownReason = locale === 'ko' ? reasonText : displayMessage(concurrentBlocked ? 'commandPending' : reasonKey, locale).text;
+    button.title = enabled ? shownLabel : `${shownLabel}: ${shownReason}`;
+    button.setAttribute("aria-label", enabled ? shownLabel : `${shownLabel}, ${displayMessage('disabled', locale).text}: ${shownReason}`);
   }
   els.root.dataset.executionState = policy.status;
   els.root.dataset.executionMode = policy.mode;
@@ -808,7 +824,7 @@ function renderExecutionControls() {
     const logical = workbenchLogicalPresentationState.logicalPanel.logicalExecution.status();
     primary.textContent = logical.running ? "Ⅱ" : "▶";
     primary.dataset.action = logical.running ? "pause" : logical.started && !logical.failed ? "resume" : "start";
-    primary.title = logical.running ? "일시정지" : logical.started && !logical.failed ? "재개" : "논리 입력 실행";
+    primary.title = displayMessage(logical.running ? 'pause' : logical.started && !logical.failed ? 'resume' : 'logicalRun', locale).text;
     primary.setAttribute("aria-label", primary.title);
     primary.disabled = logical.busy || state.runtimeBusy || state.sourceAnalysisInFlight;
     for (const id of ["lifecycle-step","lifecycle-stop"]) {
@@ -820,7 +836,7 @@ function renderExecutionControls() {
     els.root.dataset.executionOwner = "logical_input";
     els.root.dataset.executionState = logical.running ? "running" : logical.started ? "paused" : "idle";
     const committed=currentLogicalPresentation()?.value;
-    els.runStatus.textContent=logical.failed ? '논리 입력 중단' : logical.running ? '논리 입력 실행 중' : committed ? '논리 입력 일시정지 · 기록 결과' : '논리 입력 준비';
+    els.runStatus.textContent=displayMessage(logical.failed ? 'logicalFailed' : logical.running ? 'logicalRunning' : committed ? 'logicalPaused' : 'logicalReady', locale).text;
     renderCurrentMadi(committed);
     els.runHash.textContent=`state_hash: ${committed?.state_hash ?? committed?.frame?.state_hash ?? '-'}`;
   } else {
@@ -831,6 +847,8 @@ function renderExecutionControls() {
     }
   }
 }
+
+document.addEventListener('ddn-display-locale-change', renderExecutionControls);
 
 function activeRunSourceChanged() {
   const run = activeRun();
@@ -1035,6 +1053,7 @@ function seedImportedProjectExecutionRecord(project = currentProject()) {
 }
 
 function markCurrentProjectExecutionStale(reason = "source_edit") {
+  notebookHost?.invalidate();
   const current = state.projectExecution?.current;
   if (!current) return;
   state.projectExecution.previousSuccess = {
@@ -1371,6 +1390,7 @@ function renderAll() {
   renderFileTabs(project);
   renderFileDrawer(project);
   renderSource(project);
+  proofSourceInspection.observe();
   renderMode();
   // Metadata below consumes semanticRenderModel. Derive it from this committed
   // frame before laying out its observations, then repaint at the final size.
@@ -1407,7 +1427,18 @@ async function selectProjectInputContract(project) {
   await workbenchLogicalPresentationState.logicalPanel.logicalExecution.selectContract({bindingJson,actionsJson,capacity:project.logicalInput.capacity,reveal:false});
 }
 
-async function selectProject(projectId, { preserveServerSession = false } = {}) {
+async function selectProject(projectId, { preserveServerSession = false, selectedFilePath = "" } = {}) {
+  // Only built-in lesson metadata may open a document. Imported projects do
+  // not obtain navigation behavior, and the active execution remains intact.
+  const documentLesson = FIRST_STEPS_PROJECTS.find(item => item.id === projectId && item.documentOnly === true);
+  if (documentLesson) {
+    const target = new URL(documentLesson.course.asset_root + documentLesson.course.student_doc, window.location.href);
+    if (target.origin !== window.location.origin) throw new Error("E_COURSE_DOCUMENT_ORIGIN");
+    window.open(target.href, "_blank", "noopener");
+    return;
+  }
+  state.projectEditGeneration += 1;
+  closeProjectEditDialog();
   closeCompletionPopup();
   runtimeBridge.cancelExecution("프로젝트를 바꿔 이전 실행을 중지했습니다.");
   workbenchHostExecutionState.hostStopNotice = "";
@@ -1427,22 +1458,26 @@ async function selectProject(projectId, { preserveServerSession = false } = {}) 
     } catch (archiveErr) {
       pushDiagnostic("E_RUN_ARCHIVE_FINALIZE_FAILED", String(archiveErr?.message ?? archiveErr), "error");
     }
+    notebookHost?.invalidate();
     state.projectId = project.id;
     clearDiagnostics();
     state.projectControlsGeneration += 1;
     state.projectControls = emptyProjectControlModel(project.id, "loading");
-    state.activeFilePath = localProjectEntryPath(project);
+    state.activeFilePath = project.files.some(file => file.path === selectedFilePath)
+      ? selectedFilePath : localProjectEntryPath(project);
     state.fileFilter = "";
     els.fileSearch.value = "";
     state.projectLoadError = "";
     if(project.nativeAuthoredFiles&&await nativeSourceAvailable()) {
       // Reuse the already authored project files verbatim. Do not wrap or
       // rewrite a one-file learner program in JavaScript.
+      const declaredSource=localProjectTreePayloadFromSnapshot(project.portableSnapshot ?? {});
       project.files=project.nativeAuthoredFiles;project.nativeSaveOnFirstUse=true;
       project.portableSnapshot={source_profile_identity:workbenchSourceProfile(project),local_package_payload:{
-        kind:'seamgrim.local_project_tree.v0',root_path:'root.ddn',entry_path:'main.ddn',
+        kind:'seamgrim.local_project_tree.v0',root_path:declaredSource?.root_path ?? 'root.ddn',entry_path:declaredSource?.entry_path ?? 'main.ddn',
         files:project.files.map(file=>({path:file.path,role:file.role}))}};
-      state.activeFilePath=localProjectEntryPath(project);
+      state.activeFilePath=project.files.some(file=>file.path===selectedFilePath)
+        ?selectedFilePath:localProjectEntryPath(project);
     }
     await loadProjectFiles(project);
     state.pendingRecipe = null;
@@ -1707,14 +1742,17 @@ els.fileList.addEventListener("click", (event) => {
   if (operation) requestProjectEdit(operation).catch(reportProjectEditError);
 });
 
-document.querySelector("[data-testid='project-edit-undo']")?.addEventListener("click", () => {
-  const previous = state.projectEditUndo.shift();
+document.querySelector("[data-testid='project-edit-undo']")?.addEventListener("click", async () => {
+  const index = state.projectEditUndo.findIndex((entry) => entry.projectId === state.projectId);
+  const previous = state.projectEditUndo[index];
   if (!previous) {
     pushDiagnostic("W_PROJECT_EDIT_UNDO_EMPTY", "되돌릴 구조 변경이 없습니다.");
     renderAll();
     return;
   }
-  applyVirtualProjectSource(previous, { rememberUndo: false });
+  try { await applyVirtualProjectSource(previous.source, { rememberUndo: false }); }
+  catch(error) { reportProjectEditError(error); return; }
+  state.projectEditUndo.splice(index, 1);
   pushDiagnostic("W_PROJECT_EDIT_UNDONE", "최근 구조 변경을 되돌렸습니다.");
   renderAll();
 });
@@ -1780,15 +1818,13 @@ els.sourceEditor.addEventListener("input", (event) => {
     };
   }
   refreshSourceReadiness(currentProject());
+  renderProjectMeta(currentProject());
   renderDiagnostics();
   renderSemanticObservations(currentProject());
   renderRunMetadata(currentProject());
   renderExecutionControls();
   drawPreview();
-  if (event.inputType !== "insertFromPaste") {
-    const generation = state.completionGeneration;
-    setTimeout(() => { if (generation === state.completionGeneration) requestCompletion(); }, 120);
-  }
+  // Suggestions are explicit only; ordinary edits never reopen the popup.
 });
 
 els.sourceEditor.addEventListener("blur", (event) => {
@@ -1797,10 +1833,38 @@ els.sourceEditor.addEventListener("blur", (event) => {
   if (!els.completionPopup?.contains(event.relatedTarget)) closeCompletionPopup();
 });
 
+els.sourceEditor.addEventListener("compositionstart", () => {
+  state.completionComposing = true;
+  closeCompletionPopup();
+});
+els.sourceEditor.addEventListener("compositionend", () => {
+  state.completionComposing = false;
+  closeCompletionPopup();
+});
+document.querySelector('[data-testid="completion-request"]').addEventListener("click", () => {
+  els.sourceEditor.focus();
+  requestCompletion();
+});
+els.sourceEditor.addEventListener("scroll", closeCompletionPopup);
+window.addEventListener("resize", closeCompletionPopup);
 els.sourceEditor.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
+  if (event.isComposing || event.keyCode === 229 || state.completionComposing) {
     closeCompletionPopup();
     return;
+  }
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && event.code === "Space") {
+    event.preventDefault();
+    requestCompletion();
+    return;
+  }
+  if (event.key === "Escape") {
+    if (!els.completionPopup?.hidden) event.preventDefault();
+    closeCompletionPopup();
+    return;
+  }
+  if (["Enter", "Tab"].includes(event.key) && !(event.ctrlKey || event.metaKey)) {
+    closeCompletionPopup();
+    return; // Preserve normal newline/focus; never accept a suggestion implicitly.
   }
   if (els.completionPopup?.hidden || !state.completionItems.length) return;
   if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -1809,11 +1873,10 @@ els.sourceEditor.addEventListener("keydown", (event) => {
     state.completionSelectedIndex = (state.completionSelectedIndex + delta + state.completionItems.length)
       % state.completionItems.length;
     renderCompletionPopup();
-  } else if (event.key === "Enter" || event.key === "Tab") {
+  } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
     event.preventDefault();
     selectCompletion();
-  } else if (event.key === "Escape") {
-    event.preventDefault();
+  } else if (["ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"].includes(event.key)) {
     closeCompletionPopup();
   }
 });
@@ -1923,19 +1986,34 @@ function projectEditDiagnostic(err) {
   return { code: "E_PROJECT_EDIT_FAILED", message: text };
 }
 
+function requireProjectEditContext(context) {
+  if (context.projectId !== state.projectId || context.generation !== state.projectEditGeneration
+      || context.sourceJson !== JSON.stringify(currentVirtualProjectSource())) {
+    throw new Error("E_PROJECT_EDIT_SOURCE_CONFLICT: 작품이나 원문이 바뀌어 구조 변경을 취소했습니다");
+  }
+}
+
 async function requestProjectEdit(operation) {
   const source = currentVirtualProjectSource();
   if (!source || !workbenchProjectRegistryState.nativeProjects.some((item) => item.id === state.projectId)) {
     throw new Error("네이티브 로컬 프로젝트에서만 구조를 편집할 수 있습니다");
   }
+  const context = {
+    projectId: state.projectId,
+    generation: ++state.projectEditGeneration,
+    sourceJson: JSON.stringify(source),
+  };
+  closeProjectEditDialog();
   const beforeHash = await runtimeBridge.projectSourceSha256(source);
+  requireProjectEditContext(context);
   const plan = await runtimeBridge.planProjectEdit({
     schema: "ddn.local_project_edit_plan.v1",
     source,
     operation,
     expected_source_sha256: beforeHash,
   });
-  state.pendingProjectEdit = plan;
+  requireProjectEditContext(context);
+  state.pendingProjectEdit = { ...context, plan };
   els.projectEditSummary.textContent = `${plan.operation} · 파일 ${plan.affected_files?.length ?? 0}개 · 참조 ${plan.affected_references?.length ?? 0}개 · lock ${plan.lock_stale ? "stale→적용 시 갱신" : "유지"}`;
   els.projectEditPreview.textContent = (plan.patches ?? []).map((patch) => (
     `${patch.path} [${patch.reason}]\n- ${patch.before || "(없음)"}\n+ ${patch.after || "(삭제)"}`
@@ -1945,13 +2023,24 @@ async function requestProjectEdit(operation) {
   return plan;
 }
 
-function applyVirtualProjectSource(source, { rememberUndo = true } = {}) {
-  const index = workbenchProjectRegistryState.nativeProjects.findIndex((item) => item.id === state.projectId);
-  if (index < 0) throw new Error("현재 네이티브 프로젝트를 찾지 못했습니다");
-  if (rememberUndo) {
-    state.projectEditUndo = [currentVirtualProjectSource(), ...state.projectEditUndo].filter(Boolean).slice(0, 10);
+async function applyVirtualProjectSource(source, { rememberUndo = true } = {}) {
+  const currentProjectValue=currentProject();
+  const authored=Boolean(currentProjectValue.authoredArtifact?.source_snapshot?.root_path);
+  const context={projectId:state.projectId,generation:state.projectEditGeneration,sourceJson:JSON.stringify(currentVirtualProjectSource())};
+  if(authored) {
+    source=await prepareAuthoredGajiDraft({artifact:currentProjectValue.authoredArtifact,source,bridge:runtimeBridge,
+      assertCurrent:()=>requireProjectEditContext(context)});
+    requireProjectEditContext(context);
   }
-  const current = workbenchProjectRegistryState.nativeProjects[index];
+  const projects=authored?workbenchProjectRegistryState.receivedPortableProjects:workbenchProjectRegistryState.nativeProjects;
+  const index=projects.findIndex(item=>item.id===state.projectId);
+  if(index<0)throw new Error("현재 편집할 프로젝트를 찾지 못했습니다");
+  if (rememberUndo) {
+    state.projectEditUndo = [{ projectId: state.projectId, source: currentVirtualProjectSource() }, ...state.projectEditUndo].slice(0, 10);
+  }
+  state.projectEditGeneration += 1;
+  closeProjectEditDialog();
+  const current = projects[index];
   const files = source.files.map((file) => ({ path: file.path, role: file.role, fallback: file.utf8_text }));
   const updated = {
     ...current,
@@ -1966,23 +2055,27 @@ function applyVirtualProjectSource(source, { rememberUndo = true } = {}) {
       },
     },
   };
-  workbenchProjectRegistryState.nativeProjects[index] = updated;
+  projects[index] = updated;
   state.fileTexts = new Map(source.files.map((file) => [file.path, file.utf8_text]));
   if (!source.files.some((file) => file.path === state.activeFilePath)) state.activeFilePath = source.entry_path;
-  writeNativeProjectCatalog();
+  if(!authored)writeNativeProjectCatalog();
   state.lastPortableExport = null;
   state.pendingRecipe = null;
   state.nextInput = null;
   state.selectedRunArchive = null;
   state.projectControlsGeneration += 1;
   state.projectControls = emptyProjectControlModel(state.projectId, "loading");
-  resetProjectExecutionState({ keepImportedRecord: false });
+  if(authored) {
+    state.completionDocumentVersion+=1;state.completionGeneration+=1;closeCompletionPopup();
+    markCurrentProjectExecutionStale("source_edit");proofSourceInspection.invalidate();
+    refreshSourceReadiness(currentProject());
+  }else resetProjectExecutionState({ keepImportedRecord: false });
   state.persistenceStatus = {
     schema: "seamgrim.workbench.persistence_status.v1",
     mode: "local_recovery",
     server_saved: false,
-    local_saved: true,
-    user_label: "프로젝트 구조 변경 local recovery 저장됨",
+    local_saved: !authored,
+    user_label: authored?"가지 변경을 적용했습니다. 원문을 저장한 뒤 새 실행을 시작하세요.":"프로젝트 구조 변경 local recovery 저장됨",
   };
   renderAll();
   scheduleProjectControlsRefresh();
@@ -1990,9 +2083,12 @@ function applyVirtualProjectSource(source, { rememberUndo = true } = {}) {
 }
 
 async function applyPendingProjectEdit() {
-  const plan = state.pendingProjectEdit;
+  const pending = state.pendingProjectEdit;
+  const plan = pending?.plan;
   if (!plan?.atomic_apply) throw new Error("원자 적용 가능한 계획이 아닙니다");
+  requireProjectEditContext(pending);
   const currentHash = await runtimeBridge.projectSourceSha256(currentVirtualProjectSource());
+  requireProjectEditContext(pending);
   if (currentHash !== plan.before_source_sha256) {
     throw new Error("E_PROJECT_EDIT_SOURCE_CONFLICT: 미리보기 뒤 원문이 바뀌어 적용을 취소했습니다");
   }
@@ -2010,7 +2106,11 @@ async function applyPendingProjectEdit() {
         : file),
     };
   }
-  applyVirtualProjectSource(sourceToApply);
+  requireProjectEditContext(pending);
+  if (state.pendingProjectEdit !== pending) {
+    throw new Error("E_PROJECT_EDIT_SOURCE_CONFLICT: 구조 변경 미리보기가 바뀌어 적용을 취소했습니다");
+  }
+  await applyVirtualProjectSource(sourceToApply);
   state.pendingProjectEdit = null;
   els.projectEditDialog?.close();
   pushDiagnostic("W_PROJECT_EDIT_APPLIED", "검토한 구조 변경을 원자적으로 적용했습니다.");
@@ -2445,6 +2545,7 @@ function applyProjectSnapshot(snapshot = {}) {
   finalizeRunRecord(supersededRun, "stopped").catch((archiveErr) => {
     pushDiagnostic("E_RUN_ARCHIVE_FINALIZE_FAILED", String(archiveErr?.message ?? archiveErr), "error");
   });
+  notebookHost?.invalidate();
   state.projectId = project.id;
   state.activeFilePath = localProjectPayload
     ? String(localProjectPayload.entry_path ?? project.files[0]?.path ?? "lesson.ddn")
@@ -2712,13 +2813,42 @@ const authoredProjectPanel = installAuthoredProjectPanel({
   }),
   apply:async (artifact,projectContext={})=>{
     const id=`authored_${artifact.authored_identity.logical_dependency_id}`;
+    // Display context only. The admitted artifact remains the sole source of
+    // authored identity, source bytes and registration; never infer them here.
+    const savedTitle=readMyWorkIndex().find(row=>row.project_id===artifact.authored_identity.logical_dependency_id)?.title;
+    const previous=workbenchProjectRegistryState.receivedPortableProjects.find(row=>row.id===id);
+    const title=[projectContext.title,savedTitle,previous?.title].find(value=>typeof value==='string'&&value.trim())??'명시 작품';
     const snapshot=artifact.source_snapshot;
-    const files=snapshot.files.map(file=>({path:file.path,role:snapshot.root_path?(file.path===snapshot.root_path?'root':'ddn_source'):'main',fallback:file.text}));
-    const project={id,title:'명시 작품',kind:'내 작업',summary:'명시 정체를 가진 원문입니다. 등록한 보개짜임은 저장된 정체로 실행합니다.',tags:['내 작업'],primaryView:'line',viewGrade:'output-only',viewPolicy:{primary:'원문 결과',side:'',overlay:'',magnifier:''},sourceProfileIdentity:artifact.source_profile,files,authoredArtifact:artifact};
-    if(projectContext.logicalInput) {project.logicalInput={...projectContext.logicalInput};project.title=projectContext.title??project.title;}
+    let files;
+    if(snapshot.root_path) {
+      // Read the same Rust-owned role projection used by saved-source admission.
+      // This JSON supplies no execution or storage permit; those gates still run.
+      const context=()=>JSON.stringify([state.projectId,state.projectEditGeneration,
+        state.sourceAnalysisGeneration,state.completionGeneration,state.activeFilePath,workbenchSourceProfile(currentProject())]);
+      const expectedContext=context();
+      const projected=JSON.parse(await runtimeBridge.authoredProjectOperation({
+        operation:'source_project',text:JSON.stringify(artifact),
+      }));
+      if(context()!==expectedContext)throw new Error('E_PROJECT_EDIT_SOURCE_CONFLICT: 작품이나 원문이 바뀌어 구조 변경을 취소했습니다');
+      if(projected.schema!=='ddn.virtual_project_source.v1'||projected.root_path!==snapshot.root_path
+        ||projected.entry_path!==snapshot.entry_path||!Array.isArray(projected.files)
+        ||projected.files.length!==snapshot.files.length
+        ||!projected.files.every((file,index)=>file.path===snapshot.files[index].path
+          &&file.utf8_text===snapshot.files[index].text&&typeof file.role==='string'&&file.role.length>0)) {
+        throw new Error('E_PROJECT_RUNTIME_SOURCE_SUPPLY: 원자료와 파일 역할 공급이 다릅니다');
+      }
+      files=projected.files.map(file=>({path:file.path,role:file.role,fallback:file.utf8_text}));
+    }else files=snapshot.files.map(file=>({path:file.path,role:'main',fallback:file.text}));
+    const project={id,title,kind:'내 작업',summary:'명시 정체를 가진 원문입니다. 등록한 보개짜임은 저장된 정체로 실행합니다.',tags:['내 작업'],primaryView:'line',viewGrade:'output-only',viewPolicy:{primary:'원문 결과',side:'',overlay:'',magnifier:''},sourceProfileIdentity:artifact.source_profile,files,authoredArtifact:artifact};
+    if(projectContext.logicalInput) {project.logicalInput={...projectContext.logicalInput};}
     if(snapshot.root_path) project.portableSnapshot={source_profile_identity:artifact.source_profile,local_package_payload:{kind:'seamgrim.local_project_tree.v0',root_path:snapshot.root_path,entry_path:snapshot.entry_path,files:files.map(file=>({path:file.path,role:file.role,utf8_text:file.fallback}))}};
     workbenchProjectRegistryState.receivedPortableProjects=[project,...workbenchProjectRegistryState.receivedPortableProjects.filter(row=>row.id!==id)];
-    await selectProject(id);
+    // An acknowledged update of this same work must not navigate from the
+    // edited source to the start file. A different work still opens its entry.
+    const selectedFilePath = state.projectId === id ? state.activeFilePath : "";
+    await selectProject(id, { selectedFilePath });
+    // A restored source owns a fresh check context even when its bytes match.
+    proofSourceInspection.invalidate();
     document.querySelector('[data-testid="bogae-entry"]').value='';
     // Derive expected state from admitted bytes, never from the mutable editor
     // after selectProject's awaits. The panel verifies before publishing.
@@ -2951,6 +3081,101 @@ els.myWorkList?.addEventListener("click", (event) => {
 });
 
 window.__SEAMGRIM_APPROVED_WORKBENCH__ = createApprovedWorkbenchApi({ activeFrame, analyzeSourceReadiness, applySourceReadinessFixIt, attemptMutateParentHash, attemptOverwriteActiveRun, attemptReuseRunId, branchFromCursor, buildCurrentPortableProjectArtifact, buildProjectSnapshot, buildServerProjectArtifact, cloneCurrentPortableProject, currentPortableLineage, currentProject, els, exportPortableProject, getSourceReadinessCandidate, openPendingPortableProject, openRunArchiveDetail, pauseRun, previewPortableProjectFile, projectStorageKey, readMyWorkIndex, readPortableProjectCatalog, reopenProjectSnapshot, resumeRun, saveProjectSnapshot, sourceReadinessSnapshot, startRun, state, stepForward, stopRun, summarizeRunArchiveBoundary, workbenchProjectRegistryState });
+const multilangDialog = document.querySelector('[data-testid="multilang-dialog"]');
+function readNotebookEquationContext() {
+  return { projectId: currentProject().id, path: activeFile().path,
+    generation: state.sourceAnalysisGeneration, sourceText: els.sourceEditor.value };
+}
+function assertNotebookEquationContext(expected) {
+  const current = readNotebookEquationContext();
+  if (!expected || ['projectId', 'path', 'generation', 'sourceText'].some(key => current[key] !== expected[key])) {
+    throw new Error('작품·파일·원문 판본이 바뀌어 풀이 원문을 적용하지 않았습니다.');
+  }
+  if (els.sourceEditor.readOnly) throw new Error('현재 원문은 편집할 수 없습니다.');
+  return current;
+}
+function applyNotebookEquationSource(expected, sourceText) {
+  assertNotebookEquationContext(expected);
+  if (typeof sourceText !== 'string') throw new TypeError('전체 DDN 원문이 필요합니다.');
+  if (sourceText !== expected.sourceText) {
+    els.sourceEditor.value = sourceText;
+    els.sourceEditor.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  return readNotebookEquationContext();
+}
+async function saveNotebookEquationSource(expected) {
+  assertNotebookEquationContext(expected);
+  await saveProjectSnapshot();
+  const current = readNotebookEquationContext();
+  if (current.path !== expected.path || current.sourceText !== expected.sourceText
+      || state.persistenceOperation?.phase !== 'saved' || state.persistenceOperation?.outcome !== 'source_only') {
+    throw new Error('현재 풀이 원문의 Native 저장 완료를 확인하지 못했습니다.');
+  }
+  const artifactText = workbenchAuthoredPanelAccess.current.getArtifactText();
+  const artifact = JSON.parse(artifactText || 'null');
+  const locator = localStorage.getItem('ddn.authored_project.last.v1');
+  const owner = JSON.parse(locator || 'null');
+  const file = artifact?.source_snapshot?.files?.find(item => item.path === current.path);
+  if (file?.text !== current.sourceText || !owner?.native_source_project_id
+      || artifact?.authored_identity?.logical_dependency_id !== owner.native_source_project_id
+      || currentProject().authoredArtifact?.authored_identity?.logical_dependency_id !== owner.native_source_project_id) {
+    throw new Error('저장된 원문·작품 정체·저장 위치가 일치하지 않습니다.');
+  }
+  return { context: current, artifactText, locator };
+}
+notebookHost = installNotebookHost({
+  root: document.querySelector('[data-testid="math-notebook-dialog"]'),
+  opener: document.querySelector('[data-testid="math-notebook-open"]'),
+  runtimeBridge,
+  readEquationContext: readNotebookEquationContext,
+  applyEquationSource: applyNotebookEquationSource,
+  saveEquationSource: saveNotebookEquationSource,
+  readSource: () => {
+    const raw = workbenchAuthoredPanelAccess.current?.getArtifactText() || '';
+    if (!raw) return '';
+    const artifact = JSON.parse(raw), project = currentProject();
+    if (project.authoredArtifact?.authored_identity?.logical_dependency_id !== artifact.authored_identity?.logical_dependency_id) return '';
+    const files = artifact.source_snapshot?.files;
+    if (!Array.isArray(files) || files.length !== project.files.length
+        || files.some(file => state.fileTexts.get(file.path) !== file.text)) {
+      throw new Error('수정한 작품 원문을 먼저 저장하세요.');
+    }
+    return raw;
+  },
+  readLocator: () => localStorage.getItem('ddn.authored_project.last.v1') ?? '',
+  rememberLocator: locator => localStorage.setItem('ddn.authored_project.last.v1', locator),
+  applyReopenedLocator: locator => workbenchAuthoredPanelAccess.current.reopenNativeLocator(locator),
+  readSavedSources: () => readMyWorkIndex().filter(row => row.origin_kind === 'native_source' && row.native_source_locator),
+  rememberSavedSource: (slot, locator) => {
+    const owner=JSON.parse(locator);
+    rememberMyWorkProject({projectId:owner.native_source_project_id,title:`탐구 실험 ${slot}`,source:'native_source',nativeLocator:locator});
+  },
+});
+notebookHost.connectProducer(createUniformMotionProvider(runtimeBridge));
+window.addEventListener('pagehide', () => notebookHost.dispose(), { once: true });
+const multilangHost = installMultilangHost({
+  root:multilangDialog.querySelector('[data-testid="multilang-root"]'),runtimeBridge,
+  readContext:() => {
+    const project=currentProject();
+    return {projectId:project.id,path:activeFile().path,profile:workbenchSourceProfile(project),
+      running:Boolean(state.runtimeBusy||state.livePump?.in_flight||state.runtimeStatus==='running'),
+      artifactText:workbenchAuthoredPanelAccess.current.getRunProjectArtifact()||workbenchAuthoredPanelAccess.current.getRunArtifact(),
+      locator:localStorage.getItem('ddn.authored_project.last.v1')??'',
+      sourceSnapshot:{entry_path:localProjectEntryPath(project),
+        files:project.files.map(file=>({path:file.path,text:state.fileTexts.get(file.path)??''})),
+        ...((project.authoredArtifact?.source_snapshot.root_path??localProjectTreePayloadFromSnapshot(project.portableSnapshot??{})?.root_path)
+          ?{root_path:project.authoredArtifact?.source_snapshot.root_path??localProjectTreePayloadFromSnapshot(project.portableSnapshot??{}).root_path}:{})}};
+  },
+});
+document.querySelector('[data-testid="multilang-open"]').addEventListener('click',()=>{
+  if(state.runtimeBusy||state.livePump?.in_flight||state.runtimeStatus==='running'){
+    pushDiagnostic('E_MULTILANG_PAUSE_REQUIRED','현재 실행을 일시정지한 뒤 다국어 소비 패널을 여세요.','warning');return;
+  }
+  if(!multilangDialog.open)multilangDialog.show();
+  void multilangHost.loadCurrent();
+});
+document.querySelector('[data-testid="multilang-close"]').addEventListener('click',()=>multilangDialog.close());
+window.addEventListener('pagehide',()=>multilangHost.dispose(),{once:true});
 workbenchLogicalPresentationState.logicalPanel = createLogicalPresentationPanel({ installLogicalInputPanel, activeSourceText, workbenchAuthoredPanelAccess, nativeSourceAvailable, nativeSourceRequest, renderExecutionControls, els, workbenchLogicalPresentationState, state, renderViewPolicy, currentProject, drawPreview, renderSemanticObservations, createNativeProject });
 document.querySelector('[data-testid="logical-record-open"]').addEventListener('click', () => {
   const drawer = document.querySelector('[data-testid="logical-record-drawer"]');

@@ -1,0 +1,24 @@
+{
+  "not_a_product_schema": true,
+  "prefix": "first_steps_rc1/v2_structure_identity_r1/",
+  "scope": "follow-up to existing two root CLI lessons, not root fixture replacement",
+  "student_doc": "모듈과저장.html",
+  "teacher_doc": "모듈과저장_교사용.html",
+  "examples": [
+    {
+      "virtual_source": "모듈/01_모듈7.project.json",
+      "expected": [
+        "7"
+      ]
+    },
+    {
+      "virtual_source": "모듈/02_선택시작23.project.json",
+      "expected": [
+        "23"
+      ]
+    }
+  ],
+  "Native_scope": "API source save/fresh load/explicit fresh run7 in supplier-owned C store only",
+  "Chrome": "NOT_RUN",
+  "no_new_UI_wrapper": true
+}

@@ -34,11 +34,30 @@ pub(super) struct VerifiedProjectSnapshotIdentity(IssuedProjectSnapshotIdentity)
 
 /// Forward identity from the saved-source/compiler/authored owners, not the
 /// untrusted revision under comparison. Runtime admission remains separate.
-pub(crate) struct IssuedSavedLocalProjectIdentity(IssuedProjectSnapshotIdentity);
+pub(crate) struct IssuedSavedLocalProjectIdentity(IssuedProjectSnapshotIdentity,Option<Identity32>);
 impl IssuedSavedLocalProjectIdentity {
     pub(crate) fn pesi(&self) -> Identity32 { self.0.pesi }
     pub(crate) fn constituents(&self) -> &[Identity32;4] { &self.0.constituents }
     pub(crate) fn constituent_preimages(&self) -> &[Vec<u8>;4] { &self.0.preimages }
+    pub(crate) fn dependency_identity(&self) -> Option<Identity32> { self.1 }
+}
+
+/// Explicit dependency path. The existing local-only entry retains its guard.
+/// Native source/runtime callers use this coordinator, which supplies an owned
+/// verifier result to the same constituent issuer rather than deleting a guard.
+pub(crate) fn issue_saved_project(
+    owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
+)->Result<IssuedSavedLocalProjectIdentity,String> {
+    let source=owned.sources().saved().source();
+    let external=owned.sources().saved().manifest().lock_sha256.is_some()
+        || source.files.iter().any(|file|!matches!(file.role.as_str(),"root"|"ddn_source"));
+    if !external { return issue_saved_local_project(owned); }
+    let dependency=crate::local_project::verify_saved_dependency_supply(owned)?;
+    let artifacts=if let Some(draft)=owned.registration() {
+        draft.verify_source_binding(owned)?;
+        draft.artifacts()
+    } else { &[] };
+    issue_saved_project_resources(owned,artifacts,Some(&dependency))
 }
 
 pub(crate) fn issue_saved_local_project(
@@ -62,6 +81,14 @@ fn issue_saved_local_project_resources(
     owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
     artifacts:&[crate::authored_project::registration::RegistrationBlob],
 )->Result<IssuedSavedLocalProjectIdentity,String> {
+    issue_saved_project_resources(owned,artifacts,None)
+}
+
+fn issue_saved_project_resources(
+    owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
+    artifacts:&[crate::authored_project::registration::RegistrationBlob],
+    dependency:Option<&crate::local_project::VerifiedSavedDependencySupply>,
+)->Result<IssuedSavedLocalProjectIdentity,String> {
     let saved=owned.sources();
     // Current D9 linker rejects unbound execution contracts/views/exports.
     // Its local module closure is source-owned, not an external dependency
@@ -70,7 +97,10 @@ fn issue_saved_local_project_resources(
         .map_err(|e|format!("{}: {}",e.code,e.message))?;
     if !graph.gaji_aliases.is_empty() || saved.saved().manifest().lock_sha256.is_some()
         || saved.saved().source().files.iter().any(|file|!matches!(file.role.as_str(),"root"|"ddn_source")) {
-        return Err("E_SAVED_PROJECT_EXTERNAL_SUPPLY_REQUIRED: 외부 가지·자료의 검증된 공급이 필요합니다".into());
+        dependency.ok_or("E_SAVED_PROJECT_EXTERNAL_SUPPLY_REQUIRED: 외부 가지·자료의 검증된 공급이 필요합니다")?
+            .verify_source_binding(owned)?;
+    } else if dependency.is_some() {
+        return Err("E_SAVED_PROJECT_EXTERNAL_SUPPLY_REQUIRED: 무의존 입력에 외부 공급을 끼울 수 없습니다".into());
     }
     let rows:Vec<_>=saved.captures().iter().map(|(path,capture)|Source {
         path:path.as_str(),identity:capture.identity().as_slice(),
@@ -89,12 +119,22 @@ fn issue_saved_local_project_resources(
     let resource_paths:Vec<_>=artifacts.iter().map(|blob|blob.path()).collect();
     let resources:Vec<_>=artifacts.iter().map(|blob|Resource{path:blob.path(),identity:blob.sha(),
         byte_length:blob.bytes().len() as u64,digest:blob.sha()}).collect();
+    let requirements:Vec<_>=dependency.into_iter().flat_map(|supply|supply.requirements()).map(|(name,identity)|
+        Requirement{name,identity:identity.as_slice()}).collect();
+    let dependencies=dependency.into_iter().flat_map(|supply|supply.nodes()).map(|node|
+        Ok(Dependency {kind:node.kind as u8,identity:&node.node_identity,digest:node.content_identity.as_slice().try_into()
+            .map_err(|_|"E_SAVED_PROJECT_EXECUTION_IDENTITY: package 내용 정체 길이가 다릅니다")?}))
+        .collect::<Result<Vec<_>,String>>()?;
+    let mut edges:Vec<_>=dependency.into_iter().flat_map(|supply|supply.nodes()).flat_map(|node|
+        node.dependencies.iter().map(move |target|Edge{from:&node.node_identity,to:target})).collect();
+    edges.sort_by(|a,b|(a.from,a.to).cmp(&(b.from,b.to)));
     let issued=issue_constituents_and_pesi(AdmittedProjectSnapshotIdentityInput {
         sources:&rows,epoch,entry:&saved.saved().manifest().entry_path,
         definition:owned.definition_identity().as_bytes(),target_profile:target,
-        requirements:&[],resource_paths:&resource_paths,dependencies:&[],edges:&[],resources:&resources,
+        requirements:&requirements,resource_paths:&resource_paths,dependencies:&dependencies,edges:&edges,resources:&resources,
     }).map_err(|e|format!("E_SAVED_PROJECT_EXECUTION_IDENTITY: {e:?}"))?;
-    Ok(IssuedSavedLocalProjectIdentity(issued))
+    let dependency_identity=dependency.map(|_|issued.constituents[2]);
+    Ok(IssuedSavedLocalProjectIdentity(issued,dependency_identity))
 }
 
 fn fail(name: &'static str) -> Error { Error::ConstituentMalformed(name) }

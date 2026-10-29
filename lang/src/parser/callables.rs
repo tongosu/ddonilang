@@ -194,7 +194,7 @@ impl Parser {
         }
         self.expect(&TokenKind::RBrace, "}")?;
         self.expect(&TokenKind::Dot, "schema 정의의 마침표 `.`")?;
-        Ok(SeedDef { id: self.next_id(), span: start.merge(&self.previous_span()),
+        Ok(SeedDef { type_params: Vec::new(), proof_header: None, id: self.next_id(), span: start.merge(&self.previous_span()),
             canonical_name: name, alternate_forms: Vec::new(), seed_kind: SeedKind::Schema(category),
             params, result_type: None, body: None, modifiers: Vec::new() })
     }
@@ -204,11 +204,63 @@ impl Parser {
             return self.parse_named_single_expression_callable();
         }
         let start = self.current_span();
+        let mut proof_header = None;
+        let mut type_params = Vec::new();
+        if self.source_epoch == SourceEpoch::V25
+            && self.find_matching_rparen_after_current_lparen().is_some_and(|end|
+                self.tokens.get(end + 1).is_some_and(|token| token.raw == "두고"))
+        {
+            self.expect(&TokenKind::LParen, "(")?;
+            let mut propositions = Vec::new();
+            loop {
+                let span = self.current_span();
+                let name = self.expect_ident("정적 매개변수")?.raw.clone();
+                self.expect(&TokenKind::Colon, ":")?;
+                let kind = self.expect_ident("세움 또는 씨자리")?.raw.clone();
+                if !matches!(kind.as_str(), "세움" | "씨자리") || name == "_" {
+                    return Err(self.error("E_PROOF_STATIC_PARAMETER: 명시적인 세움 매개변수가 필요합니다"));
+                }
+                if propositions.iter().any(|(prior, _)| prior == &name)
+                    || type_params.iter().any(|prior: &TypeParamDef| prior.name == name) {
+                    return Err(self.error("E_GENERIC_DUPLICATE_PARAMETER: 정적 매개변수 이름이 중복됩니다"));
+                }
+                let span = span.merge(&self.previous_span());
+                if kind == "씨자리" {
+                    type_params.push(TypeParamDef { id: self.next_id(), name, span });
+                } else {
+                    propositions.push((name, span));
+                }
+                if !self.check(&TokenKind::Comma) { break; }
+                self.advance();
+            }
+            self.expect(&TokenKind::RParen, ")")?;
+            self.expect_ident("두고")?;
+            if !propositions.is_empty() {
+                if !type_params.is_empty() {
+                    return Err(self.error("E_GENERIC_PROOF_HEADER_UNSUPPORTED: 씨자리와 세움을 함께 쓰는 머리는 아직 지원하지 않습니다"));
+                }
+                proof_header = Some(ProofHeader { propositions, evidence_bindings: Vec::new() });
+            }
+        }
         let params = if self.check(&TokenKind::LParen) {
-            self.parse_params()?
+            self.parse_params_with_proof_header(proof_header.as_mut())?
         } else {
             Vec::new()
         };
+        // R3 has an already named structure goal, rather than a fresh P:세움
+        // binder. Preserve the actual authored pin/local binding for consumers.
+        // This is parser provenance, not admission or checker acceptance.
+        if proof_header.is_none() && params.iter().any(|pin| matches!(
+            &pin.type_ref, TypeRef::Applied { name, args }
+                if name == "보임" && matches!(args.as_slice(), [TypeRef::StructureLaw { .. } | TypeRef::AlgebraEquality { .. }])
+        )) {
+            proof_header = Some(ProofHeader {
+                propositions: Vec::new(),
+                evidence_bindings: params.iter().map(|pin| ProofEvidenceBinding {
+                    public_pin: pin.pin_name.clone(), local_name: pin.pin_name.clone(), span: pin.span,
+                }).collect(),
+            });
+        }
         let name = self.expect_ident("씨앗 이름")?.raw.clone();
         let alternate_forms =
             if self.source_epoch == SourceEpoch::V25 && self.check(&TokenKind::LBrace) {
@@ -238,7 +290,7 @@ impl Parser {
             None
         };
         let kind = self.parse_seed_kind()?;
-        if kind != SeedKind::Product && alternate_forms.is_empty() {
+        if kind != SeedKind::Product && alternate_forms.is_empty() && !self.first_callable_ddl {
             self.validate_seed_name_tail(&name, start)?;
         }
         if result_type.is_some() && !matches!(kind, SeedKind::Semssi | SeedKind::Umjikssi) {
@@ -254,6 +306,18 @@ impl Parser {
             SourceEpoch::V25 => self.expect(&TokenKind::Define, ":=")?,
             SourceEpoch::PreV25 => self.expect(&TokenKind::Equals, "=")?,
         };
+        if self.first_callable_ddl {
+            self.expect(&TokenKind::LBrace, "DDL 본문 생략의 {")?;
+            self.expect(&TokenKind::DotDot, "DDL 본문 생략의 ..")?;
+            self.expect(&TokenKind::Dot, "DDL 본문 생략의 .")?;
+            self.expect(&TokenKind::RBrace, "DDL 본문 생략의 }")?;
+            self.expect(&TokenKind::Dot, "DDL 선언 마침표")?;
+            return Ok(SeedDef {
+                type_params, proof_header, id: self.next_id(), span: start.merge(&self.previous_span()),
+                canonical_name: name, alternate_forms, seed_kind: kind, params, result_type,
+                body: None, modifiers: Vec::new(),
+            });
+        }
         if result_type.is_some() && !self.check(&TokenKind::LBrace) {
             return Err(self.error("결과 타입이 있는 선언의 `{ ... }` 본문"));
         }
@@ -262,7 +326,10 @@ impl Parser {
             self.declare_typed_name(&name, result_type);
         }
         for param in &params {
-            self.declare_typed_name(&param.pin_name, &param.type_ref);
+            let local_name = proof_header.as_ref().and_then(|header|
+                header.evidence_bindings.iter().find(|binding| binding.public_pin == param.pin_name))
+                .map(|binding| binding.local_name.as_str()).unwrap_or(&param.pin_name);
+            self.declare_typed_name(local_name, &param.type_ref);
         }
         self.seed_kind_stack.push(kind.clone());
         let body_result = if self.check(&TokenKind::LBrace) {
@@ -322,6 +389,8 @@ impl Parser {
         }
         self.exit_scope();
         Ok(SeedDef {
+            type_params,
+            proof_header,
             id: self.next_id(),
             span: start.merge(&self.previous_span()),
             canonical_name: name,
@@ -341,7 +410,11 @@ impl Parser {
     pub(super) fn parse_named_single_expression_callable(&mut self) -> Result<SeedDef, ParseError> {
         let start = self.current_span();
         let name = self.expect_ident("호출가능 정의 이름")?.raw.clone();
-        self.validate_seed_name_tail(&name, self.previous_span())?;
+        let conditional_body = self.tokens[self.pos..].windows(3)
+            .take_while(|pair| !matches!(pair[0].kind, TokenKind::Eof))
+            .find(|pair| matches!(pair[0].kind, TokenKind::Define))
+            .is_some_and(|pair| pair[1].raw == "조건별" && matches!(pair[2].kind,TokenKind::LBrace));
+        if !conditional_body { self.validate_seed_name_tail(&name, self.previous_span())?; }
         self.expect(&TokenKind::LParen, "(")?;
 
         let mut params = Vec::new();
@@ -358,6 +431,13 @@ impl Parser {
                     return Err(self.error("호출가능 매개변수 타입"));
                 }
             };
+            let mut conditional_josa = Vec::new();
+            while conditional_body && self.check(&TokenKind::Tilde) {
+                self.advance();
+                if let TokenKind::Josa(josa) = &self.current().kind {
+                    conditional_josa.push(josa.clone()); self.advance();
+                } else { return Err(self.error("조건별 입력의 조사")); }
+            }
             params.push(ParamPin {
                 id: self.next_id(),
                 span: param_start.merge(&self.previous_span()),
@@ -365,7 +445,7 @@ impl Parser {
                 type_ref,
                 default_value: None,
                 optional: false,
-                josa_list: Vec::new(),
+                josa_list: conditional_josa,
             });
             if self.check(&TokenKind::Comma) {
                 self.advance();
@@ -383,6 +463,10 @@ impl Parser {
         };
         self.expect(&TokenKind::RParen, ")")?;
         self.expect(&TokenKind::Define, ":=")?;
+        if conditional_body {
+            return self.parse_piecewise_definition(start,name,Vec::new(),SeedKind::ValueFunc,
+                params,Some(result_type),Vec::new(),None);
+        }
         if self.check(&TokenKind::LBrace) {
             return Err(ParseError {
                 span: self.current_span(),
@@ -414,6 +498,8 @@ impl Parser {
         self.exit_scope();
         let expr_span = expr.span;
         Ok(SeedDef {
+            type_params: Vec::new(),
+            proof_header: None,
             id: self.next_id(),
             span: start.merge(&self.previous_span()),
             canonical_name: name,
@@ -542,12 +628,24 @@ impl Parser {
         Ok(())
     }
     pub(super) fn parse_params(&mut self) -> Result<Vec<ParamPin>, ParseError> {
+        self.parse_params_with_proof_header(None)
+    }
+
+    fn parse_params_with_proof_header(&mut self, mut header: Option<&mut ProofHeader>) -> Result<Vec<ParamPin>, ParseError> {
         self.expect(&TokenKind::LParen, "(")?;
         let mut ps = Vec::new();
         let mut seen_default = false;
         while !self.check(&TokenKind::RParen) {
             let s = self.current_span();
             let name = self.expect_ident("파라미터")?.raw.clone();
+            if let Some(header) = header.as_deref_mut() {
+                self.expect(&TokenKind::Equals, "공개핀=본문변수")?;
+                let local_name = self.expect_ident("증거 본문 변수")?.raw.clone();
+                header.evidence_bindings.push(ProofEvidenceBinding {
+                    public_pin: name.clone(), local_name,
+                    span: s.merge(&self.previous_span()),
+                });
+            }
             let type_ref = if self.check(&TokenKind::Colon) {
                 self.advance();
                 self.parse_type_ref()?
@@ -602,6 +700,20 @@ impl Parser {
 
     pub(super) fn parse_type_ref(&mut self) -> Result<TypeRef, ParseError> {
         let operand = self.parse_type_operand()?;
+        if self.current().raw == "이고" {
+            let ParsedTypeOperand::Single(first) = operand else {
+                return Err(self.error("논리곱의 명제 항"));
+            };
+            let mut parts = vec![first];
+            while self.current().raw == "이고" {
+                self.advance();
+                let ParsedTypeOperand::Single(part) = self.parse_type_operand()? else {
+                    return Err(self.error("논리곱의 명제 항"));
+                };
+                parts.push(part);
+            }
+            return Ok(TypeRef::PropositionConjunction(parts));
+        }
         if self.check(&TokenKind::TypeArrow) {
             self.advance();
             let params = match operand {
@@ -651,11 +763,29 @@ impl Parser {
 
     pub(super) fn parse_type_operand(&mut self) -> Result<ParsedTypeOperand, ParseError> {
         if let Some(end) = self.find_matching_rparen_after_current_lparen() {
+            if self.source_epoch == SourceEpoch::V25
+                && self.tokens.get(end + 1).is_some_and(|token| token.raw == "보임")
+                && self.tokens[self.pos+1..end].iter().any(|token| matches!(token.kind,TokenKind::RelationEq)) {
+                self.advance();
+                let expression=self.parse_expr()?;
+                self.expect(&TokenKind::RParen,")")?;
+                self.expect_ident("보임")?;
+                let ExprKind::Infix {left,op,right}=&expression.kind else {
+                    return Err(self.error("E_PROOF_ALGEBRA_GOAL: 정적 등식 목표가 필요합니다"));
+                };
+                if op!="=:=" { return Err(self.error("E_PROOF_ALGEBRA_GOAL: 정적 등식 목표가 필요합니다")); }
+                let goal=TypeRef::AlgebraEquality {
+                    left:crate::algebra_syntax::term(left)?,right:crate::algebra_syntax::term(right)?,
+                };
+                return Ok(ParsedTypeOperand::Single(TypeRef::Applied {name:"보임".into(),args:vec![goal]}));
+            }
             if self.tokens.get(end + 1).is_some_and(|token| token.raw == "텐서씨") {
                 return self.parse_tensor_type().map(ParsedTypeOperand::Single);
             }
         }
         if self.check(&TokenKind::LParen) {
+            let proof_goal = self.find_matching_rparen_after_current_lparen().is_some_and(|end|
+                self.tokens.get(end + 1).is_some_and(|token| token.raw == "보임"));
             self.advance();
             let mut args = Vec::new();
             if self.check(&TokenKind::RParen) {
@@ -669,7 +799,18 @@ impl Parser {
                 });
             }
             loop {
-                args.push(self.parse_type_ref()?);
+                if proof_goal && self.check_ident()
+                    && self.peek_kind_n_is(1, |kind| matches!(kind, TokenKind::Dot)) {
+                    let structure=self.expect_ident("구조 목표")?.raw.clone();
+                    self.advance();
+                    let member=self.expect_ident("구조 법칙 목표")?.raw.clone();
+                    if structure=="_" || (member!="법칙" && !COORDINATE_GOAL_MEMBERS.contains(&member.as_str())) {
+                        return Err(self.error("E_PROOF_GOAL: 구조의 명시된 법칙 목표가 필요합니다"));
+                    }
+                    args.push(TypeRef::StructureLaw{structure,member});
+                } else {
+                    args.push(self.parse_type_ref()?);
+                }
                 if self.check(&TokenKind::Comma) {
                     self.advance();
                     continue;
@@ -677,7 +818,7 @@ impl Parser {
                 break;
             }
             self.expect(&TokenKind::RParen, ")")?;
-            if self.check_ident() {
+            if self.check_ident() && self.current().raw != "이고" {
                 let name = self.expect_ident("타입")?.raw.clone();
                 if name == "_" {
                     return Err(self.error("타입 이름"));
@@ -687,7 +828,7 @@ impl Parser {
             if self.check(&TokenKind::TypeArrow) {
                 return Ok(ParsedTypeOperand::FunctionParams(args));
             }
-            if args.len() == 1 && matches!(args.first(), Some(TypeRef::Function { .. } | TypeRef::Tuple(_))) {
+            if args.len() == 1 && matches!(args.first(), Some(TypeRef::Function { .. } | TypeRef::Tuple(_) | TypeRef::PropositionConjunction(_))) {
                 return Ok(ParsedTypeOperand::Single(args.pop().expect("grouped type")));
             }
             if args.len() >= 2 {

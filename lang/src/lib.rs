@@ -9,6 +9,9 @@
 
 pub mod age_gate;
 pub mod ast;
+mod algebra_syntax;
+pub mod algebra_authoring;
+pub mod proof_authoring;
 pub mod bytes;
 pub mod canonicalizer;
 pub mod currentline;
@@ -20,6 +23,7 @@ pub mod frontdoor;
 pub mod lexer;
 pub mod migration;
 pub mod model;
+pub mod name_resolution;
 pub mod module_directive;
 pub mod work_root;
 pub mod normalizer;

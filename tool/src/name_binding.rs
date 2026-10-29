@@ -13,6 +13,9 @@
 //! unsupported): top-level callables of one document. Parameters are listed but
 //! not resolved. Locals are not enumerated; a same-spelling local makes the
 //! callable unsupported.
+pub mod token_ranges;
+pub mod final_bindings;
+
 use crate::ddn_runtime::{resolve_supported_source_profile, DdnProgram};
 use crate::source_analysis::{analyze_source, SourceAnalysisRequest};
 use ddonirang_lang::stdlib::minimal_stdlib_sigs;

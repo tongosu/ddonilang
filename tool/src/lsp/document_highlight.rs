@@ -1,6 +1,7 @@
+use super::definition::{bound_name_in_snapshot, ProjectView, SOURCE_PROFILE_V25};
 use super::document_store::DocumentSnapshot;
 use super::position::{ByteRange, LspPosition, PositionEncoding};
-use super::symbol::{collect_local_references, resolve_symbol, SymbolError};
+use super::symbol::SymbolError;
 
 pub use super::symbol::SymbolError as DocumentHighlightError;
 
@@ -19,30 +20,52 @@ pub struct DocumentHighlightRange {
     pub kind: u32,
 }
 
+/// Highlights of the exactly bound name: write (3) for the declaration and a
+/// callable's result place, read (2) otherwise. Nothing when not bound exactly.
 pub fn document_highlights_snapshot(
     snapshot: &DocumentSnapshot,
     position: LspPosition,
     encoding: PositionEncoding,
 ) -> Result<Option<DocumentHighlightResolution>, SymbolError> {
-    let Some(symbol) = resolve_symbol(snapshot, position, encoding)? else {
+    let bound = bound_name_in_snapshot(snapshot, position, encoding)?;
+    let Ok(bound) = bound else {
         return Ok(None);
     };
-    if !symbol.identity.starts_with("definition:local:") {
-        return Ok(None);
-    }
-    let declaration = symbol.definition_range;
-    let ranges = collect_local_references(snapshot, position, encoding, true)?;
     Ok(Some(DocumentHighlightResolution {
-        document_version: symbol.document_version,
-        snapshot_identity: symbol.snapshot_identity,
-        identity: symbol.identity,
-        highlights: ranges
-            .into_iter()
-            .map(|range| DocumentHighlightRange {
-                kind: if Some(range) == declaration { 3 } else { 2 },
-                range,
-            })
+        document_version: snapshot.version,
+        snapshot_identity: snapshot.identity.as_str().to_string(),
+        identity: bound.identity,
+        highlights: bound
+            .occurrences
+            .iter()
+            .map(|o| DocumentHighlightRange { range: o.range, kind: if o.write { 3 } else { 2 } })
             .collect(),
-        source_profile: symbol.source_profile,
+        source_profile: SOURCE_PROFILE_V25,
     }))
+}
+
+/// Project member: the sites of a completely censused parameter or local in
+/// the requested document; nothing otherwise.
+pub fn project_document_highlights(
+    view: &ProjectView,
+    snapshot: &DocumentSnapshot,
+    offset: usize,
+) -> Option<DocumentHighlightResolution> {
+    let target = view.target_at(offset).ok()?;
+    let sites = view.local_sites(&target).ok()?;
+    let highlights = sites
+        .iter()
+        .filter(|site| site.path() == view.document_path)
+        .map(|site| DocumentHighlightRange {
+            range: ByteRange { start: site.span().start, end: site.span().end },
+            kind: if site == target.definition() { 3 } else { 2 },
+        })
+        .collect();
+    Some(DocumentHighlightResolution {
+        document_version: snapshot.version,
+        snapshot_identity: snapshot.identity.as_str().to_string(),
+        identity: ProjectView::identity(target.definition()),
+        highlights,
+        source_profile: SOURCE_PROFILE_V25,
+    })
 }

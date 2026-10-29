@@ -13,7 +13,7 @@ pub use native_source_world::{NativeGeneralReplayContentV1,read_current_general_
 #[cfg(windows)]
 pub(crate) use native_source_world::{native_source_browser_snapshot,native_source_current_digest};
 #[cfg(windows)]
-pub(crate) use native_source_world::{resume_logical_source_world,save_continued_logical_source_world,verify_native_logical_current_receipt};
+pub(crate) use native_source_world::{resume_logical_source_world,resume_logical_source_world_with_result,save_continued_logical_source_world,verify_native_logical_current_receipt};
 #[cfg(windows)]
 pub(crate) use native_source_world::{NativeLogicalFinishSessionV1,recover_native_logical_finish};
 
@@ -354,6 +354,17 @@ pub(crate) fn prepare_supported_source_for_execution_with_program(
 fn supported_source_parse_diagnostic(
     source: &str, path: &str, message: &str,
 ) -> Option<ExecutionDiagnostic> {
+    if let Some(facts) = crate::numeric_constraint_plan::generic_source_diagnostic(source,message) {
+        let mut diagnostic=run_summary_diagnostic(facts.code,message.to_owned(),path,"source_type_check");
+        if let Some(primary)=facts.spans.last() { diagnostic.span=Some((primary.start,primary.end)); }
+        if facts.spans.len()==2 {
+            let related=&facts.spans[0];
+            let mut cause=run_summary_diagnostic(facts.code,message.to_owned(),path,"source_type_check");
+            cause.span=Some((related.start,related.end));
+            diagnostic.cause=Some(Box::new(cause));
+        }
+        return Some(diagnostic);
+    }
     let code=["E_TYPE_MISMATCH","E_CHECK_TYPE_MISMATCH","E_CHECK_TUPLE_SELECTION","E_CHECK_UNKNOWN_NAME",
         "E_NUMERIC_COMPARISON_TYPE_MISMATCH","E_NUMERIC_COMPARISON_TYPE_UNRESOLVED"]
         .into_iter().find(|code|message.starts_with(&format!("{code}:")));
@@ -387,6 +398,20 @@ fn supported_source_parse_diagnostic(
     }
     let stripped = split_file_meta(source).stripped;
     let error = ddonirang_lang::parse_v25_with_mode(&stripped, path, ParseMode::Strict).err()?;
+    if error.code() == "E_PARSE" && message.starts_with(&format!("파싱 실패: {}", error.message)) {
+        // Metadata stripping preserves lines but removes header bytes. The parser
+        // span must be translated back before exposing it to source consumers.
+        let removed = source.len() - stripped.len();
+        let start = error.span.start.checked_add(removed)?;
+        let end = error.span.end.checked_add(removed)?;
+        if start > end || end > source.len()
+            || !source.is_char_boundary(start) || !source.is_char_boundary(end) {
+            return None;
+        }
+        let mut diagnostic = run_summary_diagnostic("E_PARSE", message.to_owned(), path, "execution_parse");
+        diagnostic.span = Some((start, end));
+        return Some(diagnostic);
+    }
     (error.code() != "E_PARSE" && message.contains(error.code()))
         .then(|| {
             let mut diagnostic = ExecutionDiagnostic::execution_mode_parse(error, path);
@@ -2088,7 +2113,7 @@ impl GeneralCompletedExecution {
         if self.runner.configured_saved_start()!=Some(owned.sources().entry_declaration().name()) {
             return Err("E_PROJECT_RUNTIME_SOURCE_OWNER".into());
         }
-        let issued=crate::project_snapshot_identity::current::issue_saved_local_project(owned)?;
+        let issued=crate::project_snapshot_identity::current::issue_saved_project(owned)?;
         // Same complete world gate as first checkpoint: never drop legacy lanes.
         let catalog=owned.registration().map(|registration|registration.saved_nominal_catalog(owned)).transpose()?;
         let world_bytes=crate::unit_wire::resumable_complete_state::encode_owned_world_candidate_with_source(
@@ -2214,7 +2239,7 @@ impl GeneralSuccessfulInputPrefix {
             || self.execution.next_tick!=u64::try_from(self.rows.len()).map_err(|_|Failure::LimitExceeded)? {
             return Err(Failure::CustodyConflict);
         }
-        let issued = crate::project_snapshot_identity::current::issue_saved_local_project(&self.owned)
+        let issued = crate::project_snapshot_identity::current::issue_saved_project(&self.owned)
             .map_err(|_|Failure::InvalidInput)?;
         crate::unit_wire::resumable_complete_state::encode_owned_world_candidate_with_source(
             self.execution.world.world(),issued.pesi().as_raw(),self.execution.next_tick,&self.owned)
@@ -2229,7 +2254,7 @@ impl GeneralSuccessfulInputPrefix {
     /// The frame comes from this run, never JSON or an adapter status flag.
     fn export_saved_artifact_native_complete(&self,parent:&[u8],revision:&[u8])->Result<String,String>{
         let bytes=self.encode_world_frame().map_err(|cause|format!("E_PROJECT_RUNTIME_GENERAL_CHANNEL: {cause:?}"))?;
-        let issued=crate::project_snapshot_identity::current::issue_saved_local_project(&self.owned)?;
+        let issued=crate::project_snapshot_identity::current::issue_saved_project(&self.owned)?;
         let frame=crate::unit_wire::check_complete_state_frame_v1(&bytes,issued.pesi().as_raw())
             .map_err(|cause|format!("E_PROJECT_RUNTIME_GENERAL_CHANNEL: {cause:?}"))?;
         self.export_saved_artifact_with_frame(parent,revision,Some(frame))

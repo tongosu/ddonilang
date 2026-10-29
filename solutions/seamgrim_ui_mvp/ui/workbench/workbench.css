@@ -1516,12 +1516,11 @@ p {
 }
 
 .completion-popup {
-  position: absolute;
+  position: fixed;
+  box-sizing: border-box;
   z-index: 20;
-  top: 2.7rem;
-  left: 0.75rem;
-  right: 0.75rem;
-  max-height: 14rem;
+  width: min(22rem, calc(100vw - 16px));
+  max-height: min(10rem, calc(100vh - 16px));
   overflow-y: auto;
   border: 1px solid var(--line-strong, #b9c8d6);
   border-radius: 0.55rem;
@@ -1531,7 +1530,7 @@ p {
 
 .completion-option {
   display: grid;
-  grid-template-columns: minmax(8rem, 1fr) minmax(8rem, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.75rem;
   width: 100%;
   padding: 0.55rem 0.7rem;
@@ -1639,3 +1638,11 @@ p {
 }
 [data-authored-camera-controls] { position:relative; z-index:6; }
 .authored-camera-actions { position:absolute; top:100%; right:0; width:220px; padding:8px; display:flex; flex-wrap:wrap; gap:4px; background:var(--panel); border:1px solid var(--line); border-radius:6px; box-shadow:0 3px 10px #0002; }
+
+.completion-option > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Isolated multilingual consumer drawer; no main editor/view policy changes. */
+.multilang-dialog { position: fixed; inset: 0 0 0 auto; z-index: 60; box-sizing: border-box; width: min(900px, 94vw); height: 100dvh; max-height: 100dvh; margin: 0; overflow: auto; }
+.multilang-consumer fieldset { min-width: 0; margin-block: 12px; }
+.multilang-consumer textarea { width: 100%; box-sizing: border-box; min-height: 120px; font: inherit; }
+.multilang-consumer pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.multilang-consumer button { margin: 4px; }

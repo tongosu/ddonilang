@@ -881,7 +881,15 @@ fn validate_minimal_root_program(program: &CanonProgram) -> Result<(), StaticDia
     for name in world_names {
         symbols.entry(name).or_insert(StaticType::Unknown);
     }
-    validate_root_statements(&program.root_stmts, &mut symbols, &call_results, false)?;
+    for statement in &program.root_stmts {
+        if let Some(role)=ddonirang_lang::proof_authoring::identity_declaration_role(program,statement) {
+            // Exact static carrier/operation references are not runtime values.
+            // Ordinary unknown names and calls still use the unchanged pass.
+            symbols.insert(role.name().to_string(),StaticType::Unknown);
+        } else {
+            validate_root_statements(std::slice::from_ref(statement),&mut symbols,&call_results,false)?;
+        }
+    }
     for item in &program.items {
         let TopLevelItem::SeedDef(seed) = item;
         let mut local = symbols.clone();
@@ -1226,6 +1234,45 @@ pub fn analyze_source(request: SourceAnalysisRequest) -> SourceAnalysisSnapshot 
         )
     };
 
+    finish_source_analysis(request, revision, program)
+}
+
+/// Compilation-local facts stay bound to the actual supplied context. The
+/// existing snapshot wire contains no durable language/profile authority.
+pub struct FirstCallableSourceAnalysis {
+    snapshot: SourceAnalysisSnapshot,
+    context: std::sync::Arc<ddonirang_lang::parser::RegisteredFirstCallableContext>,
+}
+
+impl FirstCallableSourceAnalysis {
+    pub fn snapshot(&self) -> &SourceAnalysisSnapshot { &self.snapshot }
+    pub fn is_current_for(&self, source: &str, generation: u64,
+        context: &std::sync::Arc<ddonirang_lang::parser::RegisteredFirstCallableContext>) -> bool {
+        self.snapshot.source_revision_identity == source_revision_identity(source)
+            && self.snapshot.analysis_generation == generation
+            && std::sync::Arc::ptr_eq(&self.context, context)
+    }
+    pub fn original_declaration(&self) -> Result<ddonirang_lang::ddl::FirstCallableJaDeclarationBinding<'_>, ddonirang_lang::ddl::DdlError> {
+        let registration = ddonirang_lang::ddl::FIRST_CALLABLE_JA_REGISTRATION;
+        ddonirang_lang::ddl::bind_first_callable_ja_declaration(self.context.original_public(),
+            registration.language_profile_identity, registration.registration_revision)
+    }
+}
+
+pub fn analyze_source_with_first_callable_context(request: SourceAnalysisRequest,
+    context: std::sync::Arc<ddonirang_lang::parser::RegisteredFirstCallableContext>) -> FirstCallableSourceAnalysis {
+    let snapshot = if resolve_supported_source_profile(Some(&request.source_profile_identity)).is_err() {
+        analyze_source(request)
+    } else {
+        let revision = source_revision_identity(&request.source_text);
+        let program = DdnProgram::from_first_callable_registered_source(&request.source_text, &request.path, context.clone());
+        finish_source_analysis(request, revision, program)
+    };
+    FirstCallableSourceAnalysis { snapshot, context }
+}
+
+fn finish_source_analysis(request: SourceAnalysisRequest, revision: String,
+    program: Result<DdnProgram, String>) -> SourceAnalysisSnapshot {
     match program {
         Ok(program) => {
             let mut diagnostics = accepted_diagnostics(
@@ -1263,22 +1310,28 @@ pub fn analyze_source(request: SourceAnalysisRequest) -> SourceAnalysisSnapshot 
                 diagnostics,
             }
         }
-        Err(message) => SourceAnalysisSnapshot {
+        Err(message) => {
+            let generic=crate::numeric_constraint_plan::generic_source_diagnostic(&request.source_text,&message);
+            let code=generic.as_ref().map(|facts|facts.code.to_owned()).unwrap_or_else(||diagnostic_code(&message));
+            let spans=generic.map(|facts|facts.spans.into_iter().map(|span|SourceAnalysisSpan {
+                encoding:"utf-8-byte",start:span.start,end:span.end,
+            }).collect::<Vec<_>>()).unwrap_or_else(||vec![formatted_error_span(&request.source_text,&message)]);
+            SourceAnalysisSnapshot {
             schema: SOURCE_ANALYSIS_SNAPSHOT_SCHEMA,
             source_revision_identity: revision,
             analysis_generation: request.analysis_generation,
             source_profile_identity: request.source_profile_identity,
-            outcome: "REJECTED",
-            diagnostics: vec![SourceAnalysisDiagnostic {
-                code: diagnostic_code(&message),
+            outcome: if code == "E_MULTILANG_CONTEXT_REQUIRED" { "UNSUPPORTED" } else { "REJECTED" },
+            diagnostics: spans.into_iter().map(|span|SourceAnalysisDiagnostic {
+                code: code.clone(),
                 severity: "error",
-                span: formatted_error_span(&request.source_text, &message),
-                message,
-                path: request.path,
+                span,
+                message: message.clone(),
+                path: request.path.clone(),
                 diagnostic_identity: None,
                 repair_proposal: None,
-            }],
-        },
+            }).collect(),
+        }},
     }
 }
 

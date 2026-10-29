@@ -73,6 +73,14 @@ where
 }
 
 impl<'a> EvalContext<'a> {
+    fn eval_admitted_exact_formula_call(&mut self,locals:&HashMap<String,Value>,expr:&Expr,args:&[Value])->Result<Value,EvalError> {
+        let integer_inputs=self.program.numeric_constraint_plan.as_ref()
+            .and_then(|plan|plan.exact_formula_calls.get(&expr.id))
+            .ok_or_else(||EvalError::from("정확 수식의 정적 평가 문맥이 없습니다".to_string()))?.clone();
+        // Keep builtin registration, input validation, metering and diagnostic
+        // handling on the same product dispatch path as ordinary evaluation.
+        self.eval_call_with_formula_context(locals,"풀기",args.to_vec(),self.source_span_for_expr(expr),Some(integer_inputs))
+    }
     pub(super) fn eval_expr_expected(
         &mut self, locals: &mut HashMap<String, Value>, expr: &Expr, expected: &TypeRef,
     ) -> Result<Value, EvalError> {
@@ -233,6 +241,19 @@ impl<'a> EvalContext<'a> {
         expr: &Expr,
     ) -> Result<Value, EvalError> {
         let result = self.eval_expr_inner(locals, expr);
+        // 풀기 오류의 기존 분류와 가장 안쪽 위치를 보존한다. 원문 위치가
+        // 없는 오류에만 현재 수식 평가/방정식 호출 범위를 붙인다.
+        let formula_call = matches!(&expr.kind, ExprKind::FormulaEval { .. })
+            || matches!(&expr.kind, ExprKind::Call { func, .. }
+                if matches!(ddonirang_lang::stdlib::canonicalize_stdlib_alias(func), "풀기" | "방정식풀기"));
+        if formula_call && result.as_ref().err().is_some_and(|error| error.diagnostic_parts().2.is_none()) {
+            if let Some(location) = self.source_span_for_expr(expr) {
+                return result.map_err(|error| EvalError::SourceLocated {
+                    error: Box::new(error), span: (expr.span.start, expr.span.end),
+                    line: location.start_line, column: location.start_col.unwrap_or(1),
+                });
+            }
+        }
         // These typed constructors validate at runtime. Preserve the error's
         // existing code and the innermost failing call, but do not lose its
         // authored source location at the shared CLI/WASM boundary.
@@ -576,13 +597,23 @@ impl<'a> EvalContext<'a> {
             let right = self.eval_expr(locals, &args[1].expr)?;
             return self.eval_call(locals, func, vec![left, right], self.source_span_for_expr(expr));
         }
+        if let Some(admission)=self.program.identity_calculations.call(expr.id)? {
+            if locals.contains_key(func) || self.resources.contains_key(func)
+                || !admission.seed.callable_surface_names().iter().any(|name|name==func) {
+                return Err("E_PROOF_STRUCTURE_CONSUMPTION: 정적 소비와 실제 호출 정의가 다릅니다".to_string().into());
+            }
+            let value=self.eval_expr_expected(locals,&admission.value,&TypeRef::Named("바른수".into()))?;
+            return self.eval_seed(&admission.seed,vec![value]);
+        }
         let mut values = Vec::with_capacity(args.len());
+        let generic_application = self.program.numeric_constraint_plan.as_ref()
+            .and_then(|plan|plan.generic_calls.get(&expr.id)).cloned();
         let math_is_declared=matches!(ddonirang_lang::ordinary_callable::resolve_scalar_math_callable(&self.program.program,func),
             Some(ddonirang_lang::ordinary_callable::ScalarMathCallableOwner::Declared(_)));
         let declared_pins = if !locals.contains_key(func)
             && (math_is_declared || crate::work_cost::builtin_work_cost_rule(
                 ddonirang_lang::stdlib::canonicalize_stdlib_alias(func)).is_ok_and(|rule| rule.is_none())) {
-            self.program.functions.get(func).map(|seed| seed.params.clone())
+            generic_application.as_ref().or_else(||self.program.functions.get(func)).map(|seed| seed.params.clone())
         } else { None };
         for (index, arg) in args.iter().enumerate() {
             // Reuse the already resolved ordinary callable and pin.
@@ -651,6 +682,34 @@ impl<'a> EvalContext<'a> {
             values=slots.into_iter().flatten().collect();
         }
         let resource_backed_names = self.resource_backed_caller_names(locals);
+        if let Some(seed) = generic_application {
+            if locals.contains_key(func) || self.resources.contains_key(func)
+                || !seed.callable_surface_names().iter().any(|name|name==func) {
+                return Err("E_GENERIC_APPLICATION_OWNER: 호출의 정적 정의와 실행 소유자가 다릅니다".to_string().into());
+            }
+            let mut ordered: Vec<Option<Value>> = vec![None; seed.params.len()];
+            for (ordinal, (arg, value)) in args.iter().zip(values).enumerate() {
+                let index = match arg.resolved_pin.as_ref() {
+                    Some(name) => seed.params.iter().position(|pin|&pin.pin_name==name),
+                    None if arg.josa.is_none() => Some(ordinal),
+                    _ => None,
+                }.filter(|index|*index < ordered.len())
+                    .ok_or_else(||EvalError::from("E_GENERIC_APPLICATION_OWNER: 받는자리 결속이 없습니다".to_string()))?;
+                if ordered[index].replace(value).is_some() {
+                    return Err("E_CALL_PIN_DUPLICATE: 제네릭 받는자리가 겹칩니다".to_string().into());
+                }
+            }
+            let ordered = ordered.into_iter().collect::<Option<Vec<_>>>()
+                .ok_or_else(||EvalError::from("E_GENERIC_REQUIRED_INPUT: 필수 입력이 누락됐습니다".to_string()))?;
+            return self.eval_seed(&seed,ordered);
+        }
+        if self.program.numeric_constraint_plan.as_ref().is_some_and(|plan|plan.exact_formula_calls.contains_key(&expr.id)) {
+            if locals.contains_key(func) || self.resources.contains_key(func)
+                || ddonirang_lang::stdlib::canonicalize_stdlib_alias(func)!="풀기" {
+                return Err("정확 수식 호출의 정적 결속과 실행 대상이 다릅니다".to_string().into());
+            }
+            return self.eval_admitted_exact_formula_call(locals,expr,&values);
+        }
         let value =
             self.eval_call(locals, func, values, self.source_span_for_expr(expr))?;
         self.refresh_caller_resource_bindings(locals, &resource_backed_names);
@@ -1131,6 +1190,9 @@ impl<'a> EvalContext<'a> {
             }),
             ExprKind::FormulaEval { formula, inject } => in_expression_frame(|| {
                 let pack = self.eval_inject_fields(locals, inject)?;
+                if self.program.numeric_constraint_plan.as_ref().is_some_and(|plan|plan.exact_formula_calls.contains_key(&expr.id)) {
+                    return self.eval_admitted_exact_formula_call(locals,expr,&[Value::Formula(formula.clone()),pack]);
+                }
                 self.eval_call(
                     locals,
                     "풀기",

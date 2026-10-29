@@ -1,0 +1,22 @@
+{
+  "solutions/seamgrim_ui_mvp/lessons/rep_phys_projectile_xy_v1/lesson.ddn": {
+    "input_epoch": "v25",
+    "source_sha256": "49f88c57e90f21256bdfaab84f461fe2eab809a1d42a9024018e4c0a9e3e8e99",
+    "basis": "D8 current shipped source; C1 a8845482 FD01 exact membership and real menu review"
+  },
+  "solutions/seamgrim_ui_mvp/lessons/rep_phys_pendulum_wave1_v1/lesson.ddn": {
+    "input_epoch": "v25",
+    "source_sha256": "6756a3d1d4f64025cd5f6165963060f58b0e8ba6e29ba0e4f942fe37deecdf9b",
+    "basis": "D8 current shipped source; C1 a8845482 FD01 exact membership and real menu review"
+  },
+  "solutions/seamgrim_ui_mvp/lessons/rep_grid_game_state_drop_v1/lesson.ddn": {
+    "input_epoch": "v25",
+    "source_sha256": "ecbf9732c9b2749120045e523b6b5c4e99f04d0b2ec35b4cd18a7aaa209edb1d",
+    "basis": "D8 current shipped source; C1 a8845482 FD01 exact membership and real keyboard menu review"
+  },
+  "solutions/seamgrim_ui_mvp/lessons/rep_phys_projectile_xy_v1/projectile_seum_s2.ddn": {
+    "input_epoch": "v25",
+    "source_sha256": "82cabf8c55f2a09b323bf78da3dbfecf984d4af423b98db469cfdc7929634907",
+    "basis": "C1 a8845482 FD01 explicitly migrated callable source"
+  }
+}

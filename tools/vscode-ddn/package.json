@@ -1,0 +1,111 @@
+{
+  "name": "ddn-language",
+  "displayName": "Ddonilang (ddn)",
+  "description": "Ddonilang language registration, syntax highlighting, local stdio LSP client, and save-and-run",
+  "version": "0.0.1",
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:ddonilang",
+    "onCommand:ddonilang.runCurrentFile",
+    "onCommand:ddonilang.restartLanguageServer"
+  ],
+  "publisher": "ddonilang",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "ddonilang",
+        "aliases": [
+          "DDN",
+          "ddn",
+          "Ddonilang",
+          "또니랑"
+        ],
+        "extensions": [
+          ".ddn",
+          ".ddl",
+          ".옮김"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "ddonilang",
+        "scopeName": "source.ddn",
+        "path": "./syntaxes/ddn.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "ddonilang",
+        "path": "./snippets/ddn.code-snippets"
+      }
+    ],
+    "configuration": {
+      "title": "Ddonilang",
+      "properties": {
+        "ddonilang.lsp.executable": {
+          "type": "string",
+          "default": "",
+          "description": "Exact local path to ddonirang-lsp. Empty means bounded local discovery."
+        },
+        "ddonilang.lsp.autoDiscover": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow bounded local discovery of a Cargo-built ddonirang-lsp executable."
+        },
+        "ddonilang.cli.executable": {
+          "type": "string",
+          "default": "",
+          "description": "Exact local path to the ddonilang CLI used by 저장하고 실행. Empty means the binary beside the language server, then bounded local discovery."
+        },
+        "ddonilang.run.madi": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "description": "저장하고 실행에 넘길 --마디수. 0이면 넘기지 않습니다."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "ddonilang.runCurrentFile",
+        "title": "저장하고 실행",
+        "category": "또니랑"
+      },
+      {
+        "command": "ddonilang.restartLanguageServer",
+        "title": "언어 서버 다시 시작",
+        "category": "또니랑"
+      }
+    ],
+    "menus": {
+      "editor/title/run": [
+        {
+          "command": "ddonilang.runCurrentFile",
+          "when": "resourceLangId == ddonilang && resourceExtname == .ddn"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "ddonilang.runCurrentFile",
+        "key": "ctrl+f5",
+        "when": "editorLangId == ddonilang && resourceExtname == .ddn"
+      }
+    ]
+  },
+  "scripts": {
+    "test": "node test/extension.test.js && node test/activation.test.js && node test/first-flow.test.js && node test/package-inventory.js",
+    "package:inventory": "node test/package-inventory.js"
+  },
+  "dependencies": {
+    "vscode-languageclient": "8.1.0"
+  }
+}

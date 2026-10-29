@@ -768,6 +768,7 @@ mod windows {
             Self::read_plaintext_on_key(&key,namespace.value_name())
         }
         fn read_plaintext_on_key(key: &Key,value_name:&str) -> Result<Vec<u8>, Failure> {
+            let _timing=crate::storage_observation::Span::start("protected.registry_read_unprotect");
             let name = utf16(value_name);
             let mut kind = 0;
             let mut length = 0;
@@ -797,6 +798,7 @@ mod windows {
             result
         }
         fn write_plaintext(namespace: Namespace, locator: &[u8; 32], plaintext: &[u8], require_new: bool) -> Result<(), Failure> {
+            let _timing=crate::storage_observation::Span::start("protected.protect_write_flush_requery");
             let ciphertext = protect(plaintext)?;
             let namespace_for_read = namespace;
             let key = if matches!(namespace,Namespace::Attempt|Namespace::SourceTransition) {

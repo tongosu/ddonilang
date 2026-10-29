@@ -9,6 +9,24 @@ pub(crate) struct ActualPreparedRequestV1 {
     payload:StoredPayloadV1,
 }
 
+/// An actual checkpoint encoder result tied to an immutable borrow of the
+/// exact producing run. It is not a world/root/start or receipt capability.
+/// A consumer cannot replace the run or request, or mutate the producer while
+/// this witness exists. Only the actual encoder below constructs it.
+pub(crate) struct PreparedLogicalRequestBorrowV1<'a> {
+    request:ActualPreparedRequestV1,
+    run:&'a crate::replay_evidence::LogicalRecordingRunV1,
+}
+impl<'a> PreparedLogicalRequestBorrowV1<'a> {
+    pub(crate) fn from_run(run:&'a crate::replay_evidence::LogicalRecordingRunV1,
+        source:&SourceBoundSavedRuntimeAttachment<'_>,parent:&[u8],revision:&[u8])->Result<Self,Failure>{
+        Ok(Self{request:ActualPreparedRequestV1::from_logical(run,source,parent,revision)?,run})
+    }
+    pub(crate) fn request(&self)->&ActualPreparedRequestV1{&self.request}
+    pub(crate) fn run(&self)->&crate::replay_evidence::LogicalRecordingRunV1{self.run}
+    pub(crate) fn into_request(self)->ActualPreparedRequestV1{self.request}
+}
+
 /// Explicit expected bytes at cold entry. Integrity/source checks alone do
 /// not prove a previous execution or issue a start/restore capability.
 #[cfg(windows)]
@@ -76,12 +94,13 @@ impl ActualPreparedRequestV1 {
         source:&SourceBoundSavedRuntimeAttachment<'_>,parent:&[u8],revision:&[u8],
     )->Result<Self,Failure> {
         run.require_native_checkpoint_provenance()?;
-        let world=run.encode_world_frame()?;
-        Self::from_actual_encoder(run.encode_checkpoint_request(&world,source,parent,revision)?,source)
+        let world={let _timing=crate::storage_observation::Span::start("request.world_frame_encode");run.encode_world_frame()?};
+        let raw={let _timing=crate::storage_observation::Span::start("request.checkpoint_encode");run.encode_checkpoint_request(&world,source,parent,revision)?};
+        Self::from_actual_encoder(raw,source)
     }
 
     fn from_actual_encoder(raw:Vec<u8>,source:&SourceBoundSavedRuntimeAttachment<'_>)->Result<Self,Failure> {
-        let payload=check_expected_request(&raw,source)?;
+        let payload={let _timing=crate::storage_observation::Span::start("request.actual_encoder_check");check_expected_request(&raw,source)?};
         Ok(Self{raw:raw.into(),payload})
     }
 

@@ -62,7 +62,7 @@
         let second_owned=crate::unit_wire::project_runtime_attachment::restore_saved_runtime_payload(&second_bytes).unwrap();
         let second_context=crate::unit_wire::project_runtime_attachment::check_saved_revision_context(
             &second_bytes,&second_owned,&[9],&[10]).unwrap();
-        assert_eq!(second_context.pesi().as_raw(),crate::project_snapshot_identity::current::issue_saved_local_project(&owned).unwrap().pesi().as_raw());
+        assert_eq!(second_context.pesi().as_raw(),crate::project_snapshot_identity::current::issue_saved_project(&owned).unwrap().pesi().as_raw());
         let after_second=resume_saved_project_artifact(&second,&[9],&[10],2).unwrap();
         let six=run_authored_general_input_prefix(&authored,6,7,None,None).unwrap();
         assert_eq!(after_second["next_tick_id"],6);
@@ -485,7 +485,7 @@
         assert_eq!(ordinary_inputs.len(),changed.len());
         assert!(ordinary_inputs.iter().zip(&changed).all(|(row,input)|row.input==*input));
         let frame = prefix.encode_world_frame().unwrap();
-        let issued = crate::project_snapshot_identity::current::issue_saved_local_project(prefix.source_owner()).unwrap();
+        let issued = crate::project_snapshot_identity::current::issue_saved_project(prefix.source_owner()).unwrap();
         let checked_frame = crate::unit_wire::check_complete_state_frame_v1(&frame,issued.pesi().as_raw()).unwrap();
         assert_eq!(checked_frame.next_tick,2);
         let saved = prefix.export_saved_artifact(&[],&[9]).unwrap();
@@ -1716,3 +1716,21 @@
             .as_deref()
             .is_some_and(|value| value.contains('=')));
     }
+
+#[test]
+fn learning_parse_errors_preserve_original_utf8_range() {
+    for newline in ["\n", "\r\n"] {
+        for header in ["", "#제목: 한글 학습\n"] {
+            let source = format!("{header}// 한글 🍎\n값 := ).").replace("\n", newline);
+            // The existing parser reports the lookahead period after consuming ')'.
+            // Preserve that authoritative range rather than guessing a different token.
+            let expected = source.rfind('.').unwrap();
+            let error = run_summary_from_supported_source_profile_diagnostic(
+                &source, "학습.ddn", Some(1), Some(P1A_V1_CORE_PROFILE),
+            ).expect_err("malformed source must remain rejected");
+            assert_eq!(error.code, "E_PARSE");
+            assert_eq!(error.phase, "execution_parse");
+            assert_eq!(error.span, Some((expected, expected + 1)), "{error:?}");
+        }
+    }
+}

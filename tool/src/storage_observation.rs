@@ -1,9 +1,10 @@
 //! Opt-in host observations only. No source, identity, seed or storage bytes.
 //! Buffer spans on the owner thread; emit only after dispatch has returned.
-use std::{cell::RefCell, io::Write, time::Instant};
+use std::{cell::{Cell,RefCell}, io::Write, time::Instant};
 
 thread_local! {
-    static ACTIVE: RefCell<Option<Vec<(&'static str, u128)>>> = const { RefCell::new(None) };
+    static BASE: Cell<Option<Instant>> = const { Cell::new(None) };
+    static ACTIVE: RefCell<Option<Vec<(&'static str, u128, u128)>>> = const { RefCell::new(None) };
 }
 
 pub(crate) fn submitted() -> Option<Instant> {
@@ -20,27 +21,28 @@ impl Request {
             let Ok(mut active) = active.try_borrow_mut() else { return false };
             if active.is_some() { return false }
             *active = Some(Vec::new());
+            BASE.with(|base|base.set(Some(now)));
             true
         });
         Self(enabled.then_some((now, now.duration_since(submitted).as_micros())))
     }
 }
 
-pub(crate) struct Span(Option<(&'static str, Instant)>);
+pub(crate) struct Span(Option<(&'static str, Instant, u128)>);
 impl Span {
     pub(crate) fn start(name: &'static str) -> Self {
         let enabled = ACTIVE.with(|active| active.try_borrow().is_ok_and(|v| v.is_some()));
-        Self(enabled.then(|| (name, Instant::now())))
+        Self(enabled.then(|| {let now=Instant::now();let offset=BASE.with(|base|base.get().map(|v|now.duration_since(v).as_micros()).unwrap_or(0));(name,now,offset)}))
     }
 }
 impl Drop for Span {
     fn drop(&mut self) {
-        if let Some((name, started)) = self.0 {
+        if let Some((name, started, offset)) = self.0 {
             ACTIVE.with(|active| {
                 if let Ok(mut active) = active.try_borrow_mut() {
                     if let Some(samples) = active.as_mut() {
                         // Only diagnostic samples are bounded; product data is untouched.
-                        if samples.len() < 128 { samples.push((name, started.elapsed().as_micros())); }
+                        if samples.len() < 1024 { samples.push((name, started.elapsed().as_micros(), offset)); }
                     }
                 }
             });
@@ -52,11 +54,12 @@ impl Drop for Request {
         let Some((started, queued_us)) = self.0 else { return };
         let handler_us = started.elapsed().as_micros();
         let samples = ACTIVE.with(|active| active.try_borrow_mut().ok().and_then(|mut v| v.take()));
+        BASE.with(|base|base.set(None));
         let Some(samples) = samples else { return };
         let mut line = format!("DDN_PRIVATE_STORAGE_TIMING {{\"phase\":\"owner_request\",\"queued_us\":{queued_us},\"elapsed_us\":{handler_us},\"samples\":[");
-        for (index, (name, elapsed)) in samples.iter().enumerate() {
+        for (index, (name, elapsed, offset)) in samples.iter().enumerate() {
             if index != 0 { line.push(','); }
-            line.push_str(&format!("{{\"phase\":\"{name}\",\"elapsed_us\":{elapsed}}}"));
+            line.push_str(&format!("{{\"phase\":\"{name}\",\"elapsed_us\":{elapsed},\"start_us\":{offset}}}"));
         }
         line.push_str("]}\n");
         // Never replace a product result on diagnostic I/O failure.

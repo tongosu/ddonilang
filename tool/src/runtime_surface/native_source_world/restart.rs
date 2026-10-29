@@ -86,7 +86,7 @@ impl NativeRestartSourceWorldExecution {
         let parent=self.session.permit.source().revision();
         self.session.permit.verify_before_world(&self.session.adapter).map_err(|e|format!("E_SOURCE_NEW_RUN_PREPARE: {e:?}"))?;
         let encoded=self.run.encode_world_frame().map_err(|e|format!("E_SOURCE_NEW_RUN_FRAME: {e:?}"))?;
-        let issued=crate::project_snapshot_identity::current::issue_saved_local_project(&self.run.owned)?;
+        let issued=crate::project_snapshot_identity::current::issue_saved_project(&self.run.owned)?;
         let frame=crate::unit_wire::check_complete_state_frame_v1(&encoded,issued.pesi().as_raw()).map_err(|e|format!("E_SOURCE_NEW_RUN_FRAME: {e:?}"))?;
         let catalog=self.run.owned.registration().map(|r|r.saved_nominal_catalog(&self.run.owned)).transpose()?;
         let plan=self.run.execution.runner.saved_tuple_restore_plan();

@@ -1,4 +1,9 @@
 use num_bigint::{BigInt, Sign};
+mod assumption_transfer;
+mod propositional;
+pub mod algebra;
+pub use propositional::{check_propositional_evidence, CheckedPropositionalEvidence, PropositionalEvidence, PropositionalGoal};
+pub use assumption_transfer::{check_assumption_transfer, CheckedAssumptionTransfer, CheckedInitialIdentity, CheckedIdentityConsumption};
 use num_traits::One;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -62,18 +67,47 @@ impl ReceiptIdentity {
     }
 }
 
+/// 실제 checker가 발급한 결과. 외부 호출자는 읽거나 복제할 수 있지만
+/// 증표 결속이나 성공 판정을 변경해 새 검사 결과를 만들 수 없다.
+///
+/// ```compile_fail,E0616
+/// fn forge(result: &mut ddonirang_proof::DefinednessCheckResult,
+///          identity: ddonirang_symbolic::CertificateIdentity) {
+///     result.certificate_identity = identity;
+/// }
+/// ```
+///
+/// ```compile_fail,E0616
+/// fn forge(result: &mut ddonirang_proof::DefinednessCheckResult) {
+///     result.verdict = true;
+/// }
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DefinednessCheckResult {
-    pub proof_problem_identity: ddonirang_symbolic::ProofProblemIdentity,
-    pub declared_assumption_closure_identity: String,
-    pub transformation_obligation_set_identity: String,
-    pub certificate_identity: ddonirang_symbolic::CertificateIdentity,
-    pub provider_identity: ddonirang_symbolic::ProviderIdentity,
-    pub checker_identity: CheckerIdentity,
-    pub kernel_profile_identity: ddonirang_symbolic::KernelProfileIdentity,
-    pub check_execution_identity: CheckExecutionIdentity,
-    pub verdict: bool,
-    pub check_result_identity: CheckResultIdentity,
+    proof_problem_identity: ddonirang_symbolic::ProofProblemIdentity,
+    declared_assumption_closure_identity: String,
+    transformation_obligation_set_identity: String,
+    certificate_identity: ddonirang_symbolic::CertificateIdentity,
+    provider_identity: ddonirang_symbolic::ProviderIdentity,
+    checker_identity: CheckerIdentity,
+    kernel_profile_identity: ddonirang_symbolic::KernelProfileIdentity,
+    check_execution_identity: CheckExecutionIdentity,
+    verdict: bool,
+    check_result_identity: CheckResultIdentity,
+}
+
+impl DefinednessCheckResult {
+    pub fn verdict(&self) -> bool {
+        self.verdict
+    }
+
+    pub fn proof_problem_identity(&self) -> &ddonirang_symbolic::ProofProblemIdentity {
+        &self.proof_problem_identity
+    }
+
+    pub fn certificate_identity(&self) -> &ddonirang_symbolic::CertificateIdentity {
+        &self.certificate_identity
+    }
 }
 
 /// Reversible internal typed ingress. This is deliberately not serialized and
@@ -1197,6 +1231,12 @@ pub fn build_definedness_report(
     certificate: &ddonirang_symbolic::DefinednessCertificate,
     check_result: &DefinednessCheckResult,
 ) -> Result<DefinednessReport, String> {
+    // 검사 이후 가변 증표의 내용이 바뀌면 이전 검사 결과를 재사용하지 않는다.
+    if certificate.certificate_identity
+        != ddonirang_symbolic::recompute_definedness_certificate_identity(certificate)
+    {
+        return Err("E_PATHIR_CERTIFICATE_IDENTITY_INTERNAL".to_string());
+    }
     if !check_result.verdict {
         return Err("E_PATHIR_CHECK_FAILURE_NOT_REPORTABLE_INTERNAL".to_string());
     }
@@ -1231,6 +1271,12 @@ pub fn seal_definedness_receipt(
     publish_evidence: PublishEvidence,
     provenance: &str,
 ) -> Result<DefinednessReceipt, String> {
+    // 보고서 경로를 거치지 않는 직접 호출에서도 증표의 현재 내용을 결속한다.
+    if certificate.certificate_identity
+        != ddonirang_symbolic::recompute_definedness_certificate_identity(certificate)
+    {
+        return Err("E_PATHIR_CERTIFICATE_IDENTITY_INTERNAL".to_string());
+    }
     if !check_result.verdict {
         return Err("E_PATHIR_CHECK_FAILURE_NOT_RECEIPTABLE_INTERNAL".to_string());
     }

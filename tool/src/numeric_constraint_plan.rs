@@ -4,6 +4,8 @@ use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::sync::Arc;
 use ddonirang_core::platform::RecordFieldType;
 use ddonirang_lang::{CanonProgram, Expr, ExprKind, Literal, NodeId, SeedDef, Stmt, TopLevelItem, TypeRef};
+mod generic_application;
+pub(crate) use generic_application::source_diagnostic as generic_source_diagnostic;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum NumericKind { Integer, Approximate, Rational, BigInteger, Factor }
@@ -47,6 +49,15 @@ enum Shape {
     // Private projection of the admitted input-event producer, not a public
     // record type, saved tag, or inference from a runtime Pack's field names.
     InputEvent,
+    // Compilation-local facts from actual formula/relation constructors and
+    // the resolved solver call. These are not public numeric type identities.
+    MathFormula,
+    EquationRelation,
+    EquationSolution,
+    EquationAnswer,
+    EquationInputs,
+    FormulaInjection(Arc<BTreeMap<String, Shape>>),
+    FormulaResult(Variable),
     Numeric(Variable),
     Unit(ddonirang_core::UnitDim),
     // Aliases share immutable source structure. Copying a binding must not
@@ -246,14 +257,24 @@ pub(crate) fn literal_arithmetic_tree(expression: &Expr) -> bool {
 /// NodeIds nor the private BindingOwner may escape into saved TypeIdentity.
 #[derive(Default, Debug)]
 pub(crate) struct NumericConstraintPlan {
+    // Compilation-local result owners for the actual piecewise declarations.
+    // These node keys select facts in this plan; they are not saved identities.
+    pub(crate) piecewise_results: BTreeMap<NodeId, TypeRef>,
+    pub(crate) exact_formula_calls: BTreeMap<NodeId, BTreeSet<String>>,
+    pub(crate) generic_calls: BTreeMap<NodeId, SeedDef>,
     pub(crate) subject_reference_targets:BTreeMap<NodeId,NodeId>,
     pub(crate) expressions: BTreeMap<NodeId, TypeRef>,
     pub(crate) literals: BTreeMap<NodeId, NumericKind>,
     pub(crate) bindings: BTreeMap<BindingOwner, TypeRef>,
     pub(crate) position_types: BTreeMap<NodeId, RecordFieldType>,
+    pub(crate) equation_results: BTreeSet<NodeId>,
 }
 
 struct Projection<'a> {
+    equation_result_calls: BTreeSet<NodeId>,
+    formula_calls: BTreeMap<NodeId, (Variable, BTreeSet<String>)>,
+    formula_flow: Vec<Shape>,
+    generic_calls: BTreeMap<NodeId, SeedDef>,
     program: &'a CanonProgram,
     output_atoms:Option<&'a crate::authored_project::registration::ResolvedRegisteredAtomResultTypeV1>,
     graph: NumericConstraints,
@@ -300,6 +321,8 @@ impl NumericConstraintPlan {
     fn compile_projection<'a>(program:&'a CanonProgram,world_decls:&HashSet<String>,host:Option<&crate::runtime_surface::BogaeHostNumericSupply>,
         output_atoms:Option<&'a crate::authored_project::registration::ResolvedRegisteredAtomResultTypeV1>)->Result<Self,String>{
         let mut projection = Projection {
+            equation_result_calls:BTreeSet::new(),
+            formula_calls: BTreeMap::new(), formula_flow:Vec::new(), generic_calls: BTreeMap::new(),
             program, output_atoms, graph: NumericConstraints::default(), bags:BagConstraints::default(), shapes: BTreeMap::new(),
             literal_sites: BTreeMap::new(), exact_integer_literals:BTreeMap::new(), bindings: BTreeMap::new(), callables: BTreeMap::new(),
             literal_trees: BTreeSet::new(), records: BTreeMap::new(), payload_fields:BTreeMap::new(),nominal_fields:BTreeMap::new(),
@@ -323,6 +346,7 @@ impl NumericConstraintPlan {
         }
         for TopLevelItem::SeedDef(seed) in &program.items {
             for name in seed.callable_surface_names() { projection.callables.entry(name).or_default().push(seed); }
+            if !seed.type_params.is_empty() { generic_application::validate_body(seed)?; }
             if seed.seed_kind == ddonirang_lang::SeedKind::Product {
                 projection.records.insert(seed.canonical_name.clone(), seed.params.iter().map(|pin| (pin.pin_name.clone(), pin.type_ref.clone())).collect());
             }
@@ -423,7 +447,7 @@ impl NumericConstraintPlan {
             globals.extend(projection.callable_globals.clone());
         }
         for TopLevelItem::SeedDef(seed) in &program.items {
-            if seed.seed_kind==ddonirang_lang::SeedKind::Umjikssi && seed.params.is_empty() {
+            if seed.type_params.is_empty() && seed.seed_kind==ddonirang_lang::SeedKind::Umjikssi && seed.params.is_empty() {
                 projection.analyze_callable(seed,None)?;
             }
         }
@@ -448,7 +472,7 @@ impl NumericConstraintPlan {
         for TopLevelItem::SeedDef(seed) in &program.items {
             // Coarse collection pins require an actual source call supplier.
             // Do not execute a body with a fabricated homogeneous element type.
-            if !seed.params.iter().any(|pin|matches!(&pin.type_ref,TypeRef::Named(name) if matches!(name.as_str(),"차림"|"무작위가방"))) {
+            if seed.type_params.is_empty() && !seed.params.iter().any(|pin|matches!(&pin.type_ref,TypeRef::Named(name) if matches!(name.as_str(),"차림"|"무작위가방"))) {
                 projection.analyze_callable(seed,None)?;
             }
         }
@@ -567,7 +591,15 @@ impl NumericConstraintPlan {
             if projection.finish_shape(shape)!=Some(projection.graph.resolved(*result).type_ref()) {return Err(projection.failure(*site,"독립 입력 owner가 결과 해소 뒤 변경됐습니다"));}
         }
         let mut result = Self::default();
+        for (site,(variable,integer_inputs)) in &projection.formula_calls {
+            if projection.graph.explicit_kind(*variable)==Some(NumericKind::Rational) {
+                result.exact_formula_calls.insert(*site,integer_inputs.clone());
+            }
+        }
+        result.generic_calls = projection.generic_calls.clone();
+        result.equation_results.extend(projection.equation_result_calls.iter().copied());
         for (site, shape) in &projection.shapes {
+            if matches!(shape, Shape::EquationSolution) { result.equation_results.insert(*site); }
             if let Some(kind) = projection.finish_shape(shape) { result.expressions.insert(*site, kind); }
             if let Some(kind) = projection.finish_descriptor(shape) { result.position_types.insert(*site, kind); }
         }
@@ -589,6 +621,11 @@ impl NumericConstraintPlan {
         }
         for (owner, shape) in &projection.bindings {
             if let Some(kind) = projection.finish_shape(shape) { result.bindings.insert(*owner, kind); }
+        }
+        for id in program.origin.piecewise_definitions.keys() {
+            if let Some(shape)=projection.callable_returns.get(id) {
+                if let Some(kind)=projection.finish_shape(shape) {result.piecewise_results.insert(*id,kind);}
+            }
         }
         Ok(result)
     }
@@ -990,6 +1027,9 @@ impl Projection<'_> {
                         Some(Shape::Declared(kind @ TypeRef::Applied{..}))=>Shape::Declared(kind.clone()),
                         _=>self.declared(&pin.type_ref,pin.id)?,
                     }
+                }else if matches!(&pin.type_ref,TypeRef::Named(name) if name=="묶음")
+                    && matches!(actual.map(|(_,shape)|shape),Some(Shape::EquationRelation)) {
+                    Shape::EquationRelation
                 }else{self.declared(&pin.type_ref,pin.id)?};
             if let Some((site,actual))=actual {self.same_shape(&shape,actual,*site)?;}
             self.bindings.insert(owner,shape.clone());
@@ -1000,6 +1040,16 @@ impl Projection<'_> {
             if let Some(body)=&seed.body {
                 let old=self.sums.clone();let result=self.statements(seed.id,&mut scope,&body.stmts,Some(seed));
                 self.sums=old;result?;
+            } else if let Some(body)=self.program.origin.piecewise_definitions.get(&seed.id).cloned() {
+                let result_type=seed.result_type.as_ref().ok_or_else(||self.failure(seed.id,"조건별의 실제 결과씨가 없습니다"))?;
+                let expected=self.declared(result_type,seed.id)?;
+                self.callable_returns.insert(seed.id,expected.clone());
+                self.piecewise_condition_shapes(seed.id,&mut scope,&body.domain,&expected)?;
+                for row in &body.rows {
+                    self.piecewise_condition_shapes(seed.id,&mut scope,&row.condition,&expected)?;
+                    let actual=self.expression(seed.id,&mut scope,&row.value)?;
+                    self.callable_return(seed,&actual,row.value.id)?;
+                }
             }
             self.active_callables.remove(&seed.id);
             self.analyzed_callables.insert(seed.id);
@@ -1013,6 +1063,26 @@ impl Projection<'_> {
         }
         if let Some(shape)=self.callable_returns.get(&seed.id) {return Ok(shape.clone());}
         if let Some(kind)=&seed.result_type {self.declared(kind,seed.id)}else{Ok(Shape::Unknown(seed.id))}
+    }
+
+    fn piecewise_condition_shapes(&mut self, owner:NodeId, scope:&mut Scope,
+        condition:&ddonirang_lang::PiecewiseCondition, expected:&Shape)->Result<(),String> {
+        use ddonirang_lang::PiecewiseCondition as C;
+        match condition {
+            C::ExplicitEmpty(_)=>Ok(()),
+            C::Relations{terms,..}=>{
+                for term in terms {
+                    let actual=self.expression(owner,scope,term)?;
+                    self.same_shape(expected,&actual,term.id)?;
+                }
+                Ok(())
+            }
+            C::And(a,b)|C::Or(a,b)=>{
+                self.piecewise_condition_shapes(owner,scope,a,expected)?;
+                self.piecewise_condition_shapes(owner,scope,b,expected)
+            }
+            C::Not(a)=>self.piecewise_condition_shapes(owner,scope,a,expected),
+        }
     }
 
     fn callable_return(&mut self,seed:&SeedDef,actual:&Shape,site:NodeId) -> Result<(),String> {
@@ -1136,6 +1206,14 @@ impl Projection<'_> {
             return self.same_shape(&left,&right,site);
         }
         match (left, right) {
+            (Shape::EquationRelation,Shape::EquationRelation)=>Ok(()),
+            (Shape::EquationRelation,_)=>Err(self.failure(site,"방정식 생성자의 실제 원문 결속이 다른 호출/대입에서 보존되지 않습니다")),
+            (Shape::EquationSolution,Shape::EquationSolution) | (Shape::EquationAnswer,Shape::EquationAnswer)
+                | (Shape::EquationInputs,Shape::EquationInputs)=>Ok(()),
+            (Shape::EquationSolution|Shape::EquationAnswer|Shape::EquationInputs,_)=>Err(self.failure(site,"풀이 결과의 실제 원문 공급자가 다른 대입에서 보존되지 않습니다")),
+            (Shape::FormulaResult(a),Shape::FormulaResult(b))=>self.graph.same(*a,*b),
+            (Shape::FormulaResult(a),Shape::Numeric(b)) | (Shape::Numeric(b),Shape::FormulaResult(a))
+                if self.graph.explicit_kind(*b)==Some(NumericKind::Rational)=>self.graph.require(*a,NumericKind::Rational,site),
             // Non-numeric category/pin failures retain the existing checker
             // and runtime's structured diagnostic/atomicity contract. A
             // successful declared value must still pass that owner's gate.
@@ -1244,6 +1322,9 @@ impl Projection<'_> {
                 kind.map(|kind|if matches!(shape,Shape::BagPreview(_)){TypeRef::Applied{name:"차림".into(),args:vec![kind]}}else{kind})
             }
             Shape::Tuple(items) => Some(TypeRef::Tuple(items.iter().map(|item|Self::finish_shape_inner(item,graph,bags,active)).collect::<Option<_>>()?)),
+            Shape::FormulaResult(variable)=> (graph.explicit_kind(*variable)==Some(NumericKind::Rational)).then(||NumericKind::Rational.type_ref()),
+            Shape::FormulaInjection(_) | Shape::EquationRelation | Shape::EquationSolution | Shape::EquationInputs=>Some(TypeRef::Named("묶음".into())),
+            Shape::MathFormula | Shape::EquationAnswer=>None,
             Shape::Unit(_) | Shape::Unknown(_) |Shape::Bag(_)|Shape::BagDraw(_) | Shape::InputEvent | Shape::RegisteredAtom => None,
         }
     }
@@ -1293,6 +1374,28 @@ impl Projection<'_> {
         }
     }
 
+    fn formula_result(&mut self,site:NodeId,inputs:&BTreeMap<String,Shape>)->Result<Shape,String> {
+        let mut exact=false;
+        let mut integer_inputs=BTreeSet::new();
+        for (name,input) in inputs {
+            match input {
+                // The solver is an exact rational producer. Its legacy
+                // integral carrier is admitted only for this source field.
+                Shape::EquationAnswer=>{exact=true;integer_inputs.insert(name.clone());}
+                Shape::Numeric(variable) if self.graph.explicit_kind(*variable)==Some(NumericKind::Rational)=>exact=true,
+                Shape::Numeric(variable) if self.graph.explicit_kind(*variable)==Some(NumericKind::Integer)=>{integer_inputs.insert(name.clone());}
+                _=>return Ok(Shape::Unknown(site)),
+            }
+        }
+        if !exact && !inputs.is_empty() {return Ok(Shape::Unknown(site));}
+        let variable=self.graph.variable(DefaultPreference::Decimal);
+        if exact {self.graph.require(variable,NumericKind::Rational,site)?;}
+        // A constant expression has no exact default. It enters the exact
+        // path only when an actual rational comparison supplies that context.
+        self.formula_calls.insert(site,(variable,integer_inputs));
+        Ok(Shape::FormulaResult(variable))
+    }
+
     fn expression(&mut self, scope_id: NodeId, scope: &mut Scope, expression: &Expr) -> Result<Shape, String> {
         // F5-GA[EXPRESSION-SLOTS]: actuals is an unfiltered map of args; successful role resolution returns original arg indices, and local arity guards precede fixed indexing.
         self.source_sites.insert(expression.id,expression.span);
@@ -1315,6 +1418,7 @@ impl Projection<'_> {
                     && whole.parse::<i64>().ok().and_then(|value|value.checked_mul(1i64<<32)).is_some());
                 Shape::Numeric(variable)
             }
+            ExprKind::Formula(_)=>Shape::MathFormula,
             ExprKind::Literal(Literal::Bool(_)) => Shape::Declared(TypeRef::Named("참거짓".into())),
             ExprKind::Literal(Literal::String(_)) => Shape::Declared(TypeRef::Named("글".into())),
             ExprKind::Literal(Literal::None) => Shape::Declared(TypeRef::Named("없음".into())),
@@ -1407,6 +1511,8 @@ impl Projection<'_> {
                     })?;
                     }
                     Shape::Declared(TypeRef::Named("참거짓".into()))
+                } else if matches!(op.as_str(),"relation_eq"|"=:=") && matches!((&left,&right),(Shape::MathFormula,Shape::MathFormula)) {
+                    Shape::EquationRelation
                 } else { Shape::Unknown(expression.id) }
             }
             ExprKind::TupleConstructor { elements } | ExprKind::CollectionConstructor { elements } => {
@@ -1497,8 +1603,9 @@ impl Projection<'_> {
                 Shape::Declared(TypeRef::Named(owner.clone()))
             }
             ExprKind::Pack { fields } => {
-                for (_, value) in fields { self.expression(scope_id,scope,value)?; }
-                Shape::Declared(TypeRef::Named("묶음".into()))
+                let mut inputs=BTreeMap::new();
+                for (name, value) in fields { inputs.insert(name.clone(),self.expression(scope_id,scope,value)?); }
+                Shape::FormulaInjection(Arc::new(inputs))
             }
             ExprKind::Tensor(tensor) => {
                 let actual=self.expression(scope_id,scope,tensor.input())?;
@@ -1529,16 +1636,35 @@ impl Projection<'_> {
                 Shape::Unknown(expression.id)
             }
             ExprKind::Pipe { stages } => {
-                for stage in stages { self.expression(scope_id,scope,stage)?; }
-                Shape::Unknown(expression.id)
+                // `해서` is already a common Pipe/FlowValue expression. Carry
+                // its actual predecessor source through the same nested flow
+                // boundary that runtime eval_pipe uses; never read values to
+                // infer the formula owner.
+                let mut prior=Shape::Unknown(expression.id);
+                for stage in stages {
+                    self.formula_flow.push(prior);
+                    let result=self.expression(scope_id,scope,stage);
+                    self.formula_flow.pop();
+                    prior=result?;
+                }
+                if matches!(prior,Shape::FormulaResult(_)) {prior}else{Shape::Unknown(expression.id)}
             }
+            ExprKind::FlowValue=>match self.formula_flow.last() {
+                Some(Shape::MathFormula)=>Shape::MathFormula,
+                _=>Shape::Unknown(expression.id),
+            },
             ExprKind::SumBranchValue { payload, owner, .. } => {
                 for argument in payload { self.expression(scope_id,scope,&argument.value)?; }
                 Shape::Declared(TypeRef::Named(owner.clone()))
             }
-            ExprKind::TemplateRender { inject, .. } | ExprKind::FormulaEval { inject, .. } => {
+            ExprKind::TemplateRender { inject, .. } => {
                 for (_, value) in inject { self.expression(scope_id,scope,value)?; }
                 Shape::Unknown(expression.id)
+            }
+            ExprKind::FormulaEval { inject, .. } => {
+                let mut inputs=BTreeMap::new();
+                for (name,value) in inject {inputs.insert(name.clone(),self.expression(scope_id,scope,value)?);}
+                self.formula_result(expression.id,&inputs)?
             }
             ExprKind::Call { args, func } => {
                 match projection_call_frame(|| {
@@ -1573,6 +1699,33 @@ impl Projection<'_> {
                 }
                 for arg in args {self.source_sites.insert(arg.id,arg.expr.span);}
                 let canonical = ddonirang_lang::stdlib::canonicalize_stdlib_alias(func);
+                if !scope.contains_key(func) && !self.callables.contains_key(func)
+                    && crate::work_cost::builtin_work_cost_rule(canonical).is_ok_and(|rule|rule.is_some()) {
+                    // 반환 저장 씨는 실제 sealed 생산자에 결속한다. 입력 관계의
+                    // 정밀 추론 실패를 성공 판정으로 바꾸지는 않으며, 호출 실행은
+                    // 기존 인자 검사를 통과해야만 값을 생산한다.
+                    if matches!(canonical,"방정식풀기"|"다항식.풀기") {
+                        self.equation_result_calls.insert(expression.id);
+                    }
+                    let supplied=match (canonical,actuals.as_slice()) {
+                        ("방정식풀기",[Shape::EquationRelation])=>Some(Shape::EquationSolution),
+                        ("다항식.풀기",[Shape::MathFormula,_])=>Some(Shape::EquationSolution),
+                        ("풀기",[Shape::MathFormula,Shape::FormulaInjection(inputs)])=>Some(self.formula_result(expression.id,inputs)?),
+                        ("풀기",[Shape::MathFormula,Shape::EquationInputs])=>{
+                            let variable=self.graph.variable(DefaultPreference::Decimal);
+                            self.graph.require(variable,NumericKind::Rational,expression.id)?;
+                            // This producer supplies Rational values even for
+                            // integral answers. No runtime-name widening gate.
+                            self.formula_calls.insert(expression.id,(variable,BTreeSet::new()));
+                            Some(Shape::FormulaResult(variable))
+                        },
+                        _=>None,
+                    };
+                    if let Some(shape)=supplied {
+                        self.shapes.insert(expression.id,shape.clone());
+                        return Ok(std::ops::ControlFlow::Break(shape));
+                    }
+                }
                 if canonical == "입력사상.사건들" && args.is_empty() && !scope.contains_key(func)
                     && !self.callables.contains_key(func)
                     && crate::work_cost::builtin_work_cost_rule(canonical).is_ok_and(|rule| rule.is_some()) {
@@ -1616,7 +1769,31 @@ impl Projection<'_> {
                     }
                     let ordered=seed.params.iter().map(|pin|supplied.get(&pin.id).cloned()
                         .unwrap_or((pin.id,Shape::Unknown(pin.id)))).collect::<Vec<_>>();
-                    self.analyze_callable(seed,Some(&ordered))?
+                    if seed.type_params.is_empty() {
+                        self.analyze_callable(seed,Some(&ordered))?
+                    } else {
+                        // Resolve required inputs independently of the result
+                        // consumer, and freeze those source numeric owners.
+                        let mut independent = self.graph.clone();
+                        independent.finish()?;
+                        let mut inputs = Vec::new();
+                        for (site, shape) in &ordered {
+                            let kind = Self::finish_shape_in(shape, &independent, &self.bags)
+                                .ok_or_else(||format!("E_GENERIC_INPUT_UNRESOLVED: 필수 입력의 씨를 확정할 수 없습니다; {}", self.failure(*site,"미결 입력")))?;
+                            let span = self.source_sites.get(site).or_else(||self.program.origin.node_spans.get(site))
+                                .copied().unwrap_or(seed.span);
+                            inputs.push((span, kind));
+                        }
+                        let applied = generic_application::instantiate(seed, &inputs)?;
+                        for ((site, actual), (_, kind)) in ordered.iter().zip(&inputs) {
+                            let fixed = self.declared(kind,*site)?;
+                            self.same_shape(actual,&fixed,*site)?;
+                        }
+                        let result = self.declared(applied.result_type.as_ref()
+                            .ok_or_else(||self.failure(expression.id,"제네릭 결과 선언 누락"))?, expression.id)?;
+                        self.generic_calls.insert(expression.id,applied);
+                        result
+                    }
                 } else if !scope.contains_key(func) && !self.callables.contains_key(func) && !self.callables.contains_key(canonical)
                     && matches!(canonical,"표준장면.원"|"표준장면.다각형"|"표준장면.글"|"표준장면.평면")
                     && crate::work_cost::builtin_work_cost_rule(canonical).is_ok_and(|rule|rule.is_some()) {
@@ -1726,7 +1903,16 @@ impl Projection<'_> {
             }
             ExprKind::FieldAccess { target, field, .. } => {
                 let target = self.expression(scope_id, scope, target)?;
-                if self.admitted_input_event(&target) {
+                if matches!(&target,Shape::EquationRelation) && matches!(field.as_str(),"왼쪽"|"오른쪽") {
+                    self.shapes.insert(expression.id,Shape::MathFormula);
+                    return Ok(Shape::MathFormula);
+                } else if matches!(&target,Shape::EquationSolution) && field=="값" {
+                    self.shapes.insert(expression.id,Shape::EquationAnswer);
+                    return Ok(Shape::EquationAnswer);
+                } else if matches!(&target,Shape::EquationSolution) && matches!(field.as_str(),"왼쪽입력"|"오른쪽입력") {
+                    self.shapes.insert(expression.id,Shape::EquationInputs);
+                    return Ok(Shape::EquationInputs);
+                } else if self.admitted_input_event(&target) {
                     // The existing typed projection supplies these values:
                     // receive_ordinal is an integer; Number/Coordinate raw is
                     // Fixed64. Runtime still rejects a field absent on the
@@ -2369,4 +2555,40 @@ mod tests {
             assert_eq!(graph.resolved(variable), NumericKind::Rational);
         }
     }
+}
+
+
+/// Read existing numeric analysis for the very same parsed proof source.
+/// This is an untrusted candidate view, not a replacement type checker.
+pub(crate) fn coordinate_proof_candidate(prepared:&ddonirang_lang::proof_authoring::PreparedProofSource)
+    ->Result<ddonirang_lang::proof_authoring::NumericSourceCandidate<'_>,(String,Option<ddonirang_lang::Span>)> {
+    fn collect<'a>(expr:&'a Expr,out:&mut Vec<&'a Expr>)->Result<(),String> {
+        if out.len()>4096 {return Err("E_PROOF_BUDGET: 좌표 숫자 공급 한도를 넘었습니다".into())}
+        match &expr.kind {
+            ExprKind::Infix{left,right,..}=>{out.push(expr);collect(left,out)?;collect(right,out)?;},
+            ExprKind::TupleConstructor{elements}=>for e in elements {collect(e,out)?;},
+            ExprKind::Call{args,..}=>for a in args {collect(&a.expr,out)?;},
+            _=>{},
+        }
+        Ok(())
+    }
+    let program=prepared.program();
+    let plan=NumericConstraintPlan::compile(program,&HashSet::new()).map_err(|message|(message,None))?;
+    let mut nodes=Vec::new();
+    for TopLevelItem::SeedDef(seed) in &program.items {
+        if let Some(body)=&seed.body {
+            for stmt in &body.stmts {
+                if let Stmt::Mutate{value,..}=stmt {collect(value,&mut nodes).map_err(|message|(message,Some(value.span)))?;}
+            }
+        }
+    }
+    let mut expressions=plan.expressions.clone();
+    for (id,kind) in &plan.literals {expressions.entry(*id).or_insert_with(||kind.type_ref());}
+    let mut operations=Vec::new();
+    for expr in nodes {
+        let role=crate::ddn_runtime::coordinate_numeric_contract(expr,&expressions)
+            .ok_or_else(||("E_PROOF_NUMERIC_CONTRACT: 연산의 실제 숫자 실행 계약을 공급할 수 없습니다".into(),Some(expr.span)))?;
+        operations.push((expr.id,role));
+    }
+    Ok(ddonirang_lang::proof_authoring::NumericSourceCandidate{program,expressions:expressions.into_iter().collect(),operations})
 }

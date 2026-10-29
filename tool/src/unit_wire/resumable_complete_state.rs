@@ -220,10 +220,12 @@ pub(crate) fn encode_general_fresh_source_descriptor(
     ).map_err(|_|Failure::InvalidInput)?;
     program.bind_registered_project_context(owned).map_err(|_|Failure::CustodyConflict)?;
     let preparation=owned.sources().preparation();
-    crate::runtime_surface::prepare_supported_source_for_execution_with_program(
-        &preparation.source,&preparation.target_path,&program,
-    ).map_err(|_|Failure::InvalidInput)?;
-    let canonical=program.canonical_ddn();let decision=program.execution_mode_decision();
+    // Use the exact outputs produced by this program's successful source
+    // preparation. No caller-supplied canonical text or mode is admitted.
+    let crate::runtime_surface::PreparedSource {canonical_ddn:canonical,
+        execution_mode_decision:decision,..}=crate::runtime_surface::prepare_supported_source_for_execution_with_program(
+            &preparation.source,&preparation.target_path,&program,
+        ).map_err(|_|Failure::InvalidInput)?;
     let initial=encode_general_original_initial_world(owned,runner)?;
     let mut out=vec![0,2];
     append_bytes32(&mut out,b"ddn.resume.source-rebuild-descriptor.v1")?;
@@ -260,7 +262,7 @@ pub(crate) fn encode_general_original_initial_world(
     owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
     runner:&crate::ddn_runtime::DdnRunner,
 )->Result<Vec<u8>,Failure>{
-    let issued=crate::project_snapshot_identity::current::issue_saved_local_project(owned)
+    let issued=crate::project_snapshot_identity::current::issue_saved_project(owned)
         .map_err(|_|Failure::InvalidInput)?;
     let empty=[0;8];
     let subject_initial=runner.saved_initial_subject_world().map_err(|_|Failure::SubjectCustodyInvalid)?;
@@ -360,11 +362,11 @@ impl CheckpointedLogicalRunV1 {
         ).map_err(|_|Failure::InvalidInput)?;
         program.bind_registered_project_context(owned).map_err(|_|Failure::CustodyConflict)?;
         let preparation = owned.sources().preparation();
-        crate::runtime_surface::prepare_supported_source_for_execution_with_program(
+        let crate::runtime_surface::PreparedSource {
+            canonical_ddn: canonical, execution_mode_decision: decision, ..
+        } = crate::runtime_surface::prepare_supported_source_for_execution_with_program(
             &preparation.source,&preparation.target_path,&program,
         ).map_err(|_|Failure::InvalidInput)?;
-        let canonical = program.canonical_ddn();
-        let decision = program.execution_mode_decision();
         let execution_mode = match decision.mode {ddonirang_lang::ExecutionMode::OneShot=>1,
             ddonirang_lang::ExecutionMode::Live=>2};
         let hooks = [decision.live_hook_count,decision.every_madi_hook_count,decision.every_n_madi_hook_count];
@@ -373,7 +375,7 @@ impl CheckpointedLogicalRunV1 {
         runner.configure_project_entry(start).map_err(|_|Failure::InvalidInput)?;
         encode_execution_contract_supply(owned,&runner)?;
         let execution_instance = runner.execution_instance_owner_bytes().to_vec();
-        let issued = crate::project_snapshot_identity::current::issue_saved_local_project(owned)
+        let issued = crate::project_snapshot_identity::current::issue_saved_project(owned)
             .map_err(|_|Failure::InvalidInput)?;
         let empty = [0;8];
         let initial = super::complete_state_frame::CompleteStateFrameV1 {
@@ -742,9 +744,13 @@ impl CheckpointedLogicalRunV1 {
         let source_supply=encode_source_capture_supply(owned.sources())?;
         check_source_capture_supply(&source_supply,context.owned().sources())?;
         check_revision_envelope_supply(request.revision_bytes,context)?;
-        rebuild_complete_state_source_candidate(&request.layout,context)?;
+        let replay_candidate=rebuild_complete_state_source_candidate(&request.layout,context)?;
+        // The request descriptor was rebuilt against the independent context
+        // above. Compare its exact bytes with this immutable run's assembly;
+        // rebuilding that identical comparison copy would discard a runner.
+        // This assembly never leaves this equality check as an admitted supply.
         if request.layout.supplies[8]!=self.checkpoint_predecessor_supply()?
-            || request.layout.supplies[9]!=self.source_rebuild_descriptor_supply()?
+            || request.layout.supplies[9]!=self.assemble_source_rebuild_descriptor()?
             || request.layout.supplies[6]!=self.execution_position_supply()? {
             return Err(Failure::CustodyConflict);
         }
@@ -765,7 +771,13 @@ impl CheckpointedLogicalRunV1 {
         // Independently replay the sealed prefix using the retained original
         // binding. Static source/layout checks and equal resources cannot prove
         // consumed keyboard state, full observation rows or past-view history.
-        let replayed=replay_complete_state_candidate(&request.layout,context,&self.provenance.initial_binding)?;
+        // Consume the runner rebuilt from these exact immutable request and
+        // context bytes above. It remains a staging candidate: only replay and
+        // every comparison below can validate the actual consumed prefix.
+        let replayed=replay_processed_input_candidate(request.layout.supplies[4],replay_candidate,
+            context.owned(),&self.provenance.initial_binding)?;
+        check_replayed_world_candidate(&request.layout.world,&replayed)?;
+        check_replayed_work_supply(request.layout.supplies[7],&replayed.reconstructed_work_cost())?;
         self.session.check_reconstructed_continuation(&replayed,owned.sources().entry_declaration().name())
             .map_err(|_|Failure::CustodyConflict)?;
         Ok(())
@@ -813,7 +825,7 @@ impl CheckpointedLogicalRunV1 {
         if p.execution_instance.is_empty() || p.initial_binding.source_profile != crate::logical_input_tape::LOGICAL_INPUT_PROFILE {
             return Err(Failure::CustodyConflict);
         }
-        let issued=crate::project_snapshot_identity::current::issue_saved_local_project(&p.source_owner)
+        let issued=crate::project_snapshot_identity::current::issue_saved_project(&p.source_owner)
             .map_err(|_|Failure::InvalidInput)?;
         if issued.pesi().as_raw()!=&p.pesi {return Err(Failure::ForeignPesi);}
         match p.prior_durable_receipts.last() {
@@ -834,7 +846,8 @@ impl CheckpointedLogicalRunV1 {
     }
 
     /// Private assembly only: never a checked supply or admission capability.
-    /// Both callers must rebuild/check these exact bytes against their owner.
+    /// Encoding consumers rebuild/check the exact bytes against their owner;
+    /// the active-request checker only compares them to its rebuilt request.
     fn assemble_source_rebuild_descriptor(&self)->Result<Vec<u8>,Failure> {
         self.checkpoint_predecessor_supply()?;
         let count=self.session.retained_core_inputs().map_err(|_|Failure::InvalidInput)?.len();
@@ -979,34 +992,60 @@ pub(crate) fn rebuild_source_descriptor_candidate<'a>(
     // This admitted authored project has an explicit named Start. Strategy00
     // cannot silently replace it with a root or a selected-editor callable.
     if strategy != 1 { return Err(Failure::InvalidInput); }
-    let issued = crate::project_snapshot_identity::current::issue_saved_local_project(owned)
+    let issued = crate::project_snapshot_identity::current::issue_saved_project(owned)
         .map_err(|_|Failure::InvalidInput)?;
     let initial_world = super::complete_state_frame::check_complete_state_frame_v1(initial_bytes,issued.pesi().as_raw())?;
     let catalog=owned.registration().map(|registration|registration.saved_nominal_catalog(owned)).transpose().map_err(|_|Failure::CustodyConflict)?;
     initial_world.decode_value_tables_with_catalog(catalog.as_ref())?;
     if initial_world.next_tick != initial_tick { return Err(Failure::CustodyConflict); }
-    let mut program = crate::ddn_runtime::DdnProgram::from_saved_v25_project_with_mode(
-        owned.sources().clone(),mode,age,
-    ).map_err(|_|Failure::InvalidInput)?;
-    program.bind_registered_project_context(owned).map_err(|_|Failure::CustodyConflict)?;
+    let mut program = {
+        #[cfg(not(target_arch="wasm32"))]
+        let _phase=crate::storage_observation::Span::start("descriptor.program_build");
+        crate::ddn_runtime::DdnProgram::from_saved_v25_project_with_mode(
+            owned.sources().clone(),mode,age,
+        ).map_err(|_|Failure::InvalidInput)?
+    };
+    {
+        #[cfg(not(target_arch="wasm32"))]
+        let _phase=crate::storage_observation::Span::start("descriptor.registration_bind");
+        program.bind_registered_project_context(owned).map_err(|_|Failure::CustodyConflict)?;
+    }
     let preparation=owned.sources().preparation();
-    crate::runtime_surface::prepare_supported_source_for_execution_with_program(
-        &preparation.source,&preparation.target_path,&program,
-    ).map_err(|_|Failure::InvalidInput)?;
-    let decision = program.execution_mode_decision();
+    // Keep only the outputs needed below from the same immutable program's
+    // actual preparation; drop unused source presentation strings here.
+    let crate::runtime_surface::PreparedSource {canonical_ddn:prepared_canonical,
+        execution_mode_decision:decision,..}={
+        #[cfg(not(target_arch="wasm32"))]
+        let _phase=crate::storage_observation::Span::start("descriptor.source_prepare");
+        crate::runtime_surface::prepare_supported_source_for_execution_with_program(
+            &preparation.source,&preparation.target_path,&program,
+        ).map_err(|_|Failure::InvalidInput)?
+    };
     let expected_mode = match decision.mode {ExecutionMode::OneShot=>1,ExecutionMode::Live=>2};
-    if canonical != program.canonical_ddn().as_bytes() || execution_mode != expected_mode
+    if canonical != prepared_canonical.as_bytes() || execution_mode != expected_mode
         || hooks != [decision.live_hook_count,decision.every_madi_hook_count,decision.every_n_madi_hook_count] {
         return Err(Failure::CustodyConflict);
     }
-    let mut runner = crate::ddn_runtime::DdnRunner::new(program,owned.sources().entry_declaration().name());
+    let mut runner = {
+        #[cfg(not(target_arch="wasm32"))]
+        let _phase=crate::storage_observation::Span::start("descriptor.runner_construct");
+        crate::ddn_runtime::DdnRunner::new(program,owned.sources().entry_declaration().name())
+    };
     if let Some(stage)=super::subject_execution::SubjectExecutionStage::from_recorded_initial(owned,&initial_world).map_err(|_|Failure::SubjectCustodyInvalid)? {
         runner.bind_subject_bootstrap(stage);
     }
-    runner.configure_project_entry(owned.sources().entry_declaration().name()).map_err(|_|Failure::InvalidInput)?;
+    {
+        #[cfg(not(target_arch="wasm32"))]
+        let _phase=crate::storage_observation::Span::start("descriptor.entry_configure");
+        runner.configure_project_entry(owned.sources().entry_declaration().name()).map_err(|_|Failure::InvalidInput)?;
+    }
     if instance != runner.execution_instance_owner_bytes() { return Err(Failure::CustodyConflict); }
     // Ordinary source/profile/resource restrictions remain in the shared owner.
-    encode_execution_contract_supply(owned,&runner)?;
+    {
+        #[cfg(not(target_arch="wasm32"))]
+        let _phase=crate::storage_observation::Span::start("descriptor.contract_encode");
+        encode_execution_contract_supply(owned,&runner)?;
+    }
     Ok(SourceRebuildCandidateV1 {runner,age,initial_world,initial_tick,base_rng_seed,phase,successful_madi_count,prior_durable_receipts,
         source_descriptor_prefix:&bytes[..prefix_end],execution_instance:instance})
 }
@@ -1129,7 +1168,11 @@ pub(crate) fn encode_source_capture_supply(
     sources: &crate::project_revision_envelope_supply::VerifiedSavedV25Sources,
 ) -> Result<Vec<u8>, Failure> {
     let captures = sources.captures();
-    let files = &sources.saved().source().files;
+    // Field0a is the source-epoch capture closure, not a generic raw blob
+    // transport. Lock/manifest/artifact metadata remains in the full saved
+    // source manifest and verified dependency closure; never parse it as DDN.
+    let files:Vec<_> = sources.saved().source().files.iter()
+        .filter(|file|matches!(file.role.as_str(),"root"|"ddn_source")).collect();
     if captures.len() != files.len() { return Err(Failure::CustodyConflict); }
     let mut out = Vec::new();
     append_supply(&mut out, &1u16.to_be_bytes())?;
@@ -1171,7 +1214,7 @@ pub(crate) fn check_source_capture_supply(
 pub(crate) fn encode_constituent_supply(
     owned: &crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
 ) -> Result<Vec<u8>, Failure> {
-    let issued = crate::project_snapshot_identity::current::issue_saved_local_project(owned)
+    let issued = crate::project_snapshot_identity::current::issue_saved_project(owned)
         .map_err(|_| Failure::InvalidInput)?;
     let mut out = Vec::new(); append_supply(&mut out, &[4])?;
     for (index, (preimage, identity)) in issued.constituent_preimages().iter()
@@ -1188,7 +1231,7 @@ pub(crate) fn check_constituent_supply(
     owned: &crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
 ) -> Result<(), Failure> {
     if bytes.len() > 2_000_000 { return Err(Failure::LimitExceeded); }
-    let issued = crate::project_snapshot_identity::current::issue_saved_local_project(owned)
+    let issued = crate::project_snapshot_identity::current::issue_saved_project(owned)
         .map_err(|_| Failure::InvalidInput)?;
     if issued.pesi().as_raw() != pesi || bytes != encode_constituent_supply(owned)? {
         return Err(Failure::CustodyConflict);
@@ -1506,6 +1549,20 @@ mod tests{
         let former=original.encode_checkpoint_request_with_descriptor(
             &world,&context,&[],&[9],checked_descriptor).unwrap();
         assert_eq!(raw,former,"one descriptor rebuild must preserve every request byte");
+        let candidate=crate::snapshot_v2_host_bridge::check_resumable_request_candidate_v2(&raw,context.pesi().as_raw()).unwrap();
+        // A valid independently rebuilt request cannot mask tampered local
+        // provenance. The run-owned bytes must still match before replay.
+        let held_prefix=original.provenance.source_descriptor_prefix.clone();
+        let stable_summary=original.session().summary();
+        original.provenance.source_descriptor_prefix[0]^=1;
+        assert!(original.check_active_request_execution_candidate(&candidate,&context).is_err());
+        original.provenance.source_descriptor_prefix=held_prefix;
+        let held_instance=original.provenance.execution_instance.clone();
+        original.provenance.execution_instance[0]^=1;
+        assert!(original.check_active_request_execution_candidate(&candidate,&context).is_err());
+        original.provenance.execution_instance=held_instance;
+        assert_eq!(original.session().summary(),stable_summary);
+        original.check_active_request_execution_candidate(&candidate,&context).unwrap();
         // The private assembly path must not let malformed source metadata
         // escape either consumer or mutate the running world on refusal.
         let prefix=original.provenance.source_descriptor_prefix.clone();

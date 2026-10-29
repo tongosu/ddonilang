@@ -15,6 +15,7 @@ struct Entry {
 }
 thread_local! {
     static REQUEST: RefCell<Option<Option<Entry>>> = const { RefCell::new(None) };
+    static DEFINITION: RefCell<Option<DefinitionEntry>> = const { RefCell::new(None) };
 }
 
 // Private test observations only: no production counter, timer, output or wire.
@@ -73,6 +74,7 @@ impl Drop for RequestScope {
     fn drop(&mut self) {
         if self.owner {
             REQUEST.with(|state| *state.borrow_mut()=None);
+            DEFINITION.with(|state| *state.borrow_mut()=None);
             #[cfg(test)]
             COUNTS.with(|counts| {if let Some(counts)=counts.borrow_mut().take(){
                 eprintln!("WO25_TEST_COMPILE_OBSERVATION {}",serde_json::json!({
@@ -84,6 +86,47 @@ impl Drop for RequestScope {
             }});
         }
     }
+}
+
+// Syntax only. Never cache an issued definition identity, admitted source,
+// module owner, registration, proof handle, receipt or runtime here.
+struct DefinitionEntry {
+    source: String,
+    path: String,
+    program: ddonirang_lang::CanonProgram,
+}
+
+pub(crate) fn canonical_definition_program(source:&str,path:&str)->Result<ddonirang_lang::CanonProgram,String> {
+    definition_with(source,path,|| {
+        #[cfg(not(target_arch = "wasm32"))]
+        let _span=crate::storage_observation::Span::start("source.definition_parse_canon_build");
+        let mut program=ddonirang_lang::parse_v25_with_mode(source,path,ParseMode::Strict)
+            .map_err(|e|format!("E_SAVED_DEFINITION_PARSE: {e}"))?;
+        ddonirang_lang::canonicalize(&mut program)
+            .map_err(|e|format!("E_SAVED_DEFINITION_CANON: {e}"))?;
+        Ok(program)
+    })
+}
+
+fn definition_with(source:&str,path:&str,build:impl FnOnce()->Result<ddonirang_lang::CanonProgram,String>)
+    ->Result<ddonirang_lang::CanonProgram,String> {
+    #[cfg(not(target_arch = "wasm32"))]
+    let _span=crate::storage_observation::Span::start("source.definition_parse_canon");
+    let eligible=source.len().checked_add(path.len()).is_some_and(|size|size<=MAX_KEY_BYTES);
+    let active=REQUEST.with(|state|state.borrow().is_some());
+    if active && eligible {
+        if let Some(program)=DEFINITION.with(|entry|entry.borrow().as_ref()
+            .filter(|entry|entry.source==source&&entry.path==path).map(|entry|entry.program.clone())) {
+            return Ok(program);
+        }
+    }
+    let program=build()?; // Keep failures and their original diagnostics uncached.
+    if active && eligible {
+        DEFINITION.with(|entry|*entry.borrow_mut()=Some(DefinitionEntry {
+            source:source.into(),path:path.into(),program:program.clone(),
+        }));
+    }
+    Ok(program)
 }
 
 pub(super) fn compile(source:&str,path:&str,mode:ParseMode,age:AgeTarget)->Result<DdnProgram,String> {
@@ -207,8 +250,73 @@ mod tests {
             panic!("test unwind");
         }).is_err());
         assert!(REQUEST.with(|state|state.borrow().is_none()));
+        assert!(DEFINITION.with(|state|state.borrow().is_none()));
         let _scope=RequestScope::begin();
         request("a","p",ParseMode::Strict,AgeTarget::Age0,&Cell::new(0));
         std::thread::spawn(||assert!(REQUEST.with(|state|state.borrow().is_none()))).join().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod definition_cache_tests {
+    use super::*;
+    use std::cell::Cell;
+
+    fn syntax()->ddonirang_lang::CanonProgram {
+        let mut program=ddonirang_lang::parse_v25_with_mode("값 := 1.","검사.ddn",ParseMode::Strict).unwrap();
+        ddonirang_lang::canonicalize(&mut program).unwrap();program
+    }
+    fn observed(source:&str,path:&str,count:&Cell<usize>)->ddonirang_lang::CanonProgram {
+        definition_with(source,path,||{count.set(count.get()+1);Ok(syntax())}).unwrap()
+    }
+    #[test]
+    fn definition_reuse_is_request_local_exact_and_nested() {
+        let count=Cell::new(0);
+        observed("a","p",&count);observed("a","p",&count);assert_eq!(count.get(),2);
+        assert!(DEFINITION.with(|state|state.borrow().is_none()));
+        {
+            let _scope=RequestScope::begin();
+            observed("a","p",&count);
+            {let _nested=RequestScope::begin();observed("a","p",&count);}
+            observed("a","p",&count);assert_eq!(count.get(),3);
+            observed("b","p",&count);observed("b","q",&count);assert_eq!(count.get(),5);
+        }
+        assert!(DEFINITION.with(|state|state.borrow().is_none()));
+        let _scope=RequestScope::begin();observed("b","q",&count);assert_eq!(count.get(),6);
+    }
+    #[test]
+    fn definition_clone_is_independent_and_canonical_bytes_match() {
+        let plain=canonical_definition_program("값 := 1.","검사.ddn").unwrap();
+        let expected=ddonirang_lang::normalize(&plain,ddonirang_lang::NormalizationLevel::N1);
+        let _scope=RequestScope::begin();
+        let mut first=canonical_definition_program("값 := 1.","검사.ddn").unwrap();
+        first.items.clear();first.root_stmts.clear();
+        let second=canonical_definition_program("값 := 1.","검사.ddn").unwrap();
+        assert_eq!(ddonirang_lang::normalize(&second,ddonirang_lang::NormalizationLevel::N1),expected);
+        assert!(!second.items.is_empty()||!second.root_stmts.is_empty());
+    }
+    #[test]
+    fn definition_failures_and_large_sources_are_never_cached() {
+        let _scope=RequestScope::begin();let count=Cell::new(0);
+        for _ in 0..2 {
+            let result=definition_with("bad","p",||{count.set(count.get()+1);Err("original diagnostic".into())});
+            assert!(matches!(result,Err(ref value) if value=="original diagnostic"));
+        }
+        assert_eq!(count.get(),2);
+        let large="a".repeat(MAX_KEY_BYTES+1);
+        observed(&large,"p",&count);observed(&large,"p",&count);assert_eq!(count.get(),4);
+        let fresh=canonical_definition_program("값 := ( .","검사.ddn").unwrap_err();
+        let again=canonical_definition_program("값 := ( .","검사.ddn").unwrap_err();
+        assert_eq!(fresh,again);assert!(fresh.starts_with("E_SAVED_DEFINITION_PARSE:"));
+    }
+    #[test]
+    fn definition_unwind_and_thread_boundary_clear() {
+        assert!(std::panic::catch_unwind(||{
+            let _scope=RequestScope::begin();observed("a","p",&Cell::new(0));
+            panic!("intentional cleanup check");
+        }).is_err());
+        assert!(DEFINITION.with(|state|state.borrow().is_none()));
+        let _scope=RequestScope::begin();observed("a","p",&Cell::new(0));
+        std::thread::spawn(||assert!(DEFINITION.with(|state|state.borrow().is_none()))).join().unwrap();
     }
 }

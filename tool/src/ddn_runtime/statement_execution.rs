@@ -16,6 +16,7 @@ use super::{
     IndexedSelectionExpr,
     Integer,
     Literal,
+    LocalBodyScope,
     MessageTransfer,
     ParamPin,
     Rc,
@@ -67,6 +68,14 @@ impl<'a> EvalContext<'a> {
         seed: &SeedDef,
         args: Vec<Value>,
     ) -> Result<Value, EvalError> {
+        if self.program.identity_calculations.is_erased_seed(seed) {
+            if args.len()!=1 {return Err("E_PROOF_STRUCTURE_CONSUMPTION: 실제 값 입력 하나가 필요합니다".to_string().into());}
+            self.check_param_type(&seed.params[0],&args[0])?;
+        }
+        if !seed.type_params.is_empty() {
+            return Err("E_GENERIC_RESOLUTION_UNSUPPORTED: 호출별 정적 씨자리 결속이 아직 공급되지 않았습니다"
+                .to_string().into());
+        }
         let prev_seed = self.current_seed_name.clone();
         let prev_callable = self.active_callable_name.clone();
         let prev_owner = self.current_owner_identity.clone();
@@ -124,7 +133,20 @@ impl<'a> EvalContext<'a> {
                 );
                 locals.insert(param.pin_name.clone(), arg);
             }
-            let Some(body) = &seed.body else {
+            let piecewise=if self.program.program.origin.piecewise_definitions.contains_key(&seed.id) {
+                let input=seed.params.first().and_then(|pin|locals.get(&pin.pin_name))
+                    .ok_or_else(||EvalError::Message("조건별 계산: 실제 입력이 없습니다".into()))?;
+                self.program.piecewise_calculations.selected_expression(&self.program.source_identity,seed,input)?
+            }else{None};
+            let out = if let Some(expression)=piecewise {
+                // 같은 원래 식을 공통 정확 연산/작업비용 evaluator가 선택 후에만 실행.
+                // 미선택 행이나 분할 검사 결과를 runtime Proof 값으로 평가하지 않는다.
+                FlowControl::Return(self.eval_expr(&mut locals,&expression)?)
+            } else if let Some(body)=&seed.body {
+                self.with_local_body_scope(&mut locals, true, |context, locals| {
+                    context.eval_body_unscoped(locals, body)
+                })?
+            } else {
                 return if resultful {
                     Err(format!(
                         "E_RESULTPLACE_UNASSIGNED: 결과 호출 '{}'의 본문이 없습니다",
@@ -135,7 +157,6 @@ impl<'a> EvalContext<'a> {
                     Ok(Value::None)
                 };
             };
-            let out = self.eval_body(&mut locals, body)?;
             let out_value = match out {
                 FlowControl::Continue => None,
                 FlowControl::Return(value) => Some(value),
@@ -286,10 +307,39 @@ impl<'a> EvalContext<'a> {
         }
     }
 
+    fn with_local_body_scope<T>(
+        &mut self, locals: &mut HashMap<String, Value>, callable: bool,
+        execute: impl FnOnce(&mut Self, &mut HashMap<String, Value>) -> Result<T, EvalError>,
+    ) -> Result<T, EvalError> {
+        // Legacy frontdoors keep their established callable/setup lifetime.
+        // Only the sealed declared-v25 source path supplies lexical declarations.
+        if self.program.sealed_source_capture().is_none() && self.program.sealed_project_sources().is_none() {
+            return execute(self,locals);
+        }
+        let type_floor = if callable { self.binding_type_scopes.len() - 1 }
+            else { self.local_body_scopes.last().map(|scope|scope.type_floor)
+                .unwrap_or(self.binding_type_scopes.len() - 1) };
+        if !callable { self.enter_const_scope(); }
+        let previous = if callable { locals.keys().map(|name|(name.clone(),None)).collect() }
+            else { HashMap::new() };
+        self.local_body_scopes.push(LocalBodyScope {previous,type_floor});
+        let outcome = execute(self,locals);
+        let scope = self.local_body_scopes.pop().expect("active local body scope");
+        for (name,previous) in scope.previous { restore_local_binding(locals,&name,previous); }
+        if !callable { self.exit_const_scope(); }
+        outcome
+    }
+
     pub(super) fn eval_body(
         &mut self,
         locals: &mut HashMap<String, Value>,
         body: &Body,
+    ) -> Result<FlowControl, EvalError> {
+        self.with_local_body_scope(locals,false,|context,locals|context.eval_body_unscoped(locals,body))
+    }
+
+    pub(super) fn eval_body_unscoped(
+        &mut self, locals: &mut HashMap<String, Value>, body: &Body,
     ) -> Result<FlowControl, EvalError> {
         if self.aborted {
             return Ok(FlowControl::Continue);
@@ -336,6 +386,12 @@ impl<'a> EvalContext<'a> {
         &mut self,
         locals: &mut HashMap<String, Value>,
         body: &Body,
+    ) -> Result<ThunkResult, EvalError> {
+        self.with_local_body_scope(locals,false,|context,locals|context.eval_body_for_value_unscoped(locals,body))
+    }
+
+    fn eval_body_for_value_unscoped(
+        &mut self, locals: &mut HashMap<String, Value>, body: &Body,
     ) -> Result<ThunkResult, EvalError> {
         let mut last = Value::None;
         if self.aborted {
@@ -740,9 +796,13 @@ impl<'a> EvalContext<'a> {
                         self.declare_binding_type(&item.name,&item.type_ref);
                         continue;
                     }
-                    let is_top_level_decl =
-                        self.pending_top_level_decl_names.remove(&item.name);
-                    let resource_exists = if is_top_level_decl {
+                    if self.local_body_scopes.last().is_some_and(|scope|scope.previous.contains_key(&item.name)) {
+                        return Err(format!("E_V25_DEFINITION_DUPLICATE: 이미 정의된 이름을 다시 정의할 수 없습니다: {}",item.name).into());
+                    }
+                    let is_top_level_decl = !self.owns_pure_local_bindings()
+                        && self.pending_top_level_decl_names.remove(&item.name);
+                    let body_local = !is_top_level_decl && !self.local_body_scopes.is_empty();
+                    let resource_exists = if body_local { false } else if is_top_level_decl {
                         self.committed_resource_exists(&item.name)
                     } else {
                         self.resource_exists(&item.name)
@@ -794,8 +854,11 @@ impl<'a> EvalContext<'a> {
                     if is_top_level_decl {
                         self.binding_type_scopes[0].insert(item.name.clone(), (binding_type, false));
                     }
+                    if let Some(scope)=self.local_body_scopes.last_mut() {
+                        scope.previous.insert(item.name.clone(),locals.get(&item.name).cloned());
+                    }
                     locals.insert(item.name.clone(), value);
-                    if item.value.is_some() && !resource_exists {
+                    if !body_local && item.value.is_some() && !resource_exists {
                         let initial = locals
                             .get(&item.name)
                             .cloned()
@@ -820,7 +883,8 @@ impl<'a> EvalContext<'a> {
                 if self.guard_rejected {
                     return Ok(FlowControl::Continue);
                 }
-                if locals.contains_key(name) {
+                if self.local_body_scopes.last().map(|scope|scope.previous.contains_key(name))
+                    .unwrap_or_else(||locals.contains_key(name)) {
                     return Err(format!(
                         "E_V25_DEFINITION_DUPLICATE: 이미 정의된 이름을 다시 정의할 수 없습니다: {}",
                         name
@@ -832,7 +896,8 @@ impl<'a> EvalContext<'a> {
                 // variant (rather than `DeclBlock`), but it has the same
                 // persistent-state obligation: a later hook must see the
                 // initialized resource on this and following madis.
-                let is_top_level_decl = self.pending_top_level_decl_names.remove(name);
+                let is_top_level_decl = !self.owns_pure_local_bindings()
+                    && self.pending_top_level_decl_names.remove(name);
                 let resource_exists = if is_top_level_decl {
                     self.committed_resource_exists(name)
                 } else {
@@ -864,6 +929,9 @@ impl<'a> EvalContext<'a> {
                 self.declare_binding_type(name, &binding_type);
                 if is_top_level_decl {
                     self.binding_type_scopes[0].insert(name.clone(), (binding_type, false));
+                }
+                if let Some(scope)=self.local_body_scopes.last_mut() {
+                    scope.previous.insert(name.clone(),locals.get(name).cloned());
                 }
                 locals.insert(name.clone(), evaluated);
                 if is_top_level_decl && !resource_exists {
@@ -987,8 +1055,9 @@ impl<'a> EvalContext<'a> {
                 // pin/temp with the same spelling as a world resource must not
                 // acquire a world write merely because that resource exists.
                 let pattern_local = self.sum_pattern_bindings.iter().any(|name|name==target_name);
-                let pure_local = self.owns_pure_local_bindings() || pattern_local;
-                if pure_local && !self.binding_type_scopes.last().unwrap().contains_key(target_name) {
+                let pure_local = self.owns_pure_local_bindings() || pattern_local
+                    || self.local_body_scopes.iter().rev().any(|scope|scope.previous.contains_key(target_name));
+                if pure_local && self.visible_binding_type(target_name).is_none() {
                     self.declare_binding_type(target_name, &self.inferred_expression_binding_type(locals, value, &val));
                 }
                 if let Some(old @ Value::Tuple(_))=locals.get(target_name) {
@@ -999,7 +1068,7 @@ impl<'a> EvalContext<'a> {
                 }
                 if let Err(error) = self.check_binding_type(target_name, &val) {
                     self.restore_frame_snapshot(locals, &assignment_snapshot);
-                    if self.root_program_active && self.current_seed_name.is_none() && !pattern_local {
+                    if self.root_program_active && self.current_seed_name.is_none() && !pure_local {
                         if let Some(expected) = self.root_binding_types.get(target_name) {
                             return Err(format!(
                                 "E_ROOT_BINDING_TYPE_MISMATCH: '{}'의 재결속 값 형식이 다릅니다 (기대: {}, 실제: {})",
@@ -1009,7 +1078,7 @@ impl<'a> EvalContext<'a> {
                     }
                     return Err(error);
                 }
-                if self.root_program_active && self.current_seed_name.is_none() && !pattern_local {
+                if self.root_program_active && self.current_seed_name.is_none() && !pure_local {
                     let actual = root_binding_type_key(&val);
                     if let Some(expected) = self.root_binding_types.get(target_name).cloned() {
                         if expected != actual {
@@ -1024,8 +1093,7 @@ impl<'a> EvalContext<'a> {
                         self.root_binding_types.insert(target_name.clone(), actual);
                     }
                 }
-                if !self.binding_type_scopes.last().unwrap().contains_key(target_name)
-                    && !self.binding_type_scopes.first().unwrap().contains_key(target_name)
+                if self.visible_binding_type(target_name).is_none()
                 {
                     self.declare_binding_type(target_name, &self.inferred_expression_binding_type(locals, value, &val));
                 }
@@ -1094,11 +1162,13 @@ impl<'a> EvalContext<'a> {
                 };
 
                 let pattern_local = self.sum_pattern_bindings.iter().any(|name|name==root_name);
+                let pure_local = self.owns_pure_local_bindings() || pattern_local
+                    || self.local_body_scopes.iter().rev().any(|scope|scope.previous.contains_key(root_name));
                 if let Err(error) = self.check_binding_type(root_name, &replacement) {
                     self.restore_frame_snapshot(locals, &assignment_snapshot);
                     return Err(error);
                 }
-                if self.root_program_active && self.current_seed_name.is_none() && !pattern_local {
+                if self.root_program_active && self.current_seed_name.is_none() && !pure_local {
                     let actual = root_binding_type_key(&replacement);
                     if let Some(expected) = self.root_binding_types.get(root_name).cloned() {
                         if expected != actual {
@@ -1113,7 +1183,7 @@ impl<'a> EvalContext<'a> {
                         self.root_binding_types.insert(root_name.clone(), actual);
                     }
                 }
-                if (self.owns_pure_local_bindings() || pattern_local) && locals.contains_key(root_name) {
+                if pure_local && locals.contains_key(root_name) {
                     locals.insert(root_name.clone(), replacement);
                 } else if locals.contains_key(root_name) {
                     locals.insert(root_name.clone(), replacement.clone());
@@ -1508,5 +1578,64 @@ impl<'a> EvalContext<'a> {
 
 
 
+
+}
+
+#[cfg(test)]
+mod lexical_body_scope_tests {
+    use super::*;
+    use crate::ddn_runtime::{DdnProgram,DdnRunner,NuriWorld};
+    use crate::runtime_surface::DEFAULT_UPDATE_NAME;
+
+    fn output(source:&str)->Result<Vec<String>,String> {
+        let program=DdnProgram::from_v25_source(source,"lexical-body.ddn")?;
+        let summary=DdnRunner::new(program,DEFAULT_UPDATE_NAME)
+            .run_update(&NuriWorld::new(),&ddonirang_core::InputSnapshot { tick_id:0,dt:Fixed64::from_i64(1),keys_pressed:0,last_key_name:String::new(),pointer_x_i32:0,pointer_y_i32:0,ai_injections:Vec::new(),net_events:Vec::new(),frame_source:ddonirang_core::InputSource::Person,rng_seed:0 },&HashMap::new())?;
+        Ok(summary.display_outputs.into_iter().map(|out|out.text).collect())
+    }
+
+    #[test]
+    fn inner_definition_reads_outer_and_restores_only_its_declaration() {
+        for (body,expected) in [
+            ("{ 참 }이면 { 지역:수 := 지역 + 1. }.","1"),
+            ("{ 참 }이면 { 지역 <- 지역 + 1. 지역:수 := 지역 + 10. }.","2"),
+            ("{ 참 }이면 { 임시:수 := 9. 지역 <- 지역 + 1. }.","2"),
+            ("{ 참 }이면 { 지역:수 := 지역 + 1. { 참 }이면 { 지역:수 := 지역 + 10. }. }.","1"),
+        ] {
+            let source=format!("(입력값:수~을) 범위값:수:셈씨 := {{ 지역:수 := 입력값. {body} 범위값 <- 지역. }}.\n((입력값=1) 범위값) 보여주기.");
+            assert_eq!(output(&source).unwrap(),vec![expected.to_string()],"{source}");
+        }
+    }
+
+    #[test]
+    fn inner_definition_does_not_escape_and_same_scope_duplicate_stays_rejected() {
+        let missing="(입력값:수~을) 범위값:수:셈씨 := { { 참 }이면 { 임시:수 := 9. }. 범위값 <- 임시. }. ((입력값=1) 범위값) 보여주기.";
+        assert!(output(missing).is_err());
+        let duplicate="(입력값:수~을) 범위값:수:셈씨 := { 입력값:수 := 9. 범위값 <- 입력값. }. ((입력값=1) 범위값) 보여주기.";
+        assert!(output(duplicate).is_err());
+    }
+    #[test]
+    fn lexical_types_restore_and_outer_assignment_keeps_its_type() {
+        let good="(입력값:수~을) 범위값:수:셈씨 := { 지역:수 := 입력값. { 참 }이면 { 지역:글 := \"안\". 지역 <- \"녕\". }. 범위값 <- 지역. }. ((입력값=1) 범위값) 보여주기.";
+        assert_eq!(output(good).unwrap(),vec!["1".to_string()]);
+        let bad="(입력값:수~을) 범위값:수:셈씨 := { 지역:수 := 입력값. { 참 }이면 { 지역 <- \"글\". }. 범위값 <- 지역. }. ((입력값=1) 범위값) 보여주기.";
+        assert!(output(bad).is_err());
+    }
+
+    #[test]
+    fn runtime_error_unwinds_only_successfully_shadowed_bindings() {
+        let source="정리:수:셈씨 := { 지역:수 := 1. { 참 }이면 { 지역 <- 지역 + 1. 지역:수 := 지역 + 10. 없는값 보여주기. }. 정리 <- 지역. }.";
+        let program=DdnProgram::from_v25_source(source,"scope-error.ddn").unwrap();
+        let body=program.functions.get("정리").unwrap().body.as_ref().unwrap();
+        let Stmt::If {then_body,..}=&body.stmts[1] else {panic!("if body")};
+        let world=NuriWorld::new();let defaults=HashMap::new();
+        let mut context=crate::ddn_runtime::EvalContext::new(&program,&world,&defaults,None,
+            ddonirang_lang::InputState::new(0,0),0,0,None);
+        let mut locals=HashMap::from([("지역".to_string(),Value::Fixed64(Fixed64::from_i64(1)))]);
+        assert!(context.eval_body(&mut locals,then_body).is_err());
+        assert_eq!(locals.get("지역"),Some(&Value::Fixed64(Fixed64::from_i64(2))));
+        assert_eq!(locals.len(),1);assert!(context.local_body_scopes.is_empty());
+        assert_eq!(context.binding_type_scopes.len(),1);
+    }
 
 }

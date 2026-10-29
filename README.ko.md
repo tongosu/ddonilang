@@ -16,6 +16,12 @@
 
 처음에는 작은 졸업 과제였습니다. 하지만 만들다 보니 문법, 수학, 결정성, 게임, AI에 대한 질문이 계속 늘어났습니다. 지금은 시험판을 만들고 다듬으면서, 실제로 사용할 수 있는 흐름을 하나씩 완성하고 있습니다.
 
+## 개발 현황
+
+V2 비공개 후보·V3 첫 탐구노트·V4 첫 조건부 풀이 단계·V5 첫 로봇은 각각 고정 범위의 내부 한정 검토를 마쳤습니다. 전체 버전 완성이나 Human·공개 완료와는 다릅니다. V6~V9는 후속 계획 후보입니다.
+
+[현재 개발·지원 범위](publish/development/STATUS.md) · [개발 소스 빌드와 제외 범위](publish/development/BUILD_SOURCE.md)
+
 ## 한국어로 생각하는 언어
 
 또니랑에서는 한국어의 어순과 조사, 어미 같은 특징을 프로그래밍에 활용하려고 합니다.
@@ -132,6 +138,6 @@ AI가 내놓은 제안과 프로그램의 규칙으로 확정한 뜻을 구분�
 
 공개 RC1은 Windows x64 시험판입니다. 위 Release에서 **최소 R8 ZIP**을 받아 새 폴더에 풀고 `START_SEAMGRIM.cmd`를 실행하세요. 현재 포함한 새 계산 예제 두 개와 Native 저장·종료·재열기 흐름은 [시작 안내](START_HERE.md)를 따르세요. 소개문에 적힌 장기 목표 전체가 현재 실행되는 기능이라는 뜻은 아닙니다.
 
-R8에 대응하는 소스는 [고정 커밋 c41569e6](https://github.com/tongosu/ddonilang/commit/c41569e6cc612b6e1030950e7a21ce91f4604112)와 Release의 `DDN-v1.0.0-rc.1-minimal-r8-source.zip`입니다. 기존 RC1 태그의 자동 Source code는 이전 원본을 가리킵니다. 이 README 복원은 설명만 고친 후속 변경이며 출하 ZIP·태그·고정 소스를 바꾸지 않습니다.
+R8에 대응하는 소스는 [고정 커밋 c41569e6](https://github.com/tongosu/ddonilang/commit/c41569e6cc612b6e1030950e7a21ce91f4604112)와 Release의 `DDN-v1.0.0-rc.1-minimal-r8-source.zip`입니다. 기존 RC1 태그의 자동 Source code는 이전 원본을 가리킵니다. 개발 소스의 후속 변경과 RC1 출하 ZIP·태그·고정 소스는 구분합니다. 기존 RC1 출하물은 그대로 보존합니다.
 
 실제 지원 범위와 RC1 예외·검토 대기는 [알려진 제한](RC1_KNOWN_LIMITATIONS.md) 및 Release 설명을 확인하세요. [라이선스 범위](LICENSE_SCOPE.md)와 [NOTICE](NOTICE)를 따릅니다. 의견은 [Issues](https://github.com/tongosu/ddonilang/issues)에 원문·기대 결과·실제 결과와 함께 남겨 주세요.

@@ -642,7 +642,7 @@ pub fn build_project_prepare_link(
         )
     })?;
     let lock_required = !graph.gaji_aliases.is_empty();
-    let verified_lock = if inspect_lock && lock_required {
+    let verified_lock = if (inspect_lock || cfg!(feature = "v2-shared-modules")) && lock_required {
         Some(build_project_gaji_lock(source.clone(), true)?)
     } else {
         None
@@ -844,7 +844,7 @@ pub(super) fn build_project_run_summary_internal(
             format!("프로젝트 목표 {target}을 찾을 수 없습니다"),
         )
     })?;
-    if inspect_lock && !graph.gaji_aliases.is_empty() {
+    if (inspect_lock || cfg!(feature = "v2-shared-modules")) && !graph.gaji_aliases.is_empty() {
         build_project_gaji_lock(source.clone(), true)?;
     }
     let lock_sha256 = if graph.gaji_aliases.is_empty() {
@@ -1204,6 +1204,12 @@ pub fn build_virtual_project_source_from_disk(
         let path = normalize_project_reference(raw.trim_end_matches('/'))?;
         collect_declared_disk_sources(root_dir, &root_dir.join(path), &mut paths, &mut visited)?;
     } }
+    let metadata_roles = v25_package_metadata_roles(&root_text)?;
+    for path in metadata_roles.keys() {
+        // A missing lock is reported by the shared lock verifier at execution.
+        if path == "ddn.lock" && !root_dir.join(path).exists() { continue; }
+        paths.insert(path.clone());
+    }
     let mut files = vec![VirtualProjectFileSource { path: root_path.clone(), role: "root".into(), utf8_text: root_text }];
     for path in paths {
         let disk_path = root_dir.join(&path);
@@ -1211,7 +1217,8 @@ pub fn build_virtual_project_source_from_disk(
         let text = fs::read_to_string(&disk_path).map_err(|error|
             LocalProjectError::with_path("E_PROJECT_FILE_READ", &path, error.to_string()))?;
         reject_source_bom(&text, Some(&path))?;
-        files.push(VirtualProjectFileSource { path, role: "ddn_source".into(), utf8_text: text });
+        let role = metadata_roles.get(&path).cloned().unwrap_or_else(|| "ddn_source".into());
+        files.push(VirtualProjectFileSource { path, role, utf8_text: text });
     }
     let source = VirtualProjectSource {
         schema: VIRTUAL_PROJECT_SOURCE_SCHEMA.to_string(),

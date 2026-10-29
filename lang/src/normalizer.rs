@@ -49,6 +49,16 @@ impl Normalizer {
         }
     }
 
+    /// 기존 N1 타입 출력 경로를 읽기 전용 설명으로 제공한다.
+    /// 원문/이름/타입 admission, 보임 성공, 저장 정체를 발급하지 않는다.
+    /// 저장 소비자는 같은 원문 문맥의 검증된 타입 fact를 별도로 요구해야 한다.
+    pub fn source_type_description(type_ref: &TypeRef, source_epoch: SourceEpoch) -> String {
+        let mut normalizer = Self::new(NormalizationLevel::N1);
+        normalizer.source_epoch = source_epoch;
+        normalizer.normalize_type(type_ref);
+        normalizer.output
+    }
+
     /// 프로그램 정본화
     pub fn normalize_program(&mut self, program: &CanonProgram) -> String {
         self.registered_sum_seen.clear();self.registered_sum_failure=None;
@@ -79,7 +89,19 @@ impl Normalizer {
                 }
             }
         }
+        // Keep executable roots and source-scoped definitions interleaved with
+        // callables. Grouping all callables first changes lexical visibility.
+        let mut roots = program.root_stmts.iter().filter(|stmt|
+            program.source_epoch != SourceEpoch::V25 || !matches!(stmt, Stmt::SumDefinition { .. })
+        ).peekable();
         for item in &program.items {
+            if program.source_epoch == SourceEpoch::V25 {
+                let TopLevelItem::SeedDef(seed) = item;
+                while roots.peek().is_some_and(|stmt| statement_source_start(stmt) < seed.span.start) {
+                    self.normalize_stmt(roots.next().unwrap());
+                    self.write("\n\n");
+                }
+            }
             if program.source_epoch == SourceEpoch::V25 {
                 let TopLevelItem::SeedDef(seed) = item;
                 if let Some(body) = &seed.body {
@@ -96,11 +118,17 @@ impl Normalizer {
                     }
                 }
             }
+            let TopLevelItem::SeedDef(seed) = item;
+            if let Some(authored) = program.origin.piecewise_definitions.get(&seed.id) {
+                // RD706 does not assign a machine canon for mathematical bodies.
+                // Preserve their original declaration rather than erase the domain.
+                self.write(&authored.source_declaration); self.write("\n\n");
+                continue;
+            }
             self.normalize_top_level_item(item);
             self.write("\n\n");
         }
-        for stmt in &program.root_stmts {
-            if program.source_epoch == SourceEpoch::V25 && matches!(stmt,Stmt::SumDefinition {..}) {continue;}
+        for stmt in roots {
             self.normalize_stmt(stmt);
             self.write("\n\n");
         }
@@ -117,6 +145,24 @@ impl Normalizer {
     /// 씨앗 정의 정본화
     /// 표준 형식: (params) name:kind = { body }
     fn normalize_seed_def(&mut self, seed: &SeedDef) {
+        if !seed.type_params.is_empty() {
+            self.write("(");
+            for (index, param) in seed.type_params.iter().enumerate() {
+                if index > 0 { self.write(", "); }
+                self.write(&param.name);
+                self.write(":씨자리");
+            }
+            self.write(") 두고\n");
+        }
+        if let Some(header) = seed.proof_header.as_ref().filter(|header| !header.propositions.is_empty()) {
+            self.write("(");
+            for (index, (name, _)) in header.propositions.iter().enumerate() {
+                if index > 0 { self.write(", "); }
+                self.write(name);
+                self.write(":세움");
+            }
+            self.write(") 두고\n");
+        }
         if let Some(result_type) = seed
             .result_type
             .as_ref()
@@ -166,7 +212,15 @@ impl Normalizer {
                 if i > 0 {
                     self.write(", ");
                 }
-                self.normalize_param(param);
+                if let Some(binding) = seed.proof_header.as_ref().filter(|h| !h.propositions.is_empty()).and_then(|h| h.evidence_bindings.get(i)) {
+                    self.write(&param.pin_name);
+                    self.write("=");
+                    let mut local = param.clone();
+                    local.pin_name = binding.local_name.clone();
+                    self.normalize_param(&local);
+                } else {
+                    self.normalize_param(param);
+                }
             }
             self.write(") ");
         }
@@ -257,6 +311,18 @@ impl Normalizer {
 
     fn normalize_type(&mut self, type_ref: &TypeRef) {
         match type_ref {
+            TypeRef::AlgebraEquality { left,right } => self.write(&format!("{} =:= {}",left.source_text(),right.source_text())),
+            TypeRef::StructureLaw { structure, member } => {
+                self.write(structure); self.write("."); self.write(member);
+            }
+            TypeRef::PropositionConjunction(items) => {
+                self.write("(");
+                for (index, item) in items.iter().enumerate() {
+                    if index > 0 { self.write(" 이고 "); }
+                    self.normalize_type(item);
+                }
+                self.write(")");
+            }
             TypeRef::Tuple(items) => {
                 self.write("(");
                 for (index, item) in items.iter().enumerate() {
@@ -889,7 +955,10 @@ impl Normalizer {
                 self.write(owner);
             }
             ExprKind::MultiAxisSelection(value) => {
+                let grouped_call = matches!(&value.target.kind, ExprKind::Call { .. });
+                if grouped_call { self.write("("); }
                 self.normalize_expr(&value.target);
+                if grouped_call { self.write(")"); }
                 self.write("[");
                 for (i, selector) in value.selectors.iter().enumerate() {
                     if i > 0 { self.write(", "); }
@@ -973,11 +1042,17 @@ impl Normalizer {
                 self.write("]");
             }
             ExprKind::Infix { left, op, right } => {
+                let left_pipe = matches!(left.kind, ExprKind::Pipe { .. });
+                if left_pipe { self.write("("); }
                 self.normalize_expr(left);
+                if left_pipe { self.write(")"); }
                 self.write(" ");
                 self.write(op);
                 self.write(" ");
+                let right_pipe = matches!(right.kind, ExprKind::Pipe { .. });
+                if right_pipe { self.write("("); }
                 self.normalize_expr(right);
+                if right_pipe { self.write(")"); }
             }
             ExprKind::Suffix { value, at } => {
                 self.normalize_expr(value);
@@ -1377,6 +1452,18 @@ impl Normalizer {
         }
         let value_expr = &args[0].expr;
         let pack_expr = &args[1].expr;
+        // 흐름값은 파이프가 공급하는 내부 항이므로 원문 이름으로 내보내지 않는다.
+        if func == "풀기" && matches!(value_expr.kind, ExprKind::FlowValue) {
+            if let ExprKind::Pack { fields } = &pack_expr.kind {
+                self.normalize_injection_fields(fields);
+            } else {
+                self.write("(주입=");
+                self.normalize_expr(pack_expr);
+                self.write(")");
+            }
+            self.write(" 풀기");
+            return true;
+        }
         let ExprKind::Pack { fields } = &pack_expr.kind else {
             return false;
         };
@@ -1908,3 +1995,39 @@ Test:셈씨 = {
         assert!(!normalized.contains("에 대해: {"));
     }
 }
+
+fn statement_source_start(stmt: &Stmt) -> usize {
+        match stmt {
+            Stmt::SumDefinition { span, .. }
+            | Stmt::SumMatch { span, .. }
+            | Stmt::DeclBlock { span, .. }
+            | Stmt::Definition { span, .. }
+            | Stmt::DerivedBinding { span, .. }
+            | Stmt::Mutate { span, .. }
+            | Stmt::ResultFlow { span, .. }
+            | Stmt::Expr { span, .. }
+            | Stmt::Receive { span, .. }
+            | Stmt::Send { span, .. }
+            | Stmt::Show { span, .. }
+            | Stmt::Inspect { span, .. }
+            | Stmt::PublicObservation { span, .. }
+            | Stmt::Return { span, .. }
+            | Stmt::If { span, .. }
+            | Stmt::Try { span, .. }
+            | Stmt::Choose { span, .. }
+            | Stmt::Repeat { span, .. }
+            | Stmt::While { span, .. }
+            | Stmt::ForEach { span, .. }
+            | Stmt::Quantifier { span, .. }
+            | Stmt::Break { span, .. }
+            | Stmt::ContinueLoop { span, .. }
+            | Stmt::Contract { span, .. }
+            | Stmt::Guard { span, .. }
+            | Stmt::BeatBlock { span, .. }
+            | Stmt::Hook { span, .. }
+            | Stmt::HookWhenBecomes { span, .. }
+            | Stmt::HookWhile { span, .. }
+            | Stmt::MetaBlock { span, .. }
+            | Stmt::Pragma { span, .. } => span.start,
+        }
+    }

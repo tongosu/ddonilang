@@ -109,6 +109,12 @@ pub fn resolve_supported_source_profile(
         }),
     }
 }
+
+/// A header alone supplies no callable/DDL/profile ownership. Both ordinary
+/// Native and WASM frontdoors must refuse it without the explicit producer.
+pub(crate) fn first_callable_header_requires_context(source: &str) -> bool {
+    source.split('\n').next().unwrap_or("").trim_end_matches('\r') == "#!日本語"
+}
 const STATE_MACHINE_RESOURCE_KIND: &str = "ddn.state_machine.v1";
 const ASSERTION_RESOURCE_KIND: &str = "ddn.assertion.v1";
 const FORMULA_RESOURCE_KIND: &str = "ddn.formula.v1";
@@ -493,6 +499,9 @@ pub fn set_default_age_target(age: AgeTarget) {
 pub struct DdnProgram {
     source_identity: String,
     source_capture: Option<crate::source_snapshot_admission::SourceCapture>,
+    first_callable_context: Option<Arc<ddonirang_lang::parser::RegisteredFirstCallableContext>>,
+    first_callable_authored_owner: Option<Arc<crate::authored_project::FirstCallableAuthoredContext>>,
+    first_callable_canonical_source: Option<String>,
     saved_project_sources: Option<Arc<crate::project_revision_envelope_supply::VerifiedSavedV25Sources>>,
     #[allow(dead_code)]
     program: CanonProgram,
@@ -518,6 +527,8 @@ pub struct DdnProgram {
     configured_madi: Option<u64>,
     public_observation_source_refs: HashMap<NodeId, OriginalObservationFieldRef>,
     numeric_constraint_plan: Option<Arc<crate::numeric_constraint_plan::NumericConstraintPlan>>,
+    piecewise_calculations: Arc<piecewise_calculation::CheckedCalculations>,
+    identity_calculations: Arc<structure_identity_calculation::IdentityCalculations>,
     host_numeric_supply:Option<crate::runtime_surface::BogaeHostNumericSupply>,
 }
 
@@ -529,8 +540,11 @@ struct OriginalObservationFieldRef {
 }
 
 mod program_lifecycle;
+mod structure_identity_calculation;
+pub(crate) use program_lifecycle::verify_piecewise_saved_definition;
 mod saved_program_rebuild;
 pub(crate) use saved_program_rebuild::RequestScope as SavedProgramRebuildScope;
+pub(crate) use saved_program_rebuild::canonical_definition_program;
 
 mod source_validation;
 pub use source_validation::{extract_setting_madi};
@@ -718,6 +732,7 @@ pub(crate) struct SavedTupleRestorePlan {
 
 impl SavedTupleRestorePlan {
     pub(crate) fn admit_resource(&self, tag: &str, value: &ResourceValue) -> Result<(), String> {
+        if self.plan.equation_result(tag) { return equation_saved_value::validate_saved(value); }
         let kind = self.plan.expected(tag).ok_or("E_TUPLE_PERSISTENCE_UNBOUND: 저장 원문의 유일한 자원 결속·위치씨를 확인할 수 없습니다")?;
         crate::unit_wire::validate_saved_value_type(value, kind)
             .map_err(|_| "E_TUPLE_PERSISTENCE_UNBOUND: 복원 값이 원문에 결속된 위치씨와 다릅니다".to_owned())
@@ -806,6 +821,7 @@ struct EvalContext<'a> {
     tick_id: u64,
     const_scopes: Vec<HashSet<String>>,
     binding_type_scopes: Vec<HashMap<String, (TypeRef, bool)>>,
+    local_body_scopes: Vec<LocalBodyScope>,
     pending_top_level_decl_names: HashSet<String>,
     factor_route_counts: BTreeMap<String, u64>,
     factor_bits_total: u128,
@@ -825,6 +841,13 @@ struct EvalContext<'a> {
     project_asset_registry: Option<&'a gate0_registry::ProjectAssetRegistry>,
     work_cost: Rc<RefCell<WorkCostMeter>>,
     internal_dispatch: InternalDdnRunnerDispatchState,
+}
+
+#[derive(Clone)]
+struct LocalBodyScope {
+    // Capture at successful declaration, not block entry: earlier outer writes survive.
+    previous: HashMap<String, Option<Value>>,
+    type_floor: usize,
 }
 
 #[derive(Clone)]
@@ -878,6 +901,7 @@ struct EvalFrameSnapshot {
     guard_rejected: bool,
     const_scopes: Vec<HashSet<String>>,
     binding_type_scopes: Vec<HashMap<String, (TypeRef, bool)>>,
+    local_body_scopes: Vec<LocalBodyScope>,
     factor_route_counts: BTreeMap<String, u64>,
     factor_bits_total: u128,
     factor_bits_min: Option<u64>,
@@ -1958,6 +1982,7 @@ mod numeric_analysis;
 use numeric_analysis::*;
 
 mod numeric_values;
+mod piecewise_calculation;
 use numeric_values::{make_numeric_pack, numeric_pack_kind, numeric_pack_approx, value_to_fixed64_coerce, value_to_i64_strict, parse_bigint_text, factor_policy_summary_text, make_big_int_value, make_rational_value, make_factor_value, eval_exact_numeric_infix, eval_exact_numeric_compare_infix, is_exact_numeric_family_value, exact_numeric_from_value, exact_cmp, make_big_int_pack_from_bigint, make_rational_pack_from_big_rational};
 #[cfg(test)]
 use numeric_values::{swap_factor_pollard_max_iters_for_test, swap_factor_trial_fallback_limit_for_test};
@@ -2242,6 +2267,7 @@ fn stream_oldest_to_newest(stream: &RuntimeStream) -> Vec<Value> {
 }
 
 mod value_bridge;
+mod equation_saved_value;
 pub(crate) use value_bridge::{value_to_string, value_to_display_text, formula_from_resource_value, formula_summary_parts, formula_display_string, resource_value_from_typed_value, resource_value_from_typed_value_with_output, value_from_resource_value};
 use value_bridge::{format_value_text, format_value_leaf_text, state_machine_canon, resource_map_to_state_machine, runtime_value_contains_tuple, resource_value_from_value, public_observation_type, dataset_public_observation_scalar, canonical_dataset_observation_name, value_canon, render_template};
 
@@ -2721,3 +2747,22 @@ fn position_to_line_col(source: &str, byte_pos: usize) -> (u32, u32) {
 
 #[cfg(test)]
 mod tests;
+
+
+/// Read-only role for the existing eval_infix fallback: no exact-family operand,
+/// dimensionless scalar conversion, then checked_unit_add/sub -> Fixed64 checked.
+/// This accessor neither evaluates an expression nor asserts its success.
+pub(crate) fn coordinate_numeric_contract(expr:&ddonirang_lang::Expr,
+    kinds:&std::collections::BTreeMap<ddonirang_lang::NodeId,ddonirang_lang::TypeRef>)
+    ->Option<ddonirang_symbolic::typed_math::NumericRole> {
+    let ddonirang_lang::ExprKind::Infix{left,op,right}=&expr.kind else {return None};
+    // Rational/BigInteger/Factor select the earlier exact-family branch;
+    // approximate/unit/unknown operands must not fall back to this contract.
+    let integer=ddonirang_lang::TypeRef::Named("바른수".into());
+    if [expr.id,left.id,right.id].iter().any(|id|kinds.get(id)!=Some(&integer)) {return None}
+    match op.as_str() {
+        "+"=>Some(ddonirang_symbolic::typed_math::NumericRole::CheckedDimensionlessIntegerAdd),
+        "-"=>Some(ddonirang_symbolic::typed_math::NumericRole::CheckedDimensionlessIntegerSubtract),
+        _=>None,
+    }
+}

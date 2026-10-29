@@ -1,0 +1,35 @@
+.notebook-dialog { width: min(1100px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); box-sizing: border-box; overflow: auto; border: 1px solid #b6bdb8; border-radius: 6px; padding: 18px; color: #202923; background: #fff; }
+.notebook-dialog::backdrop { background: #0005; }
+.notebook-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.notebook-toolbar h2 { margin: 0 auto 0 0; font-size: 19px; }
+.notebook-toolbar button { min-height: 36px; }
+.notebook-status { min-height: 24px; margin: 10px 0; }
+.notebook-modes { display: flex; gap: 8px; margin: 12px 0; }
+.notebook-viewport:not([hidden]) { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 10px 0; }
+.notebook-viewport label { display: flex; gap: 8px; align-items: center; }
+.notebook-viewport input { width: 110px; }
+.notebook-modes button[aria-pressed="true"] { background: #e2f0e8; border-color: #278456; }
+.notebook-comparisons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; border-top: 1px solid #d5dbd7; margin-top: 20px; }
+.notebook-comparisons h3 { font-size: 16px; }
+.notebook-table-scroll { max-width: 100%; overflow-x: auto; }
+.notebook-dialog table { border-collapse: collapse; width: 100%; }
+.notebook-dialog td, .notebook-dialog th { padding: 8px 12px; text-align: right; border-bottom: 1px solid #d5dbd7; white-space: nowrap; }
+.notebook-dialog figure { margin: 0; }
+.notebook-dialog svg { width: 100%; height: auto; }
+.notebook-dialog .runtime-graph-axis { stroke: #5a645d; }
+.notebook-dialog .runtime-graph-line { fill: none; stroke: #167b55; stroke-width: 2; }
+.notebook-dialog .runtime-graph-point { fill: #167b55; }
+.notebook-positions { padding: 0; list-style: none; }
+.notebook-positions li { display: grid; grid-template-columns: 65px minmax(60px, 1fr) 90px; gap: 12px; align-items: center; min-height: 36px; }
+.notebook-position-track { position: relative; height: 2px; background: #9aa99f; }
+.notebook-position-dot { position: absolute; top: -10px; transform: translateX(-50%); color: #167b55; }
+.notebook-dialog output, .notebook-dialog p { overflow-wrap: anywhere; }
+.equation-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.equation-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; min-width: 0; margin: 12px 0; }
+.equation-fields label { display: grid; gap: 4px; min-width: 0; }
+.equation-fields input, .equation-fields select { width: 100%; min-width: 0; box-sizing: border-box; }
+.equation-fields input[type="checkbox"] { width: 18px; height: 18px; }
+.equation-source-label { display: grid; gap: 6px; }
+.equation-source-label textarea { box-sizing: border-box; width: 100%; min-width: 0; min-height: 220px; resize: vertical; font: 14px/1.6 Consolas, monospace; }
+@media (max-width: 640px) { .equation-fields { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .notebook-comparisons { grid-template-columns: 1fr; } .notebook-dialog { padding: 12px; } }

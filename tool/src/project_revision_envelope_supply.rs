@@ -38,6 +38,7 @@ pub(crate) struct VerifiedSavedV25Sources {
     preparation: local_project::AuthoredPreparation,
     entry_declaration: SavedEntryDeclaration,
     atom_value_occurrences: Vec<ResolvedSavedAtomOccurrence>,
+    first_callable:Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>,
 }
 #[derive(Debug)]
 pub(crate) struct ResolvedSavedAtomOccurrence {
@@ -56,6 +57,15 @@ impl SavedEntryDeclaration {
     pub(crate) fn span(&self) -> ddonirang_lang::Span { self.span }
 }
 impl VerifiedSavedV25Sources {
+    pub(crate) fn first_callable_context(&self)->Option<&std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>{self.first_callable.as_ref()}
+    pub(crate) fn parse_prepared_program(&self)->Result<ddonirang_lang::CanonProgram,String>{
+        let p=self.preparation();
+        match &self.first_callable {
+            Some(first)=>first.parse_consumer_owned_program(&p.source,&p.target_path),
+            None=>ddonirang_lang::parse_v25_with_mode(&p.source,&p.target_path,ddonirang_lang::ParseMode::Strict).map_err(|e|e.to_string()),
+        }
+    }
+
     pub(crate) fn atom_value_occurrences(&self) -> &[ResolvedSavedAtomOccurrence] { &self.atom_value_occurrences }
     pub(crate) fn recorded_capture_catalog_json(&self) -> Result<String,String> {
         let records=self.captures.iter().map(|(path,capture)|Ok(SavedCaptureRecordV1 {
@@ -161,8 +171,17 @@ pub(crate) fn admit_precanon_authored_source(
     let manifest=sources.saved().manifest();
     if snapshot.root_path.as_deref()!=Some(manifest.root_path.as_str())
         || snapshot.entry_path!=manifest.entry_path
-        || snapshot.files.len()!=sources.captures().len() {
+        || snapshot.files.len()!=sources.saved().source().files.len() {
         return Err("E_PROJECT_SAVED_AUTHORED_SOURCE: 작품 정체의 원문 목록과 저장 공급이 다릅니다".into());
+    }
+    // Metadata is durable source custody, not executable DDN. Compare every
+    // original member before the narrower DDN capture/context check below.
+    for saved_file in &sources.saved().source().files {
+        let authored_file = snapshot.files.iter().find(|file| file.path == saved_file.path)
+            .ok_or("E_PROJECT_SAVED_AUTHORED_SOURCE: 작품의 원자료가 저장 공급 목록과 다릅니다")?;
+        if authored_file.text.as_bytes() != saved_file.utf8_text.as_bytes() {
+            return Err("E_PROJECT_SAVED_AUTHORED_SOURCE: 작품의 원자료 바이트와 저장 공급이 다릅니다".into());
+        }
     }
     for (path,capture) in sources.captures() {
         let file=snapshot.files.iter().find(|file|file.path==*path)
@@ -187,6 +206,10 @@ pub(crate) fn admit_precanon_authored_source(
 // Existing compiler path, with all prior admission checks preserved. The R3
 // catalog/raw-canon successor must be inserted before its final Start stage;
 // this function does not claim to implement that successor or invent a Start.
+pub(crate) fn finalize_first_callable_consumer_source(source:PreCanonAuthoredSourceV1)->Result<VerifiedSavedAuthoredProjectV1,String>{
+    if source.project().schema!=crate::authored_project::SCHEMA_V3||source.sources().first_callable_context().is_none(){return Err("E_DDL_V3_RECORDED_CONTEXT_REQUIRED".into());}
+    finalize_legacy_authored_source(source)
+}
 fn finalize_legacy_authored_source(source:PreCanonAuthoredSourceV1)->Result<VerifiedSavedAuthoredProjectV1,String> {
     let definition_identity=crate::saved_definition_identity::issue_saved_start(
         &source.sources,&source.project,source.entry_module_index,
@@ -209,7 +232,11 @@ pub(crate) fn finalize_registered_authored_source(
 }
 
 pub(crate) fn seal_saved_v25_sources(saved: VerifiedSavedSourceV1) -> Result<VerifiedSavedV25Sources,String> {
-    prepare_saved_v25_captures(saved,|_,bytes|crate::source_snapshot_admission::capture_declared_v25(bytes))
+    prepare_saved_v25_captures_selected(saved,None,|_,bytes|crate::source_snapshot_admission::capture_declared_v25(bytes))
+}
+
+pub(crate) fn seal_saved_v25_sources_with_first_callable(saved:VerifiedSavedSourceV1,first:std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>)->Result<VerifiedSavedV25Sources,String>{
+    prepare_saved_v25_captures_selected(saved,Some(first),|_,bytes|crate::source_snapshot_admission::capture_declared_v25(bytes))
 }
 
 #[derive(serde::Serialize,serde::Deserialize)]
@@ -224,13 +251,21 @@ struct SavedCaptureRecordV1 { path:String,record_json_utf8:String,snapshot_ident
 pub(crate) fn restore_saved_v25_sources(
     saved:VerifiedSavedSourceV1,catalog_json:&str,
 ) -> Result<VerifiedSavedV25Sources,String> {
+    restore_saved_v25_sources_selected(saved,catalog_json,None)
+}
+pub(crate) fn restore_saved_v25_sources_with_first_callable(saved:VerifiedSavedSourceV1,catalog_json:&str,first:std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>)->Result<VerifiedSavedV25Sources,String>{
+    restore_saved_v25_sources_selected(saved,catalog_json,Some(first))
+}
+fn restore_saved_v25_sources_selected(saved:VerifiedSavedSourceV1,catalog_json:&str,first:Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>)->Result<VerifiedSavedV25Sources,String>{
     if catalog_json.len()>1_000_000 {
         return Err("E_PROJECT_SOURCE_CAPTURE_CATALOG_LIMIT: 저장 봉인 목록 한도를 넘었습니다".into());
     }
     let strict=crate::unit_wire::parse_snapshot_json(catalog_json)?;
     let count=strict.get("records").and_then(serde_json::Value::as_array).map(Vec::len)
         .ok_or("E_PROJECT_SOURCE_CAPTURE_CATALOG_FIELDS: 저장 봉인 목록이 없습니다")?;
-    if count>MAX_PROJECT_FILES || count!=saved.source.files.len() {
+    let source_members:Vec<_>=saved.source.files.iter()
+        .filter(|file|matches!(file.role.as_str(),"root"|"ddn_source")).collect();
+    if count>MAX_PROJECT_FILES || count!=source_members.len() {
         return Err("E_PROJECT_SOURCE_CAPTURE_CATALOG_COUNT: 원문과 저장 봉인 목록의 개수가 다릅니다".into());
     }
     let catalog=<SavedCaptureCatalogV1 as serde::Deserialize>::deserialize(&*strict)
@@ -239,13 +274,13 @@ pub(crate) fn restore_saved_v25_sources(
         || serde_json::to_string(&catalog).map_err(|_|"E_PROJECT_SOURCE_CAPTURE_CATALOG_ENCODING")?!=catalog_json {
         return Err("E_PROJECT_SOURCE_CAPTURE_CATALOG_CANONICAL: 저장 봉인 목록이 정본이 아닙니다".into());
     }
-    // Record order equals the already normalized, complete raw-source closure.
+    // Only executable source members have source-epoch captures. Package/lock
+    // raw members remain bound by the full saved manifest, not fake DDN captures.
     // Duplicated/reordered/missing/foreign entries are not silently repaired.
-    if catalog.records.iter().zip(&saved.source.files).any(|(record,file)|record.path!=file.path
-        || !matches!(file.role.as_str(),"root"|"ddn_source")) {
+    if catalog.records.iter().zip(&source_members).any(|(record,file)|record.path!=file.path) {
         return Err("E_PROJECT_SOURCE_CAPTURE_CATALOG_PATH: 저장 봉인 목록의 원문 경로가 다릅니다".into());
     }
-    prepare_saved_v25_captures(saved,|path,bytes| {
+    prepare_saved_v25_captures_selected(saved,first,|path,bytes| {
         let record=catalog.records.iter().find(|record|record.path==path)
             .ok_or("E_PROJECT_SOURCE_CAPTURE_CATALOG_MISSING: 저장 봉인이 없습니다")?;
         if record.snapshot_identity_hex.len()!=64
@@ -260,7 +295,11 @@ pub(crate) fn restore_saved_v25_sources(
 }
 
 fn prepare_saved_v25_captures(
-    saved: VerifiedSavedSourceV1,
+    saved:VerifiedSavedSourceV1,capture:impl FnMut(&str,&[u8])->Result<crate::source_snapshot_admission::SourceCapture,String>,
+)->Result<VerifiedSavedV25Sources,String>{prepare_saved_v25_captures_selected(saved,None,capture)}
+
+fn prepare_saved_v25_captures_selected(
+    saved: VerifiedSavedSourceV1,first_callable:Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>,
     mut capture:impl FnMut(&str,&[u8])->Result<crate::source_snapshot_admission::SourceCapture,String>,
 ) -> Result<VerifiedSavedV25Sources,String> {
     // Read the explicitly bound 글판 from the admitted root. An old root or
@@ -269,12 +308,16 @@ fn prepare_saved_v25_captures(
         .map_err(|error|format!("{}: {}",error.code,error.message))?;
     // Reuse the product linker: exact-one local, no-argument 움직씨 and
     // declared module ownership, not a text search or the selected tab.
-    let preparation=local_project::prepare_authored_execution(saved.source.clone())
-        .map_err(|error|format!("{}: {}",error.code,error.message))?;
+    let preparation=match &first_callable {
+        Some(first)=>local_project::prepare_authored_execution_with_first_callable(saved.source.clone(),first),
+        None=>local_project::prepare_authored_execution(saved.source.clone()),
+    }.map_err(|error|format!("{}: {}",error.code,error.message))?;
     let name=preparation.start_definition.as_ref()
         .ok_or("E_PROJECT_START_REQUIRED: 시작 없는 라이브러리는 실행 상태를 복원할 수 없습니다")?;
-    let linked=ddonirang_lang::parse_v25_with_mode(&preparation.source,&preparation.target_path,ddonirang_lang::ParseMode::Strict)
-        .map_err(|error|format!("E_PROJECT_START_PARSE: {error}"))?;
+    let linked=match &first_callable {
+        Some(first)=>first.parse_consumer_owned_program(&preparation.source,&preparation.target_path),
+        None=>ddonirang_lang::parse_v25_with_mode(&preparation.source,&preparation.target_path,ddonirang_lang::ParseMode::Strict).map_err(|e|e.to_string()),
+    }.map_err(|error|format!("E_PROJECT_START_PARSE: {error}"))?;
     let definition=linked.items.iter().find_map(|item| {
         let ddonirang_lang::TopLevelItem::SeedDef(seed)=item;
         (seed.canonical_name==*name).then_some(seed)
@@ -318,7 +361,7 @@ fn prepare_saved_v25_captures(
         && pair[0].occurrence.span.end > pair[1].occurrence.span.start) {
         return Err("E_PROJECT_ATOM_SOURCE: 원자 값의 원문 범위가 중복됩니다".into());
     }
-    Ok(VerifiedSavedV25Sources {saved,captures,preparation,entry_declaration,atom_value_occurrences})
+    Ok(VerifiedSavedV25Sources {saved,captures,preparation,entry_declaration,atom_value_occurrences,first_callable})
 }
 
 impl VerifiedSavedSourceV1 {
@@ -495,19 +538,46 @@ pub(crate) fn admit_fresh_authored_project(
     finalize_legacy_authored_source(admit_fresh_precanon_authored_source(artifact_bytes)?)
 }
 
+/// Reuse the module/package owner's existing canonical metadata roles.
+/// This is source membership only, never dependency verification or PESI.
+pub(crate) fn saved_authored_source_roles(
+    snapshot: &crate::authored_project::SourceSnapshot,
+) -> Result<std::collections::BTreeMap<String,String>,String> {
+    let root = snapshot.root_path.as_deref()
+        .ok_or("E_PROJECT_RUNTIME_ROOT_REQUIRED: 명시 얽음 뿌리가 필요합니다")?;
+    let root_source = snapshot.files.iter().find(|file| file.path == root)
+        .ok_or("E_PROJECT_RUNTIME_SOURCE_SUPPLY: 얽음 뿌리 원자료가 없습니다")?;
+    let metadata = local_project::v25_package_metadata_roles(&root_source.text)
+        .map_err(|error| format!("{}: {}",error.code,error.message))?;
+    Ok(snapshot.files.iter().map(|file| {
+        let role = if file.path == root { "root".to_owned() }
+            else { metadata.get(&file.path).cloned().unwrap_or_else(|| "ddn_source".to_owned()) };
+        (file.path.clone(), role)
+    }).collect())
+}
+
 pub(crate) fn admit_fresh_precanon_authored_source(
     artifact_bytes:&[u8],
 )->Result<PreCanonAuthoredSourceV1,String> {
+    admit_fresh_precanon_authored_source_selected(artifact_bytes,None)
+}
+pub(crate) fn admit_fresh_precanon_authored_source_with_first_callable(artifact_bytes:&[u8],first:std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>)->Result<PreCanonAuthoredSourceV1,String>{
+    admit_fresh_precanon_authored_source_selected(artifact_bytes,Some(first))
+}
+fn admit_fresh_precanon_authored_source_selected(artifact_bytes:&[u8],first:Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>)->Result<PreCanonAuthoredSourceV1,String>{
     let project=crate::authored_project::open(artifact_bytes)?;
     let snapshot=&project.source_snapshot;
     let root=snapshot.root_path.as_deref()
         .ok_or("E_PROJECT_RUNTIME_ROOT_REQUIRED: 실행 저장에는 명시 얽음 뿌리가 필요합니다")?;
-    let blobs:Vec<_>=snapshot.files.iter().map(|file|SavedSourceBlobV1 {
-        path:&file.path,role:if file.path==root {"root"}else{"ddn_source"},bytes:file.text.as_bytes(),
-    }).collect();
+    let roles=saved_authored_source_roles(snapshot)?;
+    let blobs=snapshot.files.iter().map(|file|Ok(SavedSourceBlobV1 {
+        path:&file.path,role:roles.get(&file.path)
+            .ok_or("E_PROJECT_RUNTIME_SOURCE_SUPPLY: 저장 원자료의 역할이 없습니다")?.as_str(),
+        bytes:file.text.as_bytes(),
+    })).collect::<Result<Vec<_>,String>>()?;
     let saved=collect_source_supply(root,&snapshot.entry_path,None,&blobs)
         .map_err(|_|"E_PROJECT_RUNTIME_SOURCE_SUPPLY: 명시 작품의 원문 공급이 다릅니다")?;
-    let sources=seal_saved_v25_sources(saved)?;
+    let sources=match first{Some(first)=>seal_saved_v25_sources_with_first_callable(saved,first)?,None=>seal_saved_v25_sources(saved)?};
     admit_precanon_authored_source(std::sync::Arc::new(sources),artifact_bytes)
 }
 

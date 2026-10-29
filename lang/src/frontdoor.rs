@@ -225,6 +225,9 @@ fn source_span_text(source: &str, span: crate::Span) -> Option<&str> {
 
 fn type_ref_label(type_ref: &crate::TypeRef) -> String {
     match type_ref {
+        crate::TypeRef::AlgebraEquality {left,right} => format!("{} =:= {}",left.source_text(),right.source_text()),
+        crate::TypeRef::StructureLaw { structure, member } => format!("{structure}.{member}"),
+        crate::TypeRef::PropositionConjunction(items) => format!("({})", items.iter().map(type_ref_label).collect::<Vec<_>>().join(" 이고 ")),
         crate::TypeRef::Tuple(items) => format!("({})", items.iter().map(type_ref_label).collect::<Vec<_>>().join(",")),
         crate::TypeRef::Tensor { element, shape } => {
             let mut axes = shape.iter().map(u64::to_string).collect::<Vec<_>>().join(",");

@@ -59,6 +59,7 @@ struct BinderRow {id:String,scope:String,selected_pin:String,spelling:String,cap
 #[derive(Debug)]
 pub(in crate::authored_project::registration) struct ResolvedCatalog {
     raw:Vec<u8>,templates:SumRoleCandidates,patterns:UserPatternCandidates,
+    selected:Option<SelectedPlainCallable>,
 }
 fn id(text:&str)->Result<[u8;32],String> {
     if text.len()!=64||!text.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)) {return Err(fail("등록 정체의 정본 표기가 아닙니다"));}
@@ -74,7 +75,53 @@ fn unique<'a,T>(rows:impl Iterator<Item=&'a T>)->Result<&'a T,String> {
     let mut rows=rows;let first=rows.next().ok_or_else(||fail("등록 자료의 실제 원문 대응이 없습니다"))?;
     if rows.next().is_some(){return Err(fail("등록 자료의 실제 원문 대응이 중복됩니다"));}Ok(first)
 }
-fn contexts(source:&Source)->Result<BTreeMap<Site,std::sync::Arc<DeclarationContext>>,String> {
+// Process-local checked source selection, never a wire field or identity issuer.
+#[derive(Clone,Debug)]
+struct SelectedPlainCallable {
+    original:crate::authored_project::ProjectArtifact,
+    path:String,
+    site:Site,
+}
+impl SelectedPlainCallable {
+    fn from_context(source:&Source,first:&crate::authored_project::FirstCallableAuthoredContext)->Result<Self,String> {
+        let Source::Saved(owned)=source else {return Err(fail("선택 함수는 실제 저장 원본 owner가 필요합니다"));};
+        if owned.project()!=first.original_artifact() {return Err(fail("선택 함수와 실제 원본 작품·판본이 다릅니다"));}
+        let original=first.definition_source_span();
+        let capture=source.captures().iter().find(|(path,_)|path==original.source_path)
+            .ok_or_else(||fail("선택 함수의 실제 원문 capture가 없습니다"))?;
+        if capture.1.bytes()!=original.source_text.as_bytes() {return Err(fail("선택 함수의 원문 capture가 낡았습니다"));}
+        let module=module_raw(source,&capture.0)?.ok_or_else(||fail("선택 함수의 실제 소유 모듈이 없습니다"))?;
+        if hex::encode(module)!=first.module_identity().as_str() {return Err(fail("선택 함수의 모듈 소유가 다릅니다"));}
+        let selected=Self{original:owned.project().clone(),path:capture.0.clone(),site:Site{module,
+            capture:*capture.1.identity(),start:original.span.start as u64,end:original.span.end as u64}};
+        selected.context(source)?;
+        Ok(selected)
+    }
+    fn context(&self,source:&Source)->Result<std::sync::Arc<DeclarationContext>,String> {
+        let Source::Saved(owned)=source else {return Err(fail("선택 함수의 저장 owner가 없습니다"));};
+        if owned.project()!=&self.original {return Err(fail("선택 함수의 원본·판본이 변경됐습니다"));}
+        let (_,capture)=source.captures().iter().find(|(path,_)|path==&self.path)
+            .ok_or_else(||fail("선택 함수의 원문이 누락됐습니다"))?;
+        if capture.identity()!=&self.site.capture||module_raw(source,&self.path)?!=Some(self.site.module) {
+            return Err(fail("선택 함수의 capture·모듈이 변경됐습니다"));
+        }
+        let program=ddonirang_lang::parse_v25_with_mode(capture.text(),&self.path,ddonirang_lang::ParseMode::Strict)
+            .map_err(|e|fail(&e.to_string()))?;
+        let seed=unique(program.items.iter().map(|TopLevelItem::SeedDef(seed)|seed)
+            .filter(|seed|seed.span.start as u64==self.site.start&&seed.span.end as u64==self.site.end))?;
+        // The existing FirstCallableAuthoredContext supplied the complete
+        // public declaration; verify the actual raw selected declaration again.
+        if seed.seed_kind!=ddonirang_lang::SeedKind::Semssi||seed.body.is_none()||seed.params.len()!=2
+            ||seed.params.iter().any(|pin|pin.optional||pin.default_value.is_some()
+                ||pin.type_ref!=ddonirang_lang::TypeRef::Named("나눔수".into()))
+            ||seed.result_type!=Some(ddonirang_lang::TypeRef::Named("나눔수".into())) {
+            return Err(fail("선택한 실제 셈씨·필수 두 핀·타입이 다릅니다"));
+        }
+        Ok(std::sync::Arc::new(DeclarationContext{site:self.site.clone(),name:Some(seed.canonical_name.clone()),kind:Some(seed.seed_kind.clone())}))
+    }
+}
+
+fn contexts(source:&Source,selected:Option<&SelectedPlainCallable>)->Result<BTreeMap<Site,std::sync::Arc<DeclarationContext>>,String> {
     let preparation=source.preparation();
     let program=ddonirang_lang::parse_v25_with_mode(&preparation.source,&preparation.target_path,ddonirang_lang::ParseMode::Strict)
         .map_err(|e|fail(&e.to_string()))?;
@@ -88,6 +135,11 @@ fn contexts(source:&Source)->Result<BTreeMap<Site,std::sync::Arc<DeclarationCont
         .chain(matches.into_iter().map(|(stmt,seed)|(match stmt {Stmt::SumMatch{span,..}=>*span,_=>unreachable!()},seed))) {
         let context=context_for(source,seed,span,&mut BTreeMap::new())?;
         output.insert(context.site.clone(),context);
+    }
+    if let Some(selected)=selected {
+        let context=selected.context(source)?;
+        if output.contains_key(&selected.site) {return Err(fail("선택 함수 문맥이 기존 등록 문맥과 중복됩니다"));}
+        output.insert(selected.site.clone(),context);
     }
     Ok(output)
 }
@@ -121,8 +173,61 @@ impl ResolvedCatalog {
     }
     pub(in crate::authored_project::registration) fn issue(source:&Source,nominals:&super::super::RegistrationDraft,
         entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>)->Result<Self,String> {
+        Self::issue_selected(source,nominals,None,entropy)
+    }
+    pub(in crate::authored_project::registration) fn validate_first_callable(source:&Source,first:&crate::authored_project::FirstCallableAuthoredContext)->Result<(),String> {
+        SelectedPlainCallable::from_context(source,first).map(|_|())
+    }
+    pub(in crate::authored_project::registration) fn checked_first_callable_export(&self,source:&Source,
+        owner:&super::super::RegistrationDraft,first:&crate::authored_project::FirstCallableAuthoredContext,
+    )->Result<super::super::FirstCallableExportFacts,String>{
+        let checked=self.recheck(source,owner)?;
+        let selected=SelectedPlainCallable::from_context(source,first)?;
+        if checked.selected.as_ref().map(|s|&s.site)!=Some(&selected.site){return Err(fail("공개 DDL의 선택 원본과 G1 소유가 다릅니다"));}
+        let registry=ddonirang_lang::ddl::FIRST_CALLABLE_JA_REGISTRATION;
+        let surface=ddonirang_lang::ddl::bind_first_callable_ja_declaration(first.compiler_context().original_public(),registry.language_profile_identity,registry.registration_revision)
+            .map_err(|e|fail(&e.to_string()))?;
+        let seed=surface.callable(registry.callable_name).ok_or_else(||fail("실제 공개 함수 분모가 없습니다"))?;
+        // The approved product is this closed two-argument exact addition,
+        // not every Semssi. Audit the actual common AST/body as well as the
+        // rechecked type owner; no world read/write, hidden call or label-only
+        // PURE admission is possible, and no relation-provider is issued.
+        let body=seed.body.as_ref().ok_or_else(||fail("공개 함수의 실제 본문이 없습니다"))?;
+        let expression=match body.stmts.as_slice(){
+            [Stmt::Mutate{target,value,deferred:false,..}] if matches!(&target.kind,ddonirang_lang::ExprKind::Var(name) if name==&seed.canonical_name)=>value,
+            [Stmt::Return{value,..}]=>value,
+            _=>return Err(fail("E_DDL_FIRST_BODY_SCOPE: 승인된 두 인수의 정확 덧셈 본문만 공개합니다")),
+        };
+        let ddonirang_lang::ExprKind::Infix{left,op,right}=&expression.kind else{return Err(fail("E_DDL_FIRST_BODY_SCOPE: 실제 덧셈 본문이 아닙니다"));};
+        if op!="+" || !matches!((&left.kind,&right.kind),(ddonirang_lang::ExprKind::Var(a),ddonirang_lang::ExprKind::Var(b))
+            if (a==&seed.params[0].pin_name&&b==&seed.params[1].pin_name)||(a==&seed.params[1].pin_name&&b==&seed.params[0].pin_name)){
+            return Err(fail("E_DDL_FIRST_BODY_SCOPE: 실제 두 핀 이외의 의존·연산입니다"));
+        }
+        // This rebuilds the actual shared static checker, including effects;
+        // a Semssi label or a JSON kind alone never creates export admission.
+        let catalog:Catalog=serde_json::from_slice(checked.bytes()).map_err(|_|fail("공개 등록 원자료가 다릅니다"))?;
+        let def=unique(catalog.definitions.iter().filter(|d|row_site(d).ok().as_ref()==Some(&selected.site)&&d.kind=="callable-context"))?;
+        if def.result_type.is_empty(){return Err(fail("결과의 실제 형식 증명이 없습니다"));}
+        let mut pins=Vec::new();
+        for param in &seed.params {
+            let pin=unique(catalog.pins.iter().filter(|p|p.owner==def.id&&p.spelling==param.pin_name))?;
+            if !pin.required||!pin.default_canon.is_empty()||pin.type_hex.is_empty(){return Err(fail("공개 필수 핀·형식·기본값이 다릅니다"));}
+            pins.push((pin.spelling.clone(),pin.id.clone(),pin.type_hex.clone()));
+        }
+        if catalog.pins.iter().filter(|p|p.owner==def.id).count()!=2 {return Err(fail("공개 받는자리 분모가 두 개와 다릅니다"));}
+        Ok(super::super::FirstCallableExportFacts{module:def.module.clone(),capture:def.capture.clone(),definition:def.id.clone(),
+            pins:pins.try_into().map_err(|_|fail("공개 핀 분모"))?,result_type:def.result_type.clone()})
+    }
+    pub(in crate::authored_project::registration) fn issue_first_callable(source:&Source,nominals:&super::super::RegistrationDraft,
+        first:&crate::authored_project::FirstCallableAuthoredContext,entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>)->Result<Self,String> {
+        let selected=SelectedPlainCallable::from_context(source,first)?;
+        Self::issue_selected(source,nominals,Some(selected),entropy)
+    }
+    fn issue_selected(source:&Source,nominals:&super::super::RegistrationDraft,selected:Option<SelectedPlainCallable>,
+        entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>)->Result<Self,String> {
+        if let Some(selected)=&selected {selected.context(source)?;}
         let mut templates=SumRoleCandidates::reserve(source,nominals,entropy)?;
-        let planned=contexts(source)?;
+        let planned=contexts(source,selected.as_ref())?;
         let mut used=reserved(source,nominals)?;
         for row in &templates.templates {used.insert(row.id.0);for branch in &row.branches {used.insert(branch.id.0);used.extend(branch.pins.iter().map(|pin|pin.id.0));}}
         let mut context_ids=BTreeMap::new();
@@ -138,10 +243,10 @@ impl ResolvedCatalog {
         let patterns=UserPatternCandidates::issue_with_contexts(source,nominals,&templates,Some(&context_ids),&reserved_pins,entropy)?;
         // Every necessary role is reserved before closed type proof/canon.
         templates.bind_types(source,nominals)?;
-        let transport=Self::project(source,nominals,&templates,&patterns,&context_ids,&callable_pins)?;
+        let transport=Self::project(source,nominals,&templates,&patterns,&context_ids,&callable_pins,selected.as_ref())?;
         let raw=encode(&transport)?;
         if raw.len()>LIMIT {return Err(fail("등록 자료 크기 한도입니다"));}
-        Ok(Self{raw,templates,patterns})
+        Ok(Self{raw,templates,patterns,selected})
     }
     pub(in crate::authored_project::registration) fn bytes(&self)->&[u8] {&self.raw}
     pub(in crate::authored_project::registration) fn checked_canon(&self,source:&Source,nominals:&super::super::RegistrationDraft)->Result<String,String> {
@@ -154,9 +259,10 @@ impl ResolvedCatalog {
         Ok(())
     }
     fn project(source:&Source,nominals:&super::super::RegistrationDraft,templates:&SumRoleCandidates,
-        patterns:&UserPatternCandidates,context_ids:&BTreeMap<Site,DefinitionId>,callable_pins:&BTreeMap<(Site,String),PinId>)->Result<Catalog,String> {
+        patterns:&UserPatternCandidates,context_ids:&BTreeMap<Site,DefinitionId>,callable_pins:&BTreeMap<(Site,String),PinId>,
+        selected:Option<&SelectedPlainCallable>)->Result<Catalog,String> {
         templates.verify(source,nominals)?;patterns.verify(source,nominals,templates)?;
-        let planned=contexts(source)?;
+        let planned=contexts(source,selected)?;
         if planned.len()!=context_ids.len(){return Err(fail("원문 문맥 집합이 다릅니다"));}
         let expected_pins=callable_pin_names(source,&planned)?;
         if expected_pins.len()!=callable_pins.len()||expected_pins.iter().any(|key|!callable_pins.contains_key(key)) {return Err(fail("callable 받는자리 집합이 다릅니다"));}
@@ -233,6 +339,17 @@ impl ResolvedCatalog {
         Ok(catalog)
     }
     pub(in crate::authored_project::registration) fn restore(source:&Source,nominals:&super::super::RegistrationDraft,bytes:&[u8])->Result<Self,String> {
+        Self::restore_selected(source,nominals,bytes,None)
+    }
+    pub(in crate::authored_project::registration) fn restore_first_callable(source:&Source,nominals:&super::super::RegistrationDraft,
+        first:&crate::authored_project::FirstCallableAuthoredContext,bytes:&[u8])->Result<Self,String> {
+        Self::restore_selected(source,nominals,bytes,Some(SelectedPlainCallable::from_context(source,first)?))
+    }
+    pub(in crate::authored_project::registration) fn recheck(&self,source:&Source,nominals:&super::super::RegistrationDraft)->Result<Self,String> {
+        Self::restore_selected(source,nominals,self.bytes(),self.selected.clone())
+    }
+    fn restore_selected(source:&Source,nominals:&super::super::RegistrationDraft,bytes:&[u8],selected:Option<SelectedPlainCallable>)->Result<Self,String> {
+        if let Some(selected)=&selected {selected.context(source)?;}
         if bytes.len()>LIMIT||bytes.starts_with(&[0xef,0xbb,0xbf]) {return Err(fail("등록 자료 크기·BOM 오류"));}
         let catalog:Catalog=serde_json::from_slice(bytes).map_err(|_|fail("등록 자료의 닫힌 형식이 다릅니다"))?;
         if catalog.schema!=SCHEMA||catalog.mode!=source.mode()||catalog.scope!=source.scope()
@@ -251,7 +368,7 @@ impl ResolvedCatalog {
             branches.sort_by_key(|branch|branch.id);templates.push(Template{id:DefinitionId(id(&row.id)?),site:planned.site,lexical_scope:planned.lexical_scope,spelling:planned.spelling,branches});
         }
         templates.sort_by_key(|row|row.id);let templates=SumRoleCandidates{scope:catalog.scope.clone(),templates};templates.verify(source,nominals)?;
-        let planned_contexts=contexts(source)?;let mut context_ids=BTreeMap::new();
+        let planned_contexts=contexts(source,selected.as_ref())?;let mut context_ids=BTreeMap::new();
         for (site,context) in &planned_contexts {
             let row=unique(catalog.definitions.iter().filter(|row|row.kind==kind(context).unwrap_or("")&&row_site(row).ok().as_ref()==Some(site)))?;
             context_ids.insert(site.clone(),DefinitionId(id(&row.id)?));
@@ -276,8 +393,109 @@ impl ResolvedCatalog {
         }
         scopes.sort_by_key(|row|row.id);
         let patterns=UserPatternCandidates{contexts:pattern_contexts.into_iter().map(|(id,declaration)|ContextCandidate{id,declaration}).collect(),scopes};
-        let expected=Self::project(source,nominals,&templates,&patterns,&context_ids,&callable_pins)?;
+        let expected=Self::project(source,nominals,&templates,&patterns,&context_ids,&callable_pins,selected.as_ref())?;
         if encode(&expected)?!=bytes {return Err(fail("등록 자료가 실제 원문·씨·소유자·정본과 다릅니다"));}
-        Ok(Self{raw:bytes.into(),templates,patterns})
+        Ok(Self{raw:bytes.into(),templates,patterns,selected})
+    }
+}
+
+#[cfg(test)]
+mod g1_plain_callable_tests {
+    use super::*;
+    use crate::authored_project::{self,FirstCallableAuthoredContext,ProjectArtifact};
+    use crate::authored_project::registration as registration;
+    const ORIGINAL:&str = r###"{"authored_identity":{"clone_origin":null,"entry":null,"logical_dependency_id":"fe6b4154262752919656f5a6f7e3629b3e81758594783b9efca19a1f0ce9ed52","modules":[{"compositions":[],"head":"세금.ddn","id":"0a9e9104a2f6a6434c2bd0dd41a721a7dacc85125c791fe47aed1deb2f4f2068","name":"세금","sources":["세금.ddn"]},{"compositions":[],"head":"app.ddn","id":"36612e8bcf97c580cb38d1c3173b719c4acbf892a937bbe97e9df9f947521c8c","name":"앱","sources":["app.ddn"]}],"schema":"ddn.authored_identity.v1"},"content_sha256":"60783cb50f9b5e604197407d2c7241c990e67171ee5608e2b10593d9b7ee1659","schema":"ddn.authored_project_artifact.v1","source_profile":"v1-core-v25","source_snapshot":{"entry_path":"app.ddn","files":[{"path":"root.ddn","text":"(글판=\"v25\", 모듬=차림[(이름=앱, 머리=\"app.ddn\", 원문=\"app.ddn\"), (이름=세금, 머리=\"세금.ddn\", 원문=\"세금.ddn\")], 시작=(모듈=앱, 정의=실행)) 얽음.\n"},{"path":"app.ddn","text":"(세금=세금) 쓰임.\n실행:움직씨 := {\n    ((금액=(100, 1) 나눔수, 세액=(10, 1) 나눔수) 세금.총액합하다) 보여주기.\n}.\n"},{"path":"세금.ddn","text":"(총액합하다=총액합하다) 드러냄.\n(금액:나눔수~에, 세액:나눔수~을~를)\n총액합하다{총액합하기}:나눔수:셈씨 := {\n    총액합하다 <- 금액 + 세액.\n}.\n"}],"root_path":"root.ddn"}}"###;
+    const DDL:&str = r###"#!日本語
+(金額:有理数~に, 税額:有理数~を)
+合計する:有理数:関数 :={...}.
+"###;
+    fn project()->ProjectArtifact {authored_project::open(ORIGINAL.as_bytes()).unwrap()}
+    fn source(project:&ProjectArtifact)->crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1 {
+        crate::project_revision_envelope_supply::admit_fresh_precanon_authored_source(project.save().unwrap().as_bytes()).unwrap()
+    }
+    fn context(project:&ProjectArtifact)->FirstCallableAuthoredContext {
+        let module=project.authored_identity.modules.iter().find(|m|m.head=="세금.ddn").unwrap();
+        project.first_callable_registration_context(module.id.as_str(),"세금.ddn",DDL,"세금.일본어.ddl","language-profile:ja",1).unwrap()
+    }
+    fn next(count:&mut u64,id:&mut [u8;32])->Result<(),String> {*count+=1;id.fill(0);id[0]=211;id[24..].copy_from_slice(&count.to_be_bytes());Ok(())}
+    fn pair(project:&ProjectArtifact,count:&mut u64)->(registration::RegistrationDraft,crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1) {
+        let owned=source(project);
+        let draft=registration::prepare_first_callable_under_candidate_owner(&owned,&context(project),None,&mut |id|next(count,id)).unwrap();
+        (draft,owned)
+    }
+    fn prepare(project:&ProjectArtifact,count:&mut u64)->registration::RegistrationDraft {pair(project,count).0}
+    fn catalog(draft:&registration::RegistrationDraft)->serde_json::Value {
+        serde_json::from_slice(draft.artifacts().iter().find(|b|b.role()==Some(ROLE)).unwrap().bytes()).unwrap()
+    }
+    fn reseal(draft:&registration::RegistrationDraft,mutate:impl FnOnce(&mut serde_json::Value))->Vec<registration::RecordedRegistrationBlob> {
+        let mut records=draft.recorded_blobs();let row=records.iter_mut().find(|r|r.role.as_deref()==Some(ROLE)).unwrap();
+        let mut value:serde_json::Value=serde_json::from_slice(&hex::decode(&row.raw_hex).unwrap()).unwrap();mutate(&mut value);
+        // Same production transport field order; change a typed row, then
+        // reseal its transport so the semantic verifier must detect it.
+        let value:Catalog=serde_json::from_value(value).unwrap();let raw=encode(&value).unwrap();
+        row.byte_length=raw.len() as u64;row.sha256=hex::encode(Sha256::digest(&raw));row.raw_hex=hex::encode(raw);records
+    }
+    #[test]
+    fn g1_plain_actual_two_pin_issuer_and_legacy_unchanged() {
+        let project=project();let owned=source(&project);let mut old_count=0;
+        let old=registration::prepare_precanon_under_candidate_owner(&owned,None,&mut |id|next(&mut old_count,id)).unwrap();
+        assert!(!ResolvedCatalog::needed(&Source::saved(&owned)).unwrap());assert!(old.resolved.is_none());
+        let bytes=serde_json::to_vec(&old.recorded_blobs()).unwrap();let mut count=0;let draft=prepare(&project,&mut count);
+        assert!(count>0);let json=catalog(&draft);assert_eq!(json["schema"],SCHEMA);
+        let callable=json["definitions"].as_array().unwrap().iter().find(|r|r["kind"]=="callable-context").unwrap();
+        assert_eq!(callable["spelling"],"총액합하다");assert!(!callable["result_type"].as_str().unwrap().is_empty());
+        assert_eq!(callable["module"],context(&project).module_identity().as_str());
+        let pins=json["pins"].as_array().unwrap();assert_eq!(pins.len(),2);
+        let names=pins.iter().map(|r|r["spelling"].as_str().unwrap()).collect::<BTreeSet<_>>();assert_eq!(names,BTreeSet::from(["금액","세액"]));
+        for pin in pins {assert_eq!(pin["owner"],callable["id"]);assert_eq!(pin["required"],true);assert_eq!(pin["default_canon"],"");assert!(!pin["type"].as_str().unwrap().is_empty());}
+        assert_ne!(pins[0]["id"],pins[1]["id"]);assert!(json["providers"].as_array().unwrap().is_empty());
+        let mut again_count=0;let again=registration::prepare_precanon_under_candidate_owner(&owned,None,&mut |id|next(&mut again_count,id)).unwrap();
+        assert_eq!(old_count,again_count);assert_eq!(serde_json::to_vec(&again.recorded_blobs()).unwrap(),bytes);
+        assert!(registration::restore_precanon_recorded_candidate(&owned,draft.recorded_blobs()).is_err(),"legacy read must not silently opt into selected G1");
+    }
+    #[test]
+    fn g1_plain_cold_recorded_reopen_keeps_actual_ids_without_entropy() {
+        let project=project();let mut count=0;let (draft,fresh)=pair(&project,&mut count);let before=serde_json::to_vec(&draft.recorded_blobs()).unwrap();
+        // Cold restore consumes recorded capture identities, never fresh capture ordinals.
+        let captures=fresh.sources().recorded_capture_catalog_json().unwrap();
+        let artifact=project.save().unwrap();
+        let original=crate::project_revision_envelope_supply::admit_saved_authored_project(fresh.sources().clone(),artifact.as_bytes()).unwrap();
+        let restored_sources=crate::project_revision_envelope_supply::restore_saved_v25_sources(original.resolved_revision_supply(),&captures).unwrap();
+        let reopened=authored_project::open(artifact.as_bytes()).unwrap();
+        let owned=crate::project_revision_envelope_supply::admit_precanon_authored_source(std::sync::Arc::new(restored_sources),reopened.save().unwrap().as_bytes()).unwrap();
+        let records=serde_json::from_slice(&before).unwrap();
+        let restored=registration::restore_precanon_first_callable_candidate(&owned,&context(&reopened),records).unwrap();
+        assert_eq!(serde_json::to_vec(&restored.recorded_blobs()).unwrap(),before);
+        let material=restored.resolved_start_material(&owned).unwrap().unwrap();assert_eq!(material.1,draft.resolved.as_ref().unwrap().bytes());
+        let mut reuse_count=0;let reused=registration::prepare_first_callable_under_candidate_owner(&owned,&context(&reopened),Some(&restored),&mut |id|next(&mut reuse_count,id)).unwrap();
+        assert_eq!(reuse_count,0);assert_eq!(serde_json::to_vec(&reused.recorded_blobs()).unwrap(),before);
+    }
+    #[test]
+    fn g1_plain_missing_forged_pin_owner_and_type_refuse_after_transport_reseal() {
+        let project=project();let first=context(&project);let mut count=0;let (draft,owned)=pair(&project,&mut count);
+        for records in [reseal(&draft,|j|{j["pins"].as_array_mut().unwrap().pop();}),
+            reseal(&draft,|j|{j["pins"][0]["owner"]=j["definitions"].as_array().unwrap().iter().find(|r|r["kind"]=="root-context").unwrap()["id"].clone();}),
+            reseal(&draft,|j|{let other=project.authored_identity.modules.iter().find(|m|m.head=="app.ddn").unwrap().id.as_str();
+                j["definitions"].as_array_mut().unwrap().iter_mut().find(|r|r["kind"]=="callable-context").unwrap()["module"]=serde_json::json!(other);}),
+            reseal(&draft,|j|{j["pins"][0]["type"]=serde_json::json!("00");}),
+            reseal(&draft,|j|{j["pins"][1]["id"]=j["pins"][0]["id"].clone();})] {
+            assert!(registration::restore_precanon_first_callable_candidate(&owned,&first,records).is_err());
+        }
+        let mut missing=draft.recorded_blobs();missing.retain(|r|r.role.as_deref()!=Some(ROLE));
+        assert!(registration::restore_precanon_first_callable_candidate(&owned,&first,missing).is_err());
+    }
+    #[test]
+    fn g1_plain_same_spelling_other_actual_module_and_stale_source_refuse() {
+        let first=project();let original_context=context(&first);let mut count=0;let draft=prepare(&first,&mut count);
+        let other=first.duplicate().unwrap();let other=authored_project::open(other.save().unwrap().as_bytes()).unwrap();
+        assert_ne!(context(&other).module_identity(),original_context.module_identity());
+        let other_source=source(&other);let mut invoked=0;
+        assert!(registration::prepare_first_callable_under_candidate_owner(&other_source,&original_context,None,&mut |id|next(&mut invoked,id)).is_err());assert_eq!(invoked,0);
+        let mut other_count=100;let other_draft=prepare(&other,&mut other_count);assert_ne!(catalog(&draft)["pins"],catalog(&other_draft)["pins"]);
+        assert!(registration::restore_precanon_first_callable_candidate(&other_source,&context(&other),draft.recorded_blobs()).is_err());
+        let mut changed=first.clone();changed.source_snapshot.files.iter_mut().find(|f|f.path=="세금.ddn").unwrap().text.push_str(" ");
+        let changed=authored_project::open(changed.save().unwrap().as_bytes()).unwrap();let changed_source=source(&changed);
+        assert!(registration::prepare_first_callable_under_candidate_owner(&changed_source,&original_context,None,&mut |id|next(&mut invoked,id)).is_err());
+        assert!(registration::restore_precanon_first_callable_candidate(&changed_source,&context(&changed),draft.recorded_blobs()).is_err());assert_eq!(invoked,0);
     }
 }

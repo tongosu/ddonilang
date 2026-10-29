@@ -1,0 +1,42 @@
+{
+  "schema": "ddn.public.development_source_snapshot.v1",
+  "scope": "Development source proposal, not a new runtime release",
+  "upstream_asset_source_identity": "23814012da2f7abe6b30319a8c0b9f714b3a208d",
+  "upstream_runtime_compile_identity": "e17ea633a6933ea01d4165db92e87b24d6827a25",
+  "V5_authored_source_identity": "63be553a076721062a1d067f5ee06b3288ad8258",
+  "V5_runtime_compile_identity": "8868e5eb3fffa66281d01d2aadd14f7fef257d16",
+  "upstream_identity_is_not_a_public_commit_link": true,
+  "public_parent": "a2690f4b71d2ce259acd5530c78c8f269ea355cc",
+  "publication_kind": "Development source snapshot only; no new runtime/tag/Release",
+  "current_public_SPEC": "v0.9.0 in this proposed source tree; remote GitHub publication pending",
+  "internal_current": "v25.153.0 / RD711",
+  "SPEC_candidate": "Locally promoted v0.9.0 / internal v25.151 RD709; example14, public-copy and promotion-copy limited reviews reused; not full internal153 or product support",
+  "binary_ZIP_tag_Release_change": false,
+  "projection_adaptations": [
+    {
+      "path": ".cargo/config.toml",
+      "reason": "Public-only relative build target; original Windows stack flags preserved",
+      "upstream_sha256": "2293540a0f662237d990f97149b52258a466a902915e965c68f32d75faaf180c",
+      "projected_sha256": "e8c3b262a208b9e026fd782dabe1791f772331f5194f4f0ca8110be7fa2d22d9"
+    },
+    {
+      "path": "tool/src/workbench_host/native_source/logical.rs",
+      "reason": "Ignored test private fixture constants become explicit environment inputs; size/hash/operation/explicit observation guards retained; production code unchanged",
+      "upstream_sha256": "88fc511a1b9d44f711414945b14322e2fe1a7bffb5f680310d05fd1f06bd03a8",
+      "projected_sha256": "95f6617bc24a820b621f0286b0c9b5502e37fe55633741bc7ff6e194780041d5"
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/first_steps_v5/delivery_robot/시작안내.md",
+      "reason": "Public-only source guide replaces private ZIP location/instructions; no new binary availability or inherited runtime PASS claimed",
+      "upstream_sha256": "93e70ebbeeb547a521394ebd19a2b6541e8b229afe05b1388188d03e1bb5f89b",
+      "projected_sha256": "9ac540dd4c22624b1f892048d1541bf5770337d5dd8d819cf5c79db3d878034b"
+    }
+  ],
+  "rights_pending_files_not_newly_cleared": true,
+  "local_document_CURRENT": "v0.9.0",
+  "SPEC_exact_inputs": {
+    "publish/spec/CURRENT.md": "4e95fc0c8887f85344b2394c71804b3ff878edae5277fff0be6f780f8e483ffe",
+    "publish/spec/v0.9.0/SPEC_MANIFEST_v0.9.0.md": "039ecc25dc27f8323097d0f2c9b44c83663b235a74869d703f627911320f3678",
+    "publish/spec/v0.9.0/SPEC_SEAL_v0.9.0.json": "33de501a7ded2f215fb9d4b1ba582c8afbbb95b8ce0f90782e32589cf0221f87"
+  }
+}

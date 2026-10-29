@@ -113,6 +113,7 @@ impl Parser {
                 signatures.insert(surface, seed.params.clone());
             }
         }
+        self.bind_static_algebra_calls(program)?;
         let mut known_seeds: HashSet<String> = signatures.keys().cloned().collect();
         for sig in minimal_stdlib_sigs() {
             known_seeds.insert(sig.name.to_string());
@@ -128,6 +129,116 @@ impl Parser {
             }
         }
         self.apply_defaults_in_stmts(&mut program.root_stmts, &signatures, &known_seeds)?;
+        self.bind_static_structure_calls(program)?;
+        Ok(())
+    }
+
+    // Resolve the admitted static entry only in named root definitions, after
+    // ordinary call resolution. Actual authored definitions always win; there
+    // is no fallback from a shadow to the admitted helper and no fake NodeId.
+    fn bind_static_structure_calls(&mut self, program: &CanonProgram) -> Result<(), ParseError> {
+        let contract = StaticStructureContract::ExplicitUnaryIdentityV1;
+        let surface = contract.authored_surface();
+        let declared = |name: &str| program.items.iter().any(|TopLevelItem::SeedDef(seed)|
+            seed.callable_surface_names().iter().any(|n| n == name))
+            || program.root_stmts.iter().any(|stmt| match stmt {
+                Stmt::Definition { name: n, .. } | Stmt::DerivedBinding { name: n, .. } => n == name,
+                Stmt::Mutate { target, .. } => matches!(&target.kind, ExprKind::Var(n) if n == name),
+                _ => false,
+            });
+        for stmt in &program.root_stmts {
+            let Stmt::Definition { value, reaction: None, .. } = stmt else { continue };
+            let ExprKind::Call { func, args } = &value.kind else { continue };
+            let coordinate = StaticStructureContract::FixedCoordinateCompositionV1;
+            if func == coordinate.authored_surface() && declared(func) {
+                return Err(ParseError { span: value.span,
+                    message: "E_PROOF_CALL_SHADOWED: 좌표 도우미가 동명 선언에 가려졌습니다".into() });
+            }
+            if func == coordinate.authored_surface() && !declared(func)
+                && !self.authored_call_candidates.contains_key(&value.id) {
+                let fail = |span, message: &str| ParseError { span, message: message.into() };
+                let mut fields = HashMap::new();
+                for arg in args {
+                    let pin = arg.resolved_pin.as_deref().ok_or_else(|| fail(arg.span,
+                        "E_PROOF_STRUCTURE_DESCRIPTOR: 회전·이동·합성·입력 받는자리를 명시하세요"))?;
+                    if arg.josa.is_some() || !["회전", "이동", "합성", "입력"].contains(&pin)
+                        || fields.insert(pin, &arg.expr).is_some() {
+                        return Err(fail(arg.span, "E_PROOF_STRUCTURE_DESCRIPTOR: 좌표 받는자리가 중복되거나 지원되지 않습니다"));
+                    }
+                }
+                if fields.len() != 4 { return Err(fail(value.span,
+                    "E_PROOF_STRUCTURE_DESCRIPTOR: 좌표의 네 필수 받는자리가 필요합니다")); }
+                let mut definitions = Vec::new();
+                for pin in ["회전", "이동", "합성"] {
+                    let expr = fields[pin];
+                    let ExprKind::Var(name) = &expr.kind else { return Err(fail(expr.span,
+                        "E_PROOF_STRUCTURE_MEMBER: 명시된 실제 정의 참조가 필요합니다")); };
+                    if program.root_stmts.iter().any(|s| match s {
+                        Stmt::Definition { name: n, .. } | Stmt::DerivedBinding { name: n, .. } => n == name,
+                        Stmt::Mutate { target, .. } => matches!(&target.kind, ExprKind::Var(n) if n == name),
+                        _ => false,
+                    }) { return Err(fail(expr.span, "E_PROOF_STRUCTURE_MEMBER: 좌표 연산 정의가 가려졌습니다")); }
+                    let selected: Vec<_> = program.items.iter().filter_map(|TopLevelItem::SeedDef(seed)|
+                        (seed.canonical_name == *name && seed.span.end < value.span.start).then_some(seed)).collect();
+                    let [definition] = selected.as_slice() else { return Err(fail(expr.span,
+                        "E_PROOF_STRUCTURE_MEMBER: 앞서 선언한 유일한 좌표 정의가 필요합니다")); };
+                    definitions.push((*definition).clone());
+                }
+                self.static_structure_calls.insert(value.id, StaticStructureBinding {
+                    contract: coordinate,
+                    domain: TypeRef::Tuple(vec![TypeRef::Named("바른수".into()); 2]),
+                    operation: definitions[0].clone(), domain_origin: fields["입력"].clone(),
+                    operation_origin: fields["회전"].clone(),
+                    coordinate: Some(StaticCoordinateBinding {
+                        translation: definitions[1].clone(), composition: definitions[2].clone(),
+                        input: fields["입력"].clone(),
+                    }),
+                });
+                continue;
+            }
+            if func != surface || declared(surface)
+                || self.authored_call_candidates.contains_key(&value.id) { continue; }
+            let fail = |span, message: &str| ParseError { span, message: message.into() };
+            let mut pins = HashMap::new();
+            for arg in args {
+                let pin = arg.resolved_pin.as_deref().ok_or_else(|| fail(arg.span,
+                    "E_PROOF_STRUCTURE_DESCRIPTOR: 바탕씨·연산 받는자리를 명시하세요"))?;
+                if arg.josa.is_some() || !matches!(pin, "바탕씨" | "연산") || pins.insert(pin, &arg.expr).is_some() {
+                    // ArgBinding.span covers the value, not the authored label.
+                    // Reuse lexer provenance for the immediately preceding
+                    // fixed-pin label; never derive offsets from UTF-16 text.
+                    let label_span = self.tokens.windows(2).rev().find(|pair|
+                        pair[0].raw == pin && matches!(pair[1].kind, TokenKind::Equals)
+                        && pair[0].span.start >= value.span.start
+                        && pair[1].span.end <= arg.expr.span.start)
+                        .map(|pair| Span::new(pair[0].span.start, pair[0].span.end)).unwrap_or(arg.span);
+                    return Err(fail(label_span, "E_PROOF_STRUCTURE_DESCRIPTOR: 중복되거나 지원하지 않는 정적 받는자리입니다"));
+                }
+            }
+            if pins.len() != 2 { return Err(fail(value.span,
+                "E_PROOF_STRUCTURE_DESCRIPTOR: 바탕씨·연산 두 필수 받는자리가 필요합니다")); }
+            let domain = pins["바탕씨"];
+            if !matches!(&domain.kind, ExprKind::Var(n) if n == "바른수") || declared("바른수") {
+                return Err(fail(domain.span, "E_PROOF_STRUCTURE_TYPE: 가려지지 않은 기본 바른수 참조가 필요합니다"));
+            }
+            let operation = pins["연산"];
+            let ExprKind::Var(name) = &operation.kind else { return Err(fail(operation.span,
+                "E_PROOF_STRUCTURE_MEMBER: 실제 정적 연산 정의 참조가 필요합니다")); };
+            if program.root_stmts.iter().any(|s| match s {
+                Stmt::Definition { name: n, .. } | Stmt::DerivedBinding { name: n, .. } => n == name,
+                Stmt::Mutate { target, .. } => matches!(&target.kind, ExprKind::Var(n) if n == name),
+                _ => false,
+            }) { return Err(fail(operation.span, "E_PROOF_STRUCTURE_MEMBER: 연산 정의가 다른 결속에 가려졌습니다")); }
+            let definitions: Vec<_> = program.items.iter().filter_map(|TopLevelItem::SeedDef(seed)|
+                (seed.canonical_name == *name && seed.span.end < value.span.start).then_some(seed)).collect();
+            let [definition] = definitions.as_slice() else { return Err(fail(operation.span,
+                "E_PROOF_STRUCTURE_MEMBER: 앞서 선언한 유일한 연산 정의가 필요합니다")); };
+            self.static_structure_calls.insert(value.id, StaticStructureBinding {
+                contract, domain: TypeRef::Named("바른수".into()), operation: (*definition).clone(),
+                domain_origin: domain.clone(), operation_origin: operation.clone(),
+                coordinate: None,
+            });
+        }
         Ok(())
     }
 
@@ -699,6 +810,7 @@ impl Parser {
                 for arg in args.iter_mut() {
                     self.apply_defaults_in_expr(&mut arg.expr, signatures, known_seeds)?;
                 }
+                if self.static_algebra_calls.contains_key(&expr.id) { return Ok(()); }
                 if let Some((definition, schema)) = self.product_definitions.get(func) {
                     let category=self.schema_categories.get(func).copied();
                     if category.is_some()&&!self.schema_construction_nodes.contains(&expr.id) {
@@ -770,6 +882,7 @@ impl Parser {
                 let func_name = func.clone();
                 self.record_registered_call(expr.id, expr.span, &func_name);
                 let resolved = self.resolve_call_target(&func_name, known_seeds, expr.span)?;
+                self.record_authored_call(expr.id, &func_name, &resolved.0);
                 if *func != resolved.1 {
                     *func = resolved.1;
                 }
@@ -790,6 +903,11 @@ impl Parser {
             ExprKind::SelectionPlace { target, index } => {
                 self.apply_defaults_in_expr(target, signatures, known_seeds)?;
                 self.apply_defaults_in_expr(index, signatures, known_seeds)?;
+            }
+            ExprKind::MultiAxisSelection(selection) => {
+                for child in selection.children_mut() {
+                    self.apply_defaults_in_expr(child, signatures, known_seeds)?;
+                }
             }
             ExprKind::Infix { left, right, .. } => {
                 self.apply_defaults_in_expr(left, signatures, known_seeds)?;
@@ -872,6 +990,7 @@ impl Parser {
                     let func_name = func.clone();
                     self.record_registered_call(stage.id, stage.span, &func_name);
                     let resolved = self.resolve_call_target(&func_name, known_seeds, stage.span)?;
+                    self.record_authored_call(stage.id, &func_name, &resolved.0);
                     if *func != resolved.1 {
                         *func = resolved.1;
                     }
@@ -1221,6 +1340,21 @@ impl Parser {
         }
     }
 
+    fn record_authored_call(&mut self, id: NodeId, form: &str, resolved: &str) {
+        // Preserve an explicitly registered alternate's exact overload subset.
+        // The shared resolver may retain an admitted legacy call tail. Reuse
+        // the declaration's existing surface set, never guess suffixes here.
+        let mut candidates = self.registered_form_candidates.get(form).cloned()
+            .unwrap_or_else(|| self.registered_definitions.values()
+                .filter(|seed| seed.callable_surface_names().iter().any(|name| name == resolved))
+                .map(|seed| seed.id).collect());
+        candidates.sort_unstable();
+        candidates.dedup();
+        if !candidates.is_empty() {
+            self.authored_call_candidates.insert(id, candidates);
+        }
+    }
+
     pub(super) fn apply_defaults_to_call(
         &mut self,
         args: &mut Vec<ArgBinding>,
@@ -1436,4 +1570,56 @@ impl Parser {
         }
     }
 
+}
+
+impl Parser {
+    fn bind_static_algebra_calls(&mut self,program:&CanonProgram)->Result<(),ParseError> {
+        if self.source_epoch!=SourceEpoch::V25 {return Ok(());}
+        fn equality(t:&TypeRef)->bool {matches!(t,TypeRef::Applied{name,args} if name=="보임" && matches!(args.as_slice(),[TypeRef::AlgebraEquality{..}]))}
+        let mut global=HashSet::new();
+        for TopLevelItem::SeedDef(seed) in &program.items {
+            global.insert(seed.canonical_name.clone());
+            global.extend(seed.callable_surface_names());
+        }
+        for stmt in &program.root_stmts {
+            match stmt {
+                Stmt::Definition{name,..}|Stmt::DerivedBinding{name,..}=>{global.insert(name.clone());},
+                Stmt::Mutate{target,..}=>{if let ExprKind::Var(name)=&target.kind {global.insert(name.clone());}},
+                _=>{},
+            }
+        }
+        for TopLevelItem::SeedDef(seed) in &program.items {
+            if !seed.result_type.as_ref().is_some_and(equality) {continue;}
+            let Some(body)=&seed.body else {continue;};
+            let mut local:HashSet<String>=seed.params.iter().map(|p|p.pin_name.clone()).collect();
+            if let Some(header)=&seed.proof_header {local.extend(header.evidence_bindings.iter().map(|b|b.local_name.clone()));}
+            local.insert(seed.canonical_name.clone());
+            for stmt in &body.stmts {
+                let value=match stmt {Stmt::Definition{value,reaction:None,..}|Stmt::Mutate{value,deferred:false,..}=>Some(value),_=>None};
+                if let Some(value)=value {
+                    if let ExprKind::Call{func,args}=&value.kind {
+                        let operation=match func.as_str(){"양변빼기"=>Some(StaticAlgebraOperation::SubtractSame),"등식정리"=>Some(StaticAlgebraOperation::RewriteSides),"양변나누기"=>Some(StaticAlgebraOperation::DivideSameNonzero),_=>None};
+                        if let Some(operation)=operation {
+                            let fail=|span,message:&str|ParseError{span,message:message.into()};
+                            if global.contains(func)||local.contains(func) {return Err(fail(value.span,"E_PROOF_CALL_SHADOWED: 정적 증명 조작이 동명 선언에 가려졌습니다"));}
+                            let required:&[&str]=match operation{StaticAlgebraOperation::SubtractSame=>&["근거","항"],StaticAlgebraOperation::RewriteSides=>&["근거","왼","오른"],StaticAlgebraOperation::DivideSameNonzero=>&["근거","계수"]};
+                            let mut pins=HashSet::new();
+                            for arg in args {
+                                let pin=arg.resolved_pin.as_deref().ok_or_else(||fail(arg.span,"E_PROOF_ALGEBRA_PIN: 정적 조작의 받는자리 이름을 명시하세요"))?;
+                                if arg.josa.is_some()||!required.contains(&pin)||!pins.insert(pin) {return Err(fail(arg.span,"E_PROOF_ALGEBRA_PIN: 중복되거나 지원하지 않는 받는자리입니다"));}
+                            }
+                            if pins.len()!=required.len(){return Err(fail(value.span,"E_PROOF_ALGEBRA_PIN: 필수 받는자리가 누락되었습니다"));}
+                            self.static_algebra_calls.insert(value.id,StaticAlgebraBinding{definition:seed.id,operation});
+                        }
+                    }
+                }
+                match stmt {
+                    Stmt::Definition{name,..}|Stmt::DerivedBinding{name,..}=>{local.insert(name.clone());},
+                    Stmt::DeclBlock{items,..}=>{for item in items {local.insert(item.name.clone());}},
+                    _=>{},
+                }
+            }
+        }
+        Ok(())
+    }
 }

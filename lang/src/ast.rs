@@ -80,10 +80,52 @@ pub enum OmittedPayload {
     ValueInitializer,
 }
 
+/// Owner-adopted, compilation-local entry. This is not a persisted identity.
+/// V1 fixes the R3 provider/profile to version 1, four empty axes, and the
+/// unary-identity obligation. It never constitutes evidence for that obligation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StaticStructureContract { ExplicitUnaryIdentityV1, FixedCoordinateCompositionV1 }
+impl StaticStructureContract {
+    pub(crate) fn authored_surface(self) -> &'static str {
+        match self {
+            Self::ExplicitUnaryIdentityV1 => "항등법칙요구짜임",
+            Self::FixedCoordinateCompositionV1 => "좌표합성가정짜임",
+        }
+    }
+}
+#[derive(Debug, Clone)]
+pub(crate) struct StaticStructureBinding {
+    pub(crate) contract: StaticStructureContract,
+    pub(crate) domain: TypeRef,
+    pub(crate) operation: SeedDef,
+    pub(crate) domain_origin: Expr,
+    pub(crate) operation_origin: Expr,
+    pub(crate) coordinate: Option<StaticCoordinateBinding>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct StaticCoordinateBinding {
+    pub(crate) translation: SeedDef,
+    pub(crate) composition: SeedDef,
+    pub(crate) input: Expr,
+}
+
+pub(crate) const COORDINATE_GOAL_MEMBERS: [&str; 8] = [
+    "비교회전성공", "비교가로성공", "비교세로성공", "합성회전성공",
+    "합성가로성공", "합성세로성공", "합성반환성공", "적용합성법칙",
+];
+
 #[derive(Debug, Clone)]
 pub struct OriginMap {
+    pub(crate) authored_call_name_spans: HashMap<NodeId,Span>,
+    pub(crate) lexical_names: Option<crate::name_resolution::NameResolutionFacts>,
+    /// RD706 source facts only; no mathematical owner, admission or proof.
+    pub piecewise_definitions: HashMap<NodeId, PiecewiseDefinition>,
     pub file_path: String,
     pub source: String,
+    /// Parsed top-level opaque Jjaim blocks, retained for consumer admission.
+    /// These locations do not resolve mathematical structure or issue identity.
+    pub authored_jjaim_blocks: Vec<Span>,
     pub node_spans: HashMap<NodeId, Span>,
     /// Compiler-local cache rebuilt from verified registration rows. NodeId
     /// locates a binder; it never issues the registered ParamPinIdentity.
@@ -91,6 +133,12 @@ pub struct OriginMap {
     /// Exact definition candidates admitted by the authored registered
     /// surface. This is private compilation provenance, not a public identity.
     pub registered_call_candidates: HashMap<NodeId, Vec<NodeId>>,
+    /// Authored definition candidates after shared call-name resolution. IDs
+    /// only locate declarations in this AST; they are not semantic identities
+    /// or a successful type/overload judgment. Builtins have no entry.
+    pub authored_call_candidates: HashMap<NodeId, Vec<NodeId>>,
+    pub(crate) static_structure_calls: HashMap<NodeId, StaticStructureBinding>,
+    pub(crate) static_algebra_calls: HashMap<NodeId, StaticAlgebraBinding>,
     /// Compilation-local exact RD-656 conversion binding; not a saved wire.
     pub bytes_calls: HashMap<NodeId, crate::bytes::BytesConversion>,
     /// Source occurrences owned by actual atom-value AST nodes. A lexer hash
@@ -104,6 +152,25 @@ pub struct OriginMap {
     /// Approved B1 definition/pin admission. Compilation provenance only;
     /// this is not an input event or a persisted authority.
     pub manipulation_phase_calls: HashMap<NodeId, ManipulationPhaseCallBinding>,
+}
+
+/// Conditions remain propositions-in-source, never left-associated Bool comparisons.
+#[derive(Debug, Clone)]
+pub enum PiecewiseCondition {
+    ExplicitEmpty(Span),
+    Relations { terms: Vec<Expr>, relations: Vec<String> },
+    And(Box<PiecewiseCondition>, Box<PiecewiseCondition>),
+    Or(Box<PiecewiseCondition>, Box<PiecewiseCondition>),
+    Not(Box<PiecewiseCondition>),
+}
+#[derive(Debug, Clone)]
+pub struct PiecewiseRow { pub value: Expr, pub condition: PiecewiseCondition }
+#[derive(Debug, Clone)]
+pub struct PiecewiseDefinition {
+    pub domain: PiecewiseCondition,
+    pub rows: Vec<PiecewiseRow>,
+    pub span: Span,
+    pub(crate) source_declaration: String,
 }
 
 #[derive(Debug,Clone,PartialEq,Eq)]
@@ -133,6 +200,12 @@ pub enum TopLevelItem {
 
 #[derive(Debug, Clone)]
 pub struct SeedDef {
+    /// RD-073 static type binders, separate from runtime input pins.
+    /// Parsing this syntax does not issue a resolved type application.
+    pub type_params: Vec<TypeParamDef>,
+    /// Source declarations for the approved conditional proof surface.
+    /// These are syntax facts, never issued semantic identities or evidence.
+    pub proof_header: Option<ProofHeader>,
     pub id: NodeId,
     pub span: Span,
     pub canonical_name: String,
@@ -150,6 +223,26 @@ pub struct SeedDef {
     pub result_type: Option<TypeRef>,
     pub body: Option<Body>,
     pub modifiers: Vec<Modifier>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeParamDef {
+    pub id: NodeId,
+    pub name: String,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProofHeader {
+    pub propositions: Vec<(String, Span)>,
+    pub evidence_bindings: Vec<ProofEvidenceBinding>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProofEvidenceBinding {
+    pub public_pin: String,
+    pub local_name: String,
+    pub span: Span,
 }
 
 impl SeedDef {
@@ -231,6 +324,13 @@ pub struct ParamPin {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeRef {
+    /// Unresolved static Q equality syntax. Not a runtime Bool or evidence.
+    AlgebraEquality { left: AlgebraTermSyntax, right: AlgebraTermSyntax },
+    /// Owner-adopted R3 proof goal syntax. These spellings are unresolved;
+    /// only the structure resolver can supply the owned law identity.
+    StructureLaw { structure: String, member: String },
+    /// RD-309 proposition expression, distinct from an ordinary tuple type.
+    PropositionConjunction(Vec<TypeRef>),
     /// Approved positional Tuple source type; existing type03 identity.
     Tuple(Vec<TypeRef>),
     /// RD-386·510: 씨 정체에는 원소씨와 정적인 순서 있는 모양이 들어간다.
@@ -245,6 +345,35 @@ pub enum TypeRef {
         result: Box<TypeRef>,
     },
     Infer,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlgebraTermSyntax {
+    pub span: Span,
+    pub kind: AlgebraTermKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AlgebraTermKind {
+    Integer(i64),
+    Name(String),
+    Add(Box<AlgebraTermSyntax>, Box<AlgebraTermSyntax>),
+    Subtract(Box<AlgebraTermSyntax>, Box<AlgebraTermSyntax>),
+    Multiply(Box<AlgebraTermSyntax>, Box<AlgebraTermSyntax>),
+    DivideByInteger(Box<AlgebraTermSyntax>, i64),
+}
+
+impl AlgebraTermSyntax {
+    pub fn source_text(&self) -> String {
+        match &self.kind {
+            AlgebraTermKind::Integer(n) => n.to_string(),
+            AlgebraTermKind::Name(name) => name.clone(),
+            AlgebraTermKind::Add(a,b) => format!("({} + {})",a.source_text(),b.source_text()),
+            AlgebraTermKind::Subtract(a,b) => format!("({} - {})",a.source_text(),b.source_text()),
+            AlgebraTermKind::Multiply(a,b) => format!("({} * {})",a.source_text(),b.source_text()),
+            AlgebraTermKind::DivideByInteger(a,b) => format!("({} / {b})",a.source_text()),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -942,4 +1071,14 @@ impl Expr {
             _ => None,
         }
     }
+}
+
+/// Compilation-local static operation binding, never a builtin definition ID.
+#[derive(Debug,Clone,Copy,PartialEq,Eq)]
+pub enum StaticAlgebraOperation { SubtractSame, RewriteSides, DivideSameNonzero }
+#[derive(Debug,Clone,Copy,PartialEq,Eq)]
+pub struct StaticAlgebraBinding { pub definition:NodeId, pub operation:StaticAlgebraOperation }
+impl OriginMap {
+    pub fn name_resolution(&self) -> Option<&crate::name_resolution::NameResolutionFacts> { self.lexical_names.as_ref() }
+    pub fn algebra_operation(&self,node:NodeId)->Option<&StaticAlgebraBinding> {self.static_algebra_calls.get(&node)}
 }

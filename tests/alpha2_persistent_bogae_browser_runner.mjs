@@ -1,0 +1,201 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import http from 'node:http';
+import {createHash} from 'node:crypto';
+import {pathToFileURL} from 'node:url';
+const {chromium}=await import(pathToFileURL(process.env.DDN_PLAYWRIGHT_MODULE).href);
+const root=process.cwd(), evidence=fs.mkdtempSync(path.join(os.tmpdir(),'ddn-persistent-bogae-browser-'));
+const wasmHash=createHash('sha256').update(fs.readFileSync('solutions/seamgrim_ui_mvp/ui/wasm/ddonirang_tool_bg.wasm')).digest('hex');
+const servedWasm=[];
+const server=http.createServer((req,res)=>{
+  try {
+    const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
+    const file=path.resolve(root,'.'+pathname);
+    if(!file.startsWith(root+path.sep)) throw new Error('outside workspace');
+    const bytes=fs.readFileSync(file);
+    if(file.endsWith('ddonirang_tool_bg.wasm')) servedWasm.push(createHash('sha256').update(bytes).digest('hex'));
+    const type=file.endsWith('.js')?'text/javascript':file.endsWith('.wasm')?'application/wasm':file.endsWith('.html')?'text/html':file.endsWith('.css')?'text/css':file.endsWith('.json')?'application/json':'text/plain';
+    res.writeHead(200,{'content-type':type}).end(bytes);
+  } catch {res.writeHead(404).end();}
+});
+await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'});
+const page=await browser.newPage({viewport:{width:1600,height:1100},acceptDownloads:true});
+const errors=[],consoleErrors=[],requests=[],httpFailures=[];
+page.on('pageerror',error=>errors.push(String(error)));
+page.on('console',message=>{if(message.type()==='error') consoleErrors.push(message.text());});
+page.on('requestfailed',request=>requests.push(request.url()));
+page.on('response',response=>{if(response.status()>=400) httpFailures.push({url:response.url(),status:response.status()});});
+const snapshot=()=>page.evaluate(()=>window.__SEAMGRIM_APPROVED_WORKBENCH__.getSnapshot());
+const readArtifact=async()=>JSON.parse(await page.locator('[data-authored-contents]').inputValue());
+const openPanel=async()=>{
+  const menu=page.locator('[data-testid="project-more-menu"]');
+  if(!(await menu.getAttribute('open'))) await menu.locator('summary').click();
+  await page.locator('[data-testid="authored-project-open"]').click();
+};
+async function run() {
+  await page.waitForFunction(()=>document.querySelector('[data-testid="lifecycle-run"]').disabled===false);
+  const success=await page.evaluate(async()=>{
+    const app=window.__SEAMGRIM_APPROVED_WORKBENCH__;
+    const success=await app.startRun(); app.pauseRun(); return success;
+  });
+  assert.equal(success,true,JSON.stringify((await snapshot()).diagnostics));
+  await page.waitForFunction(()=>window.__SEAMGRIM_APPROVED_WORKBENCH__.getSnapshot().activeFrame?.state_hash);
+  return (await snapshot()).activeFrame;
+}
+try {
+  await page.goto(`http://127.0.0.1:${server.address().port}/solutions/seamgrim_ui_mvp/ui/workbench/index.html`);
+  await page.waitForFunction(()=>window.__SEAMGRIM_APPROVED_WORKBENCH__?.getSnapshot().readiness.initialization==='ready');
+  await page.locator('[data-testid="project-rail-toggle"]').click();
+  await page.locator('#project-list [data-project-id="local_linear_slope_v1"]').click();
+  const source=fs.readFileSync('solutions/seamgrim_ui_mvp/samples/alpha2_linear_composition.ddn','utf8');
+  await page.waitForFunction(text=>document.querySelector('#source-editor').value===text,source);
+  if(await page.locator('[data-testid="project-rail-toggle"]').getAttribute('aria-expanded')==='true')await page.locator('[data-testid="project-rail-toggle"]').click();
+  const temporary=await run();
+  await openPanel();
+  await page.locator('[data-authored-create]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-authored-contents]').value.includes('ddn.authored_project_artifact.v1'));
+  const initial=await readArtifact();
+  await page.locator('[data-authored-module]').fill('앱');
+  await page.locator('[data-authored-composition]').fill('일차함수짜임');
+  await page.locator('[data-authored-register]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-authored-contents]').value.includes('ddn.authored_project_artifact.v2'));
+  const registered=await readArtifact();
+  assert.equal(initial.authored_identity.logical_dependency_id,registered.authored_identity.logical_dependency_id);
+  await page.locator('[data-authored-save]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-authored-status]').textContent.includes('이 기기에 저장했습니다'));
+  const saved=await readArtifact();
+  assert.deepEqual(saved.authored_identity,registered.authored_identity);
+  await page.locator('[data-authored-close]').click();
+  const first=await run();
+  const projection=first.wasm_state.bogae_projection;
+  assert.equal(projection.persistent_identity,true);
+  assert.equal(first.state_hash,temporary.state_hash,'permanent IDs must not change the world');
+  await page.screenshot({path:path.join(evidence,'registered-composition.png'),fullPage:true});
+  await openPanel();
+  await page.locator('[data-authored-reopen]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-authored-status]').textContent.includes('저장 자료를 다시 열었습니다'));
+  assert.deepEqual((await readArtifact()).authored_identity,saved.authored_identity);
+  const downloadPromise=page.waitForEvent('download');
+  await page.locator('[data-authored-export]').click();
+  const download=await downloadPromise, exported=path.join(evidence,'exported-project.json');
+  await download.saveAs(exported);
+  assert.deepEqual(JSON.parse(fs.readFileSync(exported,'utf8')),saved);
+  await page.locator('[data-authored-close]').click();
+  const reopened=await run();
+  assert.deepEqual(reopened.wasm_state.bogae_projection,projection);
+  assert.equal(reopened.state_hash,first.state_hash);
+  await openPanel();
+  await page.locator('[data-authored-clone]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-authored-status]').textContent.includes('새 ID로 복제했습니다'));
+  const clone=await readArtifact();
+  assert.notEqual(clone.authored_identity.logical_dependency_id,saved.authored_identity.logical_dependency_id);
+  await page.locator('[data-authored-close]').click();
+  const copied=await run();
+  assert.equal(copied.state_hash,first.state_hash);
+  assert.notDeepEqual(copied.wasm_state.bogae_projection.candidates[0].artifact.identity,projection.candidates[0].artifact.identity);
+  const edited=source.replace('반지름=0.12','반지름=0.14');
+  assert.notEqual(edited,source);
+  await page.locator('#source-editor').fill(edited);
+  await openPanel();
+  await page.locator('[data-authored-save]').click();
+  await page.waitForFunction(text=>JSON.parse(document.querySelector('[data-authored-contents]').value).source_snapshot.files[0].text===text,edited);
+  const editedArtifact=await readArtifact();
+  const opaqueIds=artifact=>[artifact.authored_identity.logical_dependency_id,
+    ...artifact.authored_identity.modules.flatMap(module=>[module.id,...module.bindings.map(binding=>binding.id),...module.compositions.map(composition=>composition.id)])];
+  assert.deepEqual(opaqueIds(editedArtifact),opaqueIds(clone),'an edit retains all opaque IDs');
+  assert.notEqual(editedArtifact.authored_identity.modules[0].compositions[0].registration.lock.source_content,clone.authored_identity.modules[0].compositions[0].registration.lock.source_content,
+    'source content lock advances independently from opaque identity');
+  await page.locator('[data-authored-close]').click();
+  const changed=await run();
+  assert.equal(changed.state_hash,first.state_hash,'a presentation-only authored edit must not change world');
+  assert.notEqual(changed.wasm_state.bogae_projection.candidates[0].authored_digest,copied.wasm_state.bogae_projection.candidates[0].authored_digest);
+  await openPanel();
+  await page.locator('[data-testid="authored-project-drawer"] input[type=file]').setInputFiles(exported);
+  await page.waitForFunction(()=>document.querySelector('[data-authored-status]').textContent.includes('파일을 열었습니다'));
+  assert.deepEqual((await readArtifact()).authored_identity,saved.authored_identity);
+  assert.equal(await page.locator('#source-editor').inputValue(),source);
+  await page.locator('[data-authored-close]').click();
+  const imported=await run();
+  assert.deepEqual(imported.wasm_state.bogae_projection,projection);
+  assert.equal(imported.state_hash,first.state_hash);
+  // An explicit rename maps the saved opaque identity, not a new declaration.
+  const renamedSource=source.replaceAll('일차함수짜임','기울기짜임');
+  await page.locator('#source-editor').fill(renamedSource);
+  await openPanel();
+  await page.locator('[data-authored-rename-target]').locator('xpath=..').evaluate(element=>element.closest('details').open=true);
+  const renameTarget=await page.locator('[data-authored-rename-target] option').evaluateAll(options=>options.find(option=>option.textContent.includes('일차함수짜임 (짜임)')).value);
+  await page.locator('[data-authored-rename-target]').selectOption(renameTarget);
+  await page.locator('[data-authored-new-name]').fill('기울기짜임');
+  await page.locator('[data-authored-rename]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-authored-status]').textContent.includes('명시 변경을 검증했습니다'));
+  const renamed=await readArtifact();
+  assert.deepEqual(opaqueIds(renamed),opaqueIds(saved));
+  assert.equal(renamed.authored_identity.modules[0].compositions[0].definition,'기울기짜임');
+  await page.locator('[data-authored-close]').click();
+  const renamedFrame=await run();
+  assert.equal(renamedFrame.state_hash,first.state_hash);
+  assert.equal(renamedFrame.wasm_state.bogae_projection.candidates[0].authored_digest,projection.candidates[0].authored_digest);
+  // The explicit relocation control submits the exact path mapping to Rust.
+  const oldPath=renamed.source_snapshot.entry_path, newPath='학습/직선.ddn';
+  await openPanel();
+  await page.locator('[data-authored-old-path]').evaluate(element=>element.closest('details').open=true);
+  await page.locator('[data-authored-old-path]').fill(oldPath);
+  await page.locator('[data-authored-new-path]').fill(newPath);
+  await page.locator('[data-authored-relocate]').click();
+  await page.waitForFunction(path=>{try{return JSON.parse(document.querySelector('[data-authored-contents]').value).source_snapshot.entry_path===path;}catch{return false;}},newPath);
+  const relocated=await readArtifact();
+  assert.deepEqual(opaqueIds(relocated),opaqueIds(saved));
+  assert.equal(relocated.source_snapshot.entry_path,newPath);
+  assert.equal((await snapshot()).project.files[0].path,newPath);
+  await page.locator('[data-authored-save]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-authored-status]').textContent.includes('이 기기에 저장했습니다'));
+  await page.locator('[data-authored-close]').click();
+  const relocatedFrame=await run();
+  assert.equal(relocatedFrame.state_hash,first.state_hash);
+  assert.equal(relocatedFrame.wasm_state.bogae_projection.candidates[0].authored_digest,projection.candidates[0].authored_digest);
+  const product=await import(pathToFileURL(path.join(root,'solutions/seamgrim_ui_mvp/ui/wasm/ddonirang_tool.js')).href);
+  await product.default({module_or_path:fs.readFileSync('solutions/seamgrim_ui_mvp/ui/wasm/ddonirang_tool_bg.wasm')});
+  const multiSnapshot={root_path:'selected.ddn',entry_path:'app/main.ddn',files:[
+    {path:'selected.ddn',text:'(글판="v25",모듬=차림[(이름=앱,머리="app/main.ddn",원문="app/main.ddn"),(이름=힘,머리="lib/힘.ddn",원문="lib/힘.ddn")],시작=(모듈=앱,정의=실행)) 얽음.'},
+    {path:'app/main.ddn',text:'(힘=힘) 쓰임.\n원 := (중심=차림[힘.값,0],반지름=0.2) 표준장면.원.\n장면 := (요소들=차림[원],가로범위=차림[0,4],세로범위=차림[-2,2]) 표준장면.평면.\n으뜸보기 := (보기=((장면=장면) 표준보기.장면)) 표준보개.으뜸.\n작품짜임 := (관계들=차림[으뜸보기]) 표준보개.짜임.\n실행:움직씨 := { 힘.값 보여주기. }.'},
+    {path:'lib/힘.ddn',text:'(값=값) 드러냄.\n값 := 2.'},
+  ]};
+  const multiV1=product.authored_project_operation('create',JSON.stringify({source_profile:'v1-core-v25',module_name:'',source_snapshot:multiSnapshot}));
+  await openPanel();
+  await page.locator('[data-testid="authored-project-drawer"] input[type=file]').setInputFiles({name:'formal-project.json',mimeType:'application/json',buffer:Buffer.from(multiV1)});
+  await page.waitForFunction(text=>document.querySelector('[data-authored-contents]').value===text,multiV1);
+  await page.locator('[data-authored-module]').fill('앱');
+  await page.locator('[data-authored-source]').fill('app/main.ddn');
+  await page.locator('[data-authored-composition]').fill('작품짜임');
+  await page.locator('[data-authored-register]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-authored-contents]').value.includes('ddn.authored_project_artifact.v2'));
+  const multi=await readArtifact();
+  await page.locator('[data-authored-save]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-authored-status]').textContent.includes('이 기기에 저장했습니다'));
+  await page.locator('[data-authored-close]').click();
+  const multiFrame=await run();
+  assert.equal(multiFrame.wasm_state.bogae_projection.persistent_identity,true);
+  assert.equal(multiFrame.wasm_state.bogae_projection.candidates[0].artifact.identity.module,multi.authored_identity.modules.find(module=>module.name==='앱').id);
+  await page.screenshot({path:path.join(evidence,'formal-multi-module.png'),fullPage:true});
+  await openPanel();
+  await page.locator('[data-authored-reopen]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-authored-status]').textContent.includes('저장 자료를 다시 열었습니다'));
+  assert.deepEqual((await readArtifact()).authored_identity,multi.authored_identity);
+  await page.locator('[data-authored-close]').click();
+  const multiReopened=await run();
+  assert.equal(multiReopened.state_hash,multiFrame.state_hash);
+  assert.deepEqual(multiReopened.wasm_state.bogae_projection,multiFrame.wasm_state.bogae_projection);
+  assert.deepEqual(errors,[]);assert.deepEqual(consoleErrors,[]);assert.deepEqual(requests,[]);assert.deepEqual(httpFailures,[]);
+  assert.ok(servedWasm.length>0 && servedWasm.every(hash=>hash===wasmHash));
+  const report={result:'PASS',evidence,wasm_sha256:wasmHash,explicit_register:true,save_reopen_export_import:true,clone:true,edited_source_save:true,formal_multi_module:true,explicit_rename_and_relocate:true,
+    actual_rust_wasm:true,world_unchanged:true,pageerrors:0,console_errors:0,request_failures:0,http_failures:0};
+  fs.writeFileSync(path.join(evidence,'report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+} catch(error) {
+  await page.screenshot({path:path.join(evidence,'failure.png'),fullPage:true});
+  const current=await snapshot();
+  console.error(JSON.stringify({evidence,errors,consoleErrors,requests,httpFailures,status:await page.locator('[data-authored-status]').textContent(),runtimeStatus:current.runtimeStatus,diagnostics:current.diagnostics}));
+  throw error;
+} finally {await browser.close();await new Promise(resolve=>server.close(resolve));}

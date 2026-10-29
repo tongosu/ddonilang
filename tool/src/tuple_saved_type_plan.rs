@@ -25,7 +25,7 @@ pub(crate) fn resolve_nominal_type(kind:&RecordFieldType,nominals:&BTreeMap<Stri
 }
 
 #[derive(Clone, Debug)]
-struct Binding { root: NodeId, kind: Option<RecordFieldType> }
+struct Binding { root: NodeId, kind: Option<RecordFieldType>, equation: bool }
 
 #[derive(Clone, Default, Debug)]
 pub(crate) struct TupleSavedTypePlan {
@@ -45,6 +45,20 @@ impl TupleSavedTypePlan {
             let kind=if let Some(plan) = numeric { plan.position_types.get(&expr.id).cloned() }
                 else { expression_type(expr, bindings, calls) };
             kind.map(|kind|resolve_nominal_type(&kind,nominals))
+        };
+        let equation_type = |expr:&Expr, bindings:&BTreeMap<String,Binding>| {
+            if let Some(plan)=numeric { return plan.equation_results.contains(&expr.id); }
+            // Legacy execution dispatches these sealed builtins before source
+            // definitions. This is a producer contract, never a Pack-shape test.
+            match &expr.kind {
+                ExprKind::Var(name)=>bindings.get(name).is_some_and(|binding|binding.equation),
+                ExprKind::Call{func,..}=>{
+                    let canonical=ddonirang_lang::stdlib::canonicalize_stdlib_alias(func);
+                    matches!(canonical,"방정식풀기"|"다항식.풀기")
+                        && crate::work_cost::builtin_work_cost_rule(canonical).is_ok_and(|rule|rule.is_some())
+                },
+                _=>false,
+            }
         };
         // Same admitted compilation, declaration-owned result TypeRef only.
         // A successful call validates its pins/result in the common evaluator;
@@ -90,7 +104,7 @@ impl TupleSavedTypePlan {
                         item.value.as_ref().and_then(|expr| expression_type(expr, &bindings, &call_results))
                     } else { record_type_identity(&item.type_ref, records).ok().map(|kind|resolve_nominal_type(&kind,nominals)) };
                     if bindings.contains_key(&item.name) { result.rejected.insert(item.name.clone()); }
-                    let binding = Binding { root: item.id, kind };
+                    let binding = Binding { root: item.id, kind, equation:item.value.as_ref().is_some_and(|expr|equation_type(expr,&bindings)) };
                     bindings.insert(item.name.clone(), binding.clone());
                     // The existing DeclBlock evaluator sends every initialized
                     // item through set_resource, including the grouped items
@@ -100,10 +114,11 @@ impl TupleSavedTypePlan {
                 },
                 Stmt::DerivedBinding {id,name,value,..}=>{
                     let kind=expression_type(value,&bindings,&call_results);
+                    let equation=equation_type(value,&bindings);
                     let binding=if let Some(previous)=bindings.get(name) {
-                        if previous.kind!=kind {result.rejected.insert(name.clone());}
+                        if previous.kind!=kind || previous.equation!=equation {result.rejected.insert(name.clone());}
                         previous.clone()
-                    }else{Binding{root:*id,kind}};
+                    }else{Binding{root:*id,kind,equation}};
                     bindings.insert(name.clone(),binding.clone());
                     result.write(*id,name,&binding);
                     reject_nested_writes(value,&mut result.rejected);
@@ -112,7 +127,7 @@ impl TupleSavedTypePlan {
                     let kind = if matches!(type_ref, TypeRef::Infer) { expression_type(value, &bindings, &call_results) }
                         else { record_type_identity(type_ref, records).ok().map(|kind|resolve_nominal_type(&kind,nominals)) };
                     if bindings.contains_key(name) { result.rejected.insert(name.clone()); }
-                    let binding = Binding { root: *id, kind };
+                    let binding = Binding { root: *id, kind, equation:equation_type(value,&bindings) };
                     bindings.insert(name.clone(), binding.clone());
                     if world_decls.contains(name) { result.write(*id, name, &binding); }
                     reject_nested_writes(value, &mut result.rejected);
@@ -120,22 +135,52 @@ impl TupleSavedTypePlan {
                 Stmt::Mutate { id, target, value, .. } => {
                     let Some(name) = root_name(target) else { continue; };
                     let expression = expression_type(value, &bindings, &call_results);
+                    let equation=equation_type(value,&bindings);
                     if !bindings.contains_key(name) {
-                        bindings.insert(name.to_owned(), Binding { root: *id, kind: expression.clone() });
+                        bindings.insert(name.to_owned(), Binding { root: *id, kind: expression.clone(), equation });
                     }
                     let binding = &bindings[name];
                     // A replacement preserves the root descriptor only when
                     // the selected positions have exactly the RHS descriptor.
                     let expected = expression_type(target, &bindings, &call_results);
-                    if expression.is_none() || expected != expression { result.rejected.insert(name.to_owned()); }
+                    if binding.equation!=equation || (equation && !matches!(target.kind,ExprKind::Var(_))) || (!equation && (expression.is_none() || expected!=expression)) { result.rejected.insert(name.to_owned()); }
                     result.write(*id, name, binding);
                     reject_nested_writes(value, &mut result.rejected);
+                }
+                Stmt::Hook {kind:ddonirang_lang::HookKind::EveryMadi,body,..}
+                    if numeric.is_some() && body.stmts.iter().all(|s|matches!(s,
+                        Stmt::Mutate{..}|Stmt::Show{..}|Stmt::Inspect{..}))=>{
+                    // Exact root rational writes in a declaration-free tick body.
+                    // The existing numeric producer supplies BOTH target/RHS;
+                    // no runtime value, hook spelling or result alone issues a type.
+                    // Nested declarations/branches and all other writes retain
+                    // the predecessor's conservative rejection below.
+                    for child in &body.stmts {
+                        let mut supplied=false;
+                        if let Stmt::Mutate{id,target,value,deferred:false,..}=child {
+                            if let ExprKind::Var(name)=&target.kind {
+                                if let Some(binding)=bindings.get(name) {
+                                    let rational=matches!(&binding.kind,Some(RecordFieldType::Named{name})
+                                        if ddonirang_lang::stdlib::canonicalize_type_alias(name)=="나눔수");
+                                    let root_owned=result.rows.get(name).is_some_and(|row|row.root==binding.root);
+                                    if rational && root_owned && !binding.equation
+                                        && expression_type(target,&bindings,&call_results)==binding.kind
+                                        && expression_type(value,&bindings,&call_results)==binding.kind {
+                                        result.write(*id,name,binding);
+                                        reject_nested_writes(value,&mut result.rejected);
+                                        supplied=true;
+                                    }
+                                }
+                            }
+                        }
+                        if !supplied {reject_statement_writes(child,&mut result.rejected);}
+                    }
                 }
                 _ => reject_statement_writes(stmt, &mut result.rejected),
             }
         }
-        // This first source supplier admits straight-line root bindings only.
-        // A nested/dynamic write cannot be ignored when choosing a root row.
+        // Root bindings and the explicitly supplied rational tick writes above.
+        // Every other nested/dynamic write still invalidates the affected root.
         for item in &program.items {
             let ddonirang_lang::TopLevelItem::SeedDef(seed) = item;
             if Some(seed.canonical_name.as_str()) == entry { continue; }
@@ -150,13 +195,21 @@ impl TupleSavedTypePlan {
 
     fn write(&mut self, site: NodeId, name: &str, binding: &Binding) {
         if let Some(previous) = self.rows.get(name) {
-            if previous.root != binding.root || previous.kind != binding.kind { self.rejected.insert(name.to_owned()); }
+            if previous.root != binding.root || previous.kind != binding.kind || previous.equation!=binding.equation { self.rejected.insert(name.to_owned()); }
         } else { self.rows.insert(name.to_owned(), binding.clone()); }
         if let Some(previous) = self.writes.insert(site, (name.to_owned(), binding.root)) {
             if previous != (name.to_owned(), binding.root) { self.rejected.insert(name.to_owned()); }
         }
     }
 
+    pub(crate) fn equation_result(&self,name:&str)->bool {
+        !self.rejected.contains(name) && !self.rejected.contains("*")
+            && self.rows.get(name).is_some_and(|binding|binding.equation)
+    }
+    pub(crate) fn equation_write(&self,site:NodeId,name:&str)->bool {
+        self.equation_result(name) && self.writes.get(&site).is_some_and(|(tag,root)|
+            tag==name && self.rows.get(name).is_some_and(|binding|binding.root==*root))
+    }
     pub(crate) fn expected(&self, name: &str) -> Option<&RecordFieldType> {
         if self.rejected.contains(name) || self.rejected.contains("*") { return None; }
         self.rows.get(name)?.kind.as_ref()
@@ -180,7 +233,7 @@ fn root_name(mut expr: &Expr) -> Option<&str> {
 }
 
 pub(crate) fn expression_type_from_owners(expr: &Expr, bindings: BTreeMap<String, RecordFieldType>, call_results: &BTreeMap<String, Option<RecordFieldType>>) -> Option<RecordFieldType> {
-    let bindings = bindings.into_iter().map(|(name, kind)| (name, Binding { root: 0, kind: Some(kind) })).collect();
+    let bindings = bindings.into_iter().map(|(name, kind)| (name, Binding { root: 0, kind: Some(kind), equation:false })).collect();
     expression_type_inner(expr, &bindings, call_results, true)
 }
 

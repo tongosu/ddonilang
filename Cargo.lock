@@ -249,6 +249,7 @@ version = "0.1.0"
 dependencies = [
  "blake3",
  "ddonirang-core",
+ "ddonirang-symbolic",
  "regex",
  "serde_json",
  "unicode-normalization",
@@ -271,6 +272,7 @@ dependencies = [
 name = "ddonirang-proof"
 version = "0.1.0"
 dependencies = [
+ "ddonirang-lang",
  "ddonirang-numeric",
  "ddonirang-symbolic",
  "num-bigint",

@@ -9,6 +9,14 @@ use ddonirang_lang::{CanonProgram,Expr,ExprKind,SeedDef,Span,Stmt,TopLevelItem,T
 mod source;
 pub(super) use source::Source;
 mod typeproof;
+mod math_callable;
+pub(super) fn analyze_math_callable_source(
+    source: &Source,
+    nominals: &super::RegistrationDraft,
+    selected_source_span: Span,
+) -> Result<math_callable::SourceFacts, String> {
+    math_callable::analyze(source, nominals, selected_source_span)
+}
 mod catalog;
 pub(super) use catalog::{ResolvedCatalog,ROLE as RESOLVED_ROLE,PATH as RESOLVED_PATH};
 pub(super) fn requires_resolved_program(program:&CanonProgram)->bool {

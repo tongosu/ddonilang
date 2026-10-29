@@ -105,8 +105,16 @@ impl NativeRecordingProgressOwnerV1 {
     pub(crate) fn restore(adapter:&SqliteAdapterV1,admitted:&ReadmittedFirstSourceWorldV2,
         context:&super::super::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>,
         binding:&crate::logical_input_tape::LogicalInputBinding)->Result<Self,String>{
-        let mut normal=CheckpointedLogicalRunV1::restore_native_source_checkpoint(adapter,admitted,context,binding)
+        let normal=CheckpointedLogicalRunV1::restore_native_source_checkpoint(adapter,admitted,context,binding)
             .map_err(|e|format!("E_NATIVE_RECORDING_NORMAL_RESTORE: {e:?}"))?;
+        Self::from_restored_checkpoint(adapter,admitted,context,binding,normal)
+    }
+    /// Consume the actual normal restore from this synchronous request, never
+    /// a summary, cached permit or reconstructed VM. All protected replay,
+    /// provenance, current-row and exact result checks below still run.
+    pub(crate) fn from_restored_checkpoint(adapter:&SqliteAdapterV1,admitted:&ReadmittedFirstSourceWorldV2,
+        context:&super::super::project_runtime_attachment::SourceBoundSavedRuntimeAttachment<'_>,
+        binding:&crate::logical_input_tape::LogicalInputBinding,mut normal:CheckpointedLogicalRunV1)->Result<Self,String>{
         normal.require_native_checkpoint_provenance().map_err(|e|format!("E_NATIVE_RECORDING_PROVENANCE: {e:?}"))?;
         let checkpoint=admitted.replay_checkpoint_proof(adapter,context).map_err(|e|format!("E_NATIVE_RECORDING_ROOT: {e:?}"))?;
         let transport=adapter.load_current_replay_progress_transport(checkpoint).map_err(|e|format!("E_MISSING_REPLAY_PROGRESS: {e:?}"))?;

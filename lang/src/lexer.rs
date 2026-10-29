@@ -130,6 +130,8 @@ pub struct Lexer<'a> {
     pos: usize,
     pending: Option<Token>,
     dialect: DialectConfig,
+    first_callable_registered: bool,
+    first_callable_projection: Option<crate::ddl::CheckedFirstCallableProfile>,
 }
 
 impl<'a> Lexer<'a> {
@@ -139,7 +141,34 @@ impl<'a> Lexer<'a> {
             pos: 0,
             pending: None,
             dialect: DialectConfig::from_source(source),
+            first_callable_registered: false,
+            first_callable_projection: None,
         }
+    }
+    /// Explicit declaration-side context, never inferred from locale/header.
+    /// The original binding must come from the common public-declaration path.
+    pub fn with_first_callable_registration(
+        source: &'a str,
+        _original: &crate::ddl::FirstCallableJaDeclarationBinding<'_>,
+    ) -> Result<Self, LexError> {
+        let header = source.split('\n').next().unwrap_or("").trim_end_matches('\r');
+        if header != "#!日本語" {
+            return Err(LexError::new(0, "E_MULTILANG_HEADER_REQUIRED: 登録された #!日本語 が必要です"));
+        }
+        let mut lexer = Self::new(source);
+        lexer.first_callable_registered = true;
+        lexer.pos = source.find('\n').map_or(source.len(), |end| end + 1);
+        Ok(lexer)
+    }
+    /// Existing Korean source grammar with only the exact registered foreign
+    /// call surface added by a checked registry owner. A header is not authority.
+    pub(crate) fn with_first_callable_projection(
+        source:&'a str,_original:&crate::ddl::FirstCallableJaDeclarationBinding<'_>,
+        profile:&crate::ddl::CheckedFirstCallableProfile,
+    )->Result<Self,LexError>{
+        let mut lexer=Self::new(source);
+        lexer.first_callable_projection=Some(profile.clone());
+        Ok(lexer)
     }
     pub fn tokenize(&mut self) -> Result<Vec<Token>, LexError> {
         // F5-GA[LEXER-EOF]: 성공 반환에는 항상 EOF 토큰이 붙는다. 토큰 오류는 ?로 반환되어 불완전한 벡터를 소비자에게 주지 않는다.
@@ -150,6 +179,9 @@ impl<'a> Lexer<'a> {
                 break;
             }
             if self.peek_char() == Some('#') && self.is_line_directive_start() {
+                if self.first_callable_registered {
+                    return Err(LexError::new(self.pos, "E_MULTILANG_DUPLICATE_HEADER: 先頭以外の言語ヘッダーは使えません"));
+                }
                 tokens.push(self.read_line_pragma());
                 continue;
             }
@@ -163,7 +195,95 @@ impl<'a> Lexer<'a> {
         Ok(tokens)
     }
 
+    // Source-bound checkpoints for the common module-prefix owner. No caller
+    // can assign a position; failed lookahead leaves the real cursor intact.
+    pub(crate) fn prefix_checkpoint(&self)->Self {
+        Self{source:self.source,pos:self.pos,pending:self.pending.clone(),
+            dialect:self.dialect.clone(),first_callable_registered:self.first_callable_registered,first_callable_projection:self.first_callable_projection.clone()}
+    }
+    pub(crate) fn prefix_token_start(&mut self)->(usize,Option<char>){
+        self.skip_whitespace();(self.pos,self.peek_char())
+    }
+    pub(crate) fn next_common_prefix_token(&mut self)->Result<Token,LexError>{
+        self.skip_whitespace();
+        if self.is_eof(){return Ok(Token{kind:TokenKind::Eof,span:Span::new(self.pos,self.pos),raw:String::new()});}
+        if self.peek_char()==Some('#') && self.is_line_directive_start(){
+            if self.first_callable_registered{return Err(LexError::new(self.pos,"E_MULTILANG_DUPLICATE_HEADER: 先頭以外の言語ヘッダーは使えません"));}
+            return Ok(self.read_line_pragma());
+        }
+        let registered=self.first_callable_registered;
+        let projection=self.first_callable_projection.take();
+        self.first_callable_registered=false;
+        let result=self.next_token();
+        self.first_callable_registered=registered;
+        self.first_callable_projection=projection;
+        result
+    }
+
     fn next_token(&mut self) -> Result<Token, LexError> {
+        // Only the explicitly registered Japanese surface uses this rejection.
+        // Fullwidth ASCII and CJK punctuation are syntax mistakes, not names.
+        let is_fullwidth_syntax = |c: char| matches!(c,
+            '\u{ff01}'..='\u{ff5e}' | '、' | '。' | '〈' | '〉' | '《' | '》'
+            | '「' | '」' | '『' | '』' | '【' | '】' | '〔' | '〕'
+            | '〖' | '〗' | '〘' | '〙' | '〚' | '〛' | '・');
+        if self.first_callable_projection.is_some() {
+            let start=self.pos;
+            let ch=self.peek_char().ok_or_else(||LexError::new(start,"EOF"))?;
+            if is_fullwidth_syntax(ch) {
+                return Err(LexError::new(start, &format!("E_MULTILANG_FULLWIDTH_SYNTAX: ASCII の数字・構文記号を使ってください (encoding=utf-8-byte byte={}..{})", start, start + ch.len_utf8())));
+            }
+            if !ch.is_ascii() && !ch.is_whitespace() && !matches!(ch,'가'..='힣'|'ㄱ'..='ㅎ'|'ㅏ'..='ㅣ') {
+                while let Some(next)=self.peek_char(){
+                    if is_fullwidth_syntax(next) {
+                        return Err(LexError::new(self.pos, &format!("E_MULTILANG_FULLWIDTH_SYNTAX: ASCII の数字・構文記号を使ってください (encoding=utf-8-byte byte={}..{})", self.pos, self.pos + next.len_utf8())));
+                    }
+                    if next.is_ascii()||next.is_whitespace()||matches!(next,'가'..='힣'|'ㄱ'..='ㅎ'|'ㅏ'..='ㅣ'){break;}
+                    self.advance();
+                }
+                let raw=&self.source[start..self.pos];
+                let r=crate::ddl::FIRST_CALLABLE_JA_REGISTRATION;
+                let kind=if r.pin_particles.contains(&raw){TokenKind::Josa(raw.into())}
+                    else if raw==r.callable_name||raw==r.rational_type_name||r.pin_names.contains(&raw){TokenKind::Ident(raw.into())}
+                    else{return Err(LexError::new(start,"E_MULTILANG_UNREGISTERED_SURFACE: この範囲では未登録の表面です"));};
+                return Ok(Token{kind,span:Span::new(start,self.pos),raw:raw.into()});
+            }
+        }
+        if self.first_callable_registered {
+            let start = self.pos;
+            let ch = self.peek_char().ok_or_else(|| LexError::new(start, "EOF"))?;
+            if is_fullwidth_syntax(ch) {
+                return Err(LexError::new(start, &format!("E_MULTILANG_FULLWIDTH_SYNTAX: ASCII の数字・構文記号を使ってください (encoding=utf-8-byte byte={}..{})", start, start + ch.len_utf8())));
+            }
+            if ch.is_alphabetic() || ch == '_' || (!ch.is_ascii() && !ch.is_whitespace()) {
+                while let Some(next) = self.peek_char() {
+                    if is_fullwidth_syntax(next) {
+                        return Err(LexError::new(self.pos, &format!("E_MULTILANG_FULLWIDTH_SYNTAX: ASCII の数字・構文記号を使ってください (encoding=utf-8-byte byte={}..{})", self.pos, self.pos + next.len_utf8())));
+                    }
+                    if next.is_ascii() && !(next.is_alphanumeric() || next == '_') || next.is_whitespace() {
+                        break;
+                    }
+                    self.advance();
+                }
+                let raw = &self.source[start..self.pos];
+                let registry = crate::ddl::FIRST_CALLABLE_JA_REGISTRATION;
+                let kind = if raw == registry.callable_kind_name {
+                    TokenKind::KwSemssi
+                } else if registry.pin_particles.contains(&raw) {
+                    TokenKind::Josa(raw.to_owned())
+                } else if raw == registry.callable_name || raw == registry.rational_type_name
+                    || registry.pin_names.contains(&raw)
+                {
+                    TokenKind::Ident(raw.to_owned())
+                } else {
+                    return Err(LexError::new(start, "E_MULTILANG_UNREGISTERED_SURFACE: この範囲では未登録の表面です"));
+                };
+                return Ok(Token { kind, span: Span::new(start, self.pos), raw: raw.to_owned() });
+            }
+            if ch == '#' {
+                return Err(LexError::new(start, "E_MULTILANG_DUPLICATE_HEADER: 先頭以外の言語ヘッダーは使えません"));
+            }
+        }
         if let Some(token) = self.pending.take() {
             return Ok(token);
         }
@@ -1293,6 +1413,19 @@ fn is_ident_continue(ch: char) -> bool {
     )
 }
 
+/// 편집기용 한국어 렉서 키워드의 정본 철자입니다. 별칭은 포함하지 않습니다.
+///
+/// 말씨 표의 `ko_canon`과 렉서 고유 키워드를 투영합니다. 같은 토큰 종류라도
+/// 정본 역할이 다른 철자(예: `맞으면`, `이면`)는 각각 남깁니다.
+/// 이 목록은 예약어·표준 함수 전체나 위치별 구문 수용 여부를 뜻하지 않습니다.
+/// 소비자는 원문 문맥과 명시적 후보 채택 정책을 별도로 적용해야 합니다.
+pub const CANONICAL_LEXER_KEYWORDS: &[&str] = &[
+    "이름씨", "움직씨", "셈씨", "이음씨", "흐름씨", "갈래씨", "고름씨", "맞물림씨",
+    "샘", "그리고", "또는", "만약", "이라면", "일때", "아니면", "되풀이", "동안",
+    "대해", "멈추기", "건너뛰기", "되돌림", "톺아보기", "해보고", "고르기", "맞으면",
+    "이면", "바탕으로", "다짐하고", "해서", "늘지켜보고", "보여주기", "덩이", "미루기",
+];
+
 fn keyword_kind_for(canon: &str) -> Option<TokenKind> {
     match canon {
         "이름씨" => Some(TokenKind::KwImeumssi),
@@ -1621,5 +1754,58 @@ mod tests {
         let mut lexer = Lexer::new("위치''' <- 1.");
         let err = lexer.tokenize().expect_err("third prime must fail");
         assert_eq!(err.message, "알 수 없는 문자");
+    }
+}
+
+#[cfg(test)]
+mod r15_fullwidth_tests {
+    use super::*;
+
+    fn check(source: &str, projected: bool) -> Result<Vec<Token>, LexError> {
+        let original = "(총액합하다=총액합하다) 드러냄.\n(금액:나눔수~에, 세액:나눔수~을~를) 총액합하다{총액합하기}:나눔수:셈씨 := { 총액합하다 <- 금액 + 세액. }.\n";
+        let public = crate::frontdoor::parse_module_directive_frontdoor_with_mode(
+            original, "세금.ddn", crate::ParseMode::Strict,
+            &crate::ModuleDirectiveContext::default().with_public_definitions(["총액합하다"]),
+        ).unwrap();
+        let binding = crate::ddl::bind_first_callable_ja_declaration(&public, "language-profile:ja", 1).unwrap();
+        if projected {
+            let profile = crate::ddl::issued_first_callable_profile().unwrap();
+            Lexer::with_first_callable_projection(source, &binding, &profile).unwrap().tokenize()
+        } else {
+            Lexer::with_first_callable_registration(source, &binding).unwrap().tokenize()
+        }
+    }
+
+    #[test]
+    fn registered_syntax_mistakes_report_exact_utf8_position_in_both_paths() {
+        for projected in [false, true] {
+            for (text, bad) in [("合計する。", '。'), ("有理数／有理数", '／'),
+                ("金額、税額", '、'), ("に）", '）'), ("合＝計する", '＝'),
+                ("(１００,1)", '１'), ("(100，1)", '，'), ("（100,1)", '（'),
+                ("金額：有理数", '：'), ("合計する！", '！')] {
+                let source = format!("#!日本語\n{text}");
+                let err = check(&source, projected).unwrap_err();
+                assert_eq!(err.pos, source.find(bad).unwrap(), "{projected}: {source}");
+                assert!(err.message.starts_with("E_MULTILANG_FULLWIDTH_SYNTAX:"), "{err:?}");
+                assert!(err.message.contains("ASCII"));
+                assert!(err.message.contains(&format!("byte={}..{}", err.pos, err.pos + bad.len_utf8())));
+            }
+        }
+    }
+
+    #[test]
+    fn registered_strings_and_ascii_tokens_keep_their_original_bytes() {
+        for projected in [false, true] {
+            let source = "#!日本語\n合計する (100,1) \"道／金額。＝１００\".";
+            let tokens = check(source, projected).unwrap();
+            assert!(tokens.iter().any(|t| matches!(&t.kind, TokenKind::StringLit(s) if s == "道／金額。＝１００")));
+            assert!(tokens.iter().any(|t| t.raw == "合計する"));
+            assert!(tokens.iter().all(|t| source.get(t.span.start..t.span.end) == Some(t.raw.as_str())));
+            let unknown = check("#!日本語\n未知の名前", projected).unwrap_err();
+            assert!(unknown.message.starts_with("E_MULTILANG_UNREGISTERED_SURFACE:"));
+        }
+        // The ordinary lexer remains the authority outside registered contexts.
+        let plain = Lexer::new("合計する。").tokenize();
+        assert!(!plain.err().is_some_and(|e| e.message.starts_with("E_MULTILANG_FULLWIDTH_SYNTAX:")));
     }
 }

@@ -1,0 +1,351 @@
+[
+  {
+    "replacing_rd": 185,
+    "replaced_rd": 97,
+    "scope": "PARTIAL / lock 범위",
+    "evidence_id": "E0013",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 1437,
+    "quote": "RD-097·161은 이 범위에서 좁혀 부분 대체한다.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 1639,
+        "quote": "| RD-185 | solver 방법 version·구현 교체·잠금 좁히기 | OWNER-APPROVED / DOCS-FIRST CANDIDATE / DESCRIPTOR WIRE OPEN | solver의 versioned 방법 의미·실패·tie-break를 고정하고 trusted conformance를 만족한다고 방법 capability가 명시한 구현만 같은 version 안에서 교체한다. 의미 변경은 새 version이다. RD-153의 `방법=정밀한방법` canon을 유지하고 typed IR·receipt가 version identity와 실제 descriptor를 분리 봉인한다. pure DDN과 검증 가능한 대체 구현은 physical lock 없이 가능하되 봉인환경·exact replay/audit·artifact byte identity·외부 replay·checkpoint·비대체 구현은 lock 또는 동등한 sealed resolution을 요구한다. RD-097·161은 이 범위에서 좁혀 부분 대체한다. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 185,
+    "replaced_rd": 161,
+    "scope": "PARTIAL / lock 범위",
+    "evidence_id": "E0013",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 1437,
+    "quote": "RD-097·161은 이 범위에서 좁혀 부분 대체한다.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 1639,
+        "quote": "| RD-185 | solver 방법 version·구현 교체·잠금 좁히기 | OWNER-APPROVED / DOCS-FIRST CANDIDATE / DESCRIPTOR WIRE OPEN | solver의 versioned 방법 의미·실패·tie-break를 고정하고 trusted conformance를 만족한다고 방법 capability가 명시한 구현만 같은 version 안에서 교체한다. 의미 변경은 새 version이다. RD-153의 `방법=정밀한방법` canon을 유지하고 typed IR·receipt가 version identity와 실제 descriptor를 분리 봉인한다. pure DDN과 검증 가능한 대체 구현은 physical lock 없이 가능하되 봉인환경·exact replay/audit·artifact byte identity·외부 replay·checkpoint·비대체 구현은 lock 또는 동등한 sealed resolution을 요구한다. RD-097·161은 이 범위에서 좁혀 부분 대체한다. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 385,
+    "replaced_rd": 290,
+    "scope": "PARTIAL / alias 가능성",
+    "evidence_id": "E0024",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 2551,
+    "quote": "RD-290의 compatibility/education alias candidate 중 parser·TypeIdentity alias 가능성은 이 successor가 좁혀 supersede하며 교육·설명어 사용만 보존한다.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 2753,
+        "quote": "| RD-385 | TENSOR-R1-01 Tensor와 nested 차림 identity | OWNER-APPROVED / SEMANTICS-CLOSED / PRODUCT-OPEN | Tensor와 ordinary nested `차림`은 서로 다른 semantic/type identity다. `겹차림`은 교육·설명어일 뿐 Tensor parser alias나 TypeIdentity alias가 아니다. nested collection의 깊이·길이만으로 Tensor identity를 암묵 부여하지 않는다. RD-290의 compatibility/education alias candidate 중 parser·TypeIdentity alias 가능성은 이 successor가 좁혀 supersede하며 교육·설명어 사용만 보존한다. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 401,
+    "replaced_rd": 280,
+    "scope": "PARTIAL / recovery 표면",
+    "evidence_id": "E0025",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 2607,
+    "quote": "RD-280의 `~지 못하면=recoverable failure edge` 부분만 clean-break supersede하고 permanent compatibility alias를 만들지 않으며 RD-280의 다른 ExecutionRelation 의미는 보존한다.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 2809,
+        "quote": "| RD-401 | `해보고 안되면` recovery·`~지 못하면` clean-break | OWNER-APPROVED / SUCCESSOR-SURFACE-CLOSED / PREDECESSOR-SURFACE-RETIRED / PRODUCT-OPEN | `A 해보고 안되면 { ... }`와 `A 해보고 안되면 까닭에 따라 { ... }`가 typed `맺음.$안됨` recovery의 canonical family다. `까닭`은 recovery scope binder 의미이며 failure value의 고정 source 이름이 아니다. RD-280의 `~지 못하면=recoverable failure edge` 부분만 clean-break supersede하고 permanent compatibility alias를 만들지 않으며 RD-280의 다른 ExecutionRelation 의미는 보존한다. abort·hard failure는 이 표면의 catch 대상이 아니다. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 422,
+    "replaced_rd": 146,
+    "scope": "PARTIAL / verdict 표현",
+    "evidence_id": "E0003",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 577,
+    "quote": "RD-146·171의 `DISPROVED`는 동일 의미의 predecessor 표현으로 명시적으로 supersede하며 별도 다섯 번째 verdict나 permanent compatibility alias가 아니다.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 779,
+        "quote": "| RD-422 | PATHIR-PROOF-EXACT D09 four-verdict contract·REFUTED successor | OWNER-APPROVED / VERDICT-SEMANTICS-CLOSED / EXACT-WIRE-OPEN / PRODUCT-OPEN | Semantic verdict는 `PROVED`, `REFUTED`, `UNKNOWN`, `UNSUPPORTED` 네 갈래다. REFUTED는 `Not(P)` 또는 동등한 checked counterexample certificate가 검증된 경우만 성립하고 외부 solver의 false 문자열은 부족하다. RD-146·171의 `DISPROVED`는 동일 의미의 predecessor 표현으로 명시적으로 supersede하며 별도 다섯 번째 verdict나 permanent compatibility alias가 아니다. MALFORMED, CERTIFICATE_REJECTED, HASH/ASSUMPTION_MISMATCH와 PROVIDER_MISSING은 artifact/check failure이지 수학 verdict가 아니다. Exact wire spelling은 OPEN이다. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 422,
+    "replaced_rd": 171,
+    "scope": "PARTIAL / verdict 표현",
+    "evidence_id": "E0003",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 577,
+    "quote": "RD-146·171의 `DISPROVED`는 동일 의미의 predecessor 표현으로 명시적으로 supersede하며 별도 다섯 번째 verdict나 permanent compatibility alias가 아니다.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 779,
+        "quote": "| RD-422 | PATHIR-PROOF-EXACT D09 four-verdict contract·REFUTED successor | OWNER-APPROVED / VERDICT-SEMANTICS-CLOSED / EXACT-WIRE-OPEN / PRODUCT-OPEN | Semantic verdict는 `PROVED`, `REFUTED`, `UNKNOWN`, `UNSUPPORTED` 네 갈래다. REFUTED는 `Not(P)` 또는 동등한 checked counterexample certificate가 검증된 경우만 성립하고 외부 solver의 false 문자열은 부족하다. RD-146·171의 `DISPROVED`는 동일 의미의 predecessor 표현으로 명시적으로 supersede하며 별도 다섯 번째 verdict나 permanent compatibility alias가 아니다. MALFORMED, CERTIFICATE_REJECTED, HASH/ASSUMPTION_MISMATCH와 PROVIDER_MISSING은 artifact/check failure이지 수학 verdict가 아니다. Exact wire spelling은 OPEN이다. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 463,
+    "replaced_rd": 248,
+    "scope": "PARTIAL / 요청 표면 두 조항",
+    "evidence_id": "E0028",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 2746,
+    "quote": "Only RD-248's top-level `지음 { 대상=..., 원형=..., 설정=(이름: 값) }.` request surface and its one-block-one-request wording are superseded.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 2948,
+        "quote": "| RD-463 | META/JIEUM U2 GenerationRequestStmt successor surface | OWNER-APPROVED / SUCCESSOR-SURFACE-CLOSED / GENERATION-CALL-SPECIALBLOCK-ROLE-SEPARATION-CLOSED / RD-248-CLAUSE-ONLY-SUPERSEDE / PRODUCT-OPEN | Only RD-248's top-level `지음 { 대상=..., 원형=..., 설정=(이름: 값) }.` request surface and its one-block-one-request wording are superseded. The canonical successor is `(대상=..., 원형=..., 설정=(이름: 값)) 지음.`; `대상`, `원형`, `설정` use fixed pin `=`, open settings fields retain `:`, and one GenerationRequestStmt owns one request. It is a top-level compile/tool phase directive, not an ordinary runtime call, CallExpr, ExprStmt, callable value, SpecialBlock or TagBundle. The `지음` head is resolved by this grammar slot without expected-type, callable, body-parser or AI guessing. RD-245~247 and all remaining RD-248 builder, first-recipe, field-policy, canon/display, whole-failure, ordinary-validation and atomic-integration contracts are inherited. Old brace source is version-pinned migration-only, never a silent or permanent alias. Exact parser enum, diagnostic, migration encoding and product landing remain OPEN. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 475,
+    "replaced_rd": 461,
+    "scope": "PARTIAL / exact-closure 주장",
+    "evidence_id": "E0030",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 2866,
+    "quote": "RD-461 and v25.18 custody remain historical, while only the overly broad exact-closure claim is superseded.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 3068,
+        "quote": "| RD-475 | U1 Regex exact R1 package and RD-461 narrow correction | OWNER-APPROVED / COMPILE-READY-SURFACE-CLOSED / RD-461-EXACT-CLOSURE-NARROWED / PRODUCT-OPEN | The existing `#또니정규` carrier admits only group, noncapture, named capture, class/range, alternation, anchor, bounded repetition, pinned Unicode General_Category and White_Space properties, and scalar escape. Its scanner owns escaped, class, splice, repetition, group, header and terminal outer-brace states. Phase capture projection is `잡음.전체 : 글` and `잡음.<named> : (글)있없`; ordinal capture is not semantic identity. Flag `i` uses a pinned locale-independent Unicode Simple_Case_Folding profile; full 1:N folding is absent. Host regex authority, `\\w`, `\\b`, loose property aliases, backreferences, lookaround, recursion and host callbacks fail closed. RD-461 and v25.18 custody remain historical, while only the overly broad exact-closure claim is superseded. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 498,
+    "replaced_rd": 180,
+    "scope": "PARTIAL / alias 및 canon 조항",
+    "evidence_id": "E0031",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 2983,
+    "quote": "RD-180·RD-205의 `<-`와 `->` 동일 대입 alias 및 단일 `<-` canon 부분을 명시적으로 supersede한다.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 3185,
+        "quote": "| RD-498 | ARROW-R2-U1 `<-` PlaceAssignment과 `->` ResultFlow source role 분리 | OWNER-APPROVED / SOURCE-ROLE-AND-CANON-SEPARATION-CLOSED / RD-180-RD-205-ALIAS-CLAUSE-SUPERSEDED / PRODUCT-OPEN | RD-180·RD-205의 `<-`와 `->` 동일 대입 alias 및 단일 `<-` canon 부분을 명시적으로 supersede한다. `자리 <- 값.`은 place-centered Binding/Rebinding이고 RD-370 callable ResultPlace 기록도 이 표면만 쓴다. `완성된 식/호출 -> writable place.`는 하나의 producer 결과를 하나의 writable place로 보내는 statement-level ResultFlow이며 source AST와 canon을 보존한다. 두 역할은 typed write machinery를 공유할 수 있으나 서로 alias가 아니고 자동 canonical rewrite하지 않는다. arbitrary chain/pipeline은 금지한다. SpecialBlock body `->`는 RD-368 profile grammar가 소유하고 ordinary ResultFlow와 분리하며, `-->` FunctionType/Signature와 `\\|->` FunctionLiteral은 RD-407 의미를 유지한다. old alias source는 version-pinned migration-only이고 silent guessing과 permanent alias는 없다. exact AST/schema/wire/diagnostic, parser/runtime/CLI/WASM/Workbench parity와 executable oracle은 PRODUCT-OPEN이다. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 498,
+    "replaced_rd": 205,
+    "scope": "PARTIAL / alias 및 canon 조항",
+    "evidence_id": "E0031",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 2983,
+    "quote": "RD-180·RD-205의 `<-`와 `->` 동일 대입 alias 및 단일 `<-` canon 부분을 명시적으로 supersede한다.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 3185,
+        "quote": "| RD-498 | ARROW-R2-U1 `<-` PlaceAssignment과 `->` ResultFlow source role 분리 | OWNER-APPROVED / SOURCE-ROLE-AND-CANON-SEPARATION-CLOSED / RD-180-RD-205-ALIAS-CLAUSE-SUPERSEDED / PRODUCT-OPEN | RD-180·RD-205의 `<-`와 `->` 동일 대입 alias 및 단일 `<-` canon 부분을 명시적으로 supersede한다. `자리 <- 값.`은 place-centered Binding/Rebinding이고 RD-370 callable ResultPlace 기록도 이 표면만 쓴다. `완성된 식/호출 -> writable place.`는 하나의 producer 결과를 하나의 writable place로 보내는 statement-level ResultFlow이며 source AST와 canon을 보존한다. 두 역할은 typed write machinery를 공유할 수 있으나 서로 alias가 아니고 자동 canonical rewrite하지 않는다. arbitrary chain/pipeline은 금지한다. SpecialBlock body `->`는 RD-368 profile grammar가 소유하고 ordinary ResultFlow와 분리하며, `-->` FunctionType/Signature와 `\\|->` FunctionLiteral은 RD-407 의미를 유지한다. old alias source는 version-pinned migration-only이고 silent guessing과 permanent alias는 없다. exact AST/schema/wire/diagnostic, parser/runtime/CLI/WASM/Workbench parity와 executable oracle은 PRODUCT-OPEN이다. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 508,
+    "replaced_rd": 342,
+    "scope": "PARTIAL / 세 표면 status",
+    "evidence_id": "E0032",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 2993,
+    "quote": "이는 RD-342·343·375의 research/pressure-test status를 해당 세 표면에 한해 supersede하지만 Proof R1 `=:=`, 일반 equality, product 또는 norm 표면으로 재해석하지 않는다.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 3195,
+        "quote": "| RD-508 | MSAES-U3 official HoTT Path·PropTrunc symbolic surface | OWNER-APPROVED / HOTT-SYMBOLIC-SURFACE-CLOSED / PATH-PROOF-FIREWALL-PRESERVED / DEMAND-GATED / PRODUCT-OPEN | Typed Path context에서 `x =p= y`는 Path type surface이고 paired delimiter `\\|:A:\\|`는 PropTrunc(A) surface다. `p·q`는 endpoint가 맞는 p 다음 q의 Path composition이며 endpoint mismatch나 ordinary multiplication과의 복수 해소는 fail closed한다. 이는 RD-342·343·375의 research/pressure-test status를 해당 세 표면에 한해 supersede하지만 Proof R1 `=:=`, 일반 equality, product 또는 norm 표면으로 재해석하지 않는다. HOTT-1/2 provider·checker·assumption과 RD-345 demand gate, kernel/product OPEN을 유지한다. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 508,
+    "replaced_rd": 343,
+    "scope": "PARTIAL / 세 표면 status",
+    "evidence_id": "E0032",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 2993,
+    "quote": "이는 RD-342·343·375의 research/pressure-test status를 해당 세 표면에 한해 supersede하지만 Proof R1 `=:=`, 일반 equality, product 또는 norm 표면으로 재해석하지 않는다.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 3195,
+        "quote": "| RD-508 | MSAES-U3 official HoTT Path·PropTrunc symbolic surface | OWNER-APPROVED / HOTT-SYMBOLIC-SURFACE-CLOSED / PATH-PROOF-FIREWALL-PRESERVED / DEMAND-GATED / PRODUCT-OPEN | Typed Path context에서 `x =p= y`는 Path type surface이고 paired delimiter `\\|:A:\\|`는 PropTrunc(A) surface다. `p·q`는 endpoint가 맞는 p 다음 q의 Path composition이며 endpoint mismatch나 ordinary multiplication과의 복수 해소는 fail closed한다. 이는 RD-342·343·375의 research/pressure-test status를 해당 세 표면에 한해 supersede하지만 Proof R1 `=:=`, 일반 equality, product 또는 norm 표면으로 재해석하지 않는다. HOTT-1/2 provider·checker·assumption과 RD-345 demand gate, kernel/product OPEN을 유지한다. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 508,
+    "replaced_rd": 375,
+    "scope": "PARTIAL / 세 표면 status",
+    "evidence_id": "E0032",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 2993,
+    "quote": "이는 RD-342·343·375의 research/pressure-test status를 해당 세 표면에 한해 supersede하지만 Proof R1 `=:=`, 일반 equality, product 또는 norm 표면으로 재해석하지 않는다.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 3195,
+        "quote": "| RD-508 | MSAES-U3 official HoTT Path·PropTrunc symbolic surface | OWNER-APPROVED / HOTT-SYMBOLIC-SURFACE-CLOSED / PATH-PROOF-FIREWALL-PRESERVED / DEMAND-GATED / PRODUCT-OPEN | Typed Path context에서 `x =p= y`는 Path type surface이고 paired delimiter `\\|:A:\\|`는 PropTrunc(A) surface다. `p·q`는 endpoint가 맞는 p 다음 q의 Path composition이며 endpoint mismatch나 ordinary multiplication과의 복수 해소는 fail closed한다. 이는 RD-342·343·375의 research/pressure-test status를 해당 세 표면에 한해 supersede하지만 Proof R1 `=:=`, 일반 equality, product 또는 norm 표면으로 재해석하지 않는다. HOTT-1/2 provider·checker·assumption과 RD-345 demand gate, kernel/product OPEN을 유지한다. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 608,
+    "replaced_rd": 555,
+    "scope": "ADDITIVE_SCOPE / full-headless 허용",
+    "evidence_id": "E0034",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 4189,
+    "quote": "RD-555 is preserved as immutable predecessor text and is superseded only by this additive decision.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 4391,
+        "quote": "| RD-608 | official full-headless Bogae execution configuration | OWNER-BOUND / ADDITIVE-SEMANTIC-CLOSED / PHYSICAL-PRODUCT-OPEN | A DDN execution configuration with BogaeRuntimeInstance=0 and RendererProjectionInstance=0 is officially valid: world execution and accepted atomic commit remain available, and the execution host may emit textual diagnostics and receipts. FULL_HEADLESS is distinct from CLI textual output, terminal presentation, graphical presentation and a no-op renderer; no ConsoleBogae, TerminalBogae or hidden view is created, renderer resources are not initialized, and an explicit Bogae projection request still requires valid composition, projection profile and capable-renderer evidence. RD-555 is preserved as immutable predecessor text and is superseded only by this additive decision. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 610,
+    "replaced_rd": 438,
+    "scope": "PARTIAL / PG-CLI-05 구성 및 match",
+    "evidence_id": "E0036",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 4226,
+    "quote": "The immutable RD-438 and RD-501 expected-owner bare-branch clauses are jointly superseded only for PG-CLI-05 construction and typed sum-match patterns.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 4428,
+        "quote": "| RD-610 | PGSM qualified sum branch construction and joint predecessor narrowing | OWNER-BOUND / PHYSICAL-SURFACE-CONTRACT-CLOSED / PRODUCT-OPEN | PG-CLI-05 closed-sum declarations own exact OwnedBranchIdentity children. Branch values require explicit TypeIdentity.$branch and resolve by exact TypeIdentity times OwnedBranchIdentity; bare $branch fails even when the expected owner is unique. The immutable RD-438 and RD-501 expected-owner bare-branch clauses are jointly superseded only for PG-CLI-05 construction and typed sum-match patterns. Duplicate declarations, unknown branches, wrong owners and payload mismatch fail closed. No other RD-438 or RD-501 clause is changed. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 610,
+    "replaced_rd": 501,
+    "scope": "PARTIAL / PG-CLI-05 구성 및 match",
+    "evidence_id": "E0036",
+    "path": "SOURCE_AUTHORITY.md#unavailable",
+    "line": 4226,
+    "quote": "The immutable RD-438 and RD-501 expected-owner bare-branch clauses are jointly superseded only for PG-CLI-05 construction and typed sum-match patterns.",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 4428,
+        "quote": "| RD-610 | PGSM qualified sum branch construction and joint predecessor narrowing | OWNER-BOUND / PHYSICAL-SURFACE-CONTRACT-CLOSED / PRODUCT-OPEN | PG-CLI-05 closed-sum declarations own exact OwnedBranchIdentity children. Branch values require explicit TypeIdentity.$branch and resolve by exact TypeIdentity times OwnedBranchIdentity; bare $branch fails even when the expected owner is unique. The immutable RD-438 and RD-501 expected-owner bare-branch clauses are jointly superseded only for PG-CLI-05 construction and typed sum-match patterns. Duplicate declarations, unknown branches, wrong owners and payload mismatch fail closed. No other RD-438 or RD-501 clause is changed. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true
+  },
+  {
+    "replacing_rd": 291,
+    "replaced_rd": 244,
+    "scope": "PARTIAL / 참조값 surface",
+    "evidence_id": "E0128",
+    "path": "SOURCE_AUTHORITY.md#source-0001",
+    "line": 2257,
+    "quote": "| RD-291 | REF `(T)가리킴` successor | OWNER-APPROVED / SEMANTICS-CLOSED / RD-244-SURFACE-SUPERSEDED / EXACT-WIRE-OPEN / PRODUCT-OPEN | generic stable identity reference의 successor 정본은 `(T)가리킴`이며 RD-244의 `(T)참조값` 정본 방향은 역사 predecessor로 보존한다. 자동 compatibility alias를 만들지 않는다. 가리킴은 owner/world space identity, target identity, generation, type constraint를 구별하는 immutable identity value다. target 소멸 뒤 값은 남고 해소만 실패하며 generation이 다르면 silent retarget하지 않는다. implicit dereference와 mutation capability를 금지하고 해소와 값 접근을 분리한다. exact wire와 해소 callable spelling은 OPEN이다. |",
+    "whole_rd_inactive": "UNKNOWN",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 2257,
+        "quote": "| RD-291 | REF `(T)가리킴` successor | OWNER-APPROVED / SEMANTICS-CLOSED / RD-244-SURFACE-SUPERSEDED / EXACT-WIRE-OPEN / PRODUCT-OPEN | generic stable identity reference의 successor 정본은 `(T)가리킴`이며 RD-244의 `(T)참조값` 정본 방향은 역사 predecessor로 보존한다. 자동 compatibility alias를 만들지 않는다. 가리킴은 owner/world space identity, target identity, generation, type constraint를 구별하는 immutable identity value다. target 소멸 뒤 값은 남고 해소만 실패하며 generation이 다르면 silent retarget하지 않는다. implicit dereference와 mutation capability를 금지하고 해소와 값 접근을 분리한다. exact wire와 해소 callable spelling은 OPEN이다. |"
+      }
+    ],
+    "current_evidence": "MATCHED_LITERAL",
+    "no_transitive_inference": true,
+    "historical_evidence": {
+      "path": "SOURCE_AUTHORITY.md#source-0002",
+      "line": 1510,
+      "quote": "RD-244의 참조값 surface는 RD-291이 supersede한다.",
+      "role": "HISTORICAL_REGISTRY_SUMMARY"
+    },
+    "evidence_role": "CURRENT_PRIMARY_DECISION_ROW"
+  },
+  {
+    "replacing_rd": 403,
+    "replaced_rd": 382,
+    "scope": "PARTIAL / 값 아니면 되돌림 propagation surface만 retire",
+    "evidence_id": "THIS_AUDIT_RD403_EXPLICIT_RETIRE",
+    "path": "SOURCE_AUTHORITY.md#source-0001",
+    "line": 2811,
+    "quote": "| RD-403 | `값 아니면 되돌림` retire·명시 ResultPlace 종료·exception 비도입 | OWNER-APPROVED / SUCCESSOR-SURFACE-CLOSED / PREDECESSOR-SURFACE-RETIRED / NO-EXCEPTION / PRODUCT-OPEN | RD-382의 `값 아니면 되돌림` propagation surface 부분을 clean-break retire하고 permanent alias나 `나도안됨`·generic propagation keyword를 만들지 않는다. 실패를 공개 결과로 내는 callable은 결과씨를 `맺음`으로 선언하고 current ResultPlace에 `$안됨`을 기록한 뒤 필요하면 `마침.`을 쓴다. throw/try/catch/finally, unchecked propagation, generic exception hierarchy·success return과 implicit fallback은 도입하지 않는다. RD-382의 loop 보수성·terminal 분류·generic return 금지는 보존한다. |",
+    "current_literal_matches": [
+      {
+        "path": "SOURCE_AUTHORITY.md#source-0001",
+        "line": 2811,
+        "quote": "| RD-403 | `값 아니면 되돌림` retire·명시 ResultPlace 종료·exception 비도입 | OWNER-APPROVED / SUCCESSOR-SURFACE-CLOSED / PREDECESSOR-SURFACE-RETIRED / NO-EXCEPTION / PRODUCT-OPEN | RD-382의 `값 아니면 되돌림` propagation surface 부분을 clean-break retire하고 permanent alias나 `나도안됨`·generic propagation keyword를 만들지 않는다. 실패를 공개 결과로 내는 callable은 결과씨를 `맺음`으로 선언하고 current ResultPlace에 `$안됨`을 기록한 뒤 필요하면 `마침.`을 쓴다. throw/try/catch/finally, unchecked propagation, generic exception hierarchy·success return과 implicit fallback은 도입하지 않는다. RD-382의 loop 보수성·terminal 분류·generic return 금지는 보존한다. |"
+      }
+    ],
+    "current_evidence": "EXPLICIT_RD_AND_RETIRE",
+    "whole_rd_inactive": "UNKNOWN",
+    "no_transitive_inference": true
+  }
+]

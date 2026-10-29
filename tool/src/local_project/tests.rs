@@ -19,7 +19,7 @@
     }
 
     #[test]
-    #[cfg(not(feature = "beta-project-features"))]
+    #[cfg(not(any(feature = "beta-project-features", feature = "v2-shared-modules")))]
     fn alpha_scope_rejects_gaji_lifecycle_without_source_or_lock_changes() {
         let mut source = sample_multifile_source();
         source.files.push(VirtualProjectFileSource {
@@ -2034,13 +2034,26 @@
         }
     }
 
+    fn gaji_consumer_source(import_alias: Option<&str>) -> VirtualProjectSource {
+        let mut source = sample_multifile_source();
+        source.files.retain(|file| file.path != "lib/운동.ddn");
+        source.files.iter_mut().find(|file| file.path == "뿌리.ddn").unwrap().utf8_text =
+            "(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"app/main.ddn\",원문=\"app/main.ddn\")], 시작=(모듈=앱,정의=앱)) 얽음.".into();
+        source.files.iter_mut().find(|file| file.path == "app/main.ddn").unwrap().utf8_text =
+            match import_alias {
+                Some(alias) => format!("({alias}={alias}) 쓰임.\n앱:움직씨 := {{ {alias}.속도 보여주기. }}."),
+                None => "앱:움직씨 := { 1 보여주기. }.".into(),
+            };
+        source
+    }
+
     #[test]
-    #[cfg(feature = "beta-project-features")]
+    #[cfg(any(feature = "beta-project-features", feature = "v2-shared-modules"))]
     fn gaji_lifecycle_installs_with_lock_and_removes_unused_atomically() {
         let artifact =
             build_local_gaji_artifact(extraction_request(sample_multifile_source())).unwrap();
         let installed = build_gaji_lifecycle_plan(lifecycle_request(
-            sample_multifile_source(),
+            gaji_consumer_source(None),
             GajiLifecycleOperation::Install {
                 alias: "힘".to_string(),
                 artifact,
@@ -2072,12 +2085,12 @@
     }
 
     #[test]
-    #[cfg(feature = "beta-project-features")]
+    #[cfg(any(feature = "beta-project-features", feature = "v2-shared-modules"))]
     fn gaji_lifecycle_rejects_stale_source_and_referenced_remove_without_mutation() {
         let source = sample_multifile_source();
         let artifact = build_local_gaji_artifact(extraction_request(source.clone())).unwrap();
         let mut stale = lifecycle_request(
-            source.clone(),
+            gaji_consumer_source(None),
             GajiLifecycleOperation::Install {
                 alias: "힘".to_string(),
                 artifact: artifact.clone(),
@@ -2089,7 +2102,7 @@
             "E_GAJI_LIFECYCLE_SOURCE_STALE"
         );
         let installed = build_gaji_lifecycle_plan(lifecycle_request(
-            source,
+            gaji_consumer_source(Some("운동")),
             GajiLifecycleOperation::Install {
                 alias: "운동".to_string(),
                 artifact,
@@ -2112,7 +2125,7 @@
     }
 
     #[test]
-    #[cfg(feature = "beta-project-features")]
+    #[cfg(any(feature = "beta-project-features", feature = "v2-shared-modules"))]
     fn gaji_lifecycle_updates_with_diff_and_rolls_back_to_retained_bytes() {
         let source = sample_multifile_source();
         let artifact_v1 = build_local_gaji_artifact(extraction_request(source.clone())).unwrap();
@@ -2132,7 +2145,7 @@
             .iter_mut()
             .find(|file| file.path == "lib/운동.ddn")
             .unwrap()
-            .utf8_text = "드러냄 { 추가힘. }\n추가힘 <- 2.".to_string();
+            .utf8_text = "(추가힘=추가힘) 드러냄.\n추가힘:수 := 2.".to_string();
         let mut request_v2 = extraction_request(changed_source);
         request_v2.version = "2.0.0".to_string();
         let artifact_v2 = build_local_gaji_artifact(request_v2).unwrap();
@@ -2174,6 +2187,88 @@
         assert_eq!(rollback_diff.from_version.as_deref(), Some("2.0.0"));
         assert_eq!(rollback_diff.to_version.as_deref(), Some("1.0.0"));
         assert!(rollback_diff.risky);
+    }
+
+    #[test]
+    #[cfg(feature = "v2-shared-modules")]
+    fn gaji_lifecycle_v2_ab_explicit_update_preserves_other_project_and_roundtrip() {
+        let producer = sample_multifile_source();
+        let first = build_local_gaji_artifact(extraction_request(producer.clone())).unwrap();
+        let install = |source| build_gaji_lifecycle_plan(lifecycle_request(source,
+            GajiLifecycleOperation::Install { alias: "힘".into(), artifact: first.clone() })).unwrap().project_source;
+        let a1 = install(gaji_consumer_source(Some("힘")));
+        let mut b_source = gaji_consumer_source(Some("힘"));
+        b_source.files.iter_mut().find(|f| f.path == "app/main.ddn").unwrap().utf8_text =
+            "(힘=힘) 쓰임.\n앱:움직씨 := { (힘.속도 + 1) 보여주기. }.".into();
+        let b1 = install(b_source);
+        let run = |source| build_project_run_summary_with_supported_profile(source, "", false, true).unwrap();
+        assert_eq!(run(a1.clone()).runtime_output_log_texts, vec!["7"]);
+        assert_eq!(run(b1.clone()).runtime_output_log_texts, vec!["8"]);
+        let saved = serde_json::to_string(&a1).unwrap();
+        let reopened = serde_json::from_str::<VirtualProjectSource>(&saved).unwrap();
+        assert_eq!(run(a1.clone()).runtime_state_hash, run(reopened).runtime_state_hash);
+        let mut revised = producer;
+        revised.files.iter_mut().find(|f| f.path == "lib/운동.ddn").unwrap().utf8_text =
+            "(속도=속도) 드러냄.\n속도:수 := 9.".into();
+        let mut request = extraction_request(revised); request.version = "2.0.0".into();
+        let second = build_local_gaji_artifact(request).unwrap();
+        let b_before = serde_json::to_string(&b1).unwrap();
+        let update = |source| build_gaji_lifecycle_plan(lifecycle_request(source,
+            GajiLifecycleOperation::Update { alias: "힘".into(), artifact: second.clone() })).unwrap().project_source;
+        let a2 = update(a1);
+        assert_eq!(run(a2).runtime_output_log_texts, vec!["9"]);
+        assert_eq!(serde_json::to_string(&b1).unwrap(), b_before);
+        assert_eq!(run(b1.clone()).runtime_output_log_texts, vec!["8"]);
+        assert_eq!(run(update(b1)).runtime_output_log_texts, vec!["10"]);
+    }
+
+    #[test]
+    #[cfg(feature = "v2-shared-modules")]
+    fn gaji_lifecycle_v2_refuses_local_module_capture_and_modified_vendor_bytes() {
+        let producer = sample_multifile_source();
+        let artifact = build_local_gaji_artifact(extraction_request(producer.clone())).unwrap();
+        let error = build_gaji_lifecycle_plan(lifecycle_request(producer,
+            GajiLifecycleOperation::Install { alias: "운동".into(), artifact: artifact.clone() })).unwrap_err();
+        assert_eq!(error.code, "E_GAJI_ALIAS_EXISTS");
+        let mut installed = build_gaji_lifecycle_plan(lifecycle_request(gaji_consumer_source(None),
+            GajiLifecycleOperation::Install { alias: "힘".into(), artifact })).unwrap().project_source;
+        let vendor = installed.files.iter_mut().find(|f| f.path.ends_with("ddn/lib/운동.ddn")).unwrap();
+        vendor.utf8_text.push_str("\n// edited without version update");
+        let before = serde_json::to_string(&installed).unwrap();
+        assert_eq!(build_project_gaji_lock(installed.clone(), true).unwrap_err().code,
+            "E_GAJI_ARTIFACT_FILE_HASH");
+        assert_eq!(serde_json::to_string(&installed).unwrap(), before);
+    }
+
+    #[test]
+    #[cfg(feature = "v2-shared-modules")]
+    fn gaji_lifecycle_v2_native_authored_and_disk_custody_roundtrip() {
+        use crate::authored_project::{self, ProjectArtifact, SourceSnapshot, SourceFile};
+        let artifact = build_local_gaji_artifact(extraction_request(sample_multifile_source())).unwrap();
+        let installed = build_gaji_lifecycle_plan(lifecycle_request(gaji_consumer_source(Some("힘")),
+            GajiLifecycleOperation::Install { alias: "힘".into(), artifact })).unwrap().project_source;
+        let snapshot = |source: &VirtualProjectSource| SourceSnapshot {
+            root_path: Some(source.root_path.clone()), entry_path: source.entry_path.clone(),
+            files: source.files.iter().map(|f| SourceFile { path: f.path.clone(), text: f.utf8_text.clone() }).collect(),
+        };
+        let project = ProjectArtifact::create(crate::ddn_runtime::V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY.into(),
+            snapshot(&installed), String::new()).unwrap();
+        let saved = project.save().unwrap();
+        let reopened = authored_project::open(saved.as_bytes()).unwrap();
+        assert_eq!(reopened.save().unwrap(), saved);
+        let folder = std::env::temp_dir().join(format!("ddn-wo27-custody-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir_all(&folder).unwrap();
+        for f in &installed.files {
+            let path = folder.join(&f.path);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, &f.utf8_text).unwrap();
+        }
+        let disk = build_virtual_project_source_from_disk(&folder, Some(&folder.join(&installed.root_path))).unwrap();
+        let run = build_project_run_summary_with_supported_profile(disk, "", false, false).unwrap();
+        assert_eq!(run.runtime_output_log_texts, vec!["7"]);
+        let mut missing = installed.clone(); missing.files.retain(|f| f.path != "ddn.lock");
+        assert!(build_project_run_summary_with_supported_profile(missing, "", false, false).is_err());
+        // Keep the exact on-disk project as inspection evidence; never touch a shared folder.
     }
 
     #[test]
@@ -2267,4 +2362,273 @@
             // A3/RD526: reject absent explicit root before examining filenames.
             "E_PROJECT_ROOT_EXPLICIT_REQUIRED"
         );
+    }
+
+    #[test]
+    #[cfg(feature = "v2-shared-modules")]
+    fn saved_helper_metadata_roles_survive_fresh_and_recorded_source_admission() {
+        use crate::authored_project::{ProjectArtifact,SourceSnapshot,SourceFile};
+        use crate::project_revision_envelope_supply as supply;
+        let artifact=build_local_gaji_artifact(extraction_request(sample_multifile_source())).unwrap();
+        let installed=build_gaji_lifecycle_plan(lifecycle_request(gaji_consumer_source(Some("힘")),
+            GajiLifecycleOperation::Install {alias:"힘".into(),artifact})).unwrap().project_source;
+        let snapshot=SourceSnapshot {root_path:Some(installed.root_path.clone()),entry_path:installed.entry_path.clone(),
+            files:installed.files.iter().map(|file|SourceFile {path:file.path.clone(),text:file.utf8_text.clone()}).collect()};
+        let project=ProjectArtifact::create(crate::ddn_runtime::V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY.into(),snapshot,String::new()).unwrap();
+        let raw=project.save().unwrap();
+        let owned=supply::admit_fresh_authored_project(raw.as_bytes()).unwrap();
+        let saved=owned.sources().saved();
+        assert!(saved.source().files.iter().any(|file|file.path=="ddn.lock" && file.role=="lock"));
+        assert!(saved.source().files.iter().any(|file|file.path.ends_with("/artifact.detjson") && file.role=="metadata"));
+        assert!(saved.source().files.iter().any(|file|file.path.ends_with("/gaji.toml") && file.role=="gaji_manifest"));
+        assert!(owned.sources().captures().iter().all(|(path,_)|!path.ends_with(".toml") && !path.ends_with(".detjson") && path!="ddn.lock"));
+        assert_eq!(saved.source().files.len(),project.source_snapshot.files.len());
+        for file in &saved.source().files {
+            assert_eq!(file.utf8_text,project.source_snapshot.files.iter().find(|f|f.path==file.path).unwrap().text);
+        }
+        let declaration=supply::CanonicalIdentityBytesV1::from_owner_bytes(owned.definition_identity().as_bytes()).unwrap();
+        let blobs:Vec<_>=saved.source().files.iter().map(|file|supply::SavedSourceBlobV1 {
+            path:&file.path,role:&file.role,bytes:file.utf8_text.as_bytes()}).collect();
+        let reopened=std::sync::Arc::new(supply::restore_saved_v25_sources(
+            supply::collect_saved_source_supply(&installed.root_path,&installed.entry_path,&declaration,&blobs).unwrap(),
+            &owned.sources().recorded_capture_catalog_json().unwrap()).unwrap());
+        let reopened=supply::admit_saved_authored_project(reopened,raw.as_bytes()).unwrap();
+        assert_eq!(reopened.definition_identity().as_bytes(),owned.definition_identity().as_bytes());
+        assert_eq!(reopened.sources().saved().manifest().canonical_manifest_sha256,saved.manifest().canonical_manifest_sha256);
+        // Source metadata custody is not verified dependency/PESI admission.
+        let error=crate::project_snapshot_identity::current::issue_saved_local_project(&owned).err().unwrap();
+        assert!(error.starts_with("E_SAVED_PROJECT_EXTERNAL_SUPPLY_REQUIRED"),"{error}");
+    }
+
+    #[test]
+    #[cfg(feature = "v2-shared-modules")]
+    fn saved_helper_metadata_cannot_silently_use_missing_or_stale_packages() {
+        use crate::authored_project::{ProjectArtifact,SourceSnapshot,SourceFile};
+        let artifact=build_local_gaji_artifact(extraction_request(sample_multifile_source())).unwrap();
+        let installed=build_gaji_lifecycle_plan(lifecycle_request(gaji_consumer_source(Some("힘")),
+            GajiLifecycleOperation::Install {alias:"힘".into(),artifact})).unwrap().project_source;
+        let serialize=|source:&VirtualProjectSource| {
+            ProjectArtifact::create(crate::ddn_runtime::V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY.into(),
+                SourceSnapshot {root_path:Some(source.root_path.clone()),entry_path:source.entry_path.clone(),
+                    files:source.files.iter().map(|file|SourceFile {path:file.path.clone(),text:file.utf8_text.clone()}).collect()},String::new())
+                .and_then(|project|project.save())
+        };
+        // Creating a fresh authored ProjectArtifact assigns a fresh identity.
+        // Preserve the actual original source object, not two new project IDs.
+        let original=serde_json::to_vec(&installed).unwrap();
+        for stale in [false,true] {
+            let mut changed=installed.clone();
+            if stale { changed.files.iter_mut().find(|file|file.path=="ddn.lock").unwrap().utf8_text.push_str("\n{}"); }
+            else { changed.files.retain(|file|!file.path.ends_with("/artifact.detjson")); }
+            let result=serialize(&changed).and_then(|raw|
+                crate::project_revision_envelope_supply::admit_fresh_authored_project(raw.as_bytes())
+                    .and_then(|owned|crate::project_snapshot_identity::current::issue_saved_local_project(&owned).map(|_|())));
+            assert!(result.is_err(),"missing/stale package must never become local-only");
+        }
+        assert_eq!(serde_json::to_vec(&installed).unwrap(),original);
+    }
+
+    #[cfg(feature="v2-shared-modules")]
+    fn saved_helper_test_owner(source:&VirtualProjectSource) -> Result<crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,String> {
+        use crate::authored_project::{ProjectArtifact,SourceSnapshot,SourceFile};
+        let snapshot=SourceSnapshot {root_path:Some(source.root_path.clone()),entry_path:source.entry_path.clone(),
+            files:source.files.iter().map(|f|SourceFile {path:f.path.clone(),text:f.utf8_text.clone()}).collect()};
+        let project=ProjectArtifact::create(crate::ddn_runtime::V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY.into(),snapshot,String::new())?;
+        crate::project_revision_envelope_supply::admit_fresh_authored_project(project.save()?.as_bytes())
+    }
+
+    #[test]
+    #[cfg(feature="v2-shared-modules")]
+    fn saved_helper_verified_supply_binds_nodes_content_profile_and_definition() {
+        let artifact=build_local_gaji_artifact(extraction_request(sample_multifile_source())).unwrap();
+        let source=build_gaji_lifecycle_plan(lifecycle_request(gaji_consumer_source(Some("힘")),
+            GajiLifecycleOperation::Install {alias:"힘".into(),artifact})).unwrap().project_source;
+        let owned=saved_helper_test_owner(&source).unwrap();
+        let supply=verify_saved_dependency_supply(&owned).unwrap();
+        supply.verify_source_binding(&owned).unwrap();
+        let pesi=crate::project_snapshot_identity::current::issue_saved_project(&owned).unwrap();
+        assert_eq!(pesi.dependency_identity(),Some(pesi.constituents()[2]));
+        assert_ne!(pesi.constituents()[2].as_raw(),&[0;32]);
+        assert_eq!(supply.nodes().len(),1);
+        assert_eq!(supply.nodes()[0].kind,crate::project_snapshot_identity::DependencyNodeKind::DdnGaji);
+        assert_eq!(supply.nodes()[0].node_identity,serde_json::to_vec(&["운동","1.0.0","v1-core-v25"]).unwrap());
+        let lock=build_project_gaji_lock(source.clone(),true).unwrap();
+        assert_eq!(supply.nodes()[0].content_identity,hex::decode(&lock.packages[0].package_sha256).unwrap());
+        assert_eq!(supply.requirements(),&[("힘".to_owned(),supply.nodes()[0].node_identity.clone())]);
+        assert_eq!(supply.verified_graph_identity(),crate::project_snapshot_identity::issue_verified_dependency_resolution_identity_v1(
+            &crate::project_snapshot_identity::VerifiedDependencyResolutionInput {graph_verified:true,nodes:supply.nodes().to_vec()}).unwrap().identity);
+        let different_project=saved_helper_test_owner(&source).unwrap();
+        assert!(supply.verify_source_binding(&different_project).is_err(),"same bytes with a new authored owner is a different save request");
+    }
+
+    #[test]
+    #[cfg(feature="v2-shared-modules")]
+    fn saved_helper_verified_supply_rejects_stale_lock_and_forged_public_boundary() {
+        let artifact=build_local_gaji_artifact(extraction_request(sample_multifile_source())).unwrap();
+        let source=build_gaji_lifecycle_plan(lifecycle_request(gaji_consumer_source(Some("힘")),
+            GajiLifecycleOperation::Install {alias:"힘".into(),artifact})).unwrap().project_source;
+        let before=serde_json::to_vec(&source).unwrap();
+        let mut stale=source.clone();
+        stale.files.iter_mut().find(|f|f.path=="ddn.lock").unwrap().utf8_text.push_str("\n{}");
+        let stale=saved_helper_test_owner(&stale).unwrap();
+        assert!(verify_saved_dependency_supply(&stale).unwrap_err().starts_with("E_LOCK_HASH_MISMATCH"));
+        let mut forged=source.clone();
+        let metadata=forged.files.iter_mut().find(|f|f.path.ends_with("/artifact.detjson")).unwrap();
+        let mut value:serde_json::Value=serde_json::from_str(&metadata.utf8_text).unwrap();
+        value["public_symbols"][0]["external_name"]="없는공개값".into();
+        metadata.utf8_text=serde_json::to_string(&value).unwrap();
+        forged.files.retain(|f|f.path!="ddn.lock");
+        let lock=build_project_gaji_lock(forged.clone(),false).unwrap();
+        forged.files.push(VirtualProjectFileSource {path:"ddn.lock".into(),role:"lock".into(),utf8_text:to_canonical_json_line(&lock)});
+        let forged=saved_helper_test_owner(&forged).unwrap();
+        let error=verify_saved_dependency_supply(&forged).unwrap_err();
+        assert!(error.contains("공개 경계"),"{error}");
+        assert_eq!(serde_json::to_vec(&source).unwrap(),before);
+    }
+
+    #[test]
+    #[cfg(all(windows,feature="v2-shared-modules"))]
+    fn saved_helper_native_source_world_cold_matches_uninterrupted_run() {
+        use crate::authored_project::{ProjectArtifact,SourceSnapshot,SourceFile};
+        use crate::runtime_surface as runtime;
+        let artifact=build_local_gaji_artifact(extraction_request(sample_multifile_source())).unwrap();
+        let mut source=build_gaji_lifecycle_plan(lifecycle_request(gaji_consumer_source(Some("힘")),
+            GajiLifecycleOperation::Install {alias:"힘".into(),artifact})).unwrap().project_source;
+        source.files.iter_mut().find(|f|f.path=="app/main.ddn").unwrap().utf8_text=
+            "(힘=힘) 쓰임. 채비 { 횟수:바른수 := 0. }. 앱:움직씨 := { (매마디)마다 { 횟수 <- 횟수 + 1. 힘.속도 보여주기. 횟수 보여주기. }. }.".into();
+        // The explicit consumer edit changes the graph, so generate the new
+        // frozen lock with the existing owner before storing this fixture.
+        source.files.retain(|f|f.path!="ddn.lock");
+        let lock=build_project_gaji_lock(source.clone(),false).unwrap();
+        source.files.push(VirtualProjectFileSource {path:"ddn.lock".into(),role:"lock".into(),utf8_text:to_canonical_json_line(&lock)});
+        let project=ProjectArtifact::create(crate::ddn_runtime::V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY.into(),
+            SourceSnapshot {root_path:Some(source.root_path.clone()),entry_path:source.entry_path.clone(),
+                files:source.files.iter().map(|f|SourceFile {path:f.path.clone(),text:f.utf8_text.clone()}).collect()},String::new()).unwrap();
+        let authored=project.save().unwrap();
+        let mut nonce=[0;32];getrandom::fill(&mut nonce).unwrap();
+        let root=std::env::temp_dir().join(format!("ddn-v2-helper-cold-{}",hex::encode(nonce)));
+        std::fs::create_dir(&root).unwrap();
+        let saved=runtime::save_initial_authored_source_native(&authored,&[1],&root).unwrap();
+        let locator=saved.grant_locator.as_deref().unwrap();
+        let session=runtime::begin_first_authored_source_native(&root,&saved.project_identity,locator,&saved.revision_identity,&saved.revision_integrity).unwrap();
+        let mut retained=session.execute(1,0,None,None).unwrap().prepare(&[2]).unwrap().write_prepared().unwrap().commit().unwrap();
+        let world=retained.saved_runtime_artifact().unwrap().to_owned();
+        let bytes=crate::unit_wire::project_runtime_attachment::check_bytes(world.as_bytes()).unwrap();
+        let restored=crate::unit_wire::project_runtime_attachment::restore_saved_runtime_payload(&bytes).unwrap();
+        let baseline=runtime::run_authored_general_input_prefix(&restored.project().save().unwrap(),3,0,None,None).unwrap();
+        let expected=baseline.summary()["state_hash"].clone();
+        drop(baseline);drop(restored);drop(retained);
+        let cold=runtime::resume_first_saved_source_world_native(&world,&[1],&[2],&root,locator,2).unwrap();
+        assert_eq!(cold["state_hash"],expected);
+        // The SQLite/raw source custody remains available without the original
+        // folder, a package search, a network lookup, or a live source owner.
+        assert!(root.join("source.sqlite3").exists() || std::fs::read_dir(&root).unwrap().next().is_some());
+        println!("helper_cold_evidence={} state_hash={}",root.display(),expected);
+    }
+
+    #[test]
+    #[cfg(feature="v2-shared-modules")]
+    fn saved_helper_same_version_content_update_preserves_original() {
+        let producer=sample_multifile_source();
+        let artifact=build_local_gaji_artifact(extraction_request(producer.clone())).unwrap();
+        let installed=build_gaji_lifecycle_plan(lifecycle_request(gaji_consumer_source(Some("힘")),
+            GajiLifecycleOperation::Install {alias:"힘".into(),artifact})).unwrap().project_source;
+        let before=serde_json::to_vec(&installed).unwrap();
+        let mut revised=producer;
+        revised.files.iter_mut().find(|f|f.path=="lib/운동.ddn").unwrap().utf8_text="(속도=속도) 드러냄. 속도:수 := 9.".into();
+        let changed=build_local_gaji_artifact(extraction_request(revised)).unwrap();
+        let error=build_gaji_lifecycle_plan(lifecycle_request(installed.clone(),
+            GajiLifecycleOperation::Update {alias:"힘".into(),artifact:changed})).unwrap_err();
+        assert_eq!(error.code,"E_GAJI_ARTIFACT_PACKAGE_HASH");
+        assert_eq!(serde_json::to_vec(&installed).unwrap(),before);
+    }
+
+    #[test]
+    #[cfg(all(windows,feature="v2-shared-modules"))]
+    fn saved_helper_native_ab_explicit_revision_update_preserves_other_branch() {
+        use crate::authored_project::{self,ProjectArtifact,SourceSnapshot,SourceFile};
+        use crate::runtime_surface as runtime;
+        let producer=sample_multifile_source();
+        let first=build_local_gaji_artifact(extraction_request(producer.clone())).unwrap();
+        let make_source=|offset| {
+            let mut source=gaji_consumer_source(Some("힘"));
+            source.files.iter_mut().find(|f|f.path=="app/main.ddn").unwrap().utf8_text=format!(
+                "(힘=힘) 쓰임. 앱:움직씨 := {{ (매마디)마다 {{ (힘.속도 + {offset}) 보여주기. }} }}.");
+            build_gaji_lifecycle_plan(lifecycle_request(source,
+                GajiLifecycleOperation::Install {alias:"힘".into(),artifact:first.clone()})).unwrap().project_source
+        };
+        let a1=make_source(0);let b1=make_source(1);
+        let snapshot=|source:&VirtualProjectSource|SourceSnapshot {root_path:Some(source.root_path.clone()),entry_path:source.entry_path.clone(),
+            files:source.files.iter().map(|f|SourceFile {path:f.path.clone(),text:f.utf8_text.clone()}).collect()};
+        let authored=|source:&VirtualProjectSource|ProjectArtifact::create(crate::ddn_runtime::V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY.into(),snapshot(source),String::new()).unwrap().save().unwrap();
+        let a_raw=authored(&a1);let b_raw=authored(&b1);
+        let mut nonce=[0;32];getrandom::fill(&mut nonce).unwrap();
+        let root=std::env::temp_dir().join(format!("ddn-v2-helper-ab-{}",hex::encode(nonce)));
+        let a_root=root.join("A");let b_root=root.join("B");std::fs::create_dir_all(&a_root).unwrap();std::fs::create_dir_all(&b_root).unwrap();
+        let a_saved=runtime::save_initial_authored_source_native(&a_raw,&[1],&a_root).unwrap();
+        let b_saved=runtime::save_initial_authored_source_native(&b_raw,&[1],&b_root).unwrap();
+        assert_ne!(a_saved.project_identity,b_saved.project_identity);
+        let a_locator=a_saved.grant_locator.as_deref().unwrap();let b_locator=b_saved.grant_locator.as_deref().unwrap();
+        let execute=|root:&std::path::Path,saved:&runtime::NativeSourceRevisionReadback| {
+            let mut run=runtime::begin_first_authored_source_native(root,&saved.project_identity,saved.grant_locator.as_deref().unwrap(),&saved.revision_identity,&saved.revision_integrity)
+                .unwrap().execute(1,0,None,None).unwrap().prepare(&[2]).unwrap().write_prepared().unwrap().commit().unwrap();
+            let world=run.saved_runtime_artifact().unwrap().to_owned();let summary=run.summary().unwrap().clone();(world,summary)
+        };
+        let (a_world,a_summary)=execute(&a_root,&a_saved);let (b_world,b_summary)=execute(&b_root,&b_saved);
+        assert_eq!(a_summary["output_display"]["texts"],serde_json::json!(["7"]));
+        assert_eq!(b_summary["output_display"]["texts"],serde_json::json!(["8"]));
+        let before_b=serde_json::to_vec(&b1).unwrap();
+        let mut revised=producer;
+        revised.files.iter_mut().find(|f|f.path=="lib/운동.ddn").unwrap().utf8_text="(속도=속도) 드러냄. 속도:수 := 9.".into();
+        let mut request=extraction_request(revised);request.version="2.0.0".into();
+        let second=build_local_gaji_artifact(request).unwrap();
+        let a2=build_gaji_lifecycle_plan(lifecycle_request(a1,
+            GajiLifecycleOperation::Update {alias:"힘".into(),artifact:second.clone()})).unwrap().project_source;
+        let updated=authored_project::operate("update",&serde_json::json!({"original_json":a_raw,"source_snapshot":snapshot(&a2)}).to_string()).unwrap();
+        let selection=runtime::native_authoring_selection(&a_root,&a_saved.project_identity,a_locator,&a_raw).unwrap();
+        let mut stale=a2.clone();stale.files.iter_mut().find(|f|f.path=="ddn.lock").unwrap().utf8_text.push_str("\n{}");
+        let stale=authored_project::operate("update",&serde_json::json!({"original_json":a_raw,"source_snapshot":snapshot(&stale)}).to_string()).unwrap();
+        let error=runtime::save_changed_authored_source_native(&stale,&a_raw,&[3],&a_root,a_locator,&selection).err().unwrap();
+        assert_eq!(runtime::native_authoring_selection(&a_root,&a_saved.project_identity,a_locator,&a_raw).unwrap(),selection);
+        let a_new=runtime::save_changed_authored_source_native(&updated,&a_raw,&[3],&a_root,a_locator,&selection).unwrap();
+        let reopened=runtime::read_changed_authored_source_native(&a_root,&a_saved.project_identity,a_locator,&updated).unwrap();
+        assert_eq!(a_new.revision_integrity,reopened.revision_integrity);
+        let new_selection=runtime::native_authoring_selection(&a_root,&a_saved.project_identity,a_locator,&updated).unwrap();
+        let mut a_new_world=runtime::begin_new_authored_source_native(&a_root,&a_saved.project_identity,a_locator,&updated,&new_selection).unwrap()
+            .execute(1,0,None,None).unwrap().prepare(&[4]).unwrap().write_prepared().unwrap().commit().unwrap();
+        assert_eq!(a_new_world.summary().unwrap()["output_display"]["texts"],serde_json::json!(["9"]));
+        let a_new_artifact=a_new_world.saved_runtime_artifact().unwrap().to_owned();drop(a_new_world);
+        let a_cold=runtime::resume_first_saved_source_world_native(&a_new_artifact,&[3],&[4],&a_root,a_locator,1).unwrap();
+        assert_eq!(a_cold["output_display"]["texts"],serde_json::json!(["9","9"]));
+        let b_cold=runtime::resume_first_saved_source_world_native(&b_world,&[1],&[2],&b_root,b_locator,1).unwrap();
+        assert_eq!(b_cold["output_display"]["texts"],serde_json::json!(["8","8"]));
+        assert_eq!(serde_json::to_vec(&b1).unwrap(),before_b);
+        let b2=build_gaji_lifecycle_plan(lifecycle_request(b1,
+            GajiLifecycleOperation::Update {alias:"힘".into(),artifact:second})).unwrap().project_source;
+        let b_updated=authored_project::operate("update",&serde_json::json!({"original_json":b_raw,"source_snapshot":snapshot(&b2)}).to_string()).unwrap();
+        let b_selection=runtime::native_authoring_selection(&b_root,&b_saved.project_identity,b_locator,&b_raw).unwrap();
+        runtime::save_changed_authored_source_native(&b_updated,&b_raw,&[3],&b_root,b_locator,&b_selection).unwrap();
+        let b_selection=runtime::native_authoring_selection(&b_root,&b_saved.project_identity,b_locator,&b_updated).unwrap();
+        let b_new=runtime::begin_new_authored_source_native(&b_root,&b_saved.project_identity,b_locator,&b_updated,&b_selection).unwrap()
+            .execute(1,0,None,None).unwrap().prepare(&[4]).unwrap().write_prepared().unwrap().commit().unwrap();
+        assert_eq!(b_new.summary().unwrap()["output_display"]["texts"],serde_json::json!(["10"]));
+        assert!(!a_world.is_empty());
+        println!("helper_AB_native_evidence={} A=7->9 B=8->8->10 stale_save_head_unchanged=true cause={}",root.display(),error);
+    }
+
+    #[test]
+    #[cfg(feature="v2-shared-modules")]
+    fn saved_helper_unknown_requirements_remain_explicitly_unsupported() {
+        let mut artifact=build_local_gaji_artifact(extraction_request(sample_multifile_source())).unwrap();
+        let manifest=artifact.files.iter_mut().find(|file|file.path=="gaji.toml").unwrap();
+        manifest.utf8_text=manifest.utf8_text.replace("D-STRICT","UNKNOWN");
+        manifest.byte_length=manifest.utf8_text.len();manifest.sha256=sha256_hex(manifest.utf8_text.as_bytes());
+        artifact.package_sha256=local_gaji_artifact_package_hash(&artifact.files);
+        let source=build_gaji_lifecycle_plan(lifecycle_request(gaji_consumer_source(Some("힘")),
+            GajiLifecycleOperation::Install {alias:"힘".into(),artifact})).unwrap().project_source;
+        let owned=saved_helper_test_owner(&source).unwrap();
+        let error=verify_saved_dependency_supply(&owned).unwrap_err();
+        assert!(error.starts_with("E_SAVED_PROJECT_EXTERNAL_SUPPLY_REQUIRED"),"{error}");
+        assert!(error.contains("추가 요구"),"{error}");
+        assert!(crate::project_snapshot_identity::current::issue_saved_project(&owned).is_err());
     }

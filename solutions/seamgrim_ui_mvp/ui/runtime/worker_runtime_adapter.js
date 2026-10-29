@@ -1,8 +1,10 @@
 const SESSION_METHODS = ["updateLogic", "reset", "getStateJson", "step", "setParam", "exportSavedProjectArtifact", "saveNativeCheckpoint", "close"];
 const ADAPTER_METHODS = [
   "authoredProjectOperation",
+  "observeMathNotebook",
   "compareGeneralOriginalRecording",
   "bindLogicalSource",
+  "verifyAssumptionSource",
   "canonMaegimPlan", "sourceAnalysis", "moduleDirectiveAnalysis", "sharedCompletion",
   "runSummaryWithSourceProfile", "planGajiExtraction", "projectSourceSha256",
   "exportInputTapeV1", "runSummaryWithTapeV1",

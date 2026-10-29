@@ -569,6 +569,26 @@ fn collect_v1_core_named_calls_expr(
     }
 }
 
+// V25 fields are selected by the common AST, not by the ambiguous spelling
+// `(…)보임`, which also occurs in formal proof types. Metadata removal keeps
+// line endings; translate name spans back and validate exact original bytes.
+pub(super) fn original_public_observation_fields_v25(
+    source: &str,
+    prepared: &str,
+    fields: &[&ddonirang_lang::PublicObservationField],
+) -> Result<Vec<OriginalObservationFieldRef>, String> {
+    let failure = || "E_BOIM_SOURCE_REF_MISMATCH: 공개 관찰 필드를 사용자 원문 위치와 연결할 수 없습니다".to_string();
+    let removed = source.len().checked_sub(prepared.len()).ok_or_else(failure)?;
+    fields.iter().map(|field| {
+        let span = field.name_span;
+        let name = prepared.get(span.start..span.end).ok_or_else(failure)?;
+        let start = span.start.checked_add(removed).ok_or_else(failure)?;
+        let end = span.end.checked_add(removed).ok_or_else(failure)?;
+        if name != field.name || source.get(start..end) != Some(name) { return Err(failure()); }
+        Ok(OriginalObservationFieldRef { name: name.to_string(), start, end })
+    }).collect()
+}
+
 pub(super) fn scan_original_public_observation_fields(
     source: &str,
 ) -> Result<Vec<OriginalObservationFieldRef>, String> {
@@ -1886,3 +1906,38 @@ fn expr_state_machine_feature(expr: &Expr) -> Option<&'static str> {
     }
 }
 
+
+
+#[cfg(test)]
+mod canonical_observation_source_tests {
+    use super::*;
+    #[test]
+    fn observation_mapping_allows_structure_proof_canonical_frontdoor() {
+        let source=include_str!("../../../lang/tests/structure_law_ko_surface_r1.ddn");
+        let first=crate::runtime_surface::canonicalize_shared_source_with_supported_profile(source,Some("v1-core-v25")).unwrap();
+        let checked=crate::proof_workflow::verify_conditional_source(&first.ddn,"정본화.ddn").unwrap();
+        assert_eq!(checked.len(),2);
+        let again=crate::runtime_surface::canonicalize_shared_source_with_supported_profile(&first.ddn,Some("v1-core-v25")).unwrap();
+        assert_eq!(first.ddn,again.ddn);
+    }
+    #[test]
+    fn proof_types_are_not_observation_fields_and_real_fields_keep_original_spans() {
+        let proof=include_str!("../../../lang/tests/structure_law_ko_surface_r1.ddn");
+        for prefix in ["", "#!name: 한글🍎\r\n"] {
+            let source=format!("{prefix}{proof}\n(앞:1, 뒤:2) 내보임.");
+            let prepared=crate::file_meta::split_file_meta(&source).stripped;
+            let program=ddonirang_lang::parse_v25_with_mode(&prepared,"관찰.ddn",ddonirang_lang::ParseMode::Strict).unwrap();
+            let fields=collect_public_observation_fields(&program);
+            let refs=original_public_observation_fields_v25(&source,&prepared,&fields).unwrap();
+            assert_eq!(refs.len(),2);
+            for (field,name) in refs.iter().zip(["앞","뒤"]) {
+                assert_eq!(field.name,name);
+                assert_eq!(&source[field.start..field.end],name);
+            }
+            let wrong_source=source.replace("앞:1","값:1");
+            assert!(original_public_observation_fields_v25(&wrong_source,&prepared,&fields).is_err());
+        }
+        let program=ddonirang_lang::parse_v25_with_mode(proof,"증명.ddn",ddonirang_lang::ParseMode::Strict).unwrap();
+        assert!(original_public_observation_fields_v25(proof,proof,&collect_public_observation_fields(&program)).unwrap().is_empty());
+    }
+}

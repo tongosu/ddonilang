@@ -26,7 +26,7 @@ export async function recoverNativeLogicalFinish({authored,binding,unchanged,
 // Only transports the fenced physical queue. Native reconstructs and admits
 // its own producer; neither the callback nor a matching summary is authority.
 export function createNativeLogicalFinishBarrier({authored,binding,unchanged,
-  available=nativeSourceAvailable,request=nativeSourceRequest,onCheckpoint=()=>{},onProgress=()=>{}}){
+  available=nativeSourceAvailable,request=nativeSourceRequest,onCheckpoint=()=>{},onProgress=()=>{},checkpointMatches=()=>false}){
   let handle=null,nativePacket=null,originalPacket=null,preparedRecord=null,registration=null,terminalKind=null;
   const openProgress=async(summary,result)=>{
     if(handle!==null)return;
@@ -34,6 +34,25 @@ export function createNativeLogicalFinishBarrier({authored,binding,unchanged,
       throw new Error('E_NATIVE_FINISH_PREFIX: 정상 처리한 마디가 필요합니다.');
     if(!/^sha256:[a-f0-9]{64}$/.test(result?.result_identity??''))
       throw new Error('E_INPUT_FINISH_NOT_READY: 원 값·형식의 결과 정체가 필요합니다.');
+    // A UI hint only selects this check; it cannot admit a saved checkpoint.
+    // The actual Native owner reopens the protected current world and supplies
+    // its result identity. The existing full preview/commit comparison below
+    // is still required before any Finished output can be published.
+    if(checkpointMatches(summary)===true){
+      onProgress('저장한 입력과 실행 상태를 확인하는 중입니다.');
+      const began=await request('logical_finish_begin',authored,{input_request:{binding,snapshots:[]}});
+      if(typeof began.session_handle!=='string')throw new Error('E_NATIVE_FINISH_SESSION: 종료 생산자가 없습니다.');
+      handle=began.session_handle;registration=began.registration;
+      unchanged();
+      const actual=await request('logical_recording_result_identity',undefined,{session_handle:handle});
+      unchanged();
+      if(stable(actual)===stable(result))return;
+      // Only an explicit different result takes the ordinary save path. An
+      // admission, I/O, custody or uncertain response error is never a hint
+      // to retry, replace a checkpoint, or bypass recovery.
+      await request('logical_finish_close',undefined,{session_handle:handle});
+      handle=null;registration=null;unchanged();
+    }
     onProgress('성공한 마디를 저장하는 중입니다. 완료 전에는 창을 닫지 마세요.');
     const saved=await request('logical_save',authored,{input_request:{binding,
       snapshots:summary.frames.map(frame=>frame.input)},state_hash:summary.state_hash,expected_result_identity:result.result_identity});

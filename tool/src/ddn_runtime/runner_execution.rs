@@ -24,9 +24,13 @@ impl DdnRunner {
             if crate::unit_wire::saved_resource_contains_tuple(&value) {
                 // Live madis use the current compiler-owned program. The
                 // separate restore boundary requires SavedTupleRestorePlan.
+                if self.tuple_type_plan.equation_result(&name) {
+                    equation_saved_value::validate_saved(&value)?;
+                } else {
                 let kind = self.tuple_type_plan.expected(&name).ok_or("E_TUPLE_PERSISTENCE_UNBOUND: 현재 원문의 유일한 위치씨 결속이 필요합니다")?;
                 crate::unit_wire::validate_saved_value_type(&value, kind)
                     .map_err(|_| "E_TUPLE_PERSISTENCE_UNBOUND: 현재 원문의 위치씨와 세계 값이 다릅니다".to_owned())?;
+                }
             }
             // This public world boundary precedes candidate/input mutation.
             // Validate while converting, without decoding admitted Tensor

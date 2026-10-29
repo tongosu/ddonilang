@@ -5,6 +5,7 @@ export const RUNTIME_BRIDGE_V1_SCHEMA = "seamgrim.runtime_bridge.v1";
 
 export const RUNTIME_BRIDGE_V1_OPERATIONS = Object.freeze([
   "authoredProjectOperation",
+  "observeMathNotebook",
   "compareGeneralOriginalRecording",
   "createSession",
   "createLogicalSession",
@@ -16,6 +17,7 @@ export const RUNTIME_BRIDGE_V1_OPERATIONS = Object.freeze([
   "replayLogicalInput",
   "recordFiniteInput",
   "sourceAnalysis",
+  "verifyAssumptionSource",
   "sharedCompletion",
   "runSummaryWithSourceProfile",
   "exportInputTapeV1",
@@ -227,6 +229,21 @@ export class WasmRuntimeAdapter {
     return JSON.parse(String(operation(sourceText) ?? "{}"));
   }
 
+  async verifyAssumptionSource(sourceText, sourcePath, options = undefined) {
+    if (typeof sourceText !== "string" || typeof sourcePath !== "string" || !sourcePath.length) {
+      throw new TypeError("보임 검사에는 현재 원문과 파일 경로가 필요합니다.");
+    }
+    const module = await this.ensureProjectModule();
+    if (options !== undefined && (options === null || typeof options !== "object" || Array.isArray(options)
+        || Object.keys(options).some((key) => key !== "includeSteps")
+        || (options.includeSteps !== undefined && typeof options.includeSteps !== "boolean"))) {
+      throw new TypeError("단계 관찰 옵션은 includeSteps 참·거짓만 허용합니다.");
+    }
+    const operation = requireExport(module, options?.includeSteps === true
+      ? "wasm_observe_algebra_source_json" : "wasm_verify_assumption_source_json");
+    return JSON.parse(operation(sourceText, sourcePath));
+  }
+
   async sourceAnalysis(request) {
     const wasmModule = await this.ensureProjectModule();
     const operation = requireExport(
@@ -305,6 +322,18 @@ export class WasmRuntimeAdapter {
     const wasmModule = await this.ensureProjectModule();
     return String(requireExport(wasmModule, "authored_project_operation",
       "E_AUTHORED_PROJECT_WASM_REQUIRED: 새 작품자료 WASM이 필요합니다")(String(operation), String(text)));
+  }
+  async observeMathNotebook({ sourceText, sourcePath, sourceProjectText }) {
+    if (typeof sourceProjectText === "string") {
+      if (sourceText !== undefined || sourcePath !== undefined) throw new Error("E_NOTEBOOK_INPUT: 작품과 단일 원문을 함께 넘기지 마세요.");
+      const wasmModule = await this.ensureProjectModule();
+      return JSON.parse(requireExport(wasmModule, "wasm_math_notebook_observe_project")(sourceProjectText));
+    }
+    if (typeof sourceText !== "string" || typeof sourcePath !== "string") {
+      throw new Error("E_NOTEBOOK_INPUT: 원문과 원문 경로가 필요합니다");
+    }
+    const wasmModule = await this.ensureProjectModule();
+    return JSON.parse(requireExport(wasmModule, "wasm_math_notebook_observe")(sourceText, sourcePath));
   }
   async compareGeneralOriginalRecording({bundleHex}) {
     if(typeof bundleHex!=="string"||!bundleHex.length||bundleHex.length%2||bundleHex.length>16*1024*1024||!/^[0-9a-f]+$/u.test(bundleHex))
@@ -423,6 +452,7 @@ export class RuntimeBridgeV1 {
 
   canonMaegimPlan(sourceText) { return this.#adapter.canonMaegimPlan(sourceText); }
   sourceAnalysis(request) { return this.#adapter.sourceAnalysis(request); }
+  verifyAssumptionSource(sourceText, sourcePath, options = undefined) { return this.#adapter.verifyAssumptionSource(sourceText, sourcePath, options); }
   sharedCompletion(request) { return this.#adapter.sharedCompletion(request); }
   runSummaryWithSourceProfile(request) { return this.#adapter.runSummaryWithSourceProfile(request); }
   exportInputTapeV1(request) { return this.#adapter.exportInputTapeV1(request); }
@@ -430,6 +460,12 @@ export class RuntimeBridgeV1 {
   planGajiExtraction(request) { return this.#adapter.planGajiExtraction(request); }
   projectSourceSha256(source) { return this.#adapter.projectSourceSha256(source); }
   authoredProjectOperation(request) { return this.#adapter.authoredProjectOperation(request); }
+  observeMathNotebook(request) {
+    if (typeof this.#adapter.observeMathNotebook !== "function") {
+      throw new Error("E_NOTEBOOK_ADAPTER_UNAVAILABLE: 현재 실행 어댑터에 수학 노트 연결이 없습니다");
+    }
+    return this.#adapter.observeMathNotebook(request);
+  }
   compareGeneralOriginalRecording(request) { return this.#adapter.compareGeneralOriginalRecording(request); }
   buildLocalGajiArtifact(request) { return this.#adapter.buildLocalGajiArtifact(request); }
   planGajiLifecycle(request) { return this.#adapter.planGajiLifecycle(request); }

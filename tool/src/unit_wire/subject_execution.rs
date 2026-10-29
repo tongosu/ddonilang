@@ -32,7 +32,7 @@ impl SubjectExecutionStage {
         let Some(registration)=owned.registration() else{return Ok(None)};
         let catalog=registration.saved_nominal_catalog(owned)?;
         if !catalog.schemas().any(|schema|schema.category==1){return Ok(None)}
-        let issued=crate::project_snapshot_identity::current::issue_saved_local_project(owned)?;
+        let issued=crate::project_snapshot_identity::current::issue_saved_project(owned)?;
         let owner=LiveSubjectOwnerV1::fresh(*issued.pesi().as_raw()).map_err(error)?;
         let atom_evidence=super::resumable_complete_state::recorded_source_atom_evidence(owned).map_err(error)?;
         Ok(Some(Self{owner:ExecutionLifecycle::Saved(owner),values:BTreeMap::new(),catalog:Arc::new(catalog),atom_evidence:Arc::new(atom_evidence)}))
@@ -74,7 +74,7 @@ impl SubjectExecutionStage {
     pub(crate) fn from_recorded_initial(owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
         frame:&super::complete_state_frame::CompleteStateFrameV1<'_>)->Result<Option<Self>,String>{
         let catalog=owned.registration().map(|registration|registration.saved_nominal_catalog(owned)).transpose()?;
-        let issued=crate::project_snapshot_identity::current::issue_saved_local_project(owned)?;
+        let issued=crate::project_snapshot_identity::current::issue_saved_project(owned)?;
         if frame.pesi!=issued.pesi().as_raw(){return Err(error(Failure::CustodyConflict))}
         let atom_evidence=super::resumable_complete_state::recorded_source_atom_evidence(owned).map_err(error)?;
         if frame.atom_evidence!=atom_evidence{return Err(error(Failure::AtomEvidenceInvalid));}

@@ -763,26 +763,12 @@ impl Parser {
                             resolved_pin: None,
                             binding_reason: BindingReason::Positional,
                         };
-                        return Ok(Expr::new(
-                            self.next_id(),
-                            span.merge(&func_span),
-                            ExprKind::Call {
-                                args: vec![arg],
-                                func: func_name,
-                            },
-                        ));
+                        return Ok(self.parsed_source_call(span.merge(&func_span),vec![arg],func_name,func_span));
                     }
                     pack_expr
                 } else {
                     if let Some((func_name, func_span)) = self.parse_call_name()? {
-                        Expr::new(
-                            self.next_id(),
-                            span.merge(&func_span),
-                            ExprKind::Call {
-                                args,
-                                func: func_name,
-                            },
-                        )
+                        self.parsed_source_call(span.merge(&func_span),args,func_name,func_span)
                     } else {
                         if args.len() == 1
                             && !positional_comma

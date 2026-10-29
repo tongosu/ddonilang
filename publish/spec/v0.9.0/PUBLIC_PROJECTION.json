@@ -1,0 +1,16 @@
+{
+  "status": "LOCAL_DOC_FAMILY_ACTIVE_ONLY_WHEN_CURRENT_POINTS_HERE",
+  "public_version": "v0.9.0",
+  "normative_basis": "v25.151.0 / RD001~709",
+  "internal_context": "v25.153.0 / RD001~711",
+  "later_rd_full_projection": false,
+  "source_private_candidate_sha256": "2e85a39b12d73bc6fe7f9856d64939f918bb038213a73ce2361b3f4b404c6cca",
+  "source_public_projection_sha256": "157eba34ef0a98a37268f5cd9b307c334eda65b60609456e630ffb6f63e83eda",
+  "example14_independent_report_sha256": "8a93a000546049207d4e2d9e3f3d8c76a1c1c9799ae9103947aa7059e9c39b9d",
+  "example14_verdict": "PASS_DOCUMENT_EXAMPLE14_CORRECTION_AND_ASSEMBLY_ONLY",
+  "source_payload_body_byte_drift": 0,
+  "scope_note": "판본범위와_내부후속효력_v0.9.0.md",
+  "github_posting_included": false,
+  "product_or_Human_pass_claimed": false,
+  "private_inputs_included": false
+}

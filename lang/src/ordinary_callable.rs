@@ -243,13 +243,18 @@ pub fn proven_same_input_domain(left: &TypeRef, right: &TypeRef) -> bool {
         && runtime_shape(right) != Some("any")
 }
 
+/// Reuse the existing closed runtime-domain classifier; unresolved types and
+/// the open `값` domain cannot establish that a lexical value is non-callable.
+pub(crate) fn closed_non_callable_type(type_ref:&TypeRef)->bool {
+    matches!(runtime_shape(type_ref),Some(shape) if shape!="any")
+}
 fn runtime_shape(type_ref: &TypeRef) -> Option<&'static str> {
     let name = match type_ref {
         TypeRef::Tuple(_) => return Some("tuple"),
         TypeRef::Tensor { .. } => return Some("tensor"),
         TypeRef::Named(name) => canonicalize_type_alias(name),
         TypeRef::Applied { name, .. } => canonicalize_type_alias(name),
-        TypeRef::Function { .. } | TypeRef::Infer => return None,
+        TypeRef::Function { .. } | TypeRef::Infer | TypeRef::PropositionConjunction(_) | TypeRef::StructureLaw { .. } | TypeRef::AlgebraEquality { .. } => return None,
     };
     Some(match name {
         "값" => "any",

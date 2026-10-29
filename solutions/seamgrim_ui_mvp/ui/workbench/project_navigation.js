@@ -1,9 +1,12 @@
 // Project rail, my-work index and file tabs share the original state objects.
 export function createProjectNavigation({ state, els, MY_WORK_INDEX_KEY, localProjectEntryPath, currentProject, openServerProject, readPortableProjectCatalog, projectLink, escapeHtml, projectsForGlobalEntry, includesFilter, DEFERRED_LESSONS, selectProject, selectFile }) {
 function displayedProjectTitle(project) {
-  const path = localProjectEntryPath(project);
-  const loaded = state.loadedFileTexts.get(path);
-  return loaded !== undefined && state.fileTexts.get(path) !== loaded
+  const paths = new Set([localProjectEntryPath(project), ...(project.files ?? []).map(file => file.path)]);
+  const changed = [...paths].some(path => {
+    const loaded = state.loadedFileTexts.get(path);
+    return loaded !== undefined && state.fileTexts.get(path) !== loaded;
+  });
+  return changed
     ? `${project.title} · 수정한 원문` : project.title;
 }
 
@@ -46,6 +49,7 @@ function rememberMyWorkProject({
   source = "",
   role = "",
   nativeLocator = "",
+  replacesLocalProjectId = "",
   logicalInput = null,
 } = {}) {
   const normalizedProjectId = String(projectId || "").trim();
@@ -62,7 +66,12 @@ function rememberMyWorkProject({
     updated_at: new Date().toISOString(),
     ...(nativeLocator?{native_source_locator:nativeLocator,native_input_profile:logicalInput?{...logicalInput}:null}:{}),
   };
-  const rows = readMyWorkIndex().filter((row) => String(row.project_id ?? "") !== normalizedProjectId);
+  // Keep recovery metadata; only an explicit successful Native save connects
+  // a temporary entry to its persisted identity. Never merge by title.
+  const rows = readMyWorkIndex().filter((row) => String(row.project_id ?? "") !== normalizedProjectId)
+    .map(row => source === "native_source" && nativeLocator && replacesLocalProjectId
+      && row.origin_kind === "local_only" && row.project_id === replacesLocalProjectId
+      ? {...row, native_saved_as: normalizedProjectId} : row);
   writeMyWorkIndex([next, ...rows]);
   state.myWorkRows = [next, ...rows];
 }
@@ -94,7 +103,10 @@ async function refreshMyWorkIndex() {
 function renderMyWork() {
   if (!els.myWorkList) return;
   const filter = String(state.projectFilter || "").trim().toLowerCase();
-  const rows = (state.myWorkRows.length ? state.myWorkRows : readMyWorkIndex())
+  const indexedRows = state.myWorkRows.length ? state.myWorkRows : readMyWorkIndex();
+  const nativeIds = new Set(indexedRows.filter(row => row.origin_kind === "native_source").map(row => row.project_id));
+  const rows = indexedRows
+    .filter(row => state.showHiddenMyWork || !nativeIds.has(row.native_saved_as))
     .filter((row) => state.showHiddenMyWork || !row.hidden_from_list)
     .filter((row) => !filter || String(row.title || row.project_id).toLowerCase().includes(filter));
   const portableRows = readPortableProjectCatalog()
@@ -124,7 +136,7 @@ function renderMyWork() {
     link.href = href;
     link.setAttribute("data-testid", "my-work-item");
     link.dataset.projectId = String(row.project_id || "");
-    const origin = row.origin_kind==='native_source'?'Native 저장':row.origin_kind === "local_only" ? "로컬 전용" : "서버 저장";
+    const origin = row.origin_kind==='native_source'?'Native 저장':row.native_saved_as?'Native에 저장됨 · 임시 복구 자료':row.origin_kind === "local_only" ? "로컬 전용" : "서버 저장";
     const access = row.access_role === "view" || (!row.edit_capability && row.view_capability) ? "보기 전용" : "편집 가능";
     link.innerHTML = `<strong>${escapeHtml(row.title || row.project_id)}</strong><span>${origin} · ${access} · ${escapeHtml(row.verify_status || (origin === "로컬 전용" ? "이 기기" : "server 확인 전"))} · head ${escapeHtml(row.head_revision_id || "-")}</span>`;
     appendMyWorkRow(link, row, "index");
@@ -187,6 +199,8 @@ function renderProjects() {
 
 function renderFileTabs(project) {
   const visibleTabs = project.files.slice(0, Math.min(3, project.files.length));
+  const activeIndex = project.files.findIndex(file => file.path === state.activeFilePath);
+  if (activeIndex >= visibleTabs.length) visibleTabs[visibleTabs.length - 1] = project.files[activeIndex];
   els.fileTabs.innerHTML = "";
   if (project.files.length <= 1) {
     els.fileTabs.classList.add("hidden");

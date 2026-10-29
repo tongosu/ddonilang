@@ -85,10 +85,15 @@ export function createEditRecoveryGuard({storage,capture,applyDraft,present}){
     saved(generation){
       try{
         const expected=saveTokens.get(generation);saveTokens.delete(generation);
-        const source=current();if(!expected||!source)return;
-        if(token(source)!==expected){offer();return;}
-        const record=read(source.project_id);
-        if(record?.pending&&token(record.source)===expected){storage.setItem(key(source.project_id),JSON.stringify({...record,pending:false}));offer();}
+        if(!expected)return;
+        // The receipt belongs to the captured save generation, not the
+        // currently selected project. A later draft still has a different
+        // token and is preserved; changing selection cannot keep a saved
+        // project's old pending notice alive forever.
+        const savedSource=JSON.parse(expected);
+        const record=read(savedSource.project_id);
+        if(record?.pending&&token(record.source)===expected)storage.setItem(key(savedSource.project_id),JSON.stringify({...record,pending:false}));
+        offer();
       }catch(error){showFailure(error);}
     },
     failed(generation){saveTokens.delete(generation);offer();},
