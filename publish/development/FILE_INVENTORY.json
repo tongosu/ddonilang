@@ -801,10 +801,409 @@
     },
     {
       "path": "publish/development/STATUS.md",
-      "bytes": 2835,
-      "sha256": "c40501a400b072c2dca399145cfcc68e6b3d02bc62352e74e626a28e13f8ab64",
+      "bytes": 3427,
+      "sha256": "906afc902e91653b90a0eb201ae815127e184e5de780cc9617da93034151a833",
       "license_scope": "Preserve per-file/project package declarations; code project Apache-2.0 with lang dual; project-authored guidance CC-BY-4.0; third-party notices unchanged",
       "source_scope": "public projection; no generated runtime or private evidence included"
+    },
+    {
+      "path": "publish/development/UPDATES_20261029.md",
+      "bytes": 2929,
+      "sha256": "d704771c2b452b8cf2e9fb9c2d7634645e3d6c6df80f096aa635b38d0b1999dd",
+      "license_scope": "Preserve per-file/project package declarations; code project Apache-2.0 with lang dual; project-authored guidance CC-BY-4.0; third-party notices unchanged",
+      "source_scope": "public projection; no generated runtime or private evidence included"
+    },
+    {
+      "path": "publish/spec/CURRENT.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 1235,
+      "sha256": "4e95fc0c8887f85344b2394c71804b3ff878edae5277fff0be6f780f8e483ffe"
+    },
+    {
+      "path": "publish/spec/v0.9.0/C2C3와_후속본문_근거.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 34369,
+      "sha256": "1a918a3689c84583e8387d05af0c159f5585fd58af44b7293aaf53eef522e40d"
+    },
+    {
+      "path": "publish/spec/v0.9.0/PUBLIC_PROJECTION.json",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 847,
+      "sha256": "6bc349668449f52cbaeacecf34f5a1f3f78b3342cde489825700215a30ae785e"
+    },
+    {
+      "path": "publish/spec/v0.9.0/PUBLIC_SOURCE_IDENTITIES.json",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 3276,
+      "sha256": "eca46db8407c36b30aab83243e9ddd09b7b1c45c8644b6298203508e172bd1f0"
+    },
+    {
+      "path": "publish/spec/v0.9.0/README.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 1544,
+      "sha256": "750e91cbd87f36dcf6403ee78c6970a113727c1b0973de6fa90584adaa888417"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SOURCE_AUTHORITY.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 3378,
+      "sha256": "4057310e4c283f0ac410ace137051c0d63c4e5fe62abfefc0c038e2298b548b6"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_CALLABLE_RESULT_FAILURE_R1_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 8659,
+      "sha256": "49beb00557f0abdb9dcd379f7e68bea8c499d748f1df5f9a7b34c08397bfa5b4"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_COMPATIBILITY_AND_NONCLAIMS_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 5071,
+      "sha256": "efdd41c57283bac79c5751808d2d586f7a6ce14635005afe63c577dabd121c2a"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_CONTENT_SHA256_v0.9.0.json",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 8175,
+      "sha256": "3d524165200653155655a3acd9c32bc1551b5ff407635c65a673bd9f00d4301c"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_CURRENT_VIEW_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 5676,
+      "sha256": "2566673ef7ed7fae23b933826e65e98e2c7fcd89b12ad9cf2472323b466a3663"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_DETERMINISM_CONTRACT_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 4405,
+      "sha256": "ba1b0b2a86fc022b928cee761ae256be64290fbcc783e8ad39d4568ee91679a2"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_EXAMPLES_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 4971,
+      "sha256": "8eb2a70884165905a4bde0a57567b66e4435e20303a6eafd739dc24a5493c000"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_GLOSSARY_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 2428,
+      "sha256": "3fe8a8cfd278027f3b07456711a6146960c6f4555a60df023e25b8c17bd316e9"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_GOVERNANCE_STATUS_AND_NONCLAIMS_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 4672,
+      "sha256": "e6b98932fb619dbefd05ccee8a611069cd517cb66d2f92602af83f60de203780"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_HOTT_RESEARCH_SURFACE_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 1916,
+      "sha256": "afea73af57cc05e64a7b9d25408b07bf4dd78bc7fe7ba1309de986f2938f773d"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_KOREAN_MASTER_AND_LOCALIZATION_AUTHORITY_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 4639,
+      "sha256": "dc944dcb58481816ab2edc0d6e4009c37385149ae41ee331ca93e402d0e8d94b"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_LANGUAGE_INTRODUCTION_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 2061,
+      "sha256": "4620bbd6ada771de129d1e8b9e8385c5af95ca87d50d52217a6046b53e910931"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_LANGUAGE_SYNTAX_SUMMARY_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 12154,
+      "sha256": "e136b4f15eb91e683f45eac0649fccb7d80fbb46a9921a6b518539db96971dd7"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_LIFECYCLE_AND_EXACT_COMPARISON_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 3958,
+      "sha256": "578bbce807dfc070d311490cd9502b5c09465393d3a843e45bec6e030c99d56b"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_MANIFEST_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 6588,
+      "sha256": "039ecc25dc27f8323097d0f2c9b44c83663b235a74869d703f627911320f3678"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_MIGRATION_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 3691,
+      "sha256": "fd5ef8acec0605cced41a1a70910373d1ee281c1be8409c9ed27357b2366147c"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_PIECEWISE_FUNCTION_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 5309,
+      "sha256": "fed41f31a902513a15792937ea2b3b9497dfec830b5e903df05e98124a9a71a6"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_PRODUCT_EVIDENCE_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 3157,
+      "sha256": "ea8220d18ff7e4e35c0b624dee08f5e8d46b767360b7ca144bda1378d7aeb011"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_PROOF_KERNEL_PROFILES_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 7566,
+      "sha256": "174308f32834757e6a1125738a7c73e0aa0a0c429945ddbaaf853d29de25f7ad"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_SEAL_v0.9.0.json",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 729,
+      "sha256": "33de501a7ded2f215fb9d4b1ba582c8afbbb95b8ce0f90782e32589cf0221f87"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_SEMANTIC_CORE_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 9631,
+      "sha256": "2c5654cc903f0f52e928cfcc930f675e2e87bd804f466b212888d7028c0a2831"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_SPECIALIST_OPEN_SURFACES_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 3281,
+      "sha256": "7f867512060bf17108f9c74046182d8a71a7a4ca69fa47b85edfed27bd9b838b"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_STABLE_SUPPORT_SURFACE_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 3705,
+      "sha256": "b06482f44cef12a79d0b3c487a6b2d4e17529330bceac56cc640ce51b3e8db02"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_SUCCESSOR_SEMANTICS_RD438_690_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 190408,
+      "sha256": "819980453f6a9329125062b8328969dd29a9dc791b0853f6e51788f1ca8d8d39"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_TENSOR_R1_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 6392,
+      "sha256": "bcea7f2362e7b9f5c31a87e9a051e3af2524fddb7ed8ad607e852ed64ef7731b"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_TRACE_v0.9.0.detjson",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 392798,
+      "sha256": "5292c5715e5cde425b22574b0368880c7daab81b5883c22d62cdaf74292fe1d2"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_TRACE_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 81440,
+      "sha256": "201b0b1812e7090624d058323c4478f52601cfc2fbba9aaddd8e3d48f19068ba"
+    },
+    {
+      "path": "publish/spec/v0.9.0/SPEC_V25_151_PROJECTION_DISPOSITION_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 1381,
+      "sha256": "f178d2fb20634e5bb7f590fb4591a8f4f9b49cf04233882fc34d19d51d79e882"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/01_definition_and_rebinding.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 38,
+      "sha256": "0e0b391fac3f8282c2387618e4e9f6afdaa20d2fceb92dfa26998f52af1eb98f"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/02_complete_callable.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 97,
+      "sha256": "2764ddbbd042cd191cc43bae5c03c3f5e8b98f50f1cd11c7744712071cae8f59"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/03_typed_morphology.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 105,
+      "sha256": "28c0577a75e80e7de6afdb79aab5ec10cc8b3b25e3b3f3194754960310e15c8f"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/04_closed_multisurface.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 179,
+      "sha256": "f753cf06cfa626ff0a2108bad5477b464e17f7ac5e8f1ace3c2b0c93975d6784"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/05_presentation_identity.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 232,
+      "sha256": "fd41147d1c8f7a8f8b099f897503dd7bdc52b705857bbfe15ef869b02c808091"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/06_persistent_update_root.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 71,
+      "sha256": "02eae7203c5a00150ca3fd2f303cddde5200358d472812ac62f8c5f3ad740a13"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/07_static_header.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 134,
+      "sha256": "7baf68eb089b6d5de50440b26a6cb5a43ea1fa002558dfaa7f58435701f19ecd"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/08_product_definition.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 70,
+      "sha256": "cd19fa0a161800c14a07c0a7e6722c0c959ac3dd195e1e4920c2d15b340d6306"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/09_sum_definition.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 85,
+      "sha256": "a2a0c772b95b13ac4cd4e3483b706d632b07118ef589badd194c9dc0d80fb364"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/10_typed_selection.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 68,
+      "sha256": "d8b213983b47f86f45c25f85d01999080cc5f4edd0c4d7c55c84d5d063520ba0"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/11_anonymous_function.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 27,
+      "sha256": "1c08ab0d174bd9d7476672e076477587f546aac700426156ae4571833652f432"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/12_resultplace_and_finish.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 243,
+      "sha256": "137d85c33cd40cc907f7d8327f143ecb31776dbe72362037688f3e81b0f0a64d"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/13_tensor_selection.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 145,
+      "sha256": "4eed22376a79e19a862794ec1ee5e4da15e3b6d315bf7596ccdbb7cd33ad42da"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/14_root_start_every_madi.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 102,
+      "sha256": "46bf783feb3295a862659ea1b9098733fdb093c815943f3123b99184bf62f58f"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/15_piecewise_domain.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 195,
+      "sha256": "6cc3a3f339bc7532a6dc05489734d6957666142c48d0dc2536e009d1252d1bbb"
+    },
+    {
+      "path": "publish/spec/v0.9.0/examples/16_explicit_empty_function.ddn",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 97,
+      "sha256": "4c70a50d84f3435cbd041794ba6105d7cbdf619dbac1368db4da44f877e51924"
+    },
+    {
+      "path": "publish/spec/v0.9.0/대체근거와_부분효력.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 8981,
+      "sha256": "60b6c45157ecddda3bcd644edf8312a680254c5919d0569680f899b86ebb91d7"
+    },
+    {
+      "path": "publish/spec/v0.9.0/명시대체관계.json",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 27581,
+      "sha256": "737b4c74cd8231057d24050d03fd6d97939390c7c80a555db1c96d73bddee282"
+    },
+    {
+      "path": "publish/spec/v0.9.0/승인된후속안과_OPEN.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 6242,
+      "sha256": "9109dc5b0077faff2b44c9e50907fe00157ba537213f88722468f81d61d5cbb3"
+    },
+    {
+      "path": "publish/spec/v0.9.0/예제근거.json",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 982,
+      "sha256": "67a26e0fa1ade5044d2f241e4f7263dc009561a52cd151182098a8c436e4034d"
+    },
+    {
+      "path": "publish/spec/v0.9.0/판본범위와_내부후속효력_v0.9.0.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 3565,
+      "sha256": "dfbdc9543fe8004d032d16ba5cc41b3d1fd0f1314b3bba6033dad69624ffefb1"
+    },
+    {
+      "path": "publish/spec/v0.9.0/현행결론_RD색인.md",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 558630,
+      "sha256": "953456b53853b7fd5b63b5799ef3540f3e4bfe732a55b5bd39cab8c97a249af2"
+    },
+    {
+      "path": "publish/spec/v0.9.0/후속안_고정입력.json",
+      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
+      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
+      "bytes": 4860,
+      "sha256": "f9152849a334cebe1b30c20cbad70fd9f5ad37844ef9121222ed1a1727c2ac1c"
     },
     {
       "path": "solutions/seamgrim_ui_mvp/first_steps_rc1/v2_display_r1/course.css",
@@ -17969,398 +18368,6 @@
       "sha256": "c43698da091ce02b959de14ec678d76291a8393ea9883fbd56e36831918379de",
       "license_scope": "Preserve per-file/project package declarations; code project Apache-2.0 with lang dual; project-authored guidance CC-BY-4.0; third-party notices unchanged",
       "source_scope": "public projection; no generated runtime or private evidence included"
-    },
-    {
-      "path": "publish/spec/CURRENT.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 1235,
-      "sha256": "4e95fc0c8887f85344b2394c71804b3ff878edae5277fff0be6f780f8e483ffe"
-    },
-    {
-      "path": "publish/spec/v0.9.0/C2C3와_후속본문_근거.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 34369,
-      "sha256": "1a918a3689c84583e8387d05af0c159f5585fd58af44b7293aaf53eef522e40d"
-    },
-    {
-      "path": "publish/spec/v0.9.0/PUBLIC_PROJECTION.json",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 847,
-      "sha256": "6bc349668449f52cbaeacecf34f5a1f3f78b3342cde489825700215a30ae785e"
-    },
-    {
-      "path": "publish/spec/v0.9.0/PUBLIC_SOURCE_IDENTITIES.json",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 3276,
-      "sha256": "eca46db8407c36b30aab83243e9ddd09b7b1c45c8644b6298203508e172bd1f0"
-    },
-    {
-      "path": "publish/spec/v0.9.0/README.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 1544,
-      "sha256": "750e91cbd87f36dcf6403ee78c6970a113727c1b0973de6fa90584adaa888417"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SOURCE_AUTHORITY.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 3378,
-      "sha256": "4057310e4c283f0ac410ace137051c0d63c4e5fe62abfefc0c038e2298b548b6"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_CALLABLE_RESULT_FAILURE_R1_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 8659,
-      "sha256": "49beb00557f0abdb9dcd379f7e68bea8c499d748f1df5f9a7b34c08397bfa5b4"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_COMPATIBILITY_AND_NONCLAIMS_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 5071,
-      "sha256": "efdd41c57283bac79c5751808d2d586f7a6ce14635005afe63c577dabd121c2a"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_CONTENT_SHA256_v0.9.0.json",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 8175,
-      "sha256": "3d524165200653155655a3acd9c32bc1551b5ff407635c65a673bd9f00d4301c"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_CURRENT_VIEW_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 5676,
-      "sha256": "2566673ef7ed7fae23b933826e65e98e2c7fcd89b12ad9cf2472323b466a3663"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_DETERMINISM_CONTRACT_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 4405,
-      "sha256": "ba1b0b2a86fc022b928cee761ae256be64290fbcc783e8ad39d4568ee91679a2"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_EXAMPLES_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 4971,
-      "sha256": "8eb2a70884165905a4bde0a57567b66e4435e20303a6eafd739dc24a5493c000"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_GLOSSARY_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 2428,
-      "sha256": "3fe8a8cfd278027f3b07456711a6146960c6f4555a60df023e25b8c17bd316e9"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_GOVERNANCE_STATUS_AND_NONCLAIMS_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 4672,
-      "sha256": "e6b98932fb619dbefd05ccee8a611069cd517cb66d2f92602af83f60de203780"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_HOTT_RESEARCH_SURFACE_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 1916,
-      "sha256": "afea73af57cc05e64a7b9d25408b07bf4dd78bc7fe7ba1309de986f2938f773d"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_KOREAN_MASTER_AND_LOCALIZATION_AUTHORITY_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 4639,
-      "sha256": "dc944dcb58481816ab2edc0d6e4009c37385149ae41ee331ca93e402d0e8d94b"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_LANGUAGE_INTRODUCTION_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 2061,
-      "sha256": "4620bbd6ada771de129d1e8b9e8385c5af95ca87d50d52217a6046b53e910931"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_LANGUAGE_SYNTAX_SUMMARY_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 12154,
-      "sha256": "e136b4f15eb91e683f45eac0649fccb7d80fbb46a9921a6b518539db96971dd7"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_LIFECYCLE_AND_EXACT_COMPARISON_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 3958,
-      "sha256": "578bbce807dfc070d311490cd9502b5c09465393d3a843e45bec6e030c99d56b"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_MANIFEST_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 6588,
-      "sha256": "039ecc25dc27f8323097d0f2c9b44c83663b235a74869d703f627911320f3678"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_MIGRATION_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 3691,
-      "sha256": "fd5ef8acec0605cced41a1a70910373d1ee281c1be8409c9ed27357b2366147c"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_PIECEWISE_FUNCTION_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 5309,
-      "sha256": "fed41f31a902513a15792937ea2b3b9497dfec830b5e903df05e98124a9a71a6"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_PRODUCT_EVIDENCE_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 3157,
-      "sha256": "ea8220d18ff7e4e35c0b624dee08f5e8d46b767360b7ca144bda1378d7aeb011"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_PROOF_KERNEL_PROFILES_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 7566,
-      "sha256": "174308f32834757e6a1125738a7c73e0aa0a0c429945ddbaaf853d29de25f7ad"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_SEAL_v0.9.0.json",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 729,
-      "sha256": "33de501a7ded2f215fb9d4b1ba582c8afbbb95b8ce0f90782e32589cf0221f87"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_SEMANTIC_CORE_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 9631,
-      "sha256": "2c5654cc903f0f52e928cfcc930f675e2e87bd804f466b212888d7028c0a2831"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_SPECIALIST_OPEN_SURFACES_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 3281,
-      "sha256": "7f867512060bf17108f9c74046182d8a71a7a4ca69fa47b85edfed27bd9b838b"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_STABLE_SUPPORT_SURFACE_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 3705,
-      "sha256": "b06482f44cef12a79d0b3c487a6b2d4e17529330bceac56cc640ce51b3e8db02"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_SUCCESSOR_SEMANTICS_RD438_690_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 190408,
-      "sha256": "819980453f6a9329125062b8328969dd29a9dc791b0853f6e51788f1ca8d8d39"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_TENSOR_R1_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 6392,
-      "sha256": "bcea7f2362e7b9f5c31a87e9a051e3af2524fddb7ed8ad607e852ed64ef7731b"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_TRACE_v0.9.0.detjson",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 392798,
-      "sha256": "5292c5715e5cde425b22574b0368880c7daab81b5883c22d62cdaf74292fe1d2"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_TRACE_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 81440,
-      "sha256": "201b0b1812e7090624d058323c4478f52601cfc2fbba9aaddd8e3d48f19068ba"
-    },
-    {
-      "path": "publish/spec/v0.9.0/SPEC_V25_151_PROJECTION_DISPOSITION_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 1381,
-      "sha256": "f178d2fb20634e5bb7f590fb4591a8f4f9b49cf04233882fc34d19d51d79e882"
-    },
-    {
-      "path": "publish/spec/v0.9.0/대체근거와_부분효력.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 8981,
-      "sha256": "60b6c45157ecddda3bcd644edf8312a680254c5919d0569680f899b86ebb91d7"
-    },
-    {
-      "path": "publish/spec/v0.9.0/명시대체관계.json",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 27581,
-      "sha256": "737b4c74cd8231057d24050d03fd6d97939390c7c80a555db1c96d73bddee282"
-    },
-    {
-      "path": "publish/spec/v0.9.0/승인된후속안과_OPEN.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 6242,
-      "sha256": "9109dc5b0077faff2b44c9e50907fe00157ba537213f88722468f81d61d5cbb3"
-    },
-    {
-      "path": "publish/spec/v0.9.0/예제근거.json",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 982,
-      "sha256": "67a26e0fa1ade5044d2f241e4f7263dc009561a52cd151182098a8c436e4034d"
-    },
-    {
-      "path": "publish/spec/v0.9.0/판본범위와_내부후속효력_v0.9.0.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 3565,
-      "sha256": "dfbdc9543fe8004d032d16ba5cc41b3d1fd0f1314b3bba6033dad69624ffefb1"
-    },
-    {
-      "path": "publish/spec/v0.9.0/현행결론_RD색인.md",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 558630,
-      "sha256": "953456b53853b7fd5b63b5799ef3540f3e4bfe732a55b5bd39cab8c97a249af2"
-    },
-    {
-      "path": "publish/spec/v0.9.0/후속안_고정입력.json",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 4860,
-      "sha256": "f9152849a334cebe1b30c20cbad70fd9f5ad37844ef9121222ed1a1727c2ac1c"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/01_definition_and_rebinding.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 38,
-      "sha256": "0e0b391fac3f8282c2387618e4e9f6afdaa20d2fceb92dfa26998f52af1eb98f"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/02_complete_callable.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 97,
-      "sha256": "2764ddbbd042cd191cc43bae5c03c3f5e8b98f50f1cd11c7744712071cae8f59"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/03_typed_morphology.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 105,
-      "sha256": "28c0577a75e80e7de6afdb79aab5ec10cc8b3b25e3b3f3194754960310e15c8f"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/04_closed_multisurface.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 179,
-      "sha256": "f753cf06cfa626ff0a2108bad5477b464e17f7ac5e8f1ace3c2b0c93975d6784"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/05_presentation_identity.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 232,
-      "sha256": "fd41147d1c8f7a8f8b099f897503dd7bdc52b705857bbfe15ef869b02c808091"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/06_persistent_update_root.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 71,
-      "sha256": "02eae7203c5a00150ca3fd2f303cddde5200358d472812ac62f8c5f3ad740a13"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/07_static_header.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 134,
-      "sha256": "7baf68eb089b6d5de50440b26a6cb5a43ea1fa002558dfaa7f58435701f19ecd"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/08_product_definition.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 70,
-      "sha256": "cd19fa0a161800c14a07c0a7e6722c0c959ac3dd195e1e4920c2d15b340d6306"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/09_sum_definition.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 85,
-      "sha256": "a2a0c772b95b13ac4cd4e3483b706d632b07118ef589badd194c9dc0d80fb364"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/10_typed_selection.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 68,
-      "sha256": "d8b213983b47f86f45c25f85d01999080cc5f4edd0c4d7c55c84d5d063520ba0"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/11_anonymous_function.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 27,
-      "sha256": "1c08ab0d174bd9d7476672e076477587f546aac700426156ae4571833652f432"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/12_resultplace_and_finish.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 243,
-      "sha256": "137d85c33cd40cc907f7d8327f143ecb31776dbe72362037688f3e81b0f0a64d"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/13_tensor_selection.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 145,
-      "sha256": "4eed22376a79e19a862794ec1ee5e4da15e3b6d315bf7596ccdbb7cd33ad42da"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/14_root_start_every_madi.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 102,
-      "sha256": "46bf783feb3295a862659ea1b9098733fdb093c815943f3123b99184bf62f58f"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/15_piecewise_domain.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 195,
-      "sha256": "6cc3a3f339bc7532a6dc05489734d6957666142c48d0dc2536e009d1252d1bbb"
-    },
-    {
-      "path": "publish/spec/v0.9.0/examples/16_explicit_empty_function.ddn",
-      "license_scope": "Existing reviewed public SPEC scope; unchanged per-file terms",
-      "source_scope": "Exact locally promoted document projection; prior limited reviews reused",
-      "bytes": 97,
-      "sha256": "4c70a50d84f3435cbd041794ba6105d7cbdf619dbac1368db4da44f877e51924"
     }
   ],
   "generated_bindings_removed": [
