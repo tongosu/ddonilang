@@ -20,7 +20,7 @@
 
 V2 비공개 후보·V3 첫 탐구노트·V4 첫 조건부 풀이 단계·V5 첫 로봇은 각각 고정 범위의 내부 한정 검토를 마쳤습니다. 전체 버전 완성이나 Human·공개 완료와는 다릅니다. V6~V9는 후속 계획 후보입니다.
 
-[현재 개발·지원 범위](publish/development/STATUS.md) · [개발 소스 빌드와 제외 범위](publish/development/BUILD_SOURCE.md)
+[2026-10-31 개발·계약 갱신](publish/development/UPDATES_20261031.md) · [현재 개발·지원 범위](publish/development/STATUS.md) · [개발 소스 빌드와 제외 범위](publish/development/BUILD_SOURCE.md)
 
 ## 한국어로 생각하는 언어
 

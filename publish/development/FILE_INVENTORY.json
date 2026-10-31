@@ -1,5 +1,5 @@
 {
-  "scope": "Included development source paths; self-index excluded from own hash",
+  "scope": "Included public source and guidance paths; 2026-10-31 guidance delta; unchanged reviewed source entries reused; self-index excluded from own hash",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -37,11 +37,11 @@
       "source_scope": "public projection; no generated runtime or private evidence included"
     },
     {
-      "path": "README.md",
-      "bytes": 11557,
-      "sha256": "51fea089fa0d02630410591a482594313fda65b46ba6d9e3efe5050627bec9b6",
       "license_scope": "Preserve per-file/project package declarations; code project Apache-2.0 with lang dual; project-authored guidance CC-BY-4.0; third-party notices unchanged",
-      "source_scope": "public projection; no generated runtime or private evidence included"
+      "source_scope": "public projection; no generated runtime or private evidence included",
+      "path": "README.md",
+      "bytes": 11636,
+      "sha256": "8fabc87c85d02c132ad4e6a4111f5213258f8ed5ed17d1d96fbd81de353cccee"
     },
     {
       "path": "core/Cargo.toml",
@@ -800,11 +800,11 @@
       "source_scope": "public projection; no generated runtime or private evidence included"
     },
     {
-      "path": "publish/development/STATUS.md",
-      "bytes": 3427,
-      "sha256": "906afc902e91653b90a0eb201ae815127e184e5de780cc9617da93034151a833",
       "license_scope": "Preserve per-file/project package declarations; code project Apache-2.0 with lang dual; project-authored guidance CC-BY-4.0; third-party notices unchanged",
-      "source_scope": "public projection; no generated runtime or private evidence included"
+      "source_scope": "public projection; no generated runtime or private evidence included",
+      "path": "publish/development/STATUS.md",
+      "bytes": 3310,
+      "sha256": "05d95b053553034741e97c297d48ba9d2c8d8a08992d4bf8cd70fdb5a7d334dc"
     },
     {
       "path": "publish/development/UPDATES_20261029.md",
@@ -812,6 +812,13 @@
       "sha256": "d704771c2b452b8cf2e9fb9c2d7634645e3d6c6df80f096aa635b38d0b1999dd",
       "license_scope": "Preserve per-file/project package declarations; code project Apache-2.0 with lang dual; project-authored guidance CC-BY-4.0; third-party notices unchanged",
       "source_scope": "public projection; no generated runtime or private evidence included"
+    },
+    {
+      "license_scope": "Preserve per-file/project package declarations; code project Apache-2.0 with lang dual; project-authored guidance CC-BY-4.0; third-party notices unchanged",
+      "source_scope": "public projection; no generated runtime or private evidence included",
+      "path": "publish/development/UPDATES_20261031.md",
+      "bytes": 2886,
+      "sha256": "59b913c4b44850c2ee0c62cedd2910a31ba735007fa7f03b91aae69c22092b5e"
     },
     {
       "path": "publish/spec/CURRENT.md",
