@@ -141,3 +141,6 @@ AI가 내놓은 제안과 프로그램의 규칙으로 확정한 뜻을 구분�
 R8에 대응하는 소스는 [고정 커밋 c41569e6](https://github.com/tongosu/ddonilang/commit/c41569e6cc612b6e1030950e7a21ce91f4604112)와 Release의 `DDN-v1.0.0-rc.1-minimal-r8-source.zip`입니다. 기존 RC1 태그의 자동 Source code는 이전 원본을 가리킵니다. 개발 소스의 후속 변경과 RC1 출하 ZIP·태그·고정 소스는 구분합니다. 기존 RC1 출하물은 그대로 보존합니다.
 
 실제 지원 범위와 RC1 예외·검토 대기는 [알려진 제한](RC1_KNOWN_LIMITATIONS.md) 및 Release 설명을 확인하세요. [라이선스 범위](LICENSE_SCOPE.md)와 [NOTICE](NOTICE)를 따릅니다. 의견은 [Issues](https://github.com/tongosu/ddonilang/issues)에 원문·기대 결과·실제 결과와 함께 남겨 주세요.
+
+
+[변경 결과의 발행·원격 확인 원칙](publish/development/SYNC_POLICY.md)

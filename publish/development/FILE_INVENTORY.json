@@ -1,5 +1,5 @@
 {
-  "scope": "Existing reviewed public source inventory plus 2026-11-01 public guidance delta; source unchanged; self inventory excluded from own hash",
+  "scope": "Existing public snapshot plus public-safe publication policy; no runtime/spec/release expansion",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -40,8 +40,8 @@
       "license_scope": "Preserve per-file/project package declarations; code project Apache-2.0 with lang dual; project-authored guidance CC-BY-4.0; third-party notices unchanged",
       "source_scope": "public projection; no generated runtime or private evidence included",
       "path": "README.md",
-      "bytes": 11722,
-      "sha256": "6ecda3659c71c105bf5c08a9fa9d66fc647db50cc7e0d7123be8836d489f387f"
+      "bytes": 11808,
+      "sha256": "aed782a6e3810fa2109439f9d360e1925dc660f0dbb41cfe7d0aab212fa0854f"
     },
     {
       "path": "core/Cargo.toml",
@@ -805,6 +805,13 @@
       "path": "publish/development/STATUS.md",
       "bytes": 3265,
       "sha256": "4dbc80f966d02bfa6dc909dfa72a8d65dcb80568f5fc854a8c287c693e745028"
+    },
+    {
+      "license_scope": "Preserve per-file/project package declarations; code project Apache-2.0 with lang dual; project-authored guidance CC-BY-4.0; third-party notices unchanged",
+      "source_scope": "public projection; no generated runtime or private evidence included",
+      "path": "publish/development/SYNC_POLICY.md",
+      "bytes": 2191,
+      "sha256": "b6e27c1c9f9a577943fc3882863e3f257c481ad1f174391c8ffacc9ec037113b"
     },
     {
       "path": "publish/development/UPDATES_20261029.md",
