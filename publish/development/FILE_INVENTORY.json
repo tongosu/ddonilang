@@ -40,8 +40,8 @@
       "license_scope": "Preserve per-file/project package declarations; code project Apache-2.0 with lang dual; project-authored guidance CC-BY-4.0; third-party notices unchanged",
       "source_scope": "public projection; no generated runtime or private evidence included",
       "path": "README.md",
-      "bytes": 12103,
-      "sha256": "47064daa386e42812a8dad24c2dcc46e7872360ce9044974a38762bb83cefeb9"
+      "bytes": 12277,
+      "sha256": "ebb9741effc90c88e169eaacc94c73e70ef0161bd65ba4e7fc9c67276c0fcb0b"
     },
     {
       "path": "core/Cargo.toml",
@@ -838,8 +838,8 @@
       "license_scope": "Preserve per-file/project package declarations; code project Apache-2.0 with lang dual; project-authored guidance CC-BY-4.0; third-party notices unchanged",
       "source_scope": "public projection; no generated runtime or private evidence included",
       "path": "publish/development/UPDATES_20261102.md",
-      "bytes": 3518,
-      "sha256": "cbc59fbdb04385f1e4a71a5e7335f29f2bedefa214b755bb6299c0fed79972d0"
+      "bytes": 5299,
+      "sha256": "9bcf9a5dc31efac3ed8b12c09a142e5fdb569eb00ef9a2f7ec96e729eee3ac82"
     },
     {
       "path": "publish/spec/CURRENT.md",
