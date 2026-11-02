@@ -147,3 +147,5 @@ R8에 대응하는 소스는 [고정 커밋 c41569e6](https://github.com/tongosu
 
 
 [2026-11-02 첫 조사형 교재 흐름·저장 범위 확인](publish/development/UPDATES_20261102.md)
+
+[첫 조사형 교재 Native 원문 내구 저장·새 프로세스 명시 실행 후속](publish/development/UPDATES_20261102.md) — 세계 이어하기·Human·공개 릴리스 별도.
