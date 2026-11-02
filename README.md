@@ -144,3 +144,6 @@ R8에 대응하는 소스는 [고정 커밋 c41569e6](https://github.com/tongosu
 
 
 [변경 결과의 발행·원격 확인 원칙](publish/development/SYNC_POLICY.md)
+
+
+[2026-11-02 첫 조사형 교재 흐름·저장 범위 확인](publish/development/UPDATES_20261102.md)
