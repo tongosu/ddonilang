@@ -151,3 +151,5 @@ R8에 대응하는 소스는 [고정 커밋 c41569e6](https://github.com/tongosu
 [첫 조사형 교재 Native 원문 내구 저장·새 프로세스 명시 실행 후속](publish/development/UPDATES_20261102.md) — 세계 이어하기·Human·공개 릴리스 별도.
 
 [첫 교재 최신 통합·실제 화면 차단 후속](publish/development/UPDATES_20261102.md) — Native 원문 보관과 교육 진입/독립 판정을 구분합니다.
+
+[첫 교재 최신 통합·실제 화면 차단 후속](publish/development/UPDATES_20261102.md) — Native 원문 보관과 교육 진입/독립 판정을 구분합니다.
