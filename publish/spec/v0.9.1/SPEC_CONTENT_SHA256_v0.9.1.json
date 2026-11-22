@@ -1,0 +1,22 @@
+[
+  {
+    "path": "README.md",
+    "bytes": 236,
+    "sha256": "2ff1350be4e9f2ca3982eec5321c436bd15832ad10af726bbb8bb4af237eb173"
+  },
+  {
+    "path": "SPEC_EXAMPLES_v0.9.1.md",
+    "bytes": 2075,
+    "sha256": "8c33e4d3b251de8197989e0cf0dd00d06bfde5a647cfcc499abe0b3e95af780d"
+  },
+  {
+    "path": "SPEC_MANIFEST_v0.9.1.md",
+    "bytes": 1662,
+    "sha256": "3b8e2533b877cf3d24821ab773ea94c819014be649973336f23ba2eb233e0b08"
+  },
+  {
+    "path": "SPEC_RD710_714_v0.9.1.md",
+    "bytes": 9582,
+    "sha256": "3b5bc01c3be205343228552222c598f49489a3b12608a45a7095be9065d8cfca"
+  }
+]

@@ -1,0 +1,17 @@
+{
+  "version": "v0.9.1",
+  "internal_source": "v25.155.0",
+  "rd_scope": [
+    710,
+    711,
+    712,
+    713,
+    714
+  ],
+  "base_version": "v0.9.0",
+  "base_seal_sha256": "33de501a7ded2f215fb9d4b1ba582c8afbbb95b8ce0f90782e32589cf0221f87",
+  "manifest_sha256": "3b8e2533b877cf3d24821ab773ea94c819014be649973336f23ba2eb233e0b08",
+  "inventory_sha256": "d17056ff1ff279320165f466a47312d945329495ad31b17315d6f3f0297286e1",
+  "current_sha256": "e41b76b7a0a9333c65f0731255eae992a4602f32177057c668a657d9c5ff52d3",
+  "product_tests": "NOT_RUN"
+}
