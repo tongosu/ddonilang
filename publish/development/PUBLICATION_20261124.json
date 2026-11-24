@@ -1,0 +1,58 @@
+{
+  "state": "PUBLIC_DEVELOPMENT_PRERELEASE_VERIFIED_ALL_ASSETS",
+  "url": "https://github.com/tongosu/ddonilang/releases/tag/dev-20261124",
+  "release_id": 456701908,
+  "tag": "dev-20261124",
+  "tag_source": "ec057bf69b8e8010059bc461016668409e2f1613",
+  "draft": false,
+  "prerelease": true,
+  "assets": [
+    {
+      "id": 787013921,
+      "name": "ddonilang-dev-20261124-source.zip",
+      "bytes": 10277478,
+      "sha256": "aa3b1e79c33fa08e0009603b7e4718c611e230c79aa8f22cbce5cc098d959032",
+      "url": "https://github.com/tongosu/ddonilang/releases/download/dev-20261124/ddonilang-dev-20261124-source.zip",
+      "raw_remote_download_verified": true
+    },
+    {
+      "id": 787052290,
+      "name": "ddonilang-dev-20261124-windows-x64-cli.zip",
+      "bytes": 10713377,
+      "sha256": "3ca4ce09cd9d0d3138d266b4b77e08f841c7bcf48567f59fead0c706d52a681b",
+      "url": "https://github.com/tongosu/ddonilang/releases/download/dev-20261124/ddonilang-dev-20261124-windows-x64-cli.zip",
+      "raw_remote_download_verified": true
+    },
+    {
+      "id": 787023019,
+      "name": "ddonilang-language-spec-v0.9.1.zip",
+      "bytes": 644611,
+      "sha256": "8d9d36b382880601448e7ca88d181264434b098d571f5dc9f705569a4be2ac66",
+      "url": "https://github.com/tongosu/ddonilang/releases/download/dev-20261124/ddonilang-language-spec-v0.9.1.zip",
+      "raw_remote_download_verified": true
+    },
+    {
+      "id": 787052259,
+      "name": "RELEASE_MANIFEST.json",
+      "bytes": 2193,
+      "sha256": "eb505c7e3c3f73eae4b09c09e3996ca2052ba8e600e32a757575015308b9ed34",
+      "url": "https://github.com/tongosu/ddonilang/releases/download/dev-20261124/RELEASE_MANIFEST.json",
+      "raw_remote_download_verified": true
+    },
+    {
+      "id": 787052288,
+      "name": "SHA256SUMS.txt",
+      "bytes": 402,
+      "sha256": "39b95e293102975e0997856448be3a4a0a9b217b88d950721056b2edfef3a3c1",
+      "url": "https://github.com/tongosu/ddonilang/releases/download/dev-20261124/SHA256SUMS.txt",
+      "raw_remote_download_verified": true
+    }
+  ],
+  "old_RC1_unchanged": true,
+  "source_review": "PASS_PUBLIC_SOURCE_PROJECTION_DELTA_ONLY",
+  "CLI_review": "PASS_WINDOWS_CLI_PUBLIC_ATTACHMENT_TESTED_SCOPE_ONLY",
+  "GUI_full_regression_Human": "NOT_RUN",
+  "at": "2026-11-24T21:12:58.392352+09:00",
+  "source_snapshot_is_fixed": true,
+  "later_documentation_commit_does_not_change_runtime": true
+}

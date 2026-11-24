@@ -1,5 +1,9 @@
 # 또니랑
 
+> **[2026-11-24 개발 시험판 — Windows CLI·소스·공개 SPEC](https://github.com/tongosu/ddonilang/releases/tag/dev-20261124)**  
+> Windows CLI는 Python·Rust 설치 없이 동봉 예제를 실행하는 구성입니다. 최신 셈그림 전체 설치판이나 정식 V1은 아닙니다. GUI 작업대는 아래 기존 RC1 안내와 구분해 주세요.
+
+
 <p><img src="publish/assets/ddonirang_wordmark.png" width="200" alt="또니랑 로고"></p>
 
 **[RC1 최소 R8 내려받기](https://github.com/tongosu/ddonilang/releases/tag/v1.0.0-rc.1) · [시작 안내](START_HERE.md) · [알려진 제한](RC1_KNOWN_LIMITATIONS.md)**
