@@ -24,6 +24,11 @@
 .notebook-position-track { position: relative; height: 2px; background: #9aa99f; }
 .notebook-position-dot { position: absolute; top: -10px; transform: translateX(-50%); color: #167b55; }
 .notebook-dialog output, .notebook-dialog p { overflow-wrap: anywhere; }
+.notebook-error { border-left: 3px solid #a9452b; padding: 0 12px; margin: 12px 0; }
+.notebook-error dl { margin: 0; }
+.notebook-error dt { font-weight: 600; margin-top: 8px; }
+.notebook-error dd { margin: 2px 0 8px; overflow-wrap: anywhere; }
+.notebook-error pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .equation-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 .equation-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; min-width: 0; margin: 12px 0; }
 .equation-fields label { display: grid; gap: 4px; min-width: 0; }
@@ -33,3 +38,8 @@
 .equation-source-label textarea { box-sizing: border-box; width: 100%; min-width: 0; min-height: 220px; resize: vertical; font: 14px/1.6 Consolas, monospace; }
 @media (max-width: 640px) { .equation-fields { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .notebook-comparisons { grid-template-columns: 1fr; } .notebook-dialog { padding: 12px; } }
+
+/* Local display selection; exact values remain in the adjacent readout. */
+[data-notebook-sample-selected] { outline: 3px solid currentColor; outline-offset: 2px; }
+.notebook-dialog circle[data-notebook-sample-selected] { outline: none; stroke: currentColor; stroke-width: 3; fill: white; r: 6px; }
+[data-notebook-sample-slot] select:focus-visible { outline: 3px solid currentColor; }

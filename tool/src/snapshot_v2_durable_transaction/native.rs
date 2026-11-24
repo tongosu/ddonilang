@@ -39,6 +39,9 @@ pub(crate) use root_grant::{AuthoringHeadV1,AdmittedAuthoringBaseV1,PreparedAuth
 pub(crate) use root_grant::{NewSourceRunPermitV1,RestartSourceWorldAttemptV1};
 mod source_revision_schema;
 pub(crate) mod source_revision;
+pub(crate) mod model_source;
+pub(crate) mod code_source;
+pub(crate) mod nominal_source;
 mod source_chain;
 #[cfg(all(windows,any(test,feature="beta2-crash-probe")))]
 pub(crate) mod crash_probe;
@@ -116,18 +119,21 @@ const RECOVERY_CUSTODY:&str="CREATE TABLE vc04_recovery_custody_v1 (
 ) WITHOUT ROWID";
 
 #[derive(Clone,Copy,PartialEq,Eq)]
-enum NativeSchemaProfile { Base, RecoveryCustody, SourceRevision }
+enum NativeSchemaProfile { Base, RecoveryCustody, SourceRevision, ModelSource, CodeSource, NominalSource }
 
 impl NativeSchemaProfile {
-    fn user_version(self)->i64 { if self==Self::SourceRevision {2}else{1} }
+    fn user_version(self)->i64 { match self {Self::NominalSource=>5,Self::CodeSource=>4,Self::ModelSource=>3,Self::SourceRevision=>2,_=>1} }
     fn source_tables(self)->[(&'static str,&'static str);3] {
+        if self==Self::NominalSource{return nominal_source::tables();}
+        if self==Self::CodeSource{return code_source::tables();}
+        if self==Self::ModelSource{return model_source::tables();}
         if self==Self::SourceRevision {
             [("vc04_prepared_payloads",source_revision_schema::PAYLOAD),
              ("vc04_project_heads",source_revision_schema::HEADS),
              ("vc04_project_revisions",source_revision_schema::REVISIONS)]
         }else{[("vc04_prepared_payloads",PAYLOAD),("vc04_project_heads",HEADS),("vc04_project_revisions",REVISIONS)]}
     }
-    fn has_custody(self)->bool { self!=Self::Base }
+    fn has_custody(self)->bool { matches!(self,Self::RecoveryCustody|Self::SourceRevision) }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -332,34 +338,7 @@ impl SqliteAdapterV1 {
                 return Err(Failure::UnsupportedDurability);
             }
         }
-        let mut statement = connection
-            .prepare("SELECT name,sql FROM sqlite_schema WHERE sql IS NOT NULL ORDER BY name")
-            .map_err(database_error)?;
-        let rows = statement
-            .query_map([], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-            })
-            .map_err(database_error)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(database_error)?;
-        let mut expected = self.schema_profile.source_tables().to_vec();
-        if self.schema_profile.has_custody() {
-            expected.push(("vc04_recovery_custody_v1",RECOVERY_CUSTODY));
-            expected.sort_by_key(|(name,_)|*name);
-        }
-        replay_archive_schema::extend_expected(&rows,self.schema_profile,&mut expected)?;
-        finish_recovery_schema::extend_expected(&rows,self.schema_profile,&mut expected)?;
-        if rows.len() != expected.len()
-            || rows
-                .iter()
-                .zip(expected)
-                .any(|((name, sql), (target, ddl))| {
-                    name != target || normalize(sql) != normalize(ddl)
-                })
-        {
-            return Err(Failure::UnsupportedDurability);
-        }
-        drop(statement);
+        validate_connection_schema(&connection,self.schema_profile)?;
         Ok(connection)
     }
 
@@ -980,6 +959,39 @@ impl super::SnapshotV2DurabilityAdapterV1 for SqliteAdapterV1 {
     fn reread_committed(&self, digest: &[u8;32], project: &[u8], revision: &[u8]) -> Result<RawChainV1, Failure> { SqliteAdapterV1::reread_committed(self, digest, project, revision) }
     fn abort(&self, handle: &mut PreparedWriteV1) -> Result<(), Failure> { SqliteAdapterV1::abort(self, handle) }
     fn inspect_recovery(&self, digest: &[u8;32], project: &[u8], revision: &[u8]) -> Result<RawChainV1, Failure> { SqliteAdapterV1::inspect_recovery(self, digest, project, revision) }
+}
+
+// Pure format validation shared by writable admission and private readonly observation.
+fn validate_connection_schema(connection:&Connection,schema_profile:NativeSchemaProfile)->Result<(),Failure>{
+        let mut statement = connection
+            .prepare("SELECT name,sql FROM sqlite_schema WHERE sql IS NOT NULL ORDER BY name")
+            .map_err(database_error)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(database_error)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(database_error)?;
+        let mut expected = schema_profile.source_tables().to_vec();
+        if schema_profile.has_custody() {
+            expected.push(("vc04_recovery_custody_v1",RECOVERY_CUSTODY));
+            expected.sort_by_key(|(name,_)|*name);
+        }
+        replay_archive_schema::extend_expected(&rows,schema_profile,&mut expected)?;
+        finish_recovery_schema::extend_expected(&rows,schema_profile,&mut expected)?;
+        if rows.len() != expected.len()
+            || rows
+                .iter()
+                .zip(expected)
+                .any(|((name, sql), (target, ddl))| {
+                    name != target || normalize(sql) != normalize(ddl)
+                })
+        {
+            return Err(Failure::UnsupportedDurability);
+        }
+        drop(statement);
+    Ok(())
 }
 
 fn retain_wal(connection: &Connection) -> Result<(), Failure> {

@@ -51,7 +51,7 @@ impl NativeRestartLogicalExecution {
     pub(crate) fn prepare(self,revision:&[u8])->Result<NativeRestartLogicalPrepared,String>{
         let parent=self.session.permit.source().revision();
         self.session.permit.verify_before_world(&self.session.adapter).map_err(|e|format!("E_SOURCE_NEW_LOGICAL_PREPARE: {e:?}"))?;
-        let artifact=self.run.export_saved_artifact(parent,revision).map_err(|e|format!("E_SOURCE_NEW_LOGICAL_ARTIFACT: {e:?}"))?;
+        let artifact=self.run.export_saved_artifact_native(parent,revision,|e|format!("E_SOURCE_NEW_LOGICAL_ARTIFACT: {e:?}"))?;
         let checked=crate::unit_wire::project_runtime_attachment::check_bytes(artifact.as_bytes())?;
         let context=crate::unit_wire::project_runtime_attachment::check_saved_revision_context(&checked,&self.owned,parent,revision)?;
         let request=ActualPreparedRequestV1::from_logical(&self.run,&context,parent,revision).map_err(|e|format!("E_SOURCE_NEW_LOGICAL_REQUEST: {e:?}"))?;

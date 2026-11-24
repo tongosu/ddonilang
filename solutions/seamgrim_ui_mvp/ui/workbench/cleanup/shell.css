@@ -1,0 +1,120 @@
+/* WO17 common UI shell. World, source and producer values are never changed by layout. */
+.app-frame[data-ui-cleanup="r1"] {--overlay-color:#a94d00;--side-color:#145ea8;}
+[data-ui-cleanup="r1"] .topbar {display:none;}
+[data-ui-cleanup="r1"] .main-shell {display:block;height:100%;padding:12px;}
+[data-ui-cleanup="r1"] .project-rail {display:none;}
+[data-ui-cleanup="r1"] .workbench {height:100%;gap:8px;}
+[data-ui-cleanup="r1"] [hidden] {display:none !important;}
+[data-ui-cleanup="r1"] .workbench-toolbar {display:flex;flex-direction:row;align-items:center;gap:8px;max-height:none;overflow:visible;}
+[data-ui-cleanup="r1"] .project-title-block {display:none;}
+[data-ui-cleanup="r1"] .project-actions {flex:1;display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;}
+[data-ui-cleanup="r1"] .cleanup-title-menu {min-width:min(100%,16rem);flex:1 1 16rem;}
+[data-ui-cleanup="r1"] .cleanup-title-menu>summary {font-size:18px;font-weight:bold;overflow-wrap:anywhere;cursor:pointer;}
+[data-ui-cleanup="r1"] .cleanup-menu,[data-ui-cleanup="r1"] .project-more-actions {position:absolute;z-index:32;top:60px;right:12px;max-width:calc(100vw - 32px);width:310px;max-height:75dvh;overflow:auto;background:var(--panel,#fff);border:1px solid #a6b4a6;padding:12px;box-shadow:0 8px 28px #0003;display:grid;gap:8px;}
+[data-ui-cleanup="r1"] .cleanup-title-menu .cleanup-menu {left:12px;right:auto;}
+[data-ui-cleanup="r1"] .mode-switch {flex-shrink:0;}
+[data-ui-cleanup="r1"] .run-strip {display:flex;align-items:center;justify-content:space-between;min-height:48px;flex-shrink:0;margin:0;gap:12px;flex-wrap:wrap;}
+.cleanup-run-group,.cleanup-history-group {display:flex;align-items:center;gap:8px;min-height:44px;}
+.cleanup-history-group {border-left:1px solid #aab5aa;padding-left:12px;}
+[data-ui-cleanup="r1"] .run-status {max-width:360px;white-space:normal;}
+[data-ui-cleanup="r1"] .file-tabs,[data-ui-cleanup="r1"] [data-testid="example-guide"], [data-ui-cleanup="r1"] .bogae-meta {display:none;}
+[data-ui-cleanup="r1"] .workbench-layout {flex:1;min-height:0;}
+[data-ui-cleanup="r1"] .source-panel {display:flex;flex-direction:column;min-height:0;overflow:auto;}
+[data-ui-cleanup="r1"] .source-editor-shell {display:grid;grid-template-columns:38px minmax(0,1fr);flex:1 1 18rem;min-height:10rem;position:relative;overflow:hidden;}
+.cleanup-source-lines {font:14px/22.4px Consolas,monospace;box-sizing:border-box;margin:0;padding:12px 6px;overflow:hidden;text-align:right;color:#526153;background:#eef2ed;user-select:none;border-right:1px solid #cad4c8;}
+[data-ui-cleanup="r1"] .source-panel .source-editor-shell textarea {font:14px/22.4px Consolas,monospace;box-sizing:border-box;padding:12px;min-height:0;resize:none;height:100%;border:0;}
+.cleanup-source-notice {min-height:0;max-height:32%;overflow:auto;overflow-wrap:anywhere;padding:4px 10px;flex:0 1 auto;border-top:1px solid #c8d2c8;font-size:13px;background:#f5f8f3;}
+.cleanup-source-notice[data-state="error"] {background:#fff1ee;color:#8d2317;border-color:#d05c45;}
+[data-ui-cleanup="r1"] .bogae-panel {min-height:0;overflow:auto;}
+[data-ui-cleanup="r1"] .bogae-stage {height:max(220px,calc(100dvh - 260px));min-height:220px;align-items:center;}
+[data-ui-cleanup="r1"] .bogae-stage>.canvas-wrap {margin:auto;max-width:100%;max-height:100%;width:min(100%,calc((100dvh - 260px)*var(--primary-aspect,1.3333333333)));}
+[data-ui-cleanup="r1"] #canvas-bogae {display:block;width:100%;height:100%;min-height:0;}
+[data-ui-cleanup="r1"] .side-view-panel {border-color:var(--side-color);}
+[data-ui-cleanup="r1"] .bogae-stage:not([data-authored-layout="true"])[data-side-open="true"][data-cleanup-dock="right"] {grid-template-columns:minmax(0,1fr) 250px;}
+[data-ui-cleanup="r1"] .bogae-stage:not([data-authored-layout="true"])[data-side-open="true"][data-cleanup-dock="bottom"] {grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,7fr) minmax(0,3fr);}
+[data-ui-cleanup="r1"] .view-role[data-view-action="toggle-overlay"], [data-ui-cleanup="r1"] [data-authored-role="overlay"] {color:var(--overlay-color);}
+[data-ui-cleanup="r1"] .view-role[data-view-action="add-side"], [data-ui-cleanup="r1"] .authored-side-dock {border-color:var(--side-color);}
+.cleanup-browser {height:100%;overflow:auto;max-width:1200px;margin:auto;}
+.cleanup-browser h1 {font-size:28px;}
+.cleanup-browser>button {margin:4px 8px 12px 0;}
+.cleanup-browser>input {display:block;width:min(100%,480px);padding:12px;box-sizing:border-box;}
+.cleanup-browser-tabs {display:flex;flex-wrap:wrap;gap:8px;margin:18px 0;}
+.cleanup-browser-tabs button[aria-pressed="true"] {background:#24583c;color:white;}
+.cleanup-cards {display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;padding:4px;}
+.cleanup-card {display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:10px;padding:20px;min-height:130px;}
+.cleanup-card span {font-weight:normal;white-space:normal;}
+[data-ui-cleanup="r1"] button:focus-visible,[data-ui-cleanup="r1"] summary:focus-visible {outline:3px solid #165eae;outline-offset:2px;}
+@media(max-width:720px){
+ [data-ui-cleanup="r1"] .main-shell {padding:8px;}
+ [data-ui-cleanup="r1"] .workbench-toolbar {flex-wrap:wrap;}
+ [data-ui-cleanup="r1"] .project-actions {flex-basis:100%;gap:6px;}
+ [data-ui-cleanup="r1"] .cleanup-title-menu>summary {font-size:16px;}
+ [data-ui-cleanup="r1"] .mode-switch {display:flex;width:100%;}
+ [data-ui-cleanup="r1"] .mode-switch button {flex:1;min-height:44px;}
+ [data-ui-cleanup="r1"] .run-strip {gap:4px;}
+ [data-ui-cleanup="r1"] .cleanup-history-group {border:0;padding:0;min-height:44px;}
+ [data-ui-cleanup="r1"] .workbench-layout {display:block;overflow:auto;}
+ [data-ui-cleanup="r1"] .panel-divider {display:none;}
+ [data-ui-cleanup="r1"] .workbench-layout[data-mobile-source="true"] .bogae-panel {display:none;}
+ [data-ui-cleanup="r1"] .workbench-layout[data-mobile-source="false"] .source-panel {display:none;}
+ [data-ui-cleanup="r1"] .source-panel {height:100%;min-height:0;}
+ [data-ui-cleanup="r1"] .source-editor-shell {flex:1 1 20rem;min-height:12rem;}
+ [data-ui-cleanup="r1"] .bogae-stage {height:calc(100dvh - 320px);}
+ [data-ui-cleanup="r1"] .run-status {max-width:180px;}
+ [data-ui-cleanup="r1"] button {min-height:44px;}
+}
+
+[data-ui-cleanup="r1"] .cleanup-temporary-covered {display:none;}
+[data-ui-cleanup="r1"] [data-testid="temporary-editor-run"] {height:max(220px,calc(100dvh - 260px));max-height:none;overflow:auto;box-sizing:border-box;}
+@media(max-width:720px){[data-ui-cleanup="r1"] [data-testid="temporary-editor-run"] {height:max(220px,calc(100dvh - 320px));}}
+[data-ui-cleanup="r1"] [data-testid="temporary-editor-run"] [data-temp="output"] {background:#f1f6ef;font-size:18px;padding:12px;}
+
+[data-ui-cleanup="r1"] [data-relation-kind="overlay"] {color:var(--overlay-color);border-color:var(--overlay-color);}
+[data-ui-cleanup="r1"] [data-relation-kind="side"] {color:var(--side-color);border-color:var(--side-color);}
+
+@media(max-width:720px){
+ [data-ui-cleanup="r1"] .project-actions {display:grid;grid-template-columns:minmax(120px,1fr) auto auto auto;gap:6px;}
+ [data-ui-cleanup="r1"] .cleanup-title-menu {grid-row:1;grid-column:1;}
+ [data-ui-cleanup="r1"] [data-testid="cleanup-browse"] {grid-row:1;grid-column:2;}
+ [data-ui-cleanup="r1"] [data-testid="project-save"] {grid-row:1;grid-column:3;}
+ [data-ui-cleanup="r1"] .project-more-menu {grid-row:1;grid-column:4;}
+ [data-ui-cleanup="r1"] [data-testid="project-save-status"] {grid-row:2;grid-column:1/-1;min-width:0;overflow-wrap:anywhere;}
+ [data-ui-cleanup="r1"] .cleanup-title-menu>summary {word-break:keep-all;}
+}
+
+.cleanup-notice-summary {margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5;}
+.cleanup-notice-details>summary {cursor:pointer;min-height:28px;}
+.cleanup-notice-list {max-height:10rem;overflow:auto;}
+.cleanup-notice-item {padding:6px 0;border-top:1px solid #c8d2c8;}
+.cleanup-notice-item p {margin:0;white-space:pre-wrap;overflow-wrap:anywhere;}
+.cleanup-notice-item small {display:block;overflow-wrap:anywhere;}
+.cleanup-notice-item button {margin-top:4px;}
+
+/* Fixed desktop viewport; scroll the editor, results and menus, not the page. */
+@media(min-width:721px){html,body{height:100%;overflow:hidden}.app-frame[data-ui-cleanup="r1"]{height:100dvh;min-height:0;box-sizing:border-box}[data-ui-cleanup="r1"] .main-shell{box-sizing:border-box;min-height:0}[data-ui-cleanup="r1"] .workbench{min-height:0;overflow:hidden}}
+.project-more-actions>section{display:grid;gap:6px;border-bottom:1px solid #ccd4cc;padding-bottom:8px}
+.project-more-actions>section>strong{font-size:12px;color:#536153}
+.cleanup-stage-controls{display:flex;align-items:center;flex-wrap:wrap;gap:6px;grid-column:1/-1}
+.cleanup-stage-controls .view-roles,.cleanup-stage-controls .authored-view-toolbar{display:flex;gap:6px;flex-wrap:wrap}
+.cleanup-stage-controls .view-role{border-radius:999px}
+
+.authored-magnifier-popover{max-height:min(calc(100% - 8px),calc(100dvh - 16px))}
+[data-authored-relation-controls] button[data-relation-kind="overlay"],[data-testid="authored-side-chip"]{border-radius:999px}
+
+/* Chips belong to the primary canvas, outside the authored dock grid. */
+[data-ui-cleanup="r1"] .canvas-wrap{position:relative}
+.cleanup-stage-controls{position:absolute;inset:4px 4px auto;z-index:5;pointer-events:none}
+.cleanup-stage-controls button,.cleanup-stage-controls summary{pointer-events:auto}
+
+/* The committed 3D stage keeps authored side docks in the scroll flow. */
+[data-ui-cleanup="r1"] .workbench-layout:not([data-mode="bogae-full"]) [data-testid="bogae-stage"][data-authored-layout="true"]:has(> .canvas-wrap > [data-testid="committed-space3-view"]) {
+  height:auto;
+}
+
+/* 상시 조작: 실행 전 누를 수 없는 한 마디·멈춤은 자리만 두고 숨긴다(누를 수 있게 되면 그 자리에 보인다). */
+[data-ui-cleanup="r1"][data-execution-state="idle"] [data-testid="lifecycle-step"]:disabled,
+[data-ui-cleanup="r1"][data-execution-state="idle"] [data-testid="lifecycle-stop"]:disabled {visibility:hidden;}
+/* 으뜸 칩은 보개 역할이 둘 이상일 때(다른 역할 칩이 하나라도 보일 때)만 보인다. */
+[data-ui-cleanup="r1"] .cleanup-stage-controls:not(:has(.view-role:not([data-testid="view-role-primary"]):not([hidden]), [data-testid="authored-side-chip"]:not([hidden]), [data-authored-relation-toggle]:not([hidden]))) [data-testid="view-role-primary"] {display:none;}
+/* 돋보기 창은 무대 칩(z-index 5) 위에 둔다. 창이 무대 위쪽에 붙어도 제목 줄이 칩에 가리지 않는다. */
+[data-ui-cleanup="r1"] .authored-magnifier-popover {z-index:6;}

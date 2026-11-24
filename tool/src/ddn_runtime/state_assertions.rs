@@ -189,6 +189,9 @@ impl<'a> EvalContext<'a> {
             .clone();
         let args = state_machine_transition_action_args(&seed, bindings)?;
         let mut child = EvalContext {
+            active_function_graph:self.active_function_graph.clone(),
+            source_root_values:Rc::new(RefCell::new(self.source_root_values.borrow().clone())),
+            active_function_sources:self.active_function_sources.clone(),
             explicit_nfc_provenance: self.explicit_nfc_provenance.clone(),
             result_emissions: self.result_emissions.clone(),
             program: self.program,
@@ -233,6 +236,7 @@ impl<'a> EvalContext<'a> {
             sum_definitions: self.sum_definitions.clone(),
             sum_pattern_bindings: self.sum_pattern_bindings.clone(),
             project_asset_registry: self.project_asset_registry,
+            source_bound_binary_assets: self.source_bound_binary_assets,
             work_cost: Rc::clone(&self.work_cost),
             internal_dispatch: self.internal_dispatch.clone(),
         };
@@ -273,6 +277,9 @@ impl<'a> EvalContext<'a> {
     ) -> Result<(), EvalError> {
         let bindings = build_state_machine_transition_bindings(&transition.from, &transition.to);
         let mut child = EvalContext {
+            active_function_graph:self.active_function_graph.clone(),
+            source_root_values:Rc::new(RefCell::new(self.source_root_values.borrow().clone())),
+            active_function_sources:self.active_function_sources.clone(),
             explicit_nfc_provenance: self.explicit_nfc_provenance.clone(),
             result_emissions: self.result_emissions.clone(),
             program: self.program,
@@ -317,6 +324,7 @@ impl<'a> EvalContext<'a> {
             sum_definitions: self.sum_definitions.clone(),
             sum_pattern_bindings: self.sum_pattern_bindings.clone(),
             project_asset_registry: self.project_asset_registry,
+            source_bound_binary_assets: self.source_bound_binary_assets,
             work_cost: Rc::clone(&self.work_cost),
             internal_dispatch: self.internal_dispatch.clone(),
         };
@@ -437,6 +445,9 @@ impl<'a> EvalContext<'a> {
             Err(error) => return AssertionEvaluation::Fault(error.message()),
         };
         let mut child = EvalContext {
+            active_function_graph:self.active_function_graph.clone(),
+            source_root_values:Rc::new(RefCell::new(self.source_root_values.borrow().clone())),
+            active_function_sources:self.active_function_sources.clone(),
             program: self.program,
             result_emissions: Default::default(),
             source_span_cache: Rc::clone(&self.source_span_cache),
@@ -481,6 +492,7 @@ impl<'a> EvalContext<'a> {
             sum_definitions: self.sum_definitions.clone(),
             sum_pattern_bindings: self.sum_pattern_bindings.clone(),
             project_asset_registry: self.project_asset_registry,
+            source_bound_binary_assets: self.source_bound_binary_assets,
             work_cost: Rc::clone(&self.work_cost),
             internal_dispatch: self.internal_dispatch.clone(),
         };

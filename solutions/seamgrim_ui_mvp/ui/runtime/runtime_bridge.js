@@ -6,6 +6,7 @@ export const RUNTIME_BRIDGE_V1_SCHEMA = "seamgrim.runtime_bridge.v1";
 export const RUNTIME_BRIDGE_V1_OPERATIONS = Object.freeze([
   "authoredProjectOperation",
   "observeMathNotebook",
+  "observeAlgebraProject",
   "compareGeneralOriginalRecording",
   "createSession",
   "createLogicalSession",
@@ -53,6 +54,10 @@ class RuntimeSessionV1 {
     return this.#adapterSession.updateLogic(sourceText);
   }
 
+  configureProjectAssetsBinary(projectSourceJson, binaryFiles) {
+    return this.#adapterSession.configureProjectAssetsBinary(projectSourceJson, binaryFiles);
+  }
+
   getExecutionModeDecision() {
     return this.#adapterSession.getExecutionModeDecision();
   }
@@ -94,6 +99,7 @@ export class WasmRuntimeAdapter {
     }
     this.createWasmVmImpl = createWasmVmImpl;
     this.projectModulePromise = null;
+    this.algebraProjectModulePromise = null;
   }
 
   async createSession(options) {
@@ -229,11 +235,36 @@ export class WasmRuntimeAdapter {
     return JSON.parse(String(operation(sourceText) ?? "{}"));
   }
 
+  async observeAlgebraProject({ sourceProjectText } = {}) {
+    if (typeof sourceProjectText !== 'string' || !sourceProjectText.length) {
+      throw new TypeError('전체 작품의 정확한 작성 자료가 필요합니다.');
+    }
+    const module = await this.ensureProjectModule();
+    // Original raw artifact bytes enter Rust; no linking, equation evaluation or report repair here.
+    return JSON.parse(requireExport(module, 'wasm_observe_algebra_project_json')(sourceProjectText));
+  }
+
   async verifyAssumptionSource(sourceText, sourcePath, options = undefined) {
     if (typeof sourceText !== "string" || typeof sourcePath !== "string" || !sourcePath.length) {
       throw new TypeError("보임 검사에는 현재 원문과 파일 경로가 필요합니다.");
     }
     const module = await this.ensureProjectModule();
+    if (options?.mode === 'assumption-evidence') {
+      if (Object.keys(options).some(key => key !== 'mode')) throw new TypeError('목표별 근거 관찰의 입력을 확인하세요.');
+      return JSON.parse(requireExport(module, 'wasm_observe_assumption_source_json')(sourceText, sourcePath));
+    }
+    if (options?.mode === 'linear-targets') {
+      if (Object.keys(options).some(key => key !== 'mode')) throw new TypeError('B 대상 읽기의 입력을 확인하세요.');
+      return JSON.parse(requireExport(module,'wasm_observe_linear_targets_json')(sourceText,sourcePath));
+    }
+    if (options?.mode === 'linear') {
+      if (Object.keys(options).some(key => !['mode', 'target'].includes(key)) || !options.target
+          || typeof options.target !== 'object' || Array.isArray(options.target)) {
+        throw new TypeError('B 검사에는 명시한 원문 판본과 정의·초기 가정 대상이 필요합니다.');
+      }
+      return JSON.parse(requireExport(module, 'wasm_observe_linear_problem_json')(
+        sourceText, sourcePath, JSON.stringify(options.target)));
+    }
     if (options !== undefined && (options === null || typeof options !== "object" || Array.isArray(options)
         || Object.keys(options).some((key) => key !== "includeSteps")
         || (options.includeSteps !== undefined && typeof options.includeSteps !== "boolean"))) {
@@ -323,10 +354,14 @@ export class WasmRuntimeAdapter {
     return String(requireExport(wasmModule, "authored_project_operation",
       "E_AUTHORED_PROJECT_WASM_REQUIRED: 새 작품자료 WASM이 필요합니다")(String(operation), String(text)));
   }
-  async observeMathNotebook({ sourceText, sourcePath, sourceProjectText }) {
+  async observeMathNotebook({ sourceText, sourcePath, sourceProjectText, modelKind }) {
+    if (modelKind !== undefined && !["uniform_motion", "water_tank"].includes(modelKind)) throw new Error("E_NOTEBOOK_MODEL: 지원하지 않는 명시 모형입니다.");
+    if (modelKind !== undefined && typeof sourceProjectText !== "string") throw new Error("E_NOTEBOOK_INPUT: 명시 모형에는 전체 작품 원문이 필요합니다.");
     if (typeof sourceProjectText === "string") {
       if (sourceText !== undefined || sourcePath !== undefined) throw new Error("E_NOTEBOOK_INPUT: 작품과 단일 원문을 함께 넘기지 마세요.");
       const wasmModule = await this.ensureProjectModule();
+      if (modelKind !== undefined) return JSON.parse(requireExport(wasmModule, "wasm_math_notebook_observe_project_model",
+        "E_NOTEBOOK_MODEL_WASM_REQUIRED: 명시 모형 관찰 WASM이 필요합니다.")(sourceProjectText, modelKind));
       return JSON.parse(requireExport(wasmModule, "wasm_math_notebook_observe_project")(sourceProjectText));
     }
     if (typeof sourceText !== "string" || typeof sourcePath !== "string") {
@@ -460,6 +495,7 @@ export class RuntimeBridgeV1 {
   planGajiExtraction(request) { return this.#adapter.planGajiExtraction(request); }
   projectSourceSha256(source) { return this.#adapter.projectSourceSha256(source); }
   authoredProjectOperation(request) { return this.#adapter.authoredProjectOperation(request); }
+  observeAlgebraProject(request) { return this.#adapter.observeAlgebraProject(request); }
   observeMathNotebook(request) {
     if (typeof this.#adapter.observeMathNotebook !== "function") {
       throw new Error("E_NOTEBOOK_ADAPTER_UNAVAILABLE: 현재 실행 어댑터에 수학 노트 연결이 없습니다");

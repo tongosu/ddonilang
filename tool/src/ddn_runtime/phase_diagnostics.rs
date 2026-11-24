@@ -53,6 +53,7 @@ impl Collector<'_> {
                 }
                 Domain::Unknown
             }
+            ExprKind::FunctionBlock{statements,result}=>{let mut local=env.clone();self.statements(&statements.stmts,&mut local);self.expression(result,&mut local)},
             ExprKind::Thunk(body) => {
                 let mut local = env.clone(); invalidate(&mut local);
                 self.statements(&body.stmts, &mut local); Domain::Unknown

@@ -41,6 +41,9 @@ impl<'a> EvalContext<'a> {
         internal_dispatch: InternalDdnRunnerDispatchState,
     ) -> Self {
         Self {
+            active_function_graph:None,
+            source_root_values:Default::default(),
+            active_function_sources:None,
             program,
             subject_stage:None,
             result_emissions: Default::default(),
@@ -88,6 +91,7 @@ impl<'a> EvalContext<'a> {
             }).collect(),
             sum_pattern_bindings: Vec::new(),
             project_asset_registry,
+            source_bound_binary_assets: None,
             work_cost,
             internal_dispatch,
         }
@@ -194,6 +198,31 @@ impl<'a> EvalContext<'a> {
         lambda: &LambdaValue,
         args: &[Value],
     ) -> Result<Value, EvalError> {
+        if let Some(target)=&lambda.named_target {
+            if target.source_identity()!=self.program.source_identity {
+                return Err("다른 원문·의존 판본의 함수값은 적용할 수 없습니다".to_string().into());
+            }
+            // The existing checked piecewise owner validates source/definition/
+            // pin/type and exact D membership before selecting one original row.
+            let graph=if target.definition().body.is_some(){
+                Some(self.program.numeric_constraint_plan.as_ref().and_then(|plan|plan.function_graphs.get(target.definition().id))
+                    .ok_or_else(||EvalError::from("E_FUNCTION_CALL_SOURCE: 실제 이름 있는 함수의 원문 그래프가 없습니다".to_string()))?)
+            }else{None};
+            let previous=std::mem::replace(&mut self.active_function_graph,graph);
+            let previous_sources=self.active_function_sources.replace(lambda.captured_sources.clone());
+            let result=self.eval_seed_after_dispatch(target.definition(),args.to_vec());
+            self.active_function_graph=previous;self.active_function_sources=previous_sources;
+            return result;
+        }
+        if let Some(target)=&lambda.anonymous_target {
+            if target.source_identity()!=self.program.source_identity || target.body_id()!=lambda.body.id {
+                return Err("다른 원문·판본의 익명 함수값은 적용할 수 없습니다".to_string().into());
+            }
+            if let ddonirang_lang::TypeRef::Function{params,..}=target.function_type() {
+                if params.len()!=args.len(){return Err("함수 받는자리 수가 다릅니다".to_string().into());}
+                for (arg,kind) in args.iter().zip(params){ddonirang_lang::runtime::check_value_type(arg,kind).map_err(|_|EvalError::from("함수 입력씨가 다릅니다".to_string()))?;}
+            }
+        }
         let params = lambda_param_names(&lambda.param);
         if args.len() != params.len() {
             return Err(format!("씨앗 인자는 {}개여야 합니다", params.len()).into());
@@ -202,7 +231,21 @@ impl<'a> EvalContext<'a> {
         for (param, arg) in params.iter().zip(args.iter()) {
             locals.insert(param.clone(), arg.clone());
         }
-        self.eval_expr(&mut locals, &lambda.body)
+        let graph=if lambda.anonymous_target.is_some(){
+            let graph=self.program.numeric_constraint_plan.as_ref().and_then(|plan|plan.function_graphs.get(lambda.body.id))
+                .ok_or_else(||EvalError::from("E_FUNCTION_CALL_SOURCE: 실제 함수 원문 그래프가 없습니다".to_string()))?;
+            if graph.root()!=lambda.body.id{return Err("E_FUNCTION_CALL_SOURCE: 함수 본문 그래프가 다릅니다".to_string().into());}
+            Some(graph)
+        }else{None};
+        let previous=std::mem::replace(&mut self.active_function_graph,graph);
+        let previous_sources=self.active_function_sources.replace(lambda.captured_sources.clone());
+        let result=self.eval_expr(&mut locals, &lambda.body);
+        self.active_function_graph=previous;self.active_function_sources=previous_sources;
+        let value=result?;
+        if let Some(target)=&lambda.anonymous_target {
+            if let ddonirang_lang::TypeRef::Function{result,..}=target.function_type(){ddonirang_lang::runtime::check_value_type(&value,result).map_err(|_|EvalError::from("함수 결과씨가 다릅니다".to_string()))?;}
+        }
+        Ok(value)
     }
 
     pub(super) fn eval_inject_fields(
@@ -506,10 +549,10 @@ impl<'a> EvalContext<'a> {
                 Value::BogaeRelation(_) | Value::BogaeComposition(_) => {
                     return Err("보개관계 정체 해소 전에는 관계를 비교할 수 없습니다".to_string().into());
                 }
-                Value::Scene(_) | Value::SceneElement(_) | Value::View(ddonirang_lang::runtime::ViewValue::Scene(_)) => {
+                Value::Scene(_) | Value::SpaceScene(_) | Value::SceneElement(_) | Value::View(ddonirang_lang::runtime::ViewValue::Scene(_) | ddonirang_lang::runtime::ViewValue::SpaceScene(_)) => {
                     return Err("E_SCENE_OPERATION_UNSUPPORTED: 장면 값의 비교·열쇠 사용은 아직 지원하지 않습니다".to_string().into());
                 }
-                Value::View(view) if matches!(view.without_time(), ddonirang_lang::runtime::ViewValue::Scene(_)) => {
+                Value::View(view) if matches!(view.without_time(), ddonirang_lang::runtime::ViewValue::Scene(_) | ddonirang_lang::runtime::ViewValue::SpaceScene(_)) => {
                     return Err("E_SCENE_OPERATION_UNSUPPORTED: 장면 값의 비교·열쇠 사용은 아직 지원하지 않습니다".to_string().into());
                 }
                 Value::Lambda(_) | Value::ResourceHandle(_) | Value::StateMachine(_) | Value::Formula(_) => {
@@ -1064,6 +1107,7 @@ impl<'a> EvalContext<'a> {
         keep_locals: bool,
     ) -> EvalFrameSnapshot {
         EvalFrameSnapshot {
+            source_root_values:self.source_root_values.borrow().clone(),
             result_emissions: self.result_emissions.clone(),
             derived_initialized:self.derived_initialized,
             subject_stage:self.subject_stage.as_ref().map(|stage|stage.borrow().clone()),
@@ -1096,6 +1140,7 @@ impl<'a> EvalContext<'a> {
             *locals = saved_locals.clone();
         }
         self.resources = snapshot.resources.clone();
+        *self.source_root_values.borrow_mut()=snapshot.source_root_values.clone();
         self.result_emissions = snapshot.result_emissions.clone();
         self.derived_initialized=snapshot.derived_initialized;
         if let (Some(stage),Some(saved))=(&self.subject_stage,&snapshot.subject_stage) {*stage.borrow_mut()=saved.clone();}
@@ -1435,7 +1480,7 @@ impl<'a> EvalContext<'a> {
                 self.resources.insert(name.to_string(), value);
             }
             Value::SceneElement(_) => { self.resources.insert(name.to_string(), value); }
-            Value::Scene(_) => { self.resources.insert(name.to_string(), value); }
+            Value::Scene(_) | Value::SpaceScene(_) => { self.resources.insert(name.to_string(), value); }
             Value::BogaeRelation(_) => {
                 self.resources.insert(name.to_string(), value);
             }

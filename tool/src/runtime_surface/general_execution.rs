@@ -424,7 +424,10 @@ pub(super) fn run_summary_with_general_input_supplier(
         return model_run_summary_from_source(source, file_path, project_asset_registry);
     }
     let source_profile_identity = source_profile
-        .map(|_| V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY)
+        .map(|profile|match profile {
+            SupportedSourceProfile::V1CoreV25=>V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY,
+            SupportedSourceProfile::V1CoreV25JaBaseR1=>ddonirang_lang::ddl::J1_SOURCE_PROFILE,
+        })
         .unwrap_or("strict");
     let effective_age_target = age_target.unwrap_or_else(crate::ddn_runtime::default_age_target);
     let (prepared, mut program) = if let Some(owned) = general_saved_owner {
@@ -437,14 +440,25 @@ pub(super) fn run_summary_with_general_input_supplier(
         (prepared,program)
     } else { match source_profile {
         Some(profile) => {
-            let program = DdnProgram::from_supported_source_profile_with_mode_and_age_target(
-                source,
-                file_path,
-                ParseMode::Strict,
-                profile,
-                effective_age_target,
+            let program = if matches!(profile, SupportedSourceProfile::V1CoreV25JaBaseR1) {
+                DdnProgram::from_j1_source_with_mode_diagnostic(
+                    source, file_path, ParseMode::Strict, effective_age_target,
+                )?
+            } else {
+                DdnProgram::from_supported_source_profile_diagnostic_with_host(
+                source,file_path,ParseMode::Strict,profile,effective_age_target,None,
             )
-            .map_err(|message| {
+            .map_err(|failure| {
+                if failure.span.is_some(){
+                    let mut diagnostic=failure;
+                    if matches!(diagnostic.code,"E_TYPE_MISMATCH"|"E_CHECK_TYPE_MISMATCH"|"E_CHECK_TUPLE_SELECTION"|"E_CHECK_UNKNOWN_NAME"|"E_NUMERIC_COMPARISON_TYPE_MISMATCH"|"E_NUMERIC_COMPARISON_TYPE_UNRESOLVED") {
+                        diagnostic.phase="source_type_check";
+                    }
+                    return diagnostic;
+                }
+                // Retain legacy non-mechanical error categories without a
+                // second parser/checker invocation for a typed failure.
+                let message=failure.message;
                 if let Some(diagnostic) = supported_source_parse_diagnostic(source, file_path, &message) {
                     return diagnostic;
                 }
@@ -460,7 +474,8 @@ pub(super) fn run_summary_with_general_input_supplier(
                     "E_PARSE"
                 };
                 run_summary_diagnostic(code, message, file_path, "execution_parse")
-            })?;
+            })?
+            };
             let prepared =
                 prepare_supported_source_for_execution_with_program(source, file_path, &program)?;
             (prepared, program)
@@ -625,7 +640,20 @@ pub(super) fn run_summary_with_general_input_supplier(
             work_cost_failure_diagnostic(failure, file_path, "resource_preflight")
         })?;
     if let Some(registry) = project_asset_registry {
-        runner = runner.with_project_asset_registry(registry);
+        if general_saved_owner.is_none() {
+            if let Some(capture) = runner.sealed_execution_source_capture() {
+                let assets = crate::authored_bogae::xy::binary_assets::PreparedBinaryAssets::from_native_execution(
+                    registry, file_path, capture);
+                runner.set_source_bound_binary_assets(Arc::new(assets)).map_err(|message|
+                    run_summary_diagnostic("E_AUTHORED_BOGAE", message, file_path, "asset_source_binding"))?;
+            } else {
+                // Preserve the old registry-only route for legacy sources.
+                runner = runner.with_project_asset_registry(registry);
+            }
+        } else {
+            // Transient bytes do not grant saved image/cold restoration.
+            runner = runner.with_project_asset_registry(registry);
+        }
     }
     let mut world = DetNuri::new();
     let mut defaults = HashMap::new();
@@ -690,6 +718,7 @@ pub(super) fn run_summary_with_general_input_supplier(
     let mut live_records = Vec::new();
     let mut input_receipts = Vec::new();
     let mut last_bogae_projection = None;
+    let mut last_table_selections = crate::bogae_projection::BoundTableSelections::default();
     let mut display_outputs = Vec::new();
     let mut observation_frames = preflight_observation_frames(&runner, effective_ticks as usize)
         .map_err(|failure| {
@@ -799,6 +828,7 @@ pub(super) fn run_summary_with_general_input_supplier(
         }));
         last_patch = output.patch;
         last_bogae_projection = output.bogae_projection;
+        last_table_selections = output.table_selections;
         last_input = serialize_input_snapshot(&input, Some(rng_base_seed));
         if let (Some(collector),Some(prepared))=(result_collector.as_mut(),prepared_result){
             collector.commit(prepared).map_err(|message|run_summary_diagnostic("E_GENERAL_RESULT_OUTPUT",message,file_path,"result_evidence"))?;
@@ -820,8 +850,14 @@ pub(super) fn run_summary_with_general_input_supplier(
         }
     }
     if let Some(projection)=last_bogae_projection.as_mut() {
-        crate::bogae_time::resolve_result_tables(projection,&observation_frames,&source_identity,&revision_identity)
-            .map_err(|message|run_summary_diagnostic("E_BOGAE_TIME_PROJECTION",message,file_path,"observation_projection"))?;
+        if last_table_selections.is_empty() {
+            crate::bogae_time::resolve_result_tables(projection,&observation_frames,&source_identity,&revision_identity)
+                .map_err(|message|run_summary_diagnostic("E_BOGAE_TIME_PROJECTION",message,file_path,"observation_projection"))?;
+        } else {
+            let selected=crate::bogae_time::resolve_typed_result_tables(projection,&observation_frames,&source_identity,&revision_identity,&last_table_selections)
+                .map_err(|message|run_summary_diagnostic("E_BOGAE_TIME_PROJECTION",message,file_path,"observation_projection"))?;
+            drop(crate::unit_wire::SnapshotJsonOwner::from_value(std::mem::replace(projection,selected)));
+        }
     }
     let mut state = crate::unit_wire::SnapshotJsonOwner::from_value(
         build_engine_state_json(&world, tick_id, last_input, &last_patch));
@@ -1106,3 +1142,16 @@ pub(super) fn finalize_run_summary_result_artifact(
     ))
 }
 
+
+#[cfg(test)]
+mod r31_j1_diagnostic_handoff_tests{
+    use super::*;
+    #[test]fn r31_j1_actual_failure_reaches_typed_api_without_reanalysis_or_stale_span(){
+        for raw in ["#!日本語\n((金額=(4,1) 有理数） 倍) 表示.\n","#!日本語\n// 日本語の元の位置\n((1,1) 有理数） 表示.\n"]{
+            let error=run_summary_from_supported_source_profile_diagnostic(raw,"actual-failed-input.ddn",Some(1),Some(ddonirang_lang::ddl::J1_SOURCE_PROFILE)).unwrap_err();
+            let start=raw.find('）').unwrap();assert_eq!(error.code,"E_MULTILANG_FULLWIDTH_SYNTAX");assert_eq!(error.span,Some((start,start+3)));
+            assert_eq!(error.source_path,"actual-failed-input.ddn");assert_eq!(error.cause.as_ref().unwrap().span,error.span);
+            assert_eq!(error.cause.as_ref().unwrap().code,error.code);
+        }
+    }
+}

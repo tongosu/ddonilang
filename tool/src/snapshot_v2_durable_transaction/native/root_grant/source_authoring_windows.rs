@@ -6,7 +6,9 @@ use super::{NewSourceRunPermitV1,RestartSourceWorldAttemptV1};
 use super::RestartSourceHistoryV1;
 
 fn authoring_head(adapter:&super::super::SqliteAdapterV1,project:&[u8])->Result<AuthoringHeadV1,Failure>{
-    let db=adapter.connect()?;
+    authoring_head_on(&adapter.connect()?,project)
+}
+fn authoring_head_on(db:&rusqlite::Connection,project:&[u8])->Result<AuthoringHeadV1,Failure>{
     db.query_row("SELECT history_revision_identity,revision_integrity_sha256,payload_key,payload_kind FROM vc04_project_heads WHERE project_identity=?1",[project],|r|{
         let revision=r.get_ref(0)?.as_blob()?;let integrity=r.get_ref(1)?.as_blob()?;let key=r.get_ref(2)?.as_blob()?;let kind=r.get::<_,i64>(3)?;
         if project.len()!=32||revision.is_empty()||revision.len()>4096||integrity.len()!=32||key.len()!=32||!(0..=1).contains(&kind){return Err(rusqlite::Error::InvalidQuery);}

@@ -81,7 +81,7 @@ impl<'a> EvalContext<'a> {
             // 아직 정체를 결속하지 않은 작성 관계는 순서 있는 차림으로만 운반한다.
             // 그 외 builtin의 열쇠·집합·검색은 내용/표시를 identity로 사용할 수 없다.
             if rule.is_some() && !matches!(func, "차림" | "목록" | "표준보개.짜임" | "표준보개.겹"
-                | "표준보개.으뜸" | "표준보개.곁" | "표준장면.원" | "표준장면.다각형" | "표준장면.글" | "표준장면.평면" | "표준보기.장면") {
+                | "표준보개.으뜸" | "표준보개.곁" | "표준장면.면" | "표준장면.카메라" | "표준장면.입체" | "표준장면.그림" | "표준장면.원" | "표준장면.다각형" | "표준장면.글" | "표준장면.평면" | "표준보기.장면") {
                 for arg in &args {
                     if contains_unresolved_bogae_relation_for_builtin(arg, &mut self.work_cost.borrow_mut(), func == "추가")? {
                         return Err("E_BOGAE_RELATION_UNRESOLVED: 보개관계 정체 해소 전에 이 내장 함수를 사용할 수 없습니다".to_string().into());
@@ -199,7 +199,21 @@ impl<'a> EvalContext<'a> {
                 "표준보개.돋" => in_call_arm_frame(|| {
                     Err("E_BOGAE_RECIPE_UNSEALED: 돋 보기법은 작성 정의 정체로 해소해야 합니다".to_string().into())
                 }),
-                "표준장면.원" | "표준장면.다각형" | "표준장면.글" | "표준장면.평면" | "표준보기.장면" => in_call_arm_frame(|| {
+                "표준장면.그림" => in_call_arm_frame(|| {
+                    let [Value::ResourceHandle(handle),horizontal,vertical]=args.as_slice() else {
+                        return Err("E_AUTHORED_BOGAE: 그림은 검증된 그림쓸감과 가로·세로 범위 3개를 받습니다".to_string().into());
+                    };
+                    let assets=self.source_bound_binary_assets.ok_or_else(||EvalError::from(
+                        "E_AUTHORED_BOGAE: 현재 실행 원문에 결속된 그림 바이트가 없습니다".to_string()))?;
+                    let capture=self.program.sealed_source_capture().ok_or_else(||EvalError::from(
+                        "E_AUTHORED_BOGAE: 실제 원문 캡처가 없습니다".to_string()))?;
+                    self.work_cost.borrow_mut().charge_element_visits(4)?;
+                    let candidate=crate::authored_bogae::xy::runtime_static_png::construct_candidate(
+                        assets,capture,*handle,horizontal,vertical).map_err(EvalError::from)?;
+                    crate::authored_bogae::xy::runtime_static_png::require_independent_physical_review().map_err(EvalError::from)?;
+                    Ok(candidate)
+                }),
+                "표준장면.원" | "표준장면.다각형" | "표준장면.글" | "표준장면.평면" | "표준장면.면" | "표준장면.카메라" | "표준장면.입체" | "표준보기.장면" => in_call_arm_frame(|| {
                     for arg in &args {
                         self.work_cost.borrow_mut().charge_element_visits(crate::scene_value::clone_visits(arg))?;
                     }
@@ -213,6 +227,11 @@ impl<'a> EvalContext<'a> {
                         }
                     }
                     let mut value=crate::scene_value::construct_with_meter(func, &args,Some(&mut self.work_cost.borrow_mut())).map_err(EvalError::from)?;
+                    match &mut value {
+                        Value::SceneElement(ddonirang_lang::runtime::PlaneElement::Face3{source,..})=>*source=source_span.clone(),
+                        Value::SceneElement(ddonirang_lang::runtime::PlaneElement::Camera3(camera))=>camera.source=source_span.clone(),
+                        Value::SpaceScene(scene)=>scene.source=source_span.clone(), _=>{},
+                    }
                     if let (Value::View(view),Some(policy))=(&mut value,time_override) {
                         let view=std::mem::replace(view,ddonirang_lang::runtime::ViewValue::ResultTable);
                         Ok(Value::View(ddonirang_lang::runtime::ViewValue::Timed {view:Box::new(view),policy}))
@@ -1253,9 +1272,23 @@ impl<'a> EvalContext<'a> {
                     let Value::String(text) = &args[0] else {
                         return Err("찾기는 글 인자를 받습니다".to_string().into());
                     };
-                    if self.program.program.source_epoch == ddonirang_lang::SourceEpoch::V25
-                        || !matches!(&args[1], Value::String(_))
-                    {
+                    if self.program.program.source_epoch == ddonirang_lang::SourceEpoch::V25 {
+                        if matches!(&args[1], Value::String(_)) {
+                            return Err("E_RUNTIME_TEXT_LOOKUP_UNSUPPORTED: 글 패턴 찾기는 v25에서 지원하지 않습니다".to_string().into());
+                        }
+                        let index = value_to_i64(&args[1])?;
+                        let Ok(position) = usize::try_from(index) else {
+                            return Ok(Value::None);
+                        };
+                        for (ordinal, grapheme) in text.graphemes(true).enumerate() {
+                            self.work_cost.borrow_mut().charge_element_visits(1)?;
+                            if ordinal == position {
+                                return Ok(Value::String(grapheme.to_string()));
+                            }
+                        }
+                        return Ok(Value::None);
+                    }
+                    if !matches!(&args[1], Value::String(_)) {
                         return Err("E_RUNTIME_TEXT_LOOKUP_UNSUPPORTED: 글 찾기는 아직 지원하지 않습니다. 고정된 유니코드 글자 경계 구현이 필요합니다".to_string().into());
                     }
                     let Value::String(pattern) = &args[1] else {
@@ -1519,6 +1552,13 @@ impl<'a> EvalContext<'a> {
                         return Err("바꾸기는 차림 인자를 받습니다".to_string().into());
                     };
                     let func = args[1].clone();
+                    if self.program.program.source_epoch == ddonirang_lang::ast::SourceEpoch::V25
+                        && matches!(&func, Value::String(_) | Value::RegisteredAtom(_)) {
+                        // Text/atom spellings are not RD085's sealed function
+                        // value. Never re-resolve a definition through that
+                        // data value; a domain/type guard later is too late.
+                        return Err("바꾸기의 함수 자리에는 봉인된 함수값이 필요합니다. 글·원자 이름은 함수 정체가 아닙니다".to_string().into());
+                    }
                     let mut out = Vec::with_capacity(items.len());
                     for item in items.iter().cloned() {
                         self.work_cost.borrow_mut().charge_element_visits(1)?;

@@ -1,3 +1,9 @@
+pub mod vc17;
+pub mod vc17_callable_ref;
+// B1 physical material only; typed Bool admission remains a separate checked consumer.
+pub mod logic_callable_registration_r1;
+// Reviewed fixed XY pack; no runtime identity issuance.
+pub mod xy_registration_r1;
 #[derive(Debug, Clone)]
 pub struct FunctionSig {
     pub name: &'static str,
@@ -1510,8 +1516,143 @@ pub fn numeric_type_constructor_sigs() -> Vec<FunctionSig> {
 }
 
 /// RD-123/RD-518: 기본 결과표 생성은 입력 받는자리가 없다.
+
+// Owner-adopted D1 issuance policy A. Raw32 material was drawn once by the
+// responsible standard-view owner; spelling/content hashes are NOT identities.
+// Immutable v1: append successors; never replace this entry or resolve latest.
+const RESULT_TABLE_D1_V1: &str = include_str!("stdlib/result_table_registration_r1.json");
+const RESULT_TABLE_D1_V1_SHA256: &str = "0168cdc420b86e65ba4cfb62ad2e0cb185410b6b870143d5287bf8dbc19c2673";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ResultTablePinRole { Time, Columns }
+
+/// Checked material only. This does not activate public dispatch or certify
+/// independent review. No Deserialize or caller-supplied identity constructor.
+#[derive(Clone, Debug)]
+pub struct CheckedResultTableDescriptor {
+    owner: [u8;32], definition: [u8;32], pins: [[u8;32];2], version: u32,
+}
+impl CheckedResultTableDescriptor {
+    pub fn owner(&self) -> &[u8;32] { &self.owner }
+    pub fn definition(&self) -> &[u8;32] { &self.definition }
+    pub fn version(&self) -> u32 { self.version }
+    pub fn pin(&self, role: ResultTablePinRole) -> &[u8;32] {
+        &self.pins[match role { ResultTablePinRole::Time=>0, ResultTablePinRole::Columns=>1 }]
+    }
+    pub fn check_owned_pin(&self, definition: &[u8;32], pin: &[u8;32], role: ResultTablePinRole) -> bool {
+        definition == &self.definition && pin == self.pin(role)
+    }
+    pub fn result_type(&self) -> crate::TypeRef { crate::TypeRef::Named("보기값".into()) }
+    /// Both roles are optional and singular. No len-1 positional heuristic.
+    pub fn argument_slots(&self, roles: &[ResultTablePinRole]) -> Result<[Option<usize>;2], String> {
+        let mut slots=[None,None];
+        for (index,role) in roles.iter().enumerate() {
+            let slot=match role {ResultTablePinRole::Time=>0,ResultTablePinRole::Columns=>1};
+            if slots[slot].replace(index).is_some() {return Err("결과표의 같은 받는자리를 두 번 지정했습니다".into());}
+        }
+        Ok(slots)
+    }
+}
+
+/// Inspection bytes are not a capability and cannot mint a registry record.
+pub fn result_table_registration_material(version:u32) -> Option<(&'static str,&'static str)> {
+    match version {1=>Some((RESULT_TABLE_D1_V1,RESULT_TABLE_D1_V1_SHA256)),_=>None}
+}
+fn result_table_raw_id(text:&str) -> Result<[u8;32],String> {
+    if text.len()!=64 || !text.bytes().all(|c|c.is_ascii_digit() || (b'a'..=b'f').contains(&c)) {
+        return Err("등록 정체는 정확한 소문자 raw32 표기여야 합니다".into());
+    }
+    let mut id=[0u8;32];
+    for (i,pair) in text.as_bytes().chunks_exact(2).enumerate() {
+        let digit=|b:u8| if b<=b'9' {b-b'0'} else {b-b'a'+10};
+        id[i]=digit(pair[0])*16+digit(pair[1]);
+    }
+    if id==[0;32] {return Err("영 정체를 발급할 수 없습니다".into());}
+    Ok(id)
+}
+fn validate_result_table_record(raw:&str, digest:&str, reserved:&[[u8;32]]) -> Result<CheckedResultTableDescriptor,String> {
+    let fail=||"결과표 등록 자료의 소유·판본·역할·무결성이 맞지 않습니다".to_string();
+    let hash=ddonirang_core::bytes::ByteSequence::new(raw.as_bytes().to_vec()).content_sha256();
+    let actual=hash.iter().map(|b|format!("{b:02x}")).collect::<String>();
+    if actual!=digest {return Err(fail());}
+    let value:serde_json::Value=serde_json::from_str(raw).map_err(|_|fail())?;
+    let object=value.as_object().ok_or_else(fail)?;
+    if object.len()!=6 || value["version"]!=1 || value["callable"]!="표준보기.결과표" || value["result"]!="보기값" {return Err(fail());}
+    let owner=result_table_raw_id(value["owner"].as_str().ok_or_else(fail)?)?;
+    let definition=result_table_raw_id(value["definition"].as_str().ok_or_else(fail)?)?;
+    let rows=value["pins"].as_array().ok_or_else(fail)?;
+    if rows.len()!=2 {return Err(fail());}
+    let mut pins=[[0;32];2];
+    for (i,(role,spelling,expectation)) in [("time","시간","existing_time_policy"),("columns","열들","nonempty_ordered_direct_root_public_observations")].iter().enumerate() {
+        let row=&rows[i];
+        if row.as_object().ok_or_else(fail)?.len()!=6 || row["definition"]!=value["definition"]
+            || row["role"]!=*role || row["spelling"]!=*spelling || row["optional"]!=true || row["expectation"]!=*expectation {return Err(fail());}
+        pins[i]=result_table_raw_id(row["identity"].as_str().ok_or_else(fail)?)?;
+    }
+    let mut used=std::collections::BTreeSet::new();
+    for id in [owner,definition,pins[0],pins[1]] {
+        if reserved.contains(&id) || !used.insert(id) {return Err("등록 정체가 다른 역할·owner와 충돌합니다".into());}
+    }
+    Ok(CheckedResultTableDescriptor {owner,definition,pins,version:1})
+}
+/// Exact lookup only. The reserved set belongs to the integration owner; the
+/// returned descriptor cannot authenticate an arbitrary AST/function spelling.
+pub fn lookup_result_table_registration(owner:&[u8;32], definition:&[u8;32], version:u32,
+    digest:&str, reserved:&[[u8;32]]) -> Result<CheckedResultTableDescriptor,String> {
+    let (raw,fixed_digest)=result_table_registration_material(version).ok_or("결과표 등록 판본이 없습니다")?;
+    if digest!=fixed_digest {return Err("결과표 등록 자료의 정확한 해시가 필요합니다".into());}
+    let checked=validate_result_table_record(raw,fixed_digest,reserved)?;
+    if checked.owner()!=owner || checked.definition()!=definition {return Err("결과표 등록 owner/정의가 다릅니다".into());}
+    Ok(checked)
+}
+
+#[cfg(test)]
+mod result_table_d1_tests {
+    use super::*;
+    fn checked()->CheckedResultTableDescriptor {validate_result_table_record(RESULT_TABLE_D1_V1,RESULT_TABLE_D1_V1_SHA256,&[]).unwrap()}
+    fn altered(mut edit:impl FnMut(&mut serde_json::Value))->bool {
+        let mut row:serde_json::Value=serde_json::from_str(RESULT_TABLE_D1_V1).unwrap();edit(&mut row);
+        let raw=serde_json::to_string(&row).unwrap();
+        let hash=ddonirang_core::bytes::ByteSequence::new(raw.as_bytes().to_vec()).content_sha256();
+        let digest=hash.iter().map(|b|format!("{b:02x}")).collect::<String>();
+        validate_result_table_record(&raw,&digest,&[]).is_err()
+    }
+    #[test] fn result_table_d1_exact_lookup_and_no_latest_fallback() {
+        let c=checked();
+        let v=lookup_result_table_registration(c.owner(),c.definition(),1,RESULT_TABLE_D1_V1_SHA256,&[]).unwrap();
+        assert_eq!(v.definition(),c.definition());
+        assert!(lookup_result_table_registration(c.owner(),c.definition(),2,RESULT_TABLE_D1_V1_SHA256,&[]).is_err());
+        assert!(lookup_result_table_registration(c.owner(),c.definition(),1,"bad",&[]).is_err());
+        assert!(lookup_result_table_registration(&[1;32],c.definition(),1,RESULT_TABLE_D1_V1_SHA256,&[]).is_err());
+        assert!(lookup_result_table_registration(c.owner(),&[1;32],1,RESULT_TABLE_D1_V1_SHA256,&[]).is_err());
+    }
+    #[test] fn result_table_d1_owned_roles_and_independent_optional_slots() {
+        let c=checked();use ResultTablePinRole::*;
+        assert!(c.check_owned_pin(c.definition(),c.pin(Time),Time));
+        assert!(!c.check_owned_pin(c.definition(),c.pin(Time),Columns));
+        assert!(!c.check_owned_pin(&[1;32],c.pin(Time),Time));
+        assert_eq!(c.argument_slots(&[]).unwrap(),[None,None]);
+        assert_eq!(c.argument_slots(&[Columns]).unwrap(),[None,Some(0)]);
+        assert_eq!(c.argument_slots(&[Columns,Time]).unwrap(),[Some(1),Some(0)]);
+        assert!(c.argument_slots(&[Time,Time]).is_err());
+        assert_eq!(c.result_type(),crate::TypeRef::Named("보기값".into()));
+    }
+    #[test] fn result_table_d1_rejects_zero_collision_and_reowned_pin() {
+        assert!(altered(|r|r["owner"]=serde_json::json!("0".repeat(64))));
+        assert!(altered(|r|r["pins"][1]["identity"]=r["pins"][0]["identity"].clone()));
+        assert!(altered(|r|r["pins"][1]["definition"]=r["owner"].clone()));
+        assert!(altered(|r|r["pins"][1]["optional"]=serde_json::json!(false)));
+        let c=checked();
+        for id in [*c.owner(),*c.definition(),*c.pin(ResultTablePinRole::Time),*c.pin(ResultTablePinRole::Columns)] {
+            assert!(validate_result_table_record(RESULT_TABLE_D1_V1,RESULT_TABLE_D1_V1_SHA256,&[id]).is_err());
+        }
+        assert!(validate_result_table_record(RESULT_TABLE_D1_V1,"bad",&[]).is_err());
+    }
+}
+
 pub fn view_function_sigs() -> Vec<FunctionSig> {
-    vec![FunctionSig { name:"표준장면.원", params:&["중심","반지름"], ret:"장면요소값" },
+    vec![FunctionSig { name:"표준보기.흩어진점", params:&["가로","세로"], ret:"보기값" },
+    FunctionSig { name:"표준보기.좌표선", params:&["가로","세로"], ret:"보기값" },FunctionSig { name:"표준장면.원", params:&["중심","반지름"], ret:"장면요소값" },
     FunctionSig { name:"표준장면.다각형", params:&["꼭짓점들"], ret:"장면요소값" },
     FunctionSig { name:"표준장면.글", params:&["자리","내용"], ret:"장면요소값" },
     FunctionSig { name:"표준장면.평면", params:&["요소들","가로범위","세로범위"], ret:"장면값" },
@@ -1543,7 +1684,10 @@ pub fn view_function_sigs() -> Vec<FunctionSig> {
         name: "표준보개.짜임",
         params: &["관계들"],
         ret: "보개짜임값",
-    }]
+    }, FunctionSig { name:"표준장면.그림", params:&["그림쓸감","가로범위","세로범위"], ret:"장면요소값" },
+    FunctionSig { name:"표준장면.면", params:&["꼭짓점들"], ret:"장면요소값" },
+    FunctionSig { name:"표준장면.카메라", params:&["자리","바라봄","위","투영","시야각"], ret:"장면요소값" },
+    FunctionSig { name:"표준장면.입체", params:&["요소들","카메라"], ret:"장면값" }]
 }
 
 /// Alpha2 logical snapshot query. Legacy physical input signatures are unchanged.

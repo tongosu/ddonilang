@@ -2,7 +2,10 @@
 import { appendDiagnosticPresentation, diagnosticSummary } from './diagnostic_display.js';
 import {runStatusPresentation,persistencePresentation,displayMessage} from './display_locale.js';
 import {extractObservationOutputLogFromState} from '../seamgrim_runtime_state.js';
-export function createViewPresentation({ activeFrame, activeRun, activeRuntimeSourceText, applyExplorationPreset, applySourceReadinessFixIt, authoredCompositionHost, buildCommittedCanonicalViewHistory, buildCommittedFrameCanonicalViewPayloads, buildCommittedSemanticViewPayload, currentLogicalPresentation, currentProject, currentVirtualProjectSourceHash, describePersistenceStatus, els, escapeHtml, EXECUTION_STATES, executionStatusLabel, extractObservationOutputRowsFromState, formatNumber, getSourceReadinessCandidate, loadLocalFallbackSnapshot, localProjectRunEvidenceFromProject, overlayViewInstances, primaryViewInstance, pushDiagnostic, reconcileViewWorkspace, renderAll, renderCommittedSemanticView, renderCurrentMadi, resizeCanvasToDisplaySize, selectCommittedOutputView, selectViewTarget, sideViewInstances, sourceReadinessViewOnly, stableHash, state, viewRoleCapabilities, workbenchHostExecutionState }) {
+import {committedObservationRows} from './committed_observation_display.mjs';
+import {observationCellDisplay} from './authored_bogae_renderer.js';
+import {space3PrimaryProjection} from './bogae/xy/space3_primary_view.mjs';
+export function createViewPresentation({ activeFrame, activeRun, activeRuntimeSourceText, applyExplorationPreset, applySourceReadinessFixIt, authoredCompositionHost, buildCommittedCanonicalViewHistory, buildCommittedFrameCanonicalViewPayloads, buildCommittedSemanticViewPayload, canShowSpace3Run, currentLogicalPresentation, currentProject, currentVirtualProjectSourceHash, describePersistenceStatus, els, escapeHtml, EXECUTION_STATES, executionStatusLabel, extractObservationOutputRowsFromState, formatNumber, getSourceReadinessCandidate, loadLocalFallbackSnapshot, localProjectRunEvidenceFromProject, overlayViewInstances, primaryViewInstance, pushDiagnostic, reconcileViewWorkspace, renderAll, renderCommittedSemanticView, renderCurrentMadi, resizeCanvasToDisplaySize, selectCommittedOutputView, selectViewTarget, sideViewInstances, sourceReadinessViewOnly, stableHash, state, viewRoleCapabilities, workbenchHostExecutionState }) {
 let lastRunStatus = null;
 let lastPersistenceFeedback = null;
 function paintPersistenceFeedback() {
@@ -88,7 +91,7 @@ function renderSideViewInstances(project, instances) {
     const roleLabel = instance.role === "magnifier" ? "돋보기" : `곁보기 ${index + 1}`;
     const targetLabel = instance.target?.target_id ? `관찰 대상 ${instance.target.target_id}` : "확정된 관찰값";
     return `<section class="side-view-instance" data-view-instance-id="${escapeHtml(instance.view_instance_id)}" data-view-instance-role="${escapeHtml(instance.role)}" data-temporary="${instance.temporary ? "true" : "false"}">
-      <div class="side-view-instance-header"><strong>${escapeHtml(roleLabel)}</strong><button type="button" class="panel-action" data-view-instance-close="${escapeHtml(instance.view_instance_id)}" title="이 보기 닫기" aria-label="${escapeHtml(roleLabel)} 닫기">닫기</button></div>
+      <div class="side-view-instance-header"><strong>${escapeHtml(roleLabel)}</strong><button type="button" class="panel-action" data-view-instance-close="${escapeHtml(instance.view_instance_id)}" title="이 보기 닫기" aria-label="${escapeHtml(roleLabel)} 닫기">✕</button></div>
       <canvas width="360" height="220" data-view-instance-canvas="${escapeHtml(instance.view_instance_id)}" aria-label="${escapeHtml(roleLabel)} canvas"></canvas>
       <span class="side-view-instance-meta">${escapeHtml(targetLabel)} · ${escapeHtml(instance.view_instance_id)}</span>
     </section>`;
@@ -183,11 +186,21 @@ function renderViewPolicy(project) {
   const presentationFrame = logical ? {wasm_state:logical.value} : frozenDisplay?.projectId === state.projectId
     ? frozenDisplay.frame : activeFrame();
   const presentationRun=frozenDisplay?.projectId===state.projectId ? frozenDisplay.run : activeRun();
+  const retiredSpace3=!logical&&space3PrimaryProjection(presentationFrame?.wasm_state)&&!canShowSpace3Run(presentationRun);
   const authored = authoredCompositionHost.render({projectId:logical ? `${state.projectId}:logical:${logical.generation}` : `${state.projectId}:${presentationRun?.run_id ?? "none"}`,
-    wasmState:presentationFrame?.wasm_state, list:els.sideViewList, stage:els.bogaeStage,
+    wasmState:retiredSpace3?null:presentationFrame?.wasm_state, list:els.sideViewList, stage:els.bogaeStage,
     toolbar:document.querySelector('[data-testid="authored-view-controls"]'),canvas:els.canvas});
-  document.querySelector('[data-testid="authored-close-sides"]').hidden=!authored;
+  const sideChip=document.querySelector('[data-testid="authored-side-chip"]');
+  sideChip.hidden=!authored?.sideTotal;
+  sideChip.textContent=`곁 ${authored?.sideTotal??0}`;
+  sideChip.setAttribute('aria-expanded',String(Boolean(authored?.sideCount)));
   els.viewRoleSummary.hidden=Boolean(authored);
+  if(retiredSpace3) {
+    for(const button of [els.viewPrimary,els.viewSide,els.viewOverlay,els.viewMagnifier])button.hidden=true;
+    els.viewRoleSummary.hidden=true;
+    document.querySelector('[data-testid="example-guide"]').textContent='';
+    return;
+  }
   const entry=document.querySelector('[data-testid="bogae-entry"]');
   const entryDetails=entry.closest('details');
   const entryWasHidden=entryDetails.hidden;
@@ -195,8 +208,7 @@ function renderViewPolicy(project) {
     || state.diagnostics.some(row=>row.code==="E_BOGAE_SELECTION_REQUIRED"));
   entryDetails.hidden=!(requiresEntry || entry.value.trim());
   if (requiresEntry && entryWasHidden) entryDetails.open=true;
-  els.bogaeSourceAccess.hidden=Boolean(authored);
-  document.querySelector('[data-testid="side-view-close"]').hidden=Boolean(authored);
+  if(els.bogaeSourceAccess)els.bogaeSourceAccess.hidden=Boolean(authored);
   const outputView = !authored && presentationFrame
     ? selectCommittedOutputView(buildCommittedFrameCanonicalViewPayloads(presentationRun,presentationFrame),
         presentationFrame,presentationRun?.source_hash) : null;
@@ -204,8 +216,7 @@ function renderViewPolicy(project) {
   els.viewPrimary.closest('.view-roles').hidden=Boolean(textOnly);
   if (textOnly) {
     els.viewRoleSummary.hidden=true;
-    els.bogaeSourceAccess.hidden=true;
-    document.querySelector('[data-testid="side-view-close"]').hidden=true;
+    if(els.bogaeSourceAccess)els.bogaeSourceAccess.hidden=true;
     els.bogaeStage.dataset.sideOpen='false';
     els.sideViewList.innerHTML='';
     document.querySelector('[data-testid="example-guide"]').textContent='';
@@ -214,8 +225,7 @@ function renderViewPolicy(project) {
   if (authored) {
     for (const button of [els.viewSide,els.viewOverlay,els.viewMagnifier]) button.hidden=true;
     els.viewPrimary.hidden=true;
-    els.bogaeSourceAccess.hidden=true;
-    document.querySelector('[data-testid="side-view-close"]').hidden=true;
+    if(els.bogaeSourceAccess)els.bogaeSourceAccess.hidden=true;
     els.sideViewTitle.textContent=`열린 곁보기 ${authored.sideCount}`;
     els.sideViewBody.textContent="원문이 선언한 곁보기입니다. 닫아도 관계와 화면 상태를 보존합니다.";
     els.viewRoleSummary.textContent=`원문 관계 ${authored.relationCount}`;
@@ -225,8 +235,7 @@ function renderViewPolicy(project) {
   if (logical) {
     for (const button of [els.viewPrimary,els.viewSide,els.viewOverlay,els.viewMagnifier]) button.hidden=true;
     els.viewRoleSummary.hidden=true;
-    els.bogaeSourceAccess.hidden=true;
-    document.querySelector('[data-testid="side-view-close"]').hidden=true;
+    if(els.bogaeSourceAccess)els.bogaeSourceAccess.hidden=true;
     document.querySelector('[data-testid="spatial-trail"]').hidden=true;
     document.querySelector('[data-testid="example-guide"]').textContent='';
     return;
@@ -240,7 +249,7 @@ function renderViewPolicy(project) {
   // The fallback renderer kind is not an authored lesson identity. Imported
   // and newly created projects must not inherit the built-in linear guide.
   document.querySelector('[data-testid="example-guide"]').textContent = project.viewGrade === "output-only"
-    ? "" : (guides[project.primaryView] ?? "");
+    ? "" : project.viewGrade === "source-only" ? "DDN 원문을 편집한 뒤 ‘편집판 실행’을 선택하세요. 아래 편집판 결과에서 확인하고 필요할 때 저장하세요." : (guides[project.primaryView] ?? "");
   document.querySelector('[data-testid="spatial-trail"]').hidden = project.primaryView !== "projectile";
   const committedFrame = activeFrame();
   state.viewWorkspace = reconcileViewWorkspace(state.viewWorkspace, project,
@@ -375,6 +384,22 @@ function renderSemanticObservations(project) {
   const runEvidence = localProjectRunEvidenceFromProject(project);
   const activeRunValue = activeRun();
   const activeFrameValue = activeFrame();
+  const suppliedRows=committedObservationRows(activeFrameValue);
+  if (suppliedRows.length) {
+    els.semanticObservations.dataset.projectRunBound='true';
+    els.semanticObservations.dataset.traceSha256=suppliedRows[0].source_trace_hash ?? '';
+    els.semanticObservations.dataset.semanticPayloadHash='';
+    els.semanticObservations.dataset.rowCount=String(suppliedRows.reduce((n,row)=>n+row.cells.length,0));
+    els.semanticObservations.dataset.committedStateHash=activeFrameValue.state_hash;
+    els.semanticObservations.innerHTML=suppliedRows.map(row=>row.cells.map((cell,index)=>{
+      const column=row.columns[index];
+      const display=observationCellDisplay(cell,column);
+      const text=typeof display==='string'?display:JSON.stringify(display);
+      return `<span class="semantic-observation" data-public-observation-source-ref="${escapeHtml(column.identity?.source_ref ?? '')}" data-project-observation-name="${escapeHtml(column.label ?? column.identity?.name ?? '')}" data-observation-status="${escapeHtml(cell.status)}"><strong>${escapeHtml(column.label ?? column.identity?.name ?? '')}</strong><span>${escapeHtml(text ?? '')} ${escapeHtml(column.unit ?? '')}</span></span>`;
+    }).join('')).join('');
+    appendCommittedExactOutput(activeFrameValue);
+    return;
+  }
   const semanticPayload = state.semanticViewPayload ?? buildCommittedSemanticViewPayload({
     project,
     run: activeRunValue,
@@ -414,7 +439,7 @@ function renderSemanticObservations(project) {
   els.semanticObservations.dataset.semanticPayloadHash = "";
   els.semanticObservations.dataset.rowCount = "0";
   els.semanticObservations.dataset.committedStateHash = "";
-  els.semanticObservations.innerHTML = `<span class="semantic-observation" data-observation-status="awaiting-committed-frame"><strong>관찰값</strong><span>${activeFrameValue ? "이번 실행에는 관찰값이 없습니다." : "아직 실행 결과가 없습니다."}</span></span>`;
+  els.semanticObservations.innerHTML = `<span class="semantic-observation" data-observation-status="awaiting-committed-frame"><strong>관찰값</strong>${activeFrameValue ? "<span>이번 실행에는 관찰값이 없습니다.</span>" : "<span data-awaiting-text=\"committed\">아직 실행 결과가 없습니다.</span><span data-awaiting-text=\"temporary\">임시 실행 결과는 '실행 결과' 칸에 있습니다.</span>"}</span>`;
   appendCommittedExactOutput(activeFrameValue);
 }
 

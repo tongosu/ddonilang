@@ -4,6 +4,9 @@
 //! targetable relations. It does not implement events, derivatives, connector
 //! execution, general equations, ODE/DAE, or backend fallback.
 
+pub(crate) mod source_session;
+mod time_model;
+
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -104,8 +107,18 @@ struct ExactQuantity {
     authored_unit: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum ModelBackendKind { #[default] Exact, FixedRk4 }
+impl ModelBackendKind {
+    fn descriptor(self)->JsonValue{match self{Self::Exact=>backend_descriptor_json(),Self::FixedRk4=>time_model::backend_descriptor_json()}}
+    fn id(self)->&'static str{match self{Self::Exact=>MODEL_BACKEND_ID,Self::FixedRk4=>time_model::BACKEND_ID}}
+    fn numeric(self)->&'static str{match self{Self::Exact=>MODEL_ARITHMETIC_POLICY_ID,Self::FixedRk4=>time_model::NUMERIC_POLICY}}
+    fn class(self)->&'static str{match self{Self::Exact=>"pure_deterministic_acyclic_direct_target_relation",Self::FixedRk4=>time_model::ACCEPTED_CLASS}}
+    fn resolution(self)->&'static str{match self{Self::Exact=>"fixed_precise_no_discovery_no_fallback",Self::FixedRk4=>"explicit_fixed_rk4_no_discovery_no_fallback"}}
+}
 #[derive(Debug, Clone, Default)]
 struct ReceiptContext {
+    backend:ModelBackendKind,
     work_cost: Rc<RefCell<WorkCostMeter>>,
     source_path: String,
     program_source_hash: Option<String>,
@@ -275,6 +288,10 @@ pub fn execution_envelope_json(source: &str) -> Result<JsonValue, ModelExecution
             &ReceiptContext::default(),
         )
     })?;
+    let temporal=program.ir.requests.first().and_then(|request|request.recipe_binding.as_deref())
+        .and_then(|name|program.ir.recipes.iter().find(|recipe|recipe.name==name))
+        .is_some_and(|recipe|recipe.method_value==Some(ddonirang_lang::model::SolveMethodValue::FixedStepRk4));
+    let selected_backend=if temporal{ModelBackendKind::FixedRk4}else{ModelBackendKind::Exact};
     let model_ir = ddonirang_lang::model_ir_candidate_json(&program);
     let execution_contract = model_ir["requests"]
         .as_array()
@@ -286,7 +303,7 @@ pub fn execution_envelope_json(source: &str) -> Result<JsonValue, ModelExecution
         .ir
         .requests
         .first()
-        .map(|request| execution_contract_capability_matrix_json(&request.execution_contract))
+        .map(|request| if temporal {time_model::capability_matrix_json(&request.execution_contract)} else {execution_contract_capability_matrix_json(&request.execution_contract)})
         .unwrap_or(JsonValue::Null);
     Ok(json!({
         "schema": "ddn.model_execution_envelope.candidate.v1",
@@ -294,7 +311,7 @@ pub fn execution_envelope_json(source: &str) -> Result<JsonValue, ModelExecution
         "source_hash": program.source_hash,
         "semantic_hash": program.ir.semantic_hash,
         "canonical_ddn_hash": hash_bytes(program.canonical_ddn.as_bytes()),
-        "backend_descriptor": backend_descriptor_json(),
+        "backend_descriptor": selected_backend.descriptor(),
         "execution_contract": execution_contract,
         "execution_contract_capability_matrix": capability_matrix,
         "execution_mode": "oneshot",
@@ -347,7 +364,7 @@ pub fn execute_source_with_source_file(
                 &context,
             )
         })?;
-    execute_program(&program, context.work_cost)
+    execute_program(&program, context.work_cost, source_file)
 }
 
 pub fn execute_source_pretty_json(source: &str) -> Result<String, ModelExecutionError> {
@@ -404,7 +421,15 @@ pub fn verify_execution_report(report: &JsonValue) -> JsonValue {
             "backend descriptor가 없습니다",
         );
     };
-    if descriptor.get("backend_id").and_then(JsonValue::as_str) != Some(MODEL_BACKEND_ID) {
+    let selected_backend=match descriptor.get("backend_id").and_then(JsonValue::as_str){
+        Some(MODEL_BACKEND_ID)=>ModelBackendKind::Exact,
+        Some(time_model::BACKEND_ID)=>ModelBackendKind::FixedRk4,
+        _=>return verification_failure("E_MODEL_BACKEND_DESCRIPTOR_MISMATCH_CANDIDATE","지원하는 모형 backend가 아닙니다"),
+    };
+    if selected_backend==ModelBackendKind::FixedRk4 && descriptor!=&selected_backend.descriptor(){
+        return verification_failure("E_MODEL_BACKEND_DESCRIPTOR_MISMATCH_CANDIDATE","시간 모형 descriptor가 실제 구현과 다릅니다");
+    }
+    if descriptor.get("backend_id").and_then(JsonValue::as_str) != Some(selected_backend.id()) {
         return verification_failure(
             "E_MODEL_BACKEND_DESCRIPTOR_MISMATCH_CANDIDATE",
             "승인된 bounded backend가 아닙니다",
@@ -441,7 +466,7 @@ pub fn verify_execution_report(report: &JsonValue) -> JsonValue {
         );
     }
     if receipt.get("backend_descriptor_hash") != descriptor.get("descriptor_hash")
-        || receipt.get("backend_id").and_then(JsonValue::as_str) != Some(MODEL_BACKEND_ID)
+        || receipt.get("backend_id").and_then(JsonValue::as_str) != Some(selected_backend.id())
     {
         return verification_failure(
             "E_MODEL_RECEIPT_BACKEND_BINDING_MISMATCH_CANDIDATE",
@@ -451,7 +476,7 @@ pub fn verify_execution_report(report: &JsonValue) -> JsonValue {
     if receipt
         .get("backend_capability_set_hash")
         .and_then(JsonValue::as_str)
-        != Some(backend_capability_set_hash().as_str())
+        != Some(hash_json(&descriptor["capabilities"]).as_str())
         || receipt.get("runtime_build_identity") != Some(&runtime_build_identity_json())
     {
         return verification_failure(
@@ -483,11 +508,11 @@ pub fn verify_execution_report(report: &JsonValue) -> JsonValue {
         || method["source_file"] != request_method["source_file"]
         || method["source_range"] != request_method["source_range"]
         || method["public_surface"] != request_method["public_method"]
-        || method["resolution_policy"] != "fixed_precise_no_discovery_no_fallback"
+        || method["resolution_policy"] != selected_backend.resolution()
         || method["backend_options"] != json!({})
         || method["backend_limits"]["accepted_model_class"]
-            != "pure_deterministic_acyclic_direct_target_relation"
-        || method["backend_limits"]["numeric_policy"] != MODEL_ARITHMETIC_POLICY_ID
+            != selected_backend.class()
+        || method["backend_limits"]["numeric_policy"] != selected_backend.numeric()
         || method["backend_registry"]["lookup"] != "fixed_public_method_mapping"
         || method["backend_registry"]["registration_order_observed"] != false
         || method["backend_registry"]["installed_backend_count_observed"] != false
@@ -508,6 +533,13 @@ pub fn verify_execution_report(report: &JsonValue) -> JsonValue {
             "E_MODEL_FIXED_DEFAULT_METHOD_MISMATCH_CANDIDATE",
             "생략된 풀이방법은 고정 공개 의미 #정밀이어야 합니다",
         );
+    }
+    if selected_backend==ModelBackendKind::FixedRk4 {
+        if method["authored"]!=true || method["public_surface"]!="#고정RK4"
+            || report["time_execution"]!=receipt["time_execution"]
+            || report["time_execution"]["samples_hash"].as_str()!=Some(hash_json(&report["committed_state"]["temporal_samples"]).as_str()) {
+            return verification_failure("E_MODEL_TIME_BINDING_MISMATCH","시간 방법·표본·영수증 결속이 다릅니다");
+        }
     }
     let binding_checks = [
         (
@@ -598,7 +630,7 @@ pub fn verify_execution_report(report: &JsonValue) -> JsonValue {
         "schema": "ddn.model_execution_verification.candidate.v1",
         "wire_status": "candidate_non_public",
         "ok": true,
-        "backend_id": MODEL_BACKEND_ID,
+        "backend_id": selected_backend.id(),
         "receipt_hash": declared_receipt_hash,
         "post_state_hash": committed_state_hash,
         "verified_replay_capsule_hash": capsule_hash,
@@ -606,7 +638,7 @@ pub fn verify_execution_report(report: &JsonValue) -> JsonValue {
 }
 
 fn replay_identity_projection(report: &JsonValue) -> JsonValue {
-    json!({
+    let mut value=json!({
         "program_source_hash": report["execution_bindings"]["program_source_hash"],
         "canonical_program_hash": report["execution_bindings"]["canonical_program_hash"],
         "model_ir_semantic_hash": report["execution_bindings"]["model_ir_semantic_hash"],
@@ -622,15 +654,18 @@ fn replay_identity_projection(report: &JsonValue) -> JsonValue {
         "post_state_hash": report["post_state_hash"],
         "result_pack": report["result_pack"],
         "public_observations": report["public_observations"],
-    })
+    });
+    if let Some(time)=report.get("time_execution"){value["time_execution"]=time.clone();}
+    value
 }
 
 fn execute_program(
     program: &ModelProgram,
     work_cost: Rc<RefCell<WorkCostMeter>>,
+    source_file: &str,
 ) -> Result<JsonValue, ModelExecutionError> {
-    let mut first = execute_program_once(program, work_cost.clone())?;
-    let second = execute_program_once(program, work_cost.clone())?;
+    let mut first = execute_program_once(program, work_cost.clone(), source_file)?;
+    let second = execute_program_once(program, work_cost.clone(), source_file)?;
     let first_projection = replay_identity_projection(&first);
     let second_projection = replay_identity_projection(&second);
     if first_projection != second_projection {
@@ -651,6 +686,7 @@ fn execute_program(
                 work_cost,
                 program_source_hash: Some(program.source_hash.clone()),
                 canonical_program_hash: Some(hash_bytes(program.canonical_ddn.as_bytes())),
+                source_path: source_file.to_string(),
                 ..ReceiptContext::default()
             },
         ));
@@ -676,6 +712,7 @@ fn execute_program(
                 work_cost: work_cost.clone(),
                 program_source_hash: Some(program.source_hash.clone()),
                 canonical_program_hash: Some(hash_bytes(program.canonical_ddn.as_bytes())),
+                source_path: source_file.to_string(),
                 ..ReceiptContext::default()
             },
         )
@@ -691,7 +728,8 @@ fn execute_program(
                     work_cost: work_cost.clone(),
                     program_source_hash: Some(program.source_hash.clone()),
                     canonical_program_hash: Some(hash_bytes(program.canonical_ddn.as_bytes())),
-                    ..ReceiptContext::default()
+                    source_path: source_file.to_string(),
+                ..ReceiptContext::default()
                 },
             )
         })?;
@@ -722,12 +760,14 @@ fn execute_program(
 fn execute_program_once(
     program: &ModelProgram,
     work_cost: Rc<RefCell<WorkCostMeter>>,
+    source_file: &str,
 ) -> Result<JsonValue, ModelExecutionError> {
     let empty_state = empty_state_hash();
     let mut context = ReceiptContext {
         work_cost,
         program_source_hash: Some(program.source_hash.clone()),
         canonical_program_hash: Some(hash_bytes(program.canonical_ddn.as_bytes())),
+        source_path: source_file.to_string(),
         ..ReceiptContext::default()
     };
     if program.ir.requests.len() != 1 {
@@ -753,7 +793,7 @@ fn execute_program_once(
     context.solve_method_source_file = Some(request.method_provenance.source_file().to_string());
     let method_range = request.method_provenance.source_range();
     context.solve_method_source_range = Some([method_range.start, method_range.end]);
-    if !request.method_provenance.is_authored() {
+    if ddonirang_lang::model::request_uses_fixed_precise_recipe(request) {
         context.public_solve_method = Some("#정밀".to_string());
     }
     let contract = &request.execution_contract;
@@ -798,6 +838,14 @@ fn execute_program_once(
     // Capability rejection precedes structural solve diagnostics. This keeps an
     // event/derivative/connection model visibly OPEN instead of accidentally
     // presenting a secondary equation-count diagnostic as backend behavior.
+    if request.method_provenance.is_authored() {
+        let selected = resolve_recipe(program, request, &context)?;
+        if selected.method_value == Some(ddonirang_lang::model::SolveMethodValue::FixedStepRk4) {
+            context.backend=ModelBackendKind::FixedRk4;
+            context.execution_contract_capability_matrix=Some(time_model::capability_matrix_json(&request.execution_contract));
+            return time_model::execute(program, request, &selected, context);
+        }
+    }
     validate_backend_eligibility(definition, request, &context)?;
     // A whole-system equation-count failure is more specific than the
     // duplicate-producer detail that necessarily accompanies it.  A plain
@@ -1017,23 +1065,16 @@ fn resolve_recipe<'a>(
     request: &RunRequest,
     context: &ReceiptContext,
 ) -> Result<Cow<'a, SolveRecipe>, ModelExecutionError> {
-    if !request.method_provenance.is_authored() {
-        if let Some(recipe) = program
-            .ir
-            .recipes
-            .iter()
-            .find(|recipe| recipe.name == ddonirang_lang::FIXED_DEFAULT_PRECISE_RECIPE_NAME)
-        {
-            return Ok(Cow::Borrowed(recipe));
-        }
+    if ddonirang_lang::model::request_uses_fixed_precise_recipe(request) {
+        // A source record cannot replace the intrinsic default owner by name.
         return Ok(Cow::Owned(fixed_default_precise_recipe(request)));
     }
     let binding = request.recipe_binding.as_deref().ok_or_else(|| {
         failure(
             "E_MODEL_RECIPE_BINDING_REQUIRED_CANDIDATE",
             "model_request_candidate",
-            "방법=에는 direct SolveRecipe 이름이 필요합니다",
-            request.span,
+            "푸는법=에는 등록된 풀이 값이나 명시 SolveRecipe 이름이 필요합니다",
+            request.method_provenance.source_range(),
             context,
         )
     })?;
@@ -1047,8 +1088,8 @@ fn resolve_recipe<'a>(
             failure(
                 "E_MODEL_RECIPE_BINDING_MISMATCH_CANDIDATE",
                 "model_request_candidate",
-                format!("방법 '{binding}'을 찾을 수 없습니다"),
-                request.span,
+                format!("푸는법 '{binding}'을 찾을 수 없습니다"),
+                request.method_provenance.source_range(),
                 context,
             )
         })
@@ -2194,10 +2235,10 @@ fn success_receipt(
         "schema": MODEL_RECEIPT_SCHEMA,
         "wire_status": "candidate_non_public",
         "status": "success",
-        "backend_id": MODEL_BACKEND_ID,
+        "backend_id": context.backend.id(),
         "backend_version": 1,
-        "backend_descriptor_hash": backend_descriptor_json()["descriptor_hash"],
-        "backend_capability_set_hash": backend_capability_set_hash(),
+        "backend_descriptor_hash": context.backend.descriptor()["descriptor_hash"],
+        "backend_capability_set_hash": hash_json(&context.backend.descriptor()["capabilities"]),
         "runtime_build_identity": runtime_build_identity_json(),
         "program_source_hash": context.program_source_hash,
         "canonical_program_hash": context.canonical_program_hash,
@@ -2214,7 +2255,7 @@ fn success_receipt(
         "parent_committed_state_hash": pre_state_hash,
         "input_snapshot_hash": context.input_snapshot_hash,
         "unit_registry_hash": context.unit_registry_hash,
-        "arithmetic_policy_id": MODEL_ARITHMETIC_POLICY_ID,
+        "arithmetic_policy_id": context.backend.numeric(),
         "dependency_order_hash": context.dependency_order_hash,
         "requested_output_order": context.requested_output_order,
         "work_cost": context.work_cost.borrow().receipt(),
@@ -2240,10 +2281,10 @@ fn failure(
         "schema": MODEL_RECEIPT_SCHEMA,
         "wire_status": "candidate_non_public",
         "status": "failure",
-        "backend_id": MODEL_BACKEND_ID,
+        "backend_id": context.backend.id(),
         "backend_version": 1,
-        "backend_descriptor_hash": backend_descriptor_json()["descriptor_hash"],
-        "backend_capability_set_hash": backend_capability_set_hash(),
+        "backend_descriptor_hash": context.backend.descriptor()["descriptor_hash"],
+        "backend_capability_set_hash": hash_json(&context.backend.descriptor()["capabilities"]),
         "runtime_build_identity": runtime_build_identity_json(),
         "program_source_hash": context.program_source_hash,
         "canonical_program_hash": context.canonical_program_hash,
@@ -2260,7 +2301,7 @@ fn failure(
         "parent_committed_state_hash": pre_state_hash,
         "input_snapshot_hash": context.input_snapshot_hash,
         "unit_registry_hash": context.unit_registry_hash,
-        "arithmetic_policy_id": MODEL_ARITHMETIC_POLICY_ID,
+        "arithmetic_policy_id": context.backend.numeric(),
         "dependency_order_hash": context.dependency_order_hash,
         "requested_output_order": context.requested_output_order,
         "work_cost": context.work_cost.borrow().receipt(),
@@ -2385,11 +2426,11 @@ fn solve_method_receipt_json(context: &ReceiptContext) -> JsonValue {
         "source_file": context.solve_method_source_file,
         "source_range": context.solve_method_source_range,
         "public_surface": context.public_solve_method,
-        "resolution_policy": "fixed_precise_no_discovery_no_fallback",
+        "resolution_policy": context.backend.resolution(),
         "backend_options": {},
         "backend_limits": {
-            "accepted_model_class": "pure_deterministic_acyclic_direct_target_relation",
-            "numeric_policy": MODEL_ARITHMETIC_POLICY_ID,
+            "accepted_model_class": context.backend.class(),
+            "numeric_policy": context.backend.numeric(),
         },
         "backend_registry": {
             "lookup": "fixed_public_method_mapping",
@@ -2479,14 +2520,14 @@ mod tests {
   입력 + 1@m =:= 중간.
   결과 =:= 중간 * 2.
 }.
-실행결과 <- (대상=계산, 들임=(입력: 2@m), 방법=정밀한방법, 내줌=(결과, 입력, 중간)) 풀기.
+실행결과 <- (대상=계산, 들임=(입력: 2@m), 푸는법=정밀한방법, 내줌=(결과, 입력, 중간)) 풀기.
 (계산값: 실행결과.결과, 입력값: 실행결과.입력) 내보임.
 "#;
 
     fn explicit_standard_contract(source: &str) -> String {
         source.replace(
-            "방법=정밀한방법, 내줌=",
-            "실행계약=(자원: #표준한도_v1, 재생: #검증재생, 증거: #최소증거, 외부유입: #봉인입력, 성능: #안전최적화, 재현범위: #이식가능, 결과: #정본값동일), 방법=정밀한방법, 내줌=",
+            "푸는법=정밀한방법, 내줌=",
+            "실행계약=(자원: #표준한도_v1, 재생: #검증재생, 증거: #최소증거, 외부유입: #봉인입력, 성능: #안전최적화, 재현범위: #이식가능, 결과: #정본값동일), 푸는법=정밀한방법, 내줌=",
         )
     }
 
@@ -2658,7 +2699,7 @@ mod tests {
     fn omitted_method_uses_same_exact_backend_and_seals_distinct_provenance() {
         let omitted = SUCCESS
             .replace("정밀한방법 <- (방식: #정밀).\n", "")
-            .replace(", 방법=정밀한방법", "");
+            .replace(", 푸는법=정밀한방법", "");
         let explicit = execute_source(SUCCESS).expect("explicit run");
         let omitted = execute_source_with_source_file(&omitted, "entry.ddn")
             .expect("omitted fixed precise run");
@@ -2720,7 +2761,7 @@ mod tests {
                 "정밀한방법 <- (방식: #정밀).",
                 "정확한방법 <- (방식: \"ddn.exact_acyclic_relation.v1\").",
             )
-            .replace("방법=정밀한방법", "방법=정확한방법");
+            .replace("푸는법=정밀한방법", "푸는법=정확한방법");
         let program = ddonirang_lang::parse_model_program(&historical).expect("historical parse");
         assert!(program
             .canonical_ddn
@@ -2799,7 +2840,7 @@ mod tests {
         for (source, code) in cases {
             let omitted = source
                 .replace("정밀한방법 <- (방식: #정밀).\n", "")
-                .replace(", 방법=정밀한방법", "");
+                .replace(", 푸는법=정밀한방법", "");
             for candidate in [&source, &omitted] {
                 let error = execute_source(candidate).expect_err(code);
                 assert_eq!(error.candidate_code, code);
@@ -2943,7 +2984,7 @@ mod tests {
                 "검증방법 <- (방식: \"ddn.exact_acyclic_relation.v1\").\n\n",
                 "",
             )
-            .replace("  방법=검증방법,\n", "");
+            .replace("  푸는법=검증방법,\n", "");
         let error = execute_source(&source).expect_err("omitted cycle must fail closed");
         assert_eq!(error.candidate_code, "E_MODEL_RELATION_CYCLE_CANDIDATE");
         assert_eq!(error.pre_state_hash, error.post_state_hash);
@@ -2953,5 +2994,31 @@ mod tests {
             error.receipt["solve_method"]["binding_kind"],
             "omitted_fixed_precise"
         );
+    }
+}
+
+#[cfg(test)]
+mod current_model_error_source_tests {
+    use super::*;
+    #[test]
+    fn current_model_runtime_errors_keep_the_actual_source_path_and_byte_span() {
+        let original = include_str!("../tests/fixtures/model_current_surface.또니");
+        let zero = original.replace("질량: 3@kg", "질량: 0@kg");
+        let owner = original.replace("힘: 계산.힘", "힘: 다른계산.힘");
+        assert_ne!(zero, original);
+        assert_ne!(owner, original);
+        for (source, path, code) in [
+            (zero, "첫번째/용수철.또니", "E_MODEL_DIVISION_BY_ZERO_CANDIDATE"),
+            (owner, "다른작품/용수철.또니", "E_MODEL_VIEW_BINDING_MISMATCH_CANDIDATE"),
+        ] {
+            let error = execute_source_with_source_file(&source, path).unwrap_err();
+            assert_eq!(error.candidate_code, code);
+            assert_eq!(error.source_path, path);
+            assert_eq!(error.to_json()["source_path"], path);
+            assert!(error.provenance.start < error.provenance.end);
+            assert!(error.provenance.end <= source.len());
+            assert!(source.is_char_boundary(error.provenance.start));
+            assert!(source.is_char_boundary(error.provenance.end));
+        }
     }
 }

@@ -21,6 +21,7 @@ enum StaticType {
     Text,
     Bytes,
     Bool,
+    Function,
     Collection(Box<StaticType>),
     Tuple(Vec<StaticType>),
     None,
@@ -34,6 +35,7 @@ impl StaticType {
             Self::Text => "글",
             Self::Bytes => "바이트열",
             Self::Bool => "참거짓",
+            Self::Function => "함수값",
             Self::Collection(_) => "차림",
             Self::Tuple(_) => "위치형 값꾸러미",
             Self::None => "없음",
@@ -153,6 +155,7 @@ fn type_ref_kind(type_ref: &TypeRef) -> StaticType {
             "없음" => StaticType::None,
             _ => StaticType::Unknown,
         },
+        TypeRef::Function {..} => StaticType::Function,
         TypeRef::Applied { name, args } if name == "차림" => StaticType::Collection(Box::new(
             args.first().map(type_ref_kind).unwrap_or(StaticType::Unknown))),
         _ => StaticType::Unknown,
@@ -186,11 +189,53 @@ fn check_logical_operand(
     ))
 }
 
+struct StaticCallContext<'a> {
+    results: BTreeMap<String, StaticType>,
+    program: Option<&'a CanonProgram>,
+}
+impl std::ops::Deref for StaticCallContext<'_> {
+    type Target=BTreeMap<String, StaticType>;
+    fn deref(&self)->&Self::Target { &self.results }
+}
+fn contains_function_kind(kind:&StaticType)->bool {
+    let mut pending=vec![kind];
+    while let Some(kind)=pending.pop(){match kind {
+        StaticType::Function=>return true,
+        StaticType::Tuple(items)=>pending.extend(items),
+        StaticType::Collection(item)=>pending.push(item),_=>{},
+    }}
+    false
+}
+
+// Source-kind evidence only. Inspect value-preserving constructors, never
+// evaluate a selector/call or infer function identity from its spelling.
+fn contains_function_data(expr:&Expr,kind:&StaticType,symbols:&BTreeMap<String,StaticType>,calls:&StaticCallContext<'_>)->bool {
+    if contains_function_kind(kind){return true;}
+    let mut pending=vec![expr];
+    while let Some(expr)=pending.pop(){match &expr.kind {
+        ExprKind::Var(name) if symbols.get(name).is_some_and(contains_function_kind)=>return true,
+        ExprKind::CollectionConstructor{elements}|ExprKind::TupleConstructor{elements}=>pending.extend(elements),
+        ExprKind::Call{func,..} if calls.get(func).is_some_and(contains_function_kind)=>return true,
+        _=>{},
+    }}
+    false
+}
+
+fn checked_table_descriptor()->Result<ddonirang_lang::stdlib::CheckedResultTableDescriptor,String> {
+    let (raw,digest)=ddonirang_lang::stdlib::result_table_registration_material(1).ok_or("등록 판본 없음")?;
+    let material:serde_json::Value=serde_json::from_str(raw).map_err(|e|e.to_string())?;
+    let id=|key:&str|->Result<[u8;32],String> {
+        hex::decode(material[key].as_str().ok_or("등록 정체 없음")?).map_err(|e|e.to_string())?
+            .try_into().map_err(|_|"등록 정체 크기 불일치".into())
+    };
+    ddonirang_lang::stdlib::lookup_result_table_registration(&id("owner")?,&id("definition")?,1,digest,&[])
+}
+
 fn check_known_collection_members(
     value: &Expr,
     expected: &StaticType,
     symbols: &BTreeMap<String, StaticType>,
-    call_results: &BTreeMap<String, StaticType>,
+    call_results: &StaticCallContext<'_>,
 ) -> Result<(), StaticDiagnostic> {
     let mut pending = vec![(value, expected)];
     while let Some((value, expected)) = pending.pop() {
@@ -212,10 +257,38 @@ fn check_known_collection_members(
     Ok(())
 }
 
+fn infer_expected_function(value:&Expr,kind:&TypeRef,symbols:&BTreeMap<String,StaticType>,calls:&StaticCallContext<'_>,unknown_names_allowed:bool)->Result<StaticType,StaticDiagnostic>{
+    let TypeRef::Function{params,result}=kind else{return infer_expr(value,symbols,calls,unknown_names_allowed)};
+    match &value.kind{
+        ExprKind::SeedLiteral{param,body}=>{
+            if calls.program.is_some_and(|p|p.source_epoch==ddonirang_lang::SourceEpoch::V25){
+                let bound=param.split(',').map(str::trim).filter(|n|!n.is_empty()).map(str::to_owned).collect();
+                anonymous_capture_free_names(body,&bound,&mut std::collections::HashSet::new()).map_err(|message|static_error("E_CHECK_FUNCTION_BODY",message,body))?;
+            }
+            let names:Vec<_>=param.split(',').map(str::trim).filter(|n|!n.is_empty()).collect();
+            if names.len()!=params.len(){return Err(static_error("E_CHECK_FUNCTION_ARITY","함수씨와 받는자리 수가 다릅니다",value));}
+            let mut nested=symbols.clone();for (name,kind) in names.iter().zip(params){nested.insert((*name).into(),type_ref_kind(kind));}
+            let actual=infer_expr(body,&nested,calls,unknown_names_allowed)?;let expected=type_ref_kind(result);
+            if actual!=StaticType::Unknown&&expected!=StaticType::Unknown&&!static_types_compatible(&expected,&actual){
+                let site=if let ExprKind::FunctionBlock{result,..}=&body.kind{result.as_ref()}else{body.as_ref()};
+                return Err(static_error("E_CHECK_FUNCTION_RESULT_TYPE","함수 결과씨가 다릅니다",site));
+            }
+            Ok(StaticType::Function)
+        },
+        ExprKind::Var(target) if !symbols.contains_key(target)=>{
+            let program=calls.program.ok_or_else(||static_error("E_CHECK_FUNCTION_SOURCE","함수값의 실제 원문 문맥이 없습니다",value))?;
+            ddonirang_lang::runtime::resolve_source_function_definition(program,target,kind).map_err(|message|static_error("E_CHECK_FUNCTION_SOURCE",message,value))?;
+            Ok(StaticType::Function)
+        },
+        _=>{let actual=infer_expr(value,symbols,calls,unknown_names_allowed)?;
+            if !matches!(actual,StaticType::Function|StaticType::Unknown){return Err(static_error("E_CHECK_FUNCTION_SOURCE","실제 함수값이 필요합니다",value));}Ok(actual)},
+    }
+}
+
 fn infer_expr(
     expr: &Expr,
     symbols: &BTreeMap<String, StaticType>,
-    call_results: &BTreeMap<String, StaticType>,
+    call_results: &StaticCallContext<'_>,
     unknown_names_allowed: bool,
 ) -> Result<StaticType, StaticDiagnostic> {
     match &expr.kind {
@@ -310,7 +383,36 @@ fn infer_expr(
             }
         }
         ExprKind::Call { args, func } => {
+            let expected_call=call_results.program.map(|program|crate::function_call_graph::SourceCall::expected_arguments(program,expr,symbols.contains_key(func)))
+                .transpose().map_err(|message|static_error("E_CHECK_FUNCTION_SOURCE",message,expr))?.flatten();
+            let expected_types=expected_call.as_ref().map(|binding|binding.authored_types()).transpose()
+                .map_err(|message|static_error("E_CHECK_FUNCTION_SOURCE",message,expr))?;
+            let mut selected_argument=None;
+            if func=="표준보기.결과표" && args.iter().any(|arg|arg.resolved_pin.as_deref()==Some("열들")) {
+                if let Some(program)=call_results.program {
+                    if symbols.contains_key("관찰") {return Err(static_error("E_CHECK_TABLE_SELECTION","가려진 관찰 이름은 공개 참조가 아닙니다",expr));}
+                    let registration=checked_table_descriptor().map_err(|message|static_error("E_CHECK_TABLE_SELECTION",message,expr))?;
+                    let shadowed=symbols.contains_key(func)||symbols.contains_key("표준보기");
+                    if let Some(admitted)=crate::numeric_constraint_plan::resolve_registered_result_table_call(program,expr,&registration,shadowed)
+                        .map_err(|message|static_error("E_CHECK_TABLE_SELECTION",message,expr))? {
+                        admitted.into_parts(program,expr).map_err(|message|static_error("E_CHECK_TABLE_SELECTION",message,expr))?;
+                        selected_argument=args.iter().position(|arg|arg.resolved_pin.as_deref()==Some("열들"));
+                    }
+                }
+            }
+            let mut xy_arguments=std::collections::BTreeSet::new();
+            if matches!(func.as_str(),"표준보기.흩어진점"|"표준보기.좌표선") {
+                if let Some(program)=call_results.program {
+                    if symbols.contains_key("관찰") {return Err(static_error("E_CHECK_XY_SELECTION","가려진 관찰 이름은 공개 참조가 아닙니다",expr));}
+                    let shadowed=symbols.contains_key(func)||symbols.contains_key("표준보기");
+                    if crate::authored_bogae::xy::resolve_call(program,expr,shadowed)
+                        .map_err(|message|static_error("E_CHECK_XY_SELECTION",message,expr))?.is_some() {
+                        xy_arguments.extend(0..args.len());
+                    }
+                }
+            }
             for (index,arg) in args.iter().enumerate() {
+                if selected_argument==Some(index)||xy_arguments.contains(&index) {continue;}
                 // RD-520: the recipe pin refers to an authored named callable,
                 // not a world variable. Only this exact pin admits a definition
                 // reference; its type and capture-free seal are checked by the
@@ -321,7 +423,16 @@ fn infer_expr(
                         if !symbols.contains_key(name) && call_results.contains_key(name) {continue;}
                     }
                 }
-                let kind = infer_expr(&arg.expr, symbols, call_results, unknown_names_allowed)?;
+                let kind=if let Some(kind)=expected_types.as_ref().and_then(|types|types.get(index)).filter(|kind|matches!(kind,TypeRef::Function{..})){
+                    infer_expected_function(&arg.expr,kind,symbols,call_results,unknown_names_allowed)?
+                }else{infer_expr(&arg.expr,symbols,call_results,unknown_names_allowed)?};
+                let canonical=ddonirang_lang::stdlib::canonicalize_stdlib_alias(func);
+                let data_key=match canonical {"모음"=>true,"짝맞춤"=>index%2==0,
+                    "짝맞춤.값"|"짝맞춤.바꾼값"=>index==1,"정렬"=>index==0,_=>false};
+                if data_key && contains_function_data(&arg.expr,&kind,symbols,call_results) {
+                    return Err(static_error("E_TYPE_MISMATCH",
+                        "함수값은 모음 원소·짝맞춤 열쇠·일반 정렬 대상이 아닙니다",&arg.expr));
+                }
                 if matches!(func.as_str(), "그리고" | "또는") {
                     check_logical_operand(func, &kind, &arg.expr)?;
                 }
@@ -402,7 +513,12 @@ fn infer_expr(
             let mut local = symbols.clone();
             local.insert(param.clone(), StaticType::Unknown);
             infer_expr(body, &local, call_results, true)?;
-            Ok(StaticType::Unknown)
+            Ok(StaticType::Function)
+        }
+        ExprKind::FunctionBlock{statements,result}=>{
+            let mut nested=symbols.clone();
+            validate_root_statements(&statements.stmts,&mut nested,call_results,unknown_names_allowed)?;
+            infer_expr(result,&nested,call_results,unknown_names_allowed)
         }
         ExprKind::Thunk(body) => {
             validate_root_statements(&body.stmts, &mut symbols.clone(), call_results, true)?;
@@ -441,7 +557,7 @@ fn infer_expr(
 fn validate_root_statements(
     statements: &[Stmt],
     symbols: &mut BTreeMap<String, StaticType>,
-    call_results: &BTreeMap<String, StaticType>,
+    call_results: &StaticCallContext<'_>,
     unknown_names_allowed: bool,
 ) -> Result<(), StaticDiagnostic> {
     for statement in statements {
@@ -462,7 +578,13 @@ fn validate_root_statements(
                 value,
                 ..
             } => {
-                let actual = infer_expr(value, symbols, call_results, unknown_names_allowed)?;
+                if matches!(type_ref,TypeRef::Infer) && matches!(value.kind,ExprKind::SeedLiteral{..})
+                    && call_results.program.is_some_and(|p|p.source_epoch==ddonirang_lang::SourceEpoch::V25) {
+                    return Err(static_error("E_CHECK_FUNCTION_TYPE_REQUIRED","보관할 함수값의 함수씨를 명시하세요",value));
+                }
+                let actual=if matches!(type_ref,TypeRef::Function{..}){
+                    infer_expected_function(value,type_ref,symbols,call_results,unknown_names_allowed)?
+                }else{infer_expr(value,symbols,call_results,unknown_names_allowed)?};
                 let expected = type_ref_kind(type_ref);
                 if !unknown_names_allowed && matches!(expected, StaticType::Collection(_)) {
                     check_known_collection_members(value, &expected, symbols, call_results)?;
@@ -470,7 +592,7 @@ fn validate_root_statements(
                 // Existing callable-body declared-type diagnostics are emitted
                 // by the runtime with pin/expected/actual fields. Keep that
                 // contract; this conservative body pass adds logical checking.
-                if !unknown_names_allowed && expected != StaticType::Unknown
+                if !unknown_names_allowed && !matches!(expected,StaticType::Unknown|StaticType::Function)
                     && actual != StaticType::Unknown
                     && !static_types_compatible(&expected, &actual)
                 {
@@ -833,6 +955,7 @@ fn validate_minimal_root_program(program: &CanonProgram) -> Result<(), StaticDia
             )
         })
         .collect::<BTreeMap<_, _>>();
+    let call_results=StaticCallContext {results:call_results,program:Some(program)};
     let mut symbols = BTreeMap::new();
     // The parser relocates authored top-level setup into a tick seed. The
     // runtime executes that setup before root statements; analysis must keep
@@ -911,6 +1034,12 @@ pub(crate) fn validate_program_for_execution(program: &CanonProgram) -> Result<(
 /// A rejected numeric projection must not mask a more precise existing
 /// source-category diagnostic. This never retries or admits execution.
 pub(crate) fn existing_static_rejection(program:&CanonProgram)->Option<String> {
+    existing_static_rejection_diagnostic(program, "").map(|diagnostic| diagnostic.message)
+}
+
+/// Typed facts from the same canonical program and static checker invocation.
+/// No source reparse or formatted-message recovery is used by the consumer.
+pub(crate) fn existing_static_rejection_diagnostic(program:&CanonProgram,path:&str)->Option<crate::preprocess::ExecutionDiagnostic> {
     let error=validate_minimal_root_program(program).err()?;
     let source=&program.origin.source;
     let prefix=source.get(..error.start)?;
@@ -918,7 +1047,12 @@ pub(crate) fn existing_static_rejection(program:&CanonProgram)->Option<String> {
     let line_start=prefix.rfind('\n').map_or(0,|offset|offset+1);
     let column=prefix[line_start..].chars().count()+1;
     let line_end=source[line_start..].find('\n').map_or(source.len(),|offset|line_start+offset);
-    Some(format!("{}: {} ({}:{})\n{}\n{}^",error.code,error.message,line,column,&source[line_start..line_end]," ".repeat(column-1)))
+    Some(crate::preprocess::ExecutionDiagnostic {
+        code:error.code,
+        message:format!("{}: {} ({}:{})\n{}\n{}^",error.code,error.message,line,column,&source[line_start..line_end]," ".repeat(column-1)),
+        source_path:path.into(),span:Some((error.start,error.end)),phase:"execution_parse",
+        cause:None,offending_field:None,expected:None,actual:None,
+    })
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -982,6 +1116,28 @@ pub struct SourceAnalysisSnapshot {
     pub source_profile_identity: String,
     pub outcome: &'static str,
     pub diagnostics: Vec<SourceAnalysisDiagnostic>,
+    /// Read-only parsed-source fact; absence means unknown, never proved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proof_source_present: Option<bool>,
+}
+
+fn parsed_proof_source_present(program: &CanonProgram) -> bool {
+    fn proof_type(ty: &TypeRef) -> bool {
+        match ty {
+            TypeRef::AlgebraEquality { .. } | TypeRef::CardCallEquality { .. } | TypeRef::AlgebraNonzero { .. }
+                | TypeRef::StructureLaw { .. } | TypeRef::PropositionConjunction(_) => true,
+            TypeRef::Tuple(items) => items.iter().any(proof_type),
+            TypeRef::Applied { args, .. } => args.iter().any(proof_type),
+            TypeRef::Function { params, result } => params.iter().any(proof_type) || proof_type(result),
+            TypeRef::Tensor { element, .. } => proof_type(element),
+            _ => false,
+        }
+    }
+    program.items.iter().any(|item| {
+        let TopLevelItem::SeedDef(seed) = item;
+        seed.proof_header.is_some() || seed.result_type.as_ref().is_some_and(proof_type)
+            || seed.params.iter().any(|pin| proof_type(&pin.type_ref))
+    })
 }
 
 fn default_path() -> String {
@@ -1197,6 +1353,13 @@ pub(crate) fn formatted_error_span(source: &str, message: &str) -> SourceAnalysi
 
 pub fn analyze_source(request: SourceAnalysisRequest) -> SourceAnalysisSnapshot {
     let revision = source_revision_identity(&request.source_text);
+    // Model syntax has its own existing typed frontdoor. Do not send its
+    // '= 모형' declaration through the ordinary v25 definition migration check.
+    if request.source_profile_identity == V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY
+        && ddonirang_lang::has_model_surface(&request.source_text)
+    {
+        return analyze_model_source(request, revision);
+    }
     let program = if request.source_profile_identity == STRICT_SOURCE_PROFILE_IDENTITY {
         DdnProgram::from_source_with_mode(&request.source_text, &request.path, ParseMode::Strict)
     } else {
@@ -1210,6 +1373,7 @@ pub fn analyze_source(request: SourceAnalysisRequest) -> SourceAnalysisSnapshot 
                     analysis_generation: request.analysis_generation,
                     source_profile_identity: request.source_profile_identity,
                     outcome: "UNSUPPORTED",
+                    proof_source_present: None,
                     diagnostics: vec![SourceAnalysisDiagnostic {
                         code: error.code.to_string(),
                         severity: "error",
@@ -1226,15 +1390,37 @@ pub fn analyze_source(request: SourceAnalysisRequest) -> SourceAnalysisSnapshot 
                 };
             }
         };
-        DdnProgram::from_supported_source_profile_with_mode(
-            &request.source_text,
-            &request.path,
-            ParseMode::Strict,
-            profile,
-        )
+        let program=DdnProgram::from_supported_source_profile_diagnostic_with_host(
+            &request.source_text,&request.path,ParseMode::Strict,profile,
+            crate::ddn_runtime::default_age_target(),None);
+        return finish_typed_source_analysis(request,revision,program);
     };
 
     finish_source_analysis(request, revision, program)
+}
+
+fn analyze_model_source(request: SourceAnalysisRequest, revision: String) -> SourceAnalysisSnapshot {
+    let diagnostics = match ddonirang_lang::parse_model_program_with_source_file(&request.source_text, &request.path) {
+        Ok(program) => program.ir.diagnostics.iter().map(|item| SourceAnalysisDiagnostic {
+            code: item.candidate_code.to_string(), severity: match item.severity {
+                "error_candidate" => "error",
+                severity => severity,
+            },
+            message: item.message.clone(), path: request.path.clone(),
+            span: SourceAnalysisSpan { encoding: "utf-8-byte", start: item.provenance.start, end: item.provenance.end },
+            diagnostic_identity: None, repair_proposal: None,
+        }).collect::<Vec<_>>(),
+        Err(error) => vec![SourceAnalysisDiagnostic {
+            code: error.candidate_code.to_string(), severity: "error", message: error.message,
+            path: request.path.clone(),
+            span: SourceAnalysisSpan { encoding: "utf-8-byte", start: error.span.start, end: error.span.end },
+            diagnostic_identity: None, repair_proposal: None,
+        }],
+    };
+    let outcome = if diagnostics.iter().any(|item| item.severity == "error") { "REJECTED" } else { "ACCEPTED" };
+    SourceAnalysisSnapshot { schema: SOURCE_ANALYSIS_SNAPSHOT_SCHEMA, source_revision_identity: revision,
+        analysis_generation: request.analysis_generation, source_profile_identity: request.source_profile_identity,
+        proof_source_present: if outcome == "ACCEPTED" { Some(false) } else { None }, outcome, diagnostics }
 }
 
 /// Compilation-local facts stay bound to the actual supplied context. The
@@ -1269,6 +1455,23 @@ pub fn analyze_source_with_first_callable_context(request: SourceAnalysisRequest
         finish_source_analysis(request, revision, program)
     };
     FirstCallableSourceAnalysis { snapshot, context }
+}
+
+fn finish_typed_source_analysis(request:SourceAnalysisRequest,revision:String,
+    program:Result<DdnProgram,crate::preprocess::ExecutionDiagnostic>)->SourceAnalysisSnapshot {
+    match program {
+        Err(error) if error.span.is_some()=>{
+            let (start,end)=error.span.expect("matched mechanical span");
+            SourceAnalysisSnapshot {schema:SOURCE_ANALYSIS_SNAPSHOT_SCHEMA,
+                source_revision_identity:revision,analysis_generation:request.analysis_generation,
+                source_profile_identity:request.source_profile_identity,outcome:"REJECTED",proof_source_present:None,
+                diagnostics:vec![SourceAnalysisDiagnostic {code:error.code.into(),severity:"error",message:error.message,
+                    path:error.source_path,span:SourceAnalysisSpan{encoding:"utf-8-byte",start,end},
+                    diagnostic_identity:None,repair_proposal:None}]}
+        },
+        Err(error)=>finish_source_analysis(request,revision,Err(error.message)),
+        Ok(program)=>finish_source_analysis(request,revision,Ok(program)),
+    }
 }
 
 fn finish_source_analysis(request: SourceAnalysisRequest, revision: String,
@@ -1307,6 +1510,7 @@ fn finish_source_analysis(request: SourceAnalysisRequest, revision: String,
                 analysis_generation: request.analysis_generation,
                 source_profile_identity: request.source_profile_identity,
                 outcome,
+                proof_source_present: Some(parsed_proof_source_present(program.canonical_program())),
                 diagnostics,
             }
         }
@@ -1322,6 +1526,7 @@ fn finish_source_analysis(request: SourceAnalysisRequest, revision: String,
             analysis_generation: request.analysis_generation,
             source_profile_identity: request.source_profile_identity,
             outcome: if code == "E_MULTILANG_CONTEXT_REQUIRED" { "UNSUPPORTED" } else { "REJECTED" },
+            proof_source_present: None,
             diagnostics: spans.into_iter().map(|span|SourceAnalysisDiagnostic {
                 code: code.clone(),
                 severity: "error",
@@ -1345,6 +1550,17 @@ pub fn source_analysis_snapshot_json(request_json: &str) -> Result<String, Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parsed_proof_presence_is_syntax_not_word_or_verdict() {
+        let ordinary=analyze_source(request("글 := \"보임\". 글 보여주기.",7,V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+        assert_eq!(ordinary.proof_source_present,Some(false));
+        let proof=analyze_source(request("(값:나눔수~을, 근거:(값 =:= 값)보임~로) 확인:(값 =:= 값)보임:셈씨 := { 확인 <- 근거. }.",8,V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+        assert_eq!(proof.proof_source_present,Some(true),"{:?}",proof.diagnostics);
+        assert_eq!(proof.analysis_generation,8);
+        let broken=analyze_source(request("(값:나눔수~을,",9,V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY));
+        assert_eq!(broken.proof_source_present,None);
+    }
 
     #[test]
     fn vc13_tuple_static_selection_has_position_specific_types() {
@@ -1589,7 +1805,7 @@ mod tests {
                         func: operator.to_string(),
                     },
                 );
-                let result = infer_expr(&expr, &BTreeMap::new(), &BTreeMap::new(), false);
+                let result = infer_expr(&expr, &BTreeMap::new(), &StaticCallContext {results:BTreeMap::new(),program:None}, false);
                 if accepted {
                     assert_eq!(result.unwrap(), StaticType::Bool);
                 } else {
@@ -2060,4 +2276,121 @@ mod tests {
             "E_SOURCE_PROFILE_REQUIRED"
         );
     }
+    #[test]
+    fn model_current_surface_analysis_reaches_the_existing_shared_result_table() {
+        let source = include_str!("../tests/fixtures/model_current_surface.또니");
+        let snapshot = analyze_source(request(source, 301, P1A_V1_CORE_PROFILE));
+        assert_eq!(snapshot.outcome, "ACCEPTED", "{:?}", snapshot.diagnostics);
+        assert_eq!(snapshot.source_revision_identity, source_revision_identity(source));
+        assert_eq!(snapshot.analysis_generation, 301);
+        let summary = crate::runtime_surface::run_summary_from_supported_source_profile(source, "example.ddn", Some(1), Some(P1A_V1_CORE_PROFILE)).expect("same source, shared runtime");
+        let projection = &summary["public_observation_table_projection"];
+        assert_eq!(projection["tables"].as_array().expect("real result tables").len(), 1);
+    }
+
+    #[test]
+    fn model_current_surface_keeps_real_unit_and_parse_diagnostics() {
+        let source = "계산=모형{입력:수@m::(들임). 결과:수@s::(그자리,내줌). 결과::구함. 결과 =:= 입력.}.";
+        let snapshot = analyze_source(request(source, 302, P1A_V1_CORE_PROFILE));
+        assert_eq!(snapshot.outcome, "REJECTED");
+        assert!(snapshot.diagnostics.iter().any(|item| item.code == "E_MODEL_UNIT_MISMATCH_CANDIDATE"));
+        for item in &snapshot.diagnostics { assert!(item.span.end <= source.len()); }
+        let broken = "계산 = 모형 {";
+        let snapshot = analyze_source(request(broken, 303, P1A_V1_CORE_PROFILE));
+        assert_eq!(snapshot.outcome, "REJECTED");
+        assert!(snapshot.diagnostics.iter().all(|item| item.code != "E_V25_DEFINITION_MIGRATION_REQUIRED"));
+    }
+
+    #[test]
+    fn model_current_surface_does_not_relax_ordinary_definition_or_profile_guards() {
+        let ordinary = analyze_source(request("계산:움직씨 = { }", 304, P1A_V1_CORE_PROFILE));
+        assert_eq!(ordinary.outcome, "REJECTED");
+        assert_eq!(ordinary.diagnostics[0].code, "E_V25_DEFINITION_MIGRATION_REQUIRED");
+        let unsupported = analyze_source(request("계산=모형{}.", 305, "unsupported-profile"));
+        assert_eq!(unsupported.outcome, "UNSUPPORTED");
+    }
+
+}
+
+#[cfg(test)]
+mod function_data_same_attempt_span_tests {
+ use super::*;
+ const BASE:&str="기준요금 (사용량:나눔수~을 --> 나눔수) := 조건별 { 정의역:0 <= 사용량 <= 6. 10 * 사용량:0 <= 사용량 <= 3. 30 + 20 * (사용량 - 3):3 < 사용량 <= 6. }.\n함수:(나눔수 --> 나눔수) := 기준요금.\n";
+ #[test]
+ fn function_data_key_rejection_uses_actual_original_utf8_expression(){
+  for prefix in ["","안내 := \"한글😀\".\n","#제목: 한글 머리\r\n"] {
+   for tail in ["(함수) 모음 보여주기.","(함수,3) 짝맞춤 보여주기."] {
+    let source=format!("{prefix}{BASE}{tail}");
+    let snapshot=analyze_source(SourceAnalysisRequest{source_text:source.clone(),path:"원문위치.또니".into(),source_profile_identity:V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY.into(),analysis_generation:17});
+    assert_eq!(snapshot.outcome,"REJECTED","{:?}",snapshot.diagnostics);
+    let d=&snapshot.diagnostics[0];assert_eq!(d.code,"E_TYPE_MISMATCH");assert_eq!(d.path,"원문위치.또니");
+    assert_eq!(&source[d.span.start..d.span.end],"함수","{source}: {d:?}");
+    let expected=source.rfind("(함수").unwrap()+1;assert_eq!((d.span.start,d.span.end),(expected,expected+"함수".len()));
+    assert_eq!(snapshot.analysis_generation,17);
+   }
+  }
+ }
+ #[test]
+ fn corrected_source_and_new_generation_do_not_reuse_the_old_failure(){
+  let source=format!("{BASE}([2,4],함수) 바꾸기 보여주기.");
+  let snapshot=analyze_source(SourceAnalysisRequest{source_text:source,path:"새원문.또니".into(),source_profile_identity:V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY.into(),analysis_generation:18});
+  assert_eq!(snapshot.outcome,"ACCEPTED","{:?}",snapshot.diagnostics);assert_eq!(snapshot.analysis_generation,18);assert!(snapshot.diagnostics.iter().all(|d|d.severity!="error"));
+ }
+}
+
+// Static lexical capture/effect admission, shared with actual value creation.
+// This never issues IDs or evaluates source; runtime captures real resolved values.
+pub(crate) fn anonymous_capture_free_names(expr:&Expr,bound:&std::collections::HashSet<String>,out:&mut std::collections::HashSet<String>)->Result<(),String>{
+    collect_anonymous_inventory(expr,bound,out,&mut BTreeSet::new(),&mut BTreeMap::new())
+}
+pub(crate) fn function_expression_inventory(expr:&Expr,bound:&std::collections::HashSet<String>)->Result<(std::collections::HashSet<String>,BTreeSet<ddonirang_lang::NodeId>),String>{
+    let mut free=std::collections::HashSet::new();let mut calls=BTreeSet::new();collect_anonymous_inventory(expr,bound,&mut free,&mut calls,&mut BTreeMap::new())?;Ok((free,calls))
+}
+pub(crate) fn function_statement_inventory(stmts:&[Stmt],bound:&std::collections::HashSet<String>)->Result<(std::collections::HashSet<String>,BTreeSet<ddonirang_lang::NodeId>),String>{
+    let mut free=std::collections::HashSet::new();let mut calls=BTreeSet::new();anonymous_block_capture_names(stmts,&mut bound.clone(),&mut free,&mut calls,&mut BTreeMap::new())?;Ok((free,calls))
+}
+pub(crate) fn function_statement_capture_sites(stmts:&[Stmt],bound:&std::collections::HashSet<String>)->Result<(BTreeMap<ddonirang_lang::NodeId,String>,BTreeSet<ddonirang_lang::NodeId>),String>{
+    let mut free=std::collections::HashSet::new();let mut calls=BTreeSet::new();let mut reads=BTreeMap::new();
+    anonymous_block_capture_names(stmts,&mut bound.clone(),&mut free,&mut calls,&mut reads)?;Ok((reads,calls))
+}
+fn collect_anonymous_inventory(expr:&Expr,bound:&std::collections::HashSet<String>,out:&mut std::collections::HashSet<String>,calls:&mut BTreeSet<ddonirang_lang::NodeId>,reads:&mut BTreeMap<ddonirang_lang::NodeId,String>)->Result<(),String>{
+    match &expr.kind{
+        ExprKind::Literal(Literal::Resource(_))|ExprKind::Suffix{at:ddonirang_lang::AtSuffix::Asset(_),..}=>return Err("E_FUNCTION_BODY_EFFECT: 자원 접근의 실제 효과·권한 공급이 필요합니다".into()),
+        ExprKind::Literal(_)=>{},
+        ExprKind::Var(name)=>{if !bound.contains(name){out.insert(name.clone());reads.insert(expr.id,name.clone());}},
+        ExprKind::Infix{left,right,..}=>{collect_anonymous_inventory(left,bound,out,calls,reads)?;collect_anonymous_inventory(right,bound,out,calls,reads)?;},
+        ExprKind::Suffix{value,..}=>collect_anonymous_inventory(value,bound,out,calls,reads)?,
+        ExprKind::FieldAccess{target,..}=>collect_anonymous_inventory(target,bound,out,calls,reads)?,
+        ExprKind::SelectionPlace{target,index}=>{collect_anonymous_inventory(target,bound,out,calls,reads)?;collect_anonymous_inventory(index,bound,out,calls,reads)?;},
+        ExprKind::MultiAxisSelection(selection)=>for child in selection.children(){collect_anonymous_inventory(child,bound,out,calls,reads)?;},
+        ExprKind::CollectionConstructor{elements}|ExprKind::TupleConstructor{elements}=>for e in elements{collect_anonymous_inventory(e,bound,out,calls,reads)?;},
+        ExprKind::Pack{fields}=>for (_,e) in fields{collect_anonymous_inventory(e,bound,out,calls,reads)?;},
+        ExprKind::Call{args,..}=>{calls.insert(expr.id);for arg in args{collect_anonymous_inventory(&arg.expr,bound,out,calls,reads)?;}},
+        ExprKind::FunctionBlock{statements,result}=>{let mut nested=bound.clone();anonymous_block_capture_names(&statements.stmts,&mut nested,out,calls,reads)?;collect_anonymous_inventory(result,&nested,out,calls,reads)?;},
+        ExprKind::Eval{thunk,..}=>{if let ExprKind::Thunk(body)=&thunk.kind{anonymous_block_capture_names(&body.stmts,&mut bound.clone(),out,calls,reads)?;}else{collect_anonymous_inventory(thunk,bound,out,calls,reads)?;}},
+        ExprKind::SeedLiteral{param,body}=>{let mut nested=bound.clone();nested.extend(param.split(',').map(str::trim).filter(|n|!n.is_empty()).map(str::to_owned));collect_anonymous_inventory(body,&nested,out,calls,reads)?;},
+        _=>return Err("E_FUNCTION_CAPTURE_EXPRESSION_UNSUPPORTED: 이 함수 본문의 자유변수·효과 연결은 아직 지원하지 않습니다".into()),
+    }Ok(())
+}
+fn anonymous_block_capture_names(stmts:&[Stmt],bound:&mut std::collections::HashSet<String>,out:&mut std::collections::HashSet<String>,calls:&mut BTreeSet<ddonirang_lang::NodeId>,reads:&mut BTreeMap<ddonirang_lang::NodeId,String>)->Result<(),String>{
+    for stmt in stmts{match stmt{
+        Stmt::Definition{name,value,reaction:None,..}=>{collect_anonymous_inventory(value,bound,out,calls,reads)?;bound.insert(name.clone());},
+        Stmt::DeclBlock{items,..}=>for item in items{if let Some(value)=&item.value{collect_anonymous_inventory(value,bound,out,calls,reads)?;}bound.insert(item.name.clone());},
+        Stmt::Mutate{target,value,deferred:false,..}=>{
+            let ExprKind::Var(name)=&target.kind else{return Err("E_FUNCTION_BODY_EFFECT: 지역 이름 밖의 수정은 명시 효과·권한 공급이 필요합니다".into())};
+            if !bound.contains(name){return Err("E_FUNCTION_CAPTURE_MUTATION: 갈무리한 바깥 값은 수정할 수 없습니다".into());}
+            collect_anonymous_inventory(value,bound,out,calls,reads)?;
+        },
+        Stmt::Expr{expr,..}=>collect_anonymous_inventory(expr,bound,out,calls,reads)?,
+        Stmt::If{condition,then_body,else_body,..}=>{
+            collect_anonymous_inventory(condition,bound,out,calls,reads)?;
+            anonymous_block_capture_names(&then_body.stmts,&mut bound.clone(),out,calls,reads)?;
+            if let Some(body)=else_body{anonymous_block_capture_names(&body.stmts,&mut bound.clone(),out,calls,reads)?;}
+        },
+        Stmt::While{condition,body,..}=>{collect_anonymous_inventory(condition,bound,out,calls,reads)?;anonymous_block_capture_names(&body.stmts,&mut bound.clone(),out,calls,reads)?;},
+        Stmt::Repeat{body,..}=>anonymous_block_capture_names(&body.stmts,&mut bound.clone(),out,calls,reads)?,
+        Stmt::ForEach{item,iterable,body,..}=>{collect_anonymous_inventory(iterable,bound,out,calls,reads)?;let mut nested=bound.clone();nested.insert(item.clone());anonymous_block_capture_names(&body.stmts,&mut nested,out,calls,reads)?;},
+        Stmt::Break{..}|Stmt::ContinueLoop{..}=>{},
+        _=>return Err("E_FUNCTION_BODY_EFFECT: 이 함수 본문 문장의 효과·호출 공급은 아직 지원하지 않습니다".into()),
+    }}Ok(())
 }

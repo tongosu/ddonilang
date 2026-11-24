@@ -18,8 +18,21 @@ static ASSET_REGISTRY: OnceLock<ProjectAssetRegistry> = OnceLock::new();
 pub struct ProjectAssetRegistry {
     bundle_id: String,
     manifest_sha256: String,
+    integrity_verified: bool,
     entries: HashMap<String, AssetEntry>,
     paths_by_handle: HashMap<u64, String>,
+}
+
+/// Borrowed byte lookup, not an AssetRef identity, rights grant or image
+/// admission. No public JSON/Deserialize path or image decoder is added.
+#[derive(Debug)]
+pub(crate) struct AssetByteRead<'a> {
+    pub(crate) bundle_id: &'a str,
+    pub(crate) manifest_sha256: &'a str,
+    pub(crate) path: &'a str,
+    pub(crate) content_blake3: &'a str,
+    pub(crate) mime: Option<&'a str>,
+    pub(crate) bytes: &'a [u8],
 }
 
 #[derive(Debug, Clone)]
@@ -126,6 +139,28 @@ impl ProjectAssetRegistry {
 
     pub fn manifest_sha256(&self) -> &str {
         &self.manifest_sha256
+    }
+
+    /// The expected manifest is a caller-owned context fence, never proof of
+    /// authority. Only strict construction qualifies for verified byte reads;
+    /// permissive legacy construction must not gain stronger guarantees.
+    pub(crate) fn read_verified_asset_bytes(
+        &self,
+        handle: ResourceHandle,
+        expected_manifest_sha256: &str,
+    ) -> Result<AssetByteRead<'_>, String> {
+        if !self.integrity_verified {
+            return Err("E_ASSET_BYTES_UNVERIFIED: 엄격한 원본 검증을 마친 레지스트리가 필요합니다".into());
+        }
+        if expected_manifest_sha256 != self.manifest_sha256 {
+            return Err("E_ASSET_BYTES_MANIFEST_MISMATCH: 자산 원본 판본이 현재 문맥과 다릅니다".into());
+        }
+        let path = self.paths_by_handle.get(&handle.raw())
+            .ok_or_else(|| "E_ASSET_BYTES_HANDLE_UNVERIFIED: 검증된 자원 조회값이 아닙니다".to_string())?;
+        let entry = self.entries.get(path)
+            .ok_or_else(|| "E_ASSET_BYTES_OBJECT_MISSING: 검증된 원본 바이트가 없습니다".to_string())?;
+        Ok(AssetByteRead { bundle_id: &self.bundle_id, manifest_sha256: &self.manifest_sha256,
+            path, content_blake3: &entry.blake3, mime: entry.mime.as_deref(), bytes: &entry.bytes })
     }
 
     pub fn sealed_dataset_identities(&self) -> Result<Vec<SealedDatasetAssetIdentity>, String> {
@@ -450,6 +485,7 @@ pub fn build_project_asset_registry_from_manifest(
     Ok(ProjectAssetRegistry {
         bundle_id: manifest.bundle_id,
         manifest_sha256: sha256_hex(manifest_bytes),
+        integrity_verified: strict_hash,
         entries,
         paths_by_handle,
     })
@@ -608,5 +644,77 @@ mod tests {
             missing_error,
             format!("RESOURCE_HASH_MISMATCH: missing {path}")
         );
+    }
+
+    fn display_byte_read_fixture() -> (Vec<u8>, HashMap<String, Vec<u8>>, ResourceHandle) {
+        let path = "images/orientation.png";
+        let bytes = include_bytes!("../tests/bogae_xy/fixtures/배치방향_2x2.png").to_vec();
+        let handle = ddonirang_core::asset_handle_from_bundle_path("bogae-byte-read-test", path);
+        let manifest = serde_json::to_vec(&serde_json::json!({
+            "version":"v0", "bundle_id":"bogae-byte-read-test", "hash_algo":"blake3",
+            "entries":[{"path":path,"handle":handle.to_hex(),
+                "hash":blake3::hash(&bytes).to_hex().to_string(),"size":bytes.len(),"mime":"image/png"}]
+        })).unwrap();
+        (manifest, HashMap::from([(path.to_owned(), bytes)]), handle)
+    }
+
+    #[test]
+    fn display_byte_read_borrows_strict_bytes_without_creating_asset_or_dataset_admission() {
+        let (raw, mut files, handle) = display_byte_read_fixture();
+        let original = files["images/orientation.png"].clone();
+        let registry = build_project_asset_registry_from_manifest(&raw, &files, true).unwrap();
+        files.get_mut("images/orientation.png").unwrap()[0] ^= 1;
+        let first = registry.read_verified_asset_bytes(handle, registry.manifest_sha256()).unwrap();
+        assert_eq!(first.bytes, original);
+        assert_eq!(first.bundle_id, "bogae-byte-read-test");
+        assert_eq!(first.path, "images/orientation.png");
+        assert_eq!(first.manifest_sha256, sha256_hex(&raw));
+        assert_eq!(first.content_blake3, blake3::hash(&original).to_hex().as_str());
+        assert_eq!(first.mime, Some("image/png"));
+        let second = registry.read_verified_asset_bytes(handle, registry.manifest_sha256()).unwrap();
+        assert!(std::ptr::eq(first.bytes, second.bytes), "borrowed read must not clone or re-encode PNG");
+        assert!(registry.sealed_dataset_identities().unwrap().is_empty());
+        assert!(registry.open_sealed_dataset(handle).unwrap_err().contains("E_DATASET_ASSET_KIND"));
+    }
+
+    #[test]
+    fn display_byte_read_rejects_different_manifest_even_when_locator_and_content_match() {
+        let (raw, files, handle) = display_byte_read_fixture();
+        let first = build_project_asset_registry_from_manifest(&raw, &files, true).unwrap();
+        let mut another_raw = raw.clone();another_raw.push(b'\n');
+        let second = build_project_asset_registry_from_manifest(&another_raw, &files, true).unwrap();
+        assert_ne!(first.manifest_sha256(), second.manifest_sha256());
+        assert!(second.read_verified_asset_bytes(handle, first.manifest_sha256()).unwrap_err()
+            .contains("E_ASSET_BYTES_MANIFEST_MISMATCH"));
+        assert!(first.read_verified_asset_bytes(handle, "not-a-supplied-manifest").is_err());
+        assert_eq!(second.read_verified_asset_bytes(handle, second.manifest_sha256()).unwrap().bytes,
+            first.read_verified_asset_bytes(handle, first.manifest_sha256()).unwrap().bytes);
+    }
+
+    #[test]
+    fn display_byte_read_does_not_promote_permissive_registry_to_verified() {
+        let (raw, files, handle) = display_byte_read_fixture();
+        let mut altered: serde_json::Value = serde_json::from_slice(&raw).unwrap();
+        altered["entries"][0]["hash"] = serde_json::json!("00".repeat(32));
+        altered["entries"][0]["size"] = serde_json::json!(999);
+        let modified = serde_json::to_vec(&altered).unwrap();
+        assert!(build_project_asset_registry_from_manifest(&modified, &files, true).is_err());
+        let permissive = build_project_asset_registry_from_manifest(&modified, &files, false).unwrap();
+        assert!(permissive.read_verified_asset_bytes(handle, permissive.manifest_sha256()).unwrap_err()
+            .contains("E_ASSET_BYTES_UNVERIFIED"));
+        let cloned = permissive.clone();
+        assert!(cloned.read_verified_asset_bytes(handle, cloned.manifest_sha256()).is_err());
+    }
+
+    #[test]
+    fn display_byte_read_requires_a_registry_resolved_locator_without_path_fallback() {
+        let (raw, files, handle) = display_byte_read_fixture();
+        let registry = build_project_asset_registry_from_manifest(&raw, &files, true).unwrap();
+        let path_only = ResourceHandle::from_path("images/orientation.png");
+        assert_ne!(path_only, handle);
+        for missing in [ResourceHandle::from_raw(0), path_only] {
+            assert!(registry.read_verified_asset_bytes(missing, registry.manifest_sha256()).unwrap_err()
+                .contains("E_ASSET_BYTES_HANDLE_UNVERIFIED"));
+        }
     }
 }

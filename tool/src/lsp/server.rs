@@ -143,7 +143,14 @@ enum SemanticTokensRequestSnapshot {
     Current(super::document_store::DocumentSnapshot),
 }
 
+struct SelectedDdlNavigation {
+    consumer_uri: String,
+    original_uri: String,
+    navigation: super::definition::SavedDdlNavigation,
+}
+
 pub struct LspServer {
+    saved_ddl: Option<SelectedDdlNavigation>,
     state: ServerState,
     position_encoding: Option<PositionEncoding>,
     documents: DocumentStore,
@@ -163,6 +170,7 @@ impl Default for LspServer {
 impl LspServer {
     pub fn new() -> Self {
         Self {
+            saved_ddl: None,
             state: ServerState::PreInitialize,
             position_encoding: None,
             documents: DocumentStore::new(),
@@ -170,6 +178,56 @@ impl LspServer {
             cancelled: BTreeSet::new(),
             pull_diagnostics: false,
         }
+    }
+
+    /// The host must explicitly select the artifact and map its two open
+    /// documents. This attachment is process-local and has no storage effect.
+    pub(crate) fn select_saved_ddl(
+        &mut self, artifact: &str, consumer_uri: &str, consumer_path: &str,
+        original_uri: &str, original_path: &str,
+    ) -> Result<(), String> {
+        self.saved_ddl = None;
+        let saved = crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnlyRevision::from_artifact(artifact)?;
+        self.attach_saved_ddl(&saved, consumer_uri, consumer_path, original_uri, original_path)
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn select_native_saved_ddl(
+        &mut self,
+        store: &crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1,
+        project: &[u8], anchor_revision: &[u8], anchor_integrity: &[u8; 32],
+        selected_revision: &[u8],
+        consumer_uri: &str, consumer_path: &str, original_uri: &str, original_path: &str,
+    ) -> Result<(), String> {
+        self.saved_ddl = None;
+        let (initial, successor) = store.read_public_editions_at_anchor(project, anchor_revision, anchor_integrity)
+            .map_err(|error| format!("E_DDL_EDITION_READBACK: {error:?}"))?;
+        let saved = if selected_revision == initial.revision() {
+            &initial
+        } else {
+            successor.as_ref().filter(|saved| saved.revision() == selected_revision)
+                .ok_or("E_DDL_EDITION_REVISION_SELECTION")?
+        };
+        self.attach_saved_ddl(saved, consumer_uri, consumer_path, original_uri, original_path)
+    }
+
+    fn attach_saved_ddl(
+        &mut self,
+        saved: &crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnlyRevision,
+        consumer_uri: &str, consumer_path: &str, original_uri: &str, original_path: &str,
+    ) -> Result<(), String> {
+        if consumer_uri == original_uri {
+            return Err("E_DDL_DEFINITION_DOCUMENT_ALIAS".into());
+        }
+        let source = |uri| self.documents.get(uri).filter(|snapshot| snapshot.language_id == "ddn")
+            .and_then(|snapshot| snapshot.text().ok()).ok_or("E_DDL_DEFINITION_OPEN_DOCUMENT_REQUIRED");
+        let navigation = super::definition::SavedDdlNavigation::prepare(
+            saved, consumer_path, source(consumer_uri)?, original_path, source(original_uri)?,
+        )?;
+        self.saved_ddl = Some(SelectedDdlNavigation {
+            consumer_uri: consumer_uri.to_owned(), original_uri: original_uri.to_owned(), navigation,
+        });
+        Ok(())
     }
 
     pub fn state(&self) -> ServerState {
@@ -435,6 +493,31 @@ impl LspServer {
             }
         }
         let encoding = self.position_encoding.ok_or(ServerError::NotInitialized)?;
+        if let Some(selected) = self.saved_ddl.as_ref().filter(|entry| entry.consumer_uri == uri) {
+            let Some(original) = self.documents.get(&selected.original_uri) else {
+                return Ok(success_event(id, Value::Null));
+            };
+            let consumer_text = snapshot.text().map_err(ServerError::Document)?;
+            let original_text = original.text().map_err(ServerError::Document)?;
+            let offset = request_offset(snapshot, position, encoding).map_err(ServerError::Definition)?;
+            let target = match selected.navigation.location(consumer_text, original_text, offset) {
+                Ok(Some(target)) => target,
+                Ok(None) => return Ok(success_event(id, Value::Null)),
+                Err(reason) => return Ok(error_event(id, RpcError::with_data(
+                    -32801, reason, json!({"currentVersion": snapshot.version,
+                        "snapshotIdentity": snapshot.identity.as_str()}),
+                ))),
+            };
+            let range = super::position::byte_range_to_lsp_range(original_text, ByteRange { start: target.range.start, end: target.range.end }, encoding)
+                .map_err(|error| ServerError::InvalidParams(format!("definition range가 잘못되었습니다: {error}")))?;
+            return Ok(success_event(id, json!({
+                "uri": selected.original_uri,
+                "range": {"start": {"line": range.start.line, "character": range.start.character},
+                    "end": {"line": range.end.line, "character": range.end.character}},
+                "data": {"definitionIdentity": target.identity, "documentVersion": snapshot.version,
+                    "snapshotIdentity": snapshot.identity.as_str(), "sourceProfile": selected.navigation.profile},
+            })));
+        }
         match self.project_lookup(snapshot) {
             ProjectLookup::NotMember => {}
             ProjectLookup::Ambiguous => return Ok(success_event(id, Value::Null)),
@@ -2155,6 +2238,9 @@ impl LspServer {
         let document = text_document(&params)?;
         let uri = string_field(document, "uri")?;
         self.documents.close(uri).map_err(ServerError::Document)?;
+        if self.saved_ddl.as_ref().is_some_and(|entry| entry.consumer_uri == uri || entry.original_uri == uri) {
+            self.saved_ddl = None;
+        }
         self.semantic_tokens_cache.remove(uri);
         Ok(uri.to_string())
     }

@@ -120,7 +120,7 @@ mod canonical_decimal_tests {
                         source_location: Some([5,6,7,8]), time_override: Some(BogaeTimePolicy::Relative(-1)) },
                 ] });
             }
-            let lambda = Value::Lambda(LambdaValue { id: 123, param: "물체".into(),
+            let lambda = Value::Lambda(LambdaValue { captured_sources:Default::default(), anonymous_target:None, named_target: None, id: 123, param: "물체".into(),
                 body: Expr::new(0, crate::ast::Span::new(0, 0), crate::ast::ExprKind::Literal(crate::ast::Literal::None)),
                 captured: [("물체".into(), value)].into() });
             let cloned = lambda.clone();
@@ -144,7 +144,7 @@ mod canonical_decimal_tests {
 
     #[test]
     fn runtime_equality_keeps_lambda_identity_indexes_and_relation_metadata() {
-        let lambda = |id, param: &str| Value::Lambda(LambdaValue { id, param: param.into(),
+        let lambda = |id, param: &str| Value::Lambda(LambdaValue { captured_sources:Default::default(), anonymous_target:None, named_target: None, id, param: param.into(),
             body: Expr::new(0, crate::ast::Span::new(0, 0), crate::ast::ExprKind::Literal(crate::ast::Literal::None)),
             captured: [(param.into(), Value::Bool(id == 1))].into() });
         assert!(lambda(1, "a") == lambda(1, "b"));
@@ -176,8 +176,8 @@ mod canonical_decimal_tests {
             drop(Value::Set([("key".into(), deep())].into()));
             drop(Value::Pack([("key".into(), deep())].into()));
             drop(Value::Record { field_types: BTreeMap::new(), fields: [("key".into(), deep())].into() });
-            drop(Value::Lambda(LambdaValue {
-                id: 1, param: "x".into(),
+            drop(Value::Lambda(LambdaValue { captured_sources:Default::default(), anonymous_target:None,
+                named_target: None, id: 1, param: "x".into(),
                 body: Expr::new(0, crate::ast::Span::new(0, 0), crate::ast::ExprKind::Literal(crate::ast::Literal::None)),
                 captured: [("key".into(), deep())].into(),
             }));
@@ -258,8 +258,83 @@ pub struct MapEntry {
     pub value: Value,
 }
 
+/// Execution-only reference to an already source-checked closed piecewise
+/// definition. No wire/serde/TypeIdentity or world-resource encoding is added.
+#[derive(Debug, Clone)]
+pub struct NamedFunctionTarget {
+    source_identity: String,
+    definition: std::sync::Arc<crate::ast::SeedDef>,
+    function_type: TypeRef,
+}
+impl NamedFunctionTarget {
+    pub fn source_identity(&self)->&str { &self.source_identity }
+    pub fn definition(&self)->&crate::ast::SeedDef { &self.definition }
+    pub fn function_type(&self)->&TypeRef { &self.function_type }
+    pub fn from_expected(program:&crate::CanonProgram,source_identity:&str,name:&str,expected:&TypeRef)
+        ->Result<Self,String> {
+        let definition=resolve_source_function_definition(program,name,expected)?;
+        Ok(Self {source_identity:source_identity.into(),definition:std::sync::Arc::new(definition.clone()),function_type:expected.clone()})
+    }
+}
+/// RD085 expected-function context only. This first producer admits the
+/// existing capture-free checked piecewise subset; no spelling fallback.
+pub fn resolve_closed_piecewise_function<'a>(program:&'a crate::CanonProgram,name:&str,expected:&TypeRef)
+    ->Result<&'a crate::ast::SeedDef,String> {
+    let TypeRef::Function{params,result}=expected else {return Err("기대 함수씨가 필요합니다".into());};
+    let mut candidates=program.items.iter().map(|crate::ast::TopLevelItem::SeedDef(seed)|seed)
+        .filter(|seed|seed.canonical_name==name);
+    let seed=candidates.next().ok_or("기대 함수씨에 결속할 실제 정의가 없습니다")?;
+    if candidates.next().is_some() {return Err("함수값의 실제 정의가 유일하지 않습니다".into());}
+    if !program.origin.piecewise_definitions.contains_key(&seed.id)
+        || !matches!(seed.seed_kind,crate::ast::SeedKind::Semssi|crate::ast::SeedKind::ValueFunc)
+        || seed.body.is_some() || seed.proof_header.is_some() || !seed.modifiers.is_empty()
+        || !seed.type_params.is_empty() || seed.params.len()!=params.len()
+        || seed.params.iter().zip(params).any(|(pin,kind)|pin.optional||pin.default_value.is_some()||&pin.type_ref!=kind)
+        || seed.result_type.as_ref()!=Some(result.as_ref()) {
+        return Err("함수값의 정의·받는자리·씨·닫힌 조건별 근거를 보존할 수 없습니다".into());
+    }
+    Ok(seed)
+}
+
+/// Expected-function source selection only; pure-body/call-graph admission is
+/// supplied by the common compiler before the tool runtime creates a value.
+/// Selection happens before type checking, never by the desired result.
+pub fn resolve_source_function_definition<'a>(program:&'a crate::CanonProgram,name:&str,expected:&TypeRef)
+    ->Result<&'a crate::ast::SeedDef,String>{
+    let TypeRef::Function{params,result}=expected else{return Err("기대 함수씨가 필요합니다".into())};
+    let mut candidates=program.items.iter().map(|crate::ast::TopLevelItem::SeedDef(seed)|seed).filter(|seed|seed.canonical_name==name);
+    let seed=candidates.next().ok_or("기대 함수씨에 결속할 실제 정의가 없습니다")?;
+    if candidates.next().is_some(){return Err("함수값의 실제 정의가 유일하지 않습니다".into());}
+    if program.origin.piecewise_definitions.contains_key(&seed.id){return resolve_closed_piecewise_function(program,name,expected);}
+    if !matches!(seed.seed_kind,crate::ast::SeedKind::Semssi|crate::ast::SeedKind::ValueFunc)
+        || seed.body.is_none() || seed.proof_header.is_some() || !seed.modifiers.is_empty()
+        || !seed.type_params.is_empty() || seed.params.len()!=params.len()
+        || seed.params.iter().zip(params).any(|(pin,kind)|pin.optional||pin.default_value.is_some()||&pin.type_ref!=kind)
+        || seed.result_type.as_ref()!=Some(result.as_ref()){
+        return Err("함수값의 실제 정의·받는자리·씨를 보존할 수 없습니다".into());
+    }Ok(seed)
+}
+
+/// Execution-only source/type evidence. No serialization or external identity.
+#[derive(Debug)]
+pub struct AnonymousFunctionTarget { source_identity:String, function_type:TypeRef, body_id:crate::ast::NodeId }
+impl AnonymousFunctionTarget {
+    pub fn from_expected(source_identity:&str,expr:&Expr,expected:&TypeRef)->Result<Self,String>{
+        let (crate::ast::ExprKind::SeedLiteral{param,body},TypeRef::Function{params,..})=(&expr.kind,expected) else{return Err("실제 함수 원문과 기대 함수씨가 필요합니다".into());};
+        if param.split(',').map(str::trim).filter(|n|!n.is_empty()).count()!=params.len(){return Err("함수 받는자리 수가 다릅니다".into());}
+        Ok(Self{source_identity:source_identity.into(),function_type:expected.clone(),body_id:body.id})
+    }
+    pub fn source_identity(&self)->&str{&self.source_identity}
+    pub fn function_type(&self)->&TypeRef{&self.function_type}
+    pub fn body_id(&self)->crate::ast::NodeId{self.body_id}
+}
 #[derive(Debug, Clone)]
 pub struct LambdaValue {
+    /// Immutable values indexed by actual declarations in this source identity.
+    /// Execution-only; no saved identity, world handle or string-key channel.
+    pub captured_sources: std::sync::Arc<BTreeMap<crate::ast::NodeId,Value>>,
+    pub anonymous_target: Option<std::sync::Arc<AnonymousFunctionTarget>>,
+    pub named_target: Option<std::sync::Arc<NamedFunctionTarget>>,
     pub id: u64,
     pub param: String,
     pub body: Expr,
@@ -329,6 +404,7 @@ pub enum Value {
     TimePolicy(BogaeTimePolicy),
     SceneElement(PlaneElement),
     Scene(PlaneScene),
+    SpaceScene(SpaceScene),
     BogaeRelation(BogaeRelationValue),
     BogaeComposition(BogaeCompositionValue),
 }
@@ -421,6 +497,7 @@ impl PartialEq for Value {
                     (Value::TimePolicy(a), Value::TimePolicy(b)) => if a != b { return false; },
                     (Value::SceneElement(a), Value::SceneElement(b)) => if a != b { return false; },
                     (Value::Scene(a), Value::Scene(b)) => if a != b { return false; },
+                    (Value::SpaceScene(a), Value::SpaceScene(b)) => if a != b { return false; },
                     _ => return false,
                 },
             }
@@ -506,6 +583,7 @@ impl Clone for Value {
                     Value::TimePolicy(value) => built.push(Value::TimePolicy(*value)),
                     Value::SceneElement(value) => built.push(Value::SceneElement(value.clone())),
                     Value::Scene(value) => built.push(Value::Scene(value.clone())),
+                    Value::SpaceScene(value) => built.push(Value::SpaceScene(value.clone())),
                 },
                 Job::List(count) => {
                     let values = built.split_off(built.len() - count);
@@ -539,7 +617,7 @@ impl Clone for Value {
                 }
                 Job::Lambda(source, names) => {
                     let values = built.split_off(built.len() - names.len());
-                    built.push(Value::Lambda(LambdaValue { id: source.id, param: source.param.clone(), body: source.body.clone(),
+                    built.push(Value::Lambda(LambdaValue { captured_sources:source.captured_sources.clone(), anonymous_target:source.anonymous_target.clone(), named_target: source.named_target.clone(), id: source.id, param: source.param.clone(), body: source.body.clone(),
                         captured: names.into_iter().map(str::to_owned).zip(values).collect() }));
                 }
                 Job::Relation(source) => {
@@ -579,13 +657,16 @@ impl Value {
     }
 
     pub fn contains_transient_subject_view(&self) -> bool {
+        // Allocation identity only deduplicates immutable graph traversal;
+        // it is never a source/Definition/Pin or persisted identity.
+        let mut seen_sources=std::collections::HashSet::new();
         let mut pending=vec![self];
         while let Some(value)=pending.pop(){match value {
             Value::FrozenSubjectViewV1(_)=>return true,
             Value::List(items)|Value::Tuple(items)=>pending.extend(items),
             Value::SumBranch{payload,..}|Value::Record{fields:payload,..}|Value::Pack(payload)|Value::Set(payload)=>pending.extend(payload.values()),
             Value::Map(items)=>for item in items.values(){pending.push(&item.key);pending.push(&item.value);},
-            Value::Lambda(lambda)=>pending.extend(lambda.captured.values()),
+            Value::Lambda(lambda)=>{pending.extend(lambda.captured.values());if seen_sources.insert(std::sync::Arc::as_ptr(&lambda.captured_sources)){pending.extend(lambda.captured_sources.values());}},
             Value::BogaeRelation(BogaeRelationValue::Magnifier{target,..})=>pending.push(target),
             Value::BogaeComposition(composition)=>for relation in &composition.relations {
                 if let BogaeRelationValue::Magnifier{target,..}=relation {pending.push(target);}
@@ -615,7 +696,10 @@ impl Drop for Value {
                     field_types.clear();
                     pending.extend(std::mem::take(fields).into_values());
                 }
-                Value::Lambda(lambda) => pending.extend(std::mem::take(&mut lambda.captured).into_values()),
+                Value::Lambda(lambda) => {
+                    pending.extend(std::mem::take(&mut lambda.captured).into_values());
+                    if let Ok(values)=std::sync::Arc::try_unwrap(std::mem::take(&mut lambda.captured_sources)){pending.extend(values.into_values());}
+                },
                 Value::BogaeRelation(relation) => detach_relation(relation, pending),
                 Value::BogaeComposition(composition) => for relation in &mut composition.relations {
                     detach_relation(relation, pending);
@@ -649,11 +733,88 @@ impl TensorValue {
     pub fn saved_bytes(&self) -> &[u8] { &self.saved }
 }
 
+/// Execution-local transport, not a new DDN type, saved identity, or admission
+/// capability. Only the common source resolver may supply these declaration
+/// coordinates and static types; projection must retain the actual view owner.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResultTableColumnType { Existing(TypeRef), Unit(UnitDim) }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResultTableColumn {
+    pub declaration: u64,
+    pub observation: u64,
+    pub name: String,
+    pub source_ref: String,
+    pub kind: ResultTableColumnType,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResultTableSelection {
+    registration_owner: [u8;32],
+    definition: [u8;32],
+    pin: [u8;32],
+    version: u32,
+    source: String,
+    columns: Vec<ResultTableColumn>,
+}
+impl ResultTableSelection {
+    /// Physical registration checking is not public-dispatch approval. This
+    /// constructor only guards the transport invariant after source resolution.
+    pub fn from_resolved_source(registration: &crate::stdlib::CheckedResultTableDescriptor,
+        source: String, columns: Vec<ResultTableColumn>) -> Result<Self,String> {
+        if source.is_empty() || columns.is_empty() {
+            return Err("E_AUTHORED_BOGAE: 원문과 비어 있지 않은 열 선택이 필요합니다".into());
+        }
+        let mut seen=BTreeSet::new();
+        let observation=columns[0].observation;
+        for column in &columns {
+            if column.name.is_empty() || column.source_ref.is_empty()
+                || !seen.insert(column.declaration) || column.observation!=observation {
+                return Err("E_AUTHORED_BOGAE: 중복 열 또는 다른 관측 소유를 결합할 수 없습니다".into());
+            }
+        }
+        Ok(Self {registration_owner:*registration.owner(),definition:*registration.definition(),
+            pin:*registration.pin(crate::stdlib::ResultTablePinRole::Columns),version:registration.version(),source,columns})
+    }
+    pub fn source(&self)->&str { &self.source }
+    pub fn columns(&self)->&[ResultTableColumn] { &self.columns }
+    pub fn same_source(&self,source:&str)->bool { self.source==source }
+}
+
+
+/// Execution-local axis transport only; not a serialized DDN type or registry.
+#[derive(Debug,Clone,PartialEq,Eq)]
+pub struct XySelection {
+    registration_owner:[u8;32], definition:[u8;32], pins:[[u8;32];2], version:u32,
+    mode:crate::stdlib::xy_registration_r1::XyMode,
+    source:String, axes:[ResultTableColumn;2],
+}
+impl XySelection {
+    pub fn from_resolved_source(registration:&crate::stdlib::xy_registration_r1::CheckedXyDescriptor,
+        source:String,axes:[ResultTableColumn;2])->Result<Self,String> {
+        use crate::stdlib::xy_registration_r1::AxisRole;
+        if source.is_empty() || axes[0].observation!=axes[1].observation
+            || axes.iter().any(|a|a.name.is_empty()||a.source_ref.is_empty()) {
+            return Err("E_AUTHORED_BOGAE: 같은 실제 공개 관측의 두 축이 필요합니다".into());
+        }
+        Ok(Self {registration_owner:*registration.owner(),definition:*registration.definition(),
+            pins:[*registration.pin(AxisRole::X),*registration.pin(AxisRole::Y)],version:registration.version(),
+            mode:registration.mode(),source,axes})
+    }
+    pub fn source(&self)->&str {&self.source}
+    pub fn axes(&self)->&[ResultTableColumn;2] {&self.axes}
+    pub fn mode(&self)->crate::stdlib::xy_registration_r1::XyMode {self.mode}
+    pub fn same_source(&self,source:&str)->bool {self.source==source}
+}
+
 /// RD-123의 명시 결과표. 세계 자원이 아니라 보개가 해소할 typed 보기값이다.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ViewValue {
     ResultTable,
+    SelectedResultTable(ResultTableSelection),
+    SelectedXy(XySelection),
     Scene(PlaneScene),
+    SpaceScene(SpaceScene),
     Timed { view: Box<ViewValue>, policy: BogaeTimePolicy },
 }
 
@@ -673,6 +834,12 @@ impl BogaeTimePolicy {
 }
 
 impl ViewValue {
+    pub fn xy_selection(&self)->Option<&XySelection> {
+        match self.without_time() {Self::SelectedXy(selection)=>Some(selection),_=>None}
+    }
+    pub fn table_selection(&self)->Option<&ResultTableSelection> {
+        match self.without_time() {Self::SelectedResultTable(selection)=>Some(selection),_=>None}
+    }
     pub fn time_policy(&self) -> BogaeTimePolicy {
         match self { Self::Timed {policy,..} => *policy, _ => BogaeTimePolicy::Common }
     }
@@ -681,12 +848,36 @@ impl ViewValue {
     }
 }
 
+pub mod static_png_assets;
+
+/// Execution-local typed image data, not a serialized language type or a
+/// source/run/view capability. Snapshot authority stays in the tool binding;
+/// only the deterministic source-content fingerprint crosses this layer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticPngSelection {
+    material: static_png_assets::CheckedStaticPngMaterial,
+    handle: ResourceHandle,
+    source_content_sha256: [u8;32],
+}
+impl StaticPngSelection {
+    pub fn from_checked_source_bytes(bytes:&static_png_assets::CheckedStaticPngBytes<'_>,
+        handle:ResourceHandle, source_content_sha256:[u8;32]) -> Self {
+        Self { material:bytes.material().clone(), handle, source_content_sha256 }
+    }
+    pub fn material(&self) -> &static_png_assets::CheckedStaticPngMaterial { &self.material }
+    pub fn handle(&self) -> ResourceHandle { self.handle }
+    pub fn source_content_sha256(&self) -> &[u8;32] { &self.source_content_sha256 }
+}
+
 /// RD-538 closed scene roles. Exact Fixed64 geometry is authored, not fitted by UI.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlaneElement {
+    Face3 { vertices: Vec<[Fixed64;3]>, source: Option<ddonirang_core::SourceSpan> },
+    Camera3(SpaceCamera),
     Circle { center: [Fixed64; 2], radius: Fixed64 },
     Polygon { vertices: Vec<[Fixed64; 2]> },
     Text { position: [Fixed64; 2], content: String },
+    Image { selection: StaticPngSelection, horizontal: [Fixed64;2], vertical: [Fixed64;2] },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -694,6 +885,19 @@ pub struct PlaneScene {
     pub elements: Vec<PlaneElement>,
     pub horizontal: [Fixed64; 2],
     pub vertical: [Fixed64; 2],
+}
+
+/// Execution-local read-only space3 R1. Only the checked source producer supplies
+/// these values; no Native world codec or new persistent identity is provided.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpaceCamera {
+    pub position:[Fixed64;3], pub look_at:[Fixed64;3], pub up:[Fixed64;3],
+    pub vertical_fov_degrees:Fixed64, pub source:Option<ddonirang_core::SourceSpan>,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpaceScene {
+    pub elements:Vec<PlaneElement>, pub camera:SpaceCamera,
+    pub source:Option<ddonirang_core::SourceSpan>,
 }
 
 /// RD-520 작성 관계의 내용. 정체는 짜임 해소 시 별도로 결속한다.
@@ -1043,10 +1247,13 @@ fn map_key_leaf_canon(value: &Value) -> String {
             }
         }
         Value::Lambda(lambda) => format!("<씨앗#{}>", lambda.id),
-        Value::View(view) => match view.without_time() { ViewValue::ResultTable => "<보기값:결과표>", _ => "<보기값:장면>" }.to_string(),
+        Value::View(view) => match view.table_selection() {
+            Some(selection) => format!("<선택결과표:{selection:?}:시간={}>",view.time_policy().canonical_text()),
+            None => match view.xy_selection() {Some(selection)=>format!("<선택XY:{selection:?}:시간={}>",view.time_policy().canonical_text()),None=>match view.without_time() {ViewValue::ResultTable=>"<보기값:결과표>",_=>"<보기값:장면>"}.to_string()},
+        },
         Value::TimePolicy(policy) => policy.canonical_text(),
         Value::SceneElement(_) => "<장면요소값>".to_string(),
-        Value::Scene(_) => "<장면값>".to_string(),
+        Value::Scene(_) | Value::SpaceScene(_) => "<장면값>".to_string(),
         Value::BogaeRelation(relation) => format!("<{}>", relation.kind_name()),
         Value::BogaeComposition(_) => "<보개짜임값>".to_string(),
     }
@@ -1729,7 +1936,12 @@ pub fn check_value_type_with_records(
                 _ => Err(type_mismatch_detail(&canonical, value)),
             }
         }
-        TypeRef::Function { .. } | TypeRef::PropositionConjunction(_) | TypeRef::StructureLaw { .. } | TypeRef::AlgebraEquality { .. } => Err(type_mismatch_detail(&format_type_ref(type_ref), value)),
+        TypeRef::Function { .. } => match value {
+            Value::Lambda(lambda) if lambda.named_target.as_ref().is_some_and(|target|target.function_type()==type_ref)
+                || lambda.anonymous_target.as_ref().is_some_and(|target|target.function_type()==type_ref) => Ok(()),
+            _=>Err(type_mismatch_detail(&format_type_ref(type_ref),value)),
+        },
+        TypeRef::PropositionConjunction(_) | TypeRef::StructureLaw { .. } | TypeRef::AlgebraEquality { .. } | TypeRef::CardCallEquality { .. } | TypeRef::AlgebraNonzero { .. } => Err(type_mismatch_detail(&format_type_ref(type_ref), value)),
         } })();
         if let Err(mut detail) = result {
             // The outermost container overwrites inner expected types, whereas
@@ -1847,7 +2059,7 @@ fn check_named_type(value: &Value, name: &str) -> Result<(), TypeMismatchDetail>
         },
         "보개시간값" => match value { Value::TimePolicy(_) => Ok(()), _ => Err(type_mismatch_detail(&canonical,value)) },
         "장면요소값" => match value { Value::SceneElement(_) => Ok(()), _ => Err(type_mismatch_detail(&canonical, value)) },
-        "장면값" => match value { Value::Scene(_) => Ok(()), _ => Err(type_mismatch_detail(&canonical, value)) },
+        "장면값" => match value { Value::Scene(_) | Value::SpaceScene(_) => Ok(()), _ => Err(type_mismatch_detail(&canonical, value)) },
         "으뜸보개관계값" | "겹보개관계값" | "곁보개관계값" | "돋보개관계값" | "보개관계값" => match value {
             Value::BogaeRelation(relation) if canonical == "보개관계값" || relation.kind_name() == canonical => Ok(()),
             _ => Err(type_mismatch_detail(&canonical, value)),
@@ -2044,6 +2256,8 @@ pub(crate) fn format_type_ref(type_ref: &TypeRef) -> String {
                 if index > 0 { pending.push(Job::Text(", ".into())); }
             }
         }
+        TypeRef::CardCallEquality {left,right} => output.push_str(&format!("{} =:= {}",left.source_text(),right.source_text())),
+        TypeRef::AlgebraNonzero {term} => output.push_str(&format!("{} != 0",term.source_text())),
         TypeRef::AlgebraEquality {left,right} => output.push_str(&format!("{} =:= {}",left.source_text(),right.source_text())),
         TypeRef::StructureLaw { structure, member } => output.push_str(&format!("{structure}.{member}")),
         TypeRef::PropositionConjunction(items) => {
@@ -2129,8 +2343,19 @@ pub fn value_type_name(value: &Value) -> String {
         Value::View(_) => "보기값".to_string(),
         Value::TimePolicy(_) => "보개시간값".to_string(),
         Value::SceneElement(_) => "장면요소값".to_string(),
-        Value::Scene(_) => "장면값".to_string(),
+        Value::Scene(_) | Value::SpaceScene(_) => "장면값".to_string(),
         Value::BogaeRelation(relation) => relation.kind_name().to_string(),
         Value::BogaeComposition(_) => "보개짜임값".to_string(),
     }
+}
+
+#[cfg(test)]
+mod source_capture_structure_tests {
+ use super::*;
+ #[test]fn source_owned_capture_chain_clone_and_drop_are_stack_safe(){
+  let body=Expr::new(0,crate::ast::Span::new(0,0),crate::ast::ExprKind::Literal(crate::ast::Literal::Bool(true)));
+  let mut value=Value::Bool(true);
+  for id in 0..20000{value=Value::Lambda(LambdaValue{captured_sources:std::sync::Arc::new(BTreeMap::from([(id,value)])),anonymous_target:None,named_target:None,id,param:"값".into(),body:body.clone(),captured:HashMap::new()});}
+  let copied=value.clone();assert!(!copied.contains_transient_subject_view());drop(value);drop(copied);
+ }
 }

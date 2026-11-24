@@ -45,7 +45,7 @@ impl NativeLogicalSourceWorldExecution {
     pub(crate) fn prepare(self,revision:&[u8])->Result<NativeLogicalSourceWorldPrepared,String>{
         let parent=self.session.permit.source().revision();
         self.session.permit.verify_before_world(&self.session.adapter).map_err(reject)?;
-        let artifact={let _timing=crate::storage_observation::Span::start("first.serialize_attachment");self.run.export_saved_artifact(parent,revision).map_err(reject)?};
+        let artifact={let _timing=crate::storage_observation::Span::start("first.serialize_attachment");self.run.export_saved_artifact_native(parent,revision,reject)?};
         let checked=attachment::check_bytes(artifact.as_bytes())?;
         let context=attachment::check_saved_revision_context(&checked,&self.owned,parent,revision)?;
         let produced={let _timing=crate::storage_observation::Span::start("first.serialize_hash_request");crate::snapshot_v2_durable_transaction::PreparedLogicalRequestBorrowV1::from_run(&self.run,&context,parent,revision).map_err(reject)?};
@@ -157,7 +157,7 @@ pub(crate) fn save_continued_logical_source_world(
         if run.session().summary()["state_hash"].as_str()!=Some(expected){return Err("E_NATIVE_SOURCE_SAVE_WORLD_MISMATCH".into());}
     }
     if expected_result.is_some(){return Err("E_MISSING_REPLAY_SEED: 원 결과 증거 없는 저장본을 새 증거로 바꾸지 않습니다".into());}
-    let artifact=run.export_saved_artifact(revision,next).map_err(reject)?;
+    let artifact=run.export_saved_artifact_native(revision,next,reject)?;
     let next_checked=attachment::check_bytes(artifact.as_bytes())?;
     let next_context=attachment::check_saved_revision_context(&next_checked,&owned,revision,next)?;
     let request=ActualPreparedRequestV1::from_logical(&run,&next_context,revision,next).map_err(reject)?;
@@ -207,7 +207,7 @@ fn save_recording_continued_logical(mut adapter:crate::snapshot_v2_durable_trans
     if let Some(expected)=expected_result{
         if recording.result_identity(&adapter)?!=expected{return Err("E_NATIVE_SOURCE_SAVE_RESULT_MISMATCH: 원 형식 결과가 화면과 다릅니다. 기존 저장본을 보존했습니다".into());}
     }
-    let artifact=recording.checkpoint_run(&adapter)?.export_saved_artifact(revision,next).map_err(reject)?;
+    let artifact=recording.checkpoint_run(&adapter)?.export_saved_artifact_native(revision,next,reject)?;
     let checked=attachment::check_bytes(artifact.as_bytes())?;
     let next_context=attachment::check_saved_revision_context(&checked,previous.owned(),revision,next)?;
     let request=ActualPreparedRequestV1::from_logical(recording.checkpoint_run(&adapter)?,&next_context,revision,next).map_err(reject)?;

@@ -2,7 +2,130 @@
 use super::*;
 
 impl Parser {
+    /// Split only an already-bound value in this lexical scope. In v25 the
+    /// lexer may leave an incomplete suffix (`반지름으` + `로`), so recover the
+    /// complete contiguous spelling before checking all possible boundaries.
+    /// The call elaborator still validates the actual particle/pin owner.
+    fn split_bound_value_particle(&mut self) -> Result<(), ParseError> {
+        let token = self.current().clone();
+        let TokenKind::Ident(word) = &token.kind else { return Ok(()); };
+        if self.source_epoch != SourceEpoch::V25
+            && !word.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_') {
+            return Ok(());
+        }
+        let adjacent = (self.source_epoch == SourceEpoch::V25).then(||
+            self.tokens.get(self.pos + 1).filter(|next|
+                token.span.end == next.span.start && matches!(next.kind, TokenKind::Josa(_))))
+            .flatten();
+        let whole = adjacent.map_or_else(|| word.clone(), |next| format!("{}{}", word, next.raw));
+        let following = self.pos + if adjacent.is_some() { 2 } else { 1 };
+        if !self.tokens.get(following).is_some_and(|next| matches!(next.kind,
+            TokenKind::Ident(_) | TokenKind::Josa(_) | TokenKind::LParen
+            | TokenKind::Integer(_) | TokenKind::Float(_) | TokenKind::StringLit(_))) {
+            return Ok(());
+        }
+        let candidates: Vec<_> = ["에게서", "으로", "에서", "에게", "부터", "까지",
+            "한테", "를", "을", "가", "이", "은", "는", "의", "로", "와", "과", "에"]
+            .into_iter().filter_map(|particle| {
+                let base = whole.strip_suffix(particle)?;
+                (!base.is_empty() && base.chars().all(|c|
+                    (self.source_epoch == SourceEpoch::V25 && c.is_alphanumeric())
+                    || c.is_ascii_alphanumeric() || c == '_')
+                    && self.pattern_name_is_bound(base)).then_some((base.to_string(), particle))
+            }).collect();
+        if candidates.is_empty() { return Ok(()); }
+        let end = adjacent.map_or(token.span.end, |next| next.span.end);
+        let had_adjacent = adjacent.is_some();
+        if candidates.len() != 1 || self.pattern_name_is_bound(&whole) {
+            return Err(ParseError { span: self.to_ast_span(crate::lexer::Span::new(token.span.start, end)),
+                message: format!("E_PARTICLE_NAME_AMBIGUOUS: '{}'의 이름·조사 결속이 유일하지 않습니다", whole) });
+        }
+        let (base, particle) = &candidates[0];
+        let boundary = token.span.start + base.len();
+        let mut value = token.clone();
+        value.kind = TokenKind::Ident(base.clone());
+        value.raw = base.clone();
+        value.span.end = boundary;
+        let mut suffix = token;
+        suffix.kind = TokenKind::Josa((*particle).to_string());
+        suffix.raw = (*particle).to_string();
+        suffix.span.start = boundary;
+        suffix.span.end = end;
+        self.tokens[self.pos] = value;
+        if had_adjacent { self.tokens[self.pos + 1] = suffix; }
+        else { self.tokens.insert(self.pos + 1, suffix); }
+        Ok(())
+    }
+
+    // Reconstruct only a reserved literal boundary that the legacy lexer may
+    // have split as `거짓으` + `로`. Ordinary identifier splitting and the
+    // selected callable's actual particle/pin validation remain unchanged.
+    fn split_reserved_literal_particle(&mut self) -> Result<Option<bool>, ParseError> {
+        if self.source_epoch != SourceEpoch::V25 { return Ok(None); }
+        let token = self.current().clone();
+        let TokenKind::Ident(word) = &token.kind else { return Ok(None); };
+        let adjacent = self.tokens.get(self.pos + 1).filter(|next|
+            token.span.end == next.span.start && matches!(next.kind, TokenKind::Josa(_)));
+        let whole = match adjacent { Some(next) => format!("{}{}", word, next.raw), None => word.clone() };
+        let following = self.pos + if adjacent.is_some() { 2 } else { 1 };
+        if !self.tokens.get(following).is_some_and(|next| matches!(next.kind,
+            TokenKind::Ident(_) | TokenKind::Josa(_) | TokenKind::LParen
+            | TokenKind::Integer(_) | TokenKind::Float(_) | TokenKind::StringLit(_))) { return Ok(None); }
+        let candidate = ["참", "거짓"].into_iter().find_map(|literal| {
+            let suffix = whole.strip_prefix(literal)?;
+            ["에게서", "으로", "에서", "에게", "부터", "까지", "한테", "를", "을", "가", "이", "은", "는", "의", "로", "와", "과", "에"]
+                .contains(&suffix).then_some((literal, suffix))
+        });
+        let Some((literal, particle)) = candidate else { return Ok(None); };
+        if self.pattern_name_is_bound(literal) { return Ok(None); }
+        let end = adjacent.map_or(token.span.end, |next| next.span.end);
+        if self.pattern_name_is_bound(word) || self.pattern_name_is_bound(&whole) {
+            return Err(ParseError { span: self.to_ast_span(crate::lexer::Span::new(token.span.start, end)),
+                message: format!("E_PARTICLE_NAME_AMBIGUOUS: '{}'의 이름·참거짓·조사 결속이 유일하지 않습니다", whole) });
+        }
+        let boundary = token.span.start + literal.len();
+        let had_adjacent = adjacent.is_some();
+        let mut value = token.clone(); value.kind = TokenKind::Ident(literal.into());
+        value.raw = literal.into(); value.span.end = boundary;
+        let mut suffix = token; suffix.kind = TokenKind::Josa(particle.into());
+        suffix.raw = particle.into(); suffix.span.start = boundary; suffix.span.end = end;
+        self.tokens[self.pos] = value;
+        if had_adjacent { self.tokens[self.pos + 1] = suffix; }
+        else { self.tokens.insert(self.pos + 1, suffix); }
+        Ok(Some(literal == "참"))
+    }
+
     pub(super) fn parse_expr(&mut self) -> Result<Expr, ParseError> {
+        if self.source_epoch == SourceEpoch::V25 {
+            let checkpoint=self.pos;
+            let start=self.to_ast_span(self.current().span);
+            let mut params=Vec::new();
+            if self.check_ident() {params.push(self.expect_ident("함수 받는자리")?.raw.clone());}
+            else if self.check(&TokenKind::LParen) {
+                self.advance();
+                while self.check_ident() {
+                    params.push(self.expect_ident("함수 받는자리")?.raw.clone());
+                    if !self.check(&TokenKind::Comma){break;}self.advance();
+                }
+                if self.check(&TokenKind::RParen){self.advance();}else{self.pos=checkpoint;}
+            }
+            let arrow=self.check(&TokenKind::Pipe) && self.peek_kind_n_is(1,|k|matches!(k,TokenKind::RightArrow))
+                && self.tokens[self.pos].span.end==self.tokens[self.pos+1].span.start;
+            if self.pos!=checkpoint && arrow {
+                self.advance();self.advance();
+                let mut seen=std::collections::HashSet::new();
+                if params.iter().any(|p|!seen.insert(p.clone())){return Err(self.error("함수 받는자리 중복"));}
+                let body=if self.check(&TokenKind::LBrace){self.parse_anonymous_block(&params)?}else{
+                    // Expression and block bodies share the actual authored
+                    // parameter scope, including particle/name boundaries.
+                    self.enter_scope();
+                    if let Some(scope)=self.declared_scopes.last_mut(){scope.ordinary.extend(params.iter().cloned());}
+                    let parsed=self.parse_expr();self.exit_scope();parsed?
+                };
+                return Ok(Expr::new(self.next_id(),start.merge(&body.span),ExprKind::SeedLiteral{param:params.join(", "),body:Box::new(body)}));
+            }
+            self.pos=checkpoint;
+        }
         self.parse_pipe()
     }
     pub(super) fn parse_pipe(&mut self) -> Result<Expr, ParseError> {
@@ -256,6 +379,8 @@ impl Parser {
         if self.is_at_end() {
             return Err(self.error("표현식"));
         }
+        let reserved_literal = self.split_reserved_literal_particle()?;
+        self.split_bound_value_particle()?;
         if let Some(end)=self.find_matching_rparen_after_current_lparen() {
             if self.tokens.get(end+1).is_some_and(|token|matches!(token.kind,TokenKind::Ident(_)))
                 && self.tokens.get(end+2).is_some_and(|token|matches!(token.kind,TokenKind::Dot))
@@ -284,6 +409,10 @@ impl Parser {
         }
         let t = self.advance();
         let expr = match &t.kind {
+            TokenKind::Ident(_) if reserved_literal.is_some() => Expr::new(
+                self.next_id(), self.to_ast_span(t.span),
+                ExprKind::Literal(Literal::Bool(reserved_literal.expect("checked literal boundary"))),
+            ),
             TokenKind::Integer(_) | TokenKind::Float(_) => {
                 let value = Fixed64::parse_decimal_exact(&t.raw).ok_or_else(|| ParseError {
                     span: self.to_ast_span(t.span),
@@ -390,6 +519,7 @@ impl Parser {
             }
             TokenKind::LBrace => {
                 if let Some(param) = self.try_parse_seed_literal_params()? {
+                    if self.source_epoch==SourceEpoch::V25{return Err(self.error("E_FUNCTION_LITERAL_MIGRATION_REQUIRED: 옛 함수 리터럴은 판본을 지정한 이관 입력에서만 사용하세요"));}
                     let body = self.parse_expr()?;
                     let close = self.expect(&TokenKind::RBrace, "}")?;
                     let span = self
@@ -775,7 +905,9 @@ impl Parser {
                             && args[0].josa.is_none()
                             && args[0].resolved_pin.is_none()
                         {
-                            args.into_iter().next().unwrap().expr
+                            let mut grouped = args.into_iter().next().unwrap().expr;
+                            grouped.source_group_span = Some(span);
+                            grouped
                         } else {
                             if args.iter().any(|arg| arg.josa.is_some() || arg.resolved_pin.is_some()) {
                                 return Err(self.error("E_PACK_MIXED_SHAPE: 위치형 값꾸러미에는 조사나 고정 받는자리를 넣을 수 없습니다"));

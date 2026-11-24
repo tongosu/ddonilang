@@ -7,7 +7,16 @@ use serde::{
 use serde_json::Value;
 pub(crate) mod registration;
 mod source_save;
+mod language_support;
+mod joint_execution;
+#[cfg(windows)]
+pub(crate) use source_save::{check_public_edition_from_current, inspect_public_callable_original, prepare_public_callable_original_diagnostic, run_public_source_diagnostic};
+#[cfg(windows)]
+pub(crate) use source_save::logic_consumer::selected as selected_logic_dependency;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) use source_save::logic_consumer::recorded_payload_is_selected as recorded_logic_payload_is_selected;
 mod source_projection;
+pub(crate) mod public_surface;
 pub(crate) use source_save::prepare_authoring_source;
 use sha2::{Digest, Sha256};
 use std::{
@@ -133,6 +142,614 @@ pub struct FirstCallablePublicDdl {
     facts:registration::FirstCallableExportFacts,profile:ddonirang_lang::ddl::CheckedFirstCallableProfile,
 }
 
+#[derive(Clone,Debug,Serialize,Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PublicCallableSurfaceSpec {
+    pub public_name:String,pub surface:String,
+    /// Original parameter name -> finite surface -> registered particle.
+    pub pins:Vec<(String,String,String)>,
+}
+#[derive(Clone)]
+pub struct PublicCallablePublicDdl {
+    original:ProjectArtifact,module_head:String,
+    source_owner:std::sync::Arc<crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1>,
+    registration:std::sync::Arc<registration::RegistrationDraft>,
+    facts:registration::CheckedPublicCallableExport,
+    compiler:std::sync::Arc<ddonirang_lang::parser::RegisteredPublicCallableContext>,
+}
+#[derive(Clone)]
+pub struct PublicCallableAuthoredContext {
+    export:std::sync::Arc<PublicCallablePublicDdl>,consumer:ProjectArtifact,
+    consumer_module:String,path:String,
+    compiler:std::sync::Arc<ddonirang_lang::parser::RegisteredPublicCallableContext>,
+}
+/// Process-local recorded material only. This is deliberately not Serialize or
+/// Deserialize: no existing source wire slot admits a successor registry record.
+pub(crate) struct PublicCallableOriginalMaterial {
+    original_json:String,module:String,start_identity:Vec<u8>,captures:String,
+    resources:Vec<registration::RecordedRegistrationBlob>,
+    profile:ddonirang_lang::ddl::RegisteredSuccessorProfile,ddl:String,ddl_path:String,
+}
+impl PublicCallablePublicDdl {
+    pub fn profile(&self)->&ddonirang_lang::ddl::RegisteredSuccessorProfile{self.compiler.profile()}
+    pub(crate) fn recorded_original_material(&self)->Result<PublicCallableOriginalMaterial,String>{
+        self.recheck()?;
+        let owned=crate::project_revision_envelope_supply::finalize_registered_authored_source(
+            (*self.source_owner).clone(),registration::restore_precanon_public_callables_candidate(
+                &self.source_owner,&self.facts.module,self.registration.recorded_blobs())?)?;
+        Ok(PublicCallableOriginalMaterial{original_json:self.original.save()?,module:self.facts.module.clone(),
+            start_identity:owned.definition_identity().as_bytes().to_vec(),
+            captures:self.source_owner.sources().recorded_capture_catalog_json()?,resources:self.registration.recorded_blobs(),
+            profile:self.profile().clone(),ddl:self.compiler.ddl_source().into(),ddl_path:self.compiler.ddl_path().into()})
+    }
+    /// Reconstruct the original capture/G1 owner from actual recorded bytes.
+    /// The profile is still a live registry capability, NOT cold admission.
+    #[cfg(test)]
+    pub(crate) fn restore_recorded_original(material:PublicCallableOriginalMaterial)->Result<Self,String>{
+        Self::restore_recorded_original_diagnostic(material,None)
+    }
+
+    fn restore_recorded_original_diagnostic(material:PublicCallableOriginalMaterial,
+        mut diagnostic:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+    )->Result<Self,String>{
+        use crate::project_revision_envelope_supply as supply;
+        if material.original_json.len()>8_000_000||material.captures.len()>1_000_000||material.resources.len()>64
+            ||material.ddl.len()>16_384||material.ddl_path.len()>4096{return Err("E_DDL_ORIGINAL_RECORD_LIMIT".into());}
+        let original=open(material.original_json.as_bytes())?;
+        if !matches!(original.schema.as_str(),SCHEMA|SCHEMA_V2){return Err("E_DDL_NESTED_ORIGINAL_FORBIDDEN".into());}
+        let snapshot=&original.source_snapshot;
+        let carrier=supply::CanonicalIdentityBytesV1::from_owner_bytes(&material.start_identity).map_err(|_|"E_DDL_ORIGINAL_START_CARRIER")?;
+        let j1=if original.source_profile==ddonirang_lang::ddl::J1_SOURCE_PROFILE{Some(ddonirang_lang::ddl::CheckedJ1Profile::resolve(&original.source_profile).map_err(|e|e.to_string())?)}else{None};
+        let roles=supply::saved_authored_source_roles_selected(snapshot,j1)?;
+        let blobs=snapshot.files.iter().map(|file|Ok(supply::SavedSourceBlobV1{path:&file.path,
+            role:roles.get(&file.path).ok_or("E_DDL_ORIGINAL_SOURCE_ROLE")?,bytes:file.text.as_bytes()})).collect::<Result<Vec<_>,String>>()?;
+        let saved=supply::collect_saved_source_supply(snapshot.root_path.as_deref().ok_or("E_DDL_ORIGINAL_ROOT_REQUIRED")?,
+            &snapshot.entry_path,&carrier,&blobs).map_err(|_|"E_DDL_ORIGINAL_SOURCE_SUPPLY")?;
+        let sources=std::sync::Arc::new(match j1{Some(profile)=>supply::restore_saved_v25_sources_with_j1_profile(saved,&material.captures,profile),None=>supply::restore_saved_v25_sources(saved,&material.captures)}?);
+        let owned=supply::admit_precanon_authored_source(sources,material.original_json.as_bytes())?;
+        let registration=registration::restore_precanon_public_callables_candidate(&owned,&material.module,material.resources)?;
+        let facts=registration.checked_public_callable_export(&owned,&material.module)?;
+        if hex::encode(Sha256::digest(material.profile.content()))!=material.profile.content_sha256()
+            ||material.profile.surfaces().len()!=facts.definitions.len(){return Err("E_DDL_PUBLIC_PROFILE_OWNER".into());}
+        for def in &facts.definitions {
+            let rows=material.profile.surfaces().iter().filter(|row|row.identity==def.identity).collect::<Vec<_>>();
+            if rows.len()!=1||rows[0].pins.len()!=def.pins.len()||def.pins.iter().any(|pin|
+                rows[0].pins.iter().filter(|row|row.identity==pin.identity).count()!=1){return Err("E_DDL_PUBLIC_PROFILE_OWNER".into());}
+        }
+        let checked=supply::finalize_registered_authored_source(owned.clone(),
+            registration::restore_precanon_public_callables_candidate(&owned,&material.module,registration.recorded_blobs())?)?;
+        if checked.definition_identity().as_bytes()!=material.start_identity.as_slice(){return Err("E_DDL_ORIGINAL_START_MISMATCH".into());}
+        let module=original.authored_identity.modules.iter().find(|module|module.id.as_str()==material.module).ok_or("E_DDL_ORIGINAL_MODULE_REQUIRED")?;
+        let public_targets=original.source_owned_public_facts(&material.module)?.public_targets();
+        let mut bindings=Vec::new();let mut next_node=1u64;
+        for path in &module.sources {
+            let file=original.source_snapshot.files.iter().find(|file|&file.path==path).ok_or("E_DDL_ORIGINAL_SOURCE_REQUIRED")?;
+            let (program,next,offset)=if original.source_profile==ddonirang_lang::ddl::J1_SOURCE_PROFILE{
+                let syntax=ddonirang_lang::ddl::CheckedJ1Profile::resolve(&original.source_profile).map_err(|e|e.to_string())?;
+                let (program,next)=ddonirang_lang::Parser::parse_j1_public_original(&file.text,path,next_node,syntax).map_err(|e|e.to_string())?;
+                (program,next,0)
+            }else{
+            let front=ddonirang_lang::parse_module_directive_frontdoor_with_mode(&file.text,path,ddonirang_lang::ParseMode::Strict,
+                &ddonirang_lang::ModuleDirectiveContext::default().with_public_definitions(public_targets.clone())).map_err(|e|e.to_string())?;
+            let offset=file.text.len().checked_sub(front.directives.declaration_source.len()).ok_or("E_DDL_ORIGINAL_SPAN_REQUIRED")?;
+            if file.text.get(offset..)!=Some(front.directives.declaration_source.as_str()){return Err("E_DDL_ORIGINAL_SPAN_REQUIRED".into());}
+            let (program,next)=ddonirang_lang::parser::Parser::parse_public_original_tail(&front.directives.declaration_source,path,next_node).map_err(|e|e.to_string())?;                (program,next,offset)
+            };next_node=next;
+            for def in facts.definitions.iter().filter(|row|&row.source_path==path) {
+                let seeds=program.items.iter().map(|ddonirang_lang::TopLevelItem::SeedDef(seed)|seed).filter(|seed|
+                    seed.canonical_name==def.internal_name&&offset.checked_add(seed.span.start)==Some(def.start as usize)
+                    &&offset.checked_add(seed.span.end)==Some(def.end as usize)).collect::<Vec<_>>();
+                if seeds.len()!=1{return Err("E_DDL_PUBLIC_DEFINITION_OWNER".into());}
+                bindings.push(ddonirang_lang::parser::PublicCallableBinding{definition:def.identity.clone(),
+                    pin_identities:def.pins.iter().map(|pin|pin.identity.clone()).collect(),original:seeds[0].clone(),source_path:path.clone(),source_text:file.text.clone()});
+            }
+        }
+        let compiler=ddonirang_lang::parser::RegisteredPublicCallableContext::from_public_and_ddl(material.profile,bindings,
+            &material.ddl,&material.ddl_path,next_node)
+            .map_err(|error|ddl_parse_failure(error,&material.ddl_path,&mut diagnostic))?;
+        let export=Self{module_head:module.head.clone(),original,source_owner:std::sync::Arc::new(owned),
+            registration:std::sync::Arc::new(registration),facts,compiler:std::sync::Arc::new(compiler)};
+        export.recheck()?;Ok(export)
+    }
+
+    pub fn original_module_identity(&self)->&str{&self.facts.module}
+    pub fn definition_identities(&self)->Vec<(&str,&str)>{self.facts.definitions.iter().map(|row|(row.public_name.as_str(),row.identity.as_str())).collect()}
+    fn recheck(&self)->Result<(),String>{
+        if self.original.content_sha256!=self.original.checksum()?||self.source_owner.project()!=&self.original
+            ||self.registration.checked_public_callable_export(&self.source_owner,&self.facts.module)?!=self.facts{return Err("E_DDL_ORIGINAL_STALE".into());}Ok(())
+    }
+    pub fn activate_for_consumer(&self,consumer:&ProjectArtifact,module_id:&str,path:&str)->Result<PublicCallableAuthoredContext,String>{
+        self.activate_for_consumer_diagnostic(consumer,module_id,path,None)
+    }
+    fn activate_for_consumer_diagnostic(&self,consumer:&ProjectArtifact,module_id:&str,path:&str,
+        diagnostic:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>)->Result<PublicCallableAuthoredContext,String>{
+        self.activate_for_consumer_selected(consumer,module_id,path,false,diagnostic)
+            .map(|(context,_)|context)
+    }
+    pub(crate) fn activate_for_consumer_module(
+        &self,consumer:&ProjectArtifact,module_id:&str,path:&str,
+    )->Result<(PublicCallableAuthoredContext,ddonirang_lang::CanonProgram),String>{
+        self.activate_for_consumer_selected(consumer,module_id,path,true,None)
+    }
+    fn activate_for_consumer_selected(&self,consumer:&ProjectArtifact,module_id:&str,path:&str,
+        linked_module:bool,
+        mut diagnostic:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+    )->Result<(PublicCallableAuthoredContext,ddonirang_lang::CanonProgram),String>{
+        self.recheck()?;consumer.validate()?;
+        if consumer.content_sha256!=consumer.checksum()?{return Err("E_DDL_CONSUMER_STALE".into());}
+        let module=consumer.authored_identity.modules.iter().find(|row|row.id.as_str()==module_id).ok_or("E_DDL_CONSUMER_MODULE_REQUIRED")?;
+        if !module.sources.iter().any(|source|source==path){return Err("E_DDL_CONSUMER_SOURCE_OWNER_REQUIRED".into());}
+        if linked_module && (module.head!=path || consumer.source_snapshot.entry_path==path){
+            return Err("E_DDL_CONSUMER_SOURCE_OWNER_REQUIRED".into());
+        }
+        let file=consumer.source_snapshot.files.iter().find(|file|file.path==path).ok_or("E_DDL_CONSUMER_SOURCE_REQUIRED")?;
+        let j1=if self.original.source_profile==ddonirang_lang::ddl::J1_SOURCE_PROFILE{Some(ddonirang_lang::ddl::CheckedJ1Profile::resolve(&self.original.source_profile).map_err(|e|e.to_string())?)}else{None};
+        let consumer_j1=if consumer.source_profile==ddonirang_lang::ddl::J1_SOURCE_PROFILE{
+            Some(ddonirang_lang::ddl::CheckedJ1Profile::resolve(&consumer.source_profile).map_err(|error|error.to_string())?)
+        }else{None};
+        let compiler=(*self.compiler).clone().with_consumer_j1(consumer_j1);
+        let public_targets = if linked_module {
+            let syntax = consumer_j1.ok_or("E_J1_PROFILE_REQUIRED")?;
+            ddonirang_lang::Parser::j1_local_export_targets(&file.text, path, syntax)
+                .map_err(|error| error.to_string())?
+        } else {
+            Default::default()
+        };
+        let request=crate::local_project::resolve_public_callable_module_translation_request_selected(&file.text,path,&snapshot_source_selected(&self.original.source_snapshot,j1)?,&self.module_head,&compiler,j1,public_targets)
+            .map_err(|error|{
+                let message=if error.code=="E_MULTILANG_SUCCESSOR_HEADER_SCOPE" {
+                    error.message.clone()
+                } else {
+                    format!("{}: {}",error.code,error.message)
+                };
+                if error.code=="E_DDL_ACTIVATION_REQUIRED" || (matches!(error.code,"E_DDL_ACTIVATION_OWNER_OR_PROFILE"|"E_DDL_ORIGINAL_MODULE_MISMATCH"|"E_MULTILANG_SUCCESSOR_HEADER_SCOPE"|"E_DDL_ACTIVATION_PARSE")
+                    && error.source_span.is_some_and(|(start,end)|start<end&&file.text.get(start..end).is_some())){
+                    if let Some(output)=diagnostic.as_deref_mut(){
+                        let mut located=error.into_execution_diagnostic();
+                        located.message=message.clone();
+                        *output=Some(located);
+                    }
+                }
+                message
+            })?;
+        let compiler=std::sync::Arc::new(compiler.with_module_activation(request.binding).map_err(|error|error.to_string())?);
+        // The common parser rechecks exact explicit activation and all calls;
+        // the envelope or profile itself never activates a source program.
+        let program=if linked_module {
+            ddonirang_lang::parser::Parser::parse_with_public_callable_module_context(&file.text,path,compiler.clone())
+        }else{
+            ddonirang_lang::parser::Parser::parse_with_public_callable_context(&file.text,path,compiler.clone())
+        }.map_err(|error|{
+            // Use this actual failed parse's byte span, never a second analysis
+            // or a freshly issued profile for diagnostic presentation.
+            if error.span.start<error.span.end&&file.text.get(error.span.start..error.span.end).is_some(){
+                let message=format!("{} [원문 {}:{}..{}]",error,path,error.span.start,error.span.end);
+                let code=match error.message.as_str() {
+                    "E_MULTILANG_CALL_UNREGISTERED"=>Some("E_MULTILANG_CALL_UNREGISTERED"),
+                    "E_MULTILANG_PIN_UNREGISTERED"=>Some("E_MULTILANG_PIN_UNREGISTERED"),
+                    "E_MULTILANG_PUBLIC_CALLER_SCOPE" if linked_module=>Some("E_MULTILANG_PUBLIC_CALLER_SCOPE"),
+                    _=>match error.code() {
+                        code @ ("E_CALL_REQUIRED_PIN_MISSING" | "E_PARSE_CALL_PIN_DUPLICATE"
+                            | "E_CALL_POSITIONAL_ARGUMENT_EXCESS")=>Some(code),
+                        _=>None,
+                    },
+                };
+                if let (Some(code),Some(output))=(code,diagnostic) {
+                    *output=Some(crate::preprocess::ExecutionDiagnostic{
+                            code,message:message.clone(),source_path:path.into(),
+                            span:Some((error.span.start,error.span.end)),phase:"lang_parse",cause:None,
+                        offending_field:None,expected:None,actual:None,
+                    });
+                }
+                message
+            }else{
+                let message=format!("{} [원문 {}: 위치 미확정]",error,path);
+                if linked_module && error.message=="E_MULTILANG_PUBLIC_CALLER_SCOPE"{
+                    if let Some(output)=diagnostic{
+                        *output=Some(crate::preprocess::ExecutionDiagnostic{
+                            code:"E_MULTILANG_PUBLIC_CALLER_SCOPE",message:message.clone(),source_path:path.into(),
+                            span:None,phase:"lang_parse",cause:None,
+                            offending_field:None,expected:None,actual:None,
+                        });
+                    }
+                }
+                message
+            }
+        })?;
+        Ok((PublicCallableAuthoredContext{export:std::sync::Arc::new(self.clone()),consumer:consumer.clone(),consumer_module:module_id.into(),path:path.into(),compiler},program))
+    }
+}
+impl PublicCallableAuthoredContext {
+    pub(crate) fn linked_module_prefix(
+        &self,
+        project: &ProjectArtifact,
+    ) -> Result<(&str, ddonirang_lang::ModuleDirectiveDocument), String> {
+        self.export.recheck()?;
+        if project != &self.consumer || project.source_snapshot.entry_path == self.path
+            || !project.authored_identity.modules.iter().any(|module| {
+                module.id.as_str() == self.consumer_module && module.head == self.path
+            })
+        {
+            return Err("E_DDL_CONSUMER_SOURCE_OWNER_REQUIRED".into());
+        }
+        let file = project.source_snapshot.files.iter().find(|file| file.path == self.path)
+            .ok_or("E_DDL_CONSUMER_SOURCE_REQUIRED")?;
+        let prefix = ddonirang_lang::Parser::public_callable_module_prefix(
+            &file.text, &self.path, &self.compiler,
+        ).map_err(|error| error.to_string())?;
+        Ok((&self.path, prefix))
+    }
+
+    pub(crate) fn has_legacy_ddl_original(&self)->bool {self.export.registration.has_legacy_ddl_start()}
+    pub fn compiler_context(&self)->&std::sync::Arc<ddonirang_lang::parser::RegisteredPublicCallableContext>{&self.compiler}
+    pub fn original_module_identity(&self)->&str{self.export.original_module_identity()}
+    pub fn definition_identities(&self)->Vec<(&str,&str)>{self.export.definition_identities()}
+    pub(crate) fn original_source_profile(&self) -> &str {
+        &self.export.original.source_profile
+    }
+    pub(crate) fn verify_runtime_activation(&self,source:&str,path:&str)->Result<(),String>{
+        self.parse_verified_consumer(source, path).map(|_| ())
+    }
+    pub(crate) fn parse_verified_consumer(&self, source: &str, path: &str) -> Result<ddonirang_lang::CanonProgram, String> {
+        self.export.recheck()?;
+        if self.path!=path||!self.consumer.authored_identity.modules.iter().any(|module|module.id.as_str()==self.consumer_module&&module.sources.iter().any(|file|file==path))
+            ||!self.consumer.source_snapshot.files.iter().any(|file|file.path==path&&file.text.as_bytes()==source.as_bytes()){
+            return Err("E_DDL_CONSUMER_STALE".into());
+        }
+        ddonirang_lang::parser::Parser::parse_with_public_callable_context(source,path,self.compiler.clone())
+            .map_err(|error|error.to_string())
+    }
+}
+fn checked_public_callable_surfaces(
+    facts:&registration::CheckedPublicCallableExport,surfaces:&[PublicCallableSurfaceSpec],
+)->Result<Vec<ddonirang_lang::ddl::SuccessorCallableSurface>,String>{
+    if surfaces.len()!=facts.definitions.len(){return Err("E_DDL_PUBLIC_COVERAGE".into());}
+    facts.definitions.iter().map(|definition| {
+        let rows=surfaces.iter().filter(|row|row.public_name==definition.public_name).collect::<Vec<_>>();
+        if rows.len()!=1{return Err("E_DDL_PUBLIC_COVERAGE".into());}
+        let row=rows[0];
+        if row.pins.len()!=definition.pins.len(){return Err("E_DDL_PUBLIC_PIN_OWNER".into());}
+        let pins=definition.pins.iter().map(|pin| {
+            let matches=row.pins.iter().filter(|mapped|mapped.0==pin.name).collect::<Vec<_>>();
+            if matches.len()!=1{return Err("E_DDL_PUBLIC_PIN_OWNER".into());}
+            Ok(ddonirang_lang::ddl::SuccessorPinSurface{
+                identity:pin.identity.clone(),surface:matches[0].1.clone(),particle:matches[0].2.clone(),
+            })
+        }).collect::<Result<Vec<_>,String>>()?;
+        Ok(ddonirang_lang::ddl::SuccessorCallableSurface{
+            identity:definition.identity.clone(),surface:row.surface.clone(),pins,
+        })
+    }).collect()
+}
+
+impl ProjectArtifact {
+    /// Actual original-owner producer; no serde proof flags, profile strings
+    /// or source path can bypass the existing public G1 owner/checker.
+    pub fn produce_public_callable_ddl(&self,module_id:&str,surfaces:Vec<PublicCallableSurfaceSpec>,ddl_source:&str,ddl_path:&str)->Result<PublicCallablePublicDdl,String>{
+        self.produce_public_callable_ddl_diagnostic(module_id,surfaces,ddl_source,ddl_path,None)
+    }
+
+    fn produce_public_callable_ddl_diagnostic(&self,module_id:&str,surfaces:Vec<PublicCallableSurfaceSpec>,
+        ddl_source:&str,ddl_path:&str,mut diagnostic:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+    )->Result<PublicCallablePublicDdl,String>{
+        self.validate()?;if self.content_sha256!=self.checksum()?{return Err("E_DDL_ORIGINAL_STALE".into());}
+        if !matches!(self.schema.as_str(),SCHEMA|SCHEMA_V2){return Err("E_DDL_ORIGINAL_SCHEMA_UNSUPPORTED".into());}
+        let module=self.authored_identity.modules.iter().find(|module|module.id.as_str()==module_id).ok_or("E_DDL_ORIGINAL_MODULE_REQUIRED")?;
+        let owned=crate::project_revision_envelope_supply::admit_fresh_precanon_authored_source(self.save()?.as_bytes())?;
+        let mut entropy=|raw:&mut [u8;32]|getrandom::fill(raw).map_err(|_|"E_DDL_IDENTITY_ENTROPY".to_string());
+        let registration=registration::prepare_public_callables_under_candidate_owner(&owned,module_id,None,&mut entropy)?;
+        let facts=registration.checked_public_callable_export_diagnostic(&owned,module_id,diagnostic.as_deref_mut())?;
+        let requested=checked_public_callable_surfaces(&facts,&surfaces)?.into_iter().map(|row|
+            registration::PublicCallableSurfaceRequest{definition:row.identity,surface:row.surface,
+                pins:row.pins.into_iter().map(|pin|(pin.identity,pin.surface,pin.particle)).collect()}
+        ).collect();
+        let mut registry=ddonirang_lang::ddl::SuccessorRegistryOwner::default();
+        let (facts,profile)=registration.issue_public_callable_profile(&owned,module_id,requested,&mut registry,&mut entropy)?;
+        registry.lookup(profile.identity(),profile.version(),profile.content_sha256(),profile.registration_revision()).map_err(|error|error.to_string())?;
+        let public_targets=self.source_owned_public_facts(module_id)?.public_targets();
+        let mut bindings=Vec::new();let mut next_node=1u64;
+        for source_path in &module.sources {
+            let file=self.source_snapshot.files.iter().find(|file|&file.path==source_path).ok_or("E_DDL_ORIGINAL_SOURCE_REQUIRED")?;
+            let (program,next,offset)=if self.source_profile==ddonirang_lang::ddl::J1_SOURCE_PROFILE{
+                let syntax=ddonirang_lang::ddl::CheckedJ1Profile::resolve(&self.source_profile).map_err(|e|e.to_string())?;
+                let (program,next)=ddonirang_lang::Parser::parse_j1_public_original(&file.text,source_path,next_node,syntax).map_err(|e|e.to_string())?;
+                (program,next,0)
+            }else{
+            let front=ddonirang_lang::parse_module_directive_frontdoor_with_mode(&file.text,source_path,ddonirang_lang::ParseMode::Strict,
+                &ddonirang_lang::ModuleDirectiveContext::default().with_public_definitions(public_targets.clone())).map_err(|error|error.to_string())?;
+            let offset=file.text.len().checked_sub(front.directives.declaration_source.len()).ok_or("E_DDL_ORIGINAL_SPAN_REQUIRED")?;
+            if file.text.get(offset..)!=Some(front.directives.declaration_source.as_str()){return Err("E_DDL_ORIGINAL_SPAN_REQUIRED".into());}
+            let (program,next)=ddonirang_lang::parser::Parser::parse_public_original_tail(&front.directives.declaration_source,source_path,next_node).map_err(|error|error.to_string())?;                (program,next,offset)
+            };next_node=next;
+            for definition in facts.definitions.iter().filter(|row|&row.source_path==source_path){
+                let candidates=program.items.iter().map(|ddonirang_lang::TopLevelItem::SeedDef(seed)|seed).filter(|seed|
+                    seed.canonical_name==definition.internal_name&&offset.checked_add(seed.span.start)==Some(definition.start as usize)&&offset.checked_add(seed.span.end)==Some(definition.end as usize)).collect::<Vec<_>>();
+                if candidates.len()!=1{return Err("E_DDL_PUBLIC_DEFINITION_OWNER".into());}
+                bindings.push(ddonirang_lang::parser::PublicCallableBinding{definition:definition.identity.clone(),pin_identities:definition.pins.iter().map(|pin|pin.identity.clone()).collect(),
+                    original:candidates[0].clone(),source_path:source_path.clone(),source_text:file.text.clone()});
+            }
+        }
+        let compiler=ddonirang_lang::parser::RegisteredPublicCallableContext::from_public_and_ddl(profile,bindings,ddl_source,ddl_path,next_node)
+            .map_err(|error|ddl_parse_failure(error,ddl_path,&mut diagnostic))?;
+        Ok(PublicCallablePublicDdl{original:self.clone(),module_head:module.head.clone(),source_owner:std::sync::Arc::new(owned),registration:std::sync::Arc::new(registration),facts,compiler:std::sync::Arc::new(compiler)})
+    }
+}
+
+
+// Dedicated successor transport. These DTOs never confer execution authority.
+pub(crate) const PUBLIC_ARTIFACT_V4:&str="ddn.authored_project_artifact.v4";
+#[derive(Serialize,Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PublicCallableProfileRecordV4 {
+    identity:String,version:String,registration_revision:u32,content_utf8:String,content_sha256:String,
+}
+#[derive(Serialize,Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PublicCallableOriginalRecordV4 {
+    profile:PublicCallableProfileRecordV4,original_project_json_utf8:String,
+    original_module_id:String,original_source_path:String,original_start_identity_hex:String,
+    original_source_capture_catalog_json_utf8:String,
+    original_registration_resources:Vec<registration::RecordedRegistrationBlob>,ddl_source:FirstCallableDdlSource,
+}
+#[derive(Serialize,Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PublicCallableBindingV4 {
+    profile:PublicCallableProfileRecordV4,original_project_json_utf8:String,
+    original_module_id:String,original_source_path:String,original_start_identity_hex:String,
+    original_source_capture_catalog_json_utf8:String,
+    original_registration_resources:Vec<registration::RecordedRegistrationBlob>,ddl_source:FirstCallableDdlSource,
+    consumer_module_id:String,consumer_source_path:String,
+}
+#[derive(Serialize,Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PublicCallableProjectArtifactV4 {
+    #[serde(skip)]
+    verified_edition:bool,
+    schema:String,pub(crate) source_profile:String,pub(crate) source_snapshot:SourceSnapshot,
+    pub(crate) authored_identity:AuthoredIdentity,public_callable_binding:PublicCallableBindingV4,content_sha256:String,
+}
+fn public_json<T:Serialize>(value:&T)->Result<String,String>{
+    serde_json::to_string(&serde_json::to_value(value).map_err(|_|"E_DDL_V4_ENCODING")?).map_err(|_|"E_DDL_V4_ENCODING".into())
+}
+fn public_read<T:serde::de::DeserializeOwned>(raw:&str)->Result<T,String>{
+    if raw.len()>8_000_000||raw.starts_with('\u{feff}'){return Err("E_DDL_V4_LIMIT".into());}
+    let value:StrictValue=serde_json::from_str(raw).map_err(|_|"E_DDL_V4_FIELDS")?;
+    check_v3_json_depth(&value.0)?;
+    serde_json::from_value(value.0).map_err(|_|"E_DDL_V4_FIELDS".into())
+}
+fn ddl_parse_failure(error:ddonirang_lang::ParseError,path:&str,
+    diagnostic:&mut Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+)->String{
+    if matches!(error.j1_source_code(),"E_MULTILANG_UNREGISTERED_SURFACE"|"E_MULTILANG_FULLWIDTH_SYNTAX"|"E_DDL_PUBLIC_PIN_OWNER"){
+        registration::logic_dependency::keep_parse_failure(error,path,diagnostic)
+    }else{
+        error.to_string()
+    }
+}
+
+impl PublicCallableOriginalRecordV4 {
+    /// Validate a draft next edition without granting storage or activation.
+    /// The original record supplies all captures and owner material.
+    fn revise_surfaces(mut self,version:&str,surfaces:&[PublicCallableSurfaceSpec],
+        ddl_source:FirstCallableDdlSource, diagnostic:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+    )->Result<Self,String>{
+        let previous=self.restore()?;
+        let mut owner=ddonirang_lang::ddl::SuccessorRegistryOwner::default();
+        let profile=owner.restore_recorded_exact(&self.profile.identity,&self.profile.version,self.profile.registration_revision,
+            &self.profile.content_utf8,&self.profile.content_sha256).map_err(|e|e.to_string())?;
+        let next=owner.revise_public_surfaces(&profile,version,checked_public_callable_surfaces(&previous.facts,surfaces)?)
+            .map_err(|e|e.to_string())?;
+        self.profile.version=next.version().into();
+        self.profile.registration_revision=next.registration_revision();
+        self.profile.content_utf8=String::from_utf8(next.content().to_vec()).map_err(|_|"E_DDL_PROFILE_UTF8")?;
+        self.profile.content_sha256=next.content_sha256().into();
+        self.ddl_source=ddl_source;
+        if self.restore_edition_draft_diagnostic(diagnostic)?.facts!=previous.facts{return Err("E_DDL_ORIGINAL_STALE".into());}
+        Ok(self)
+    }
+
+    pub(crate) fn from_export(export:&PublicCallablePublicDdl,path:&str)->Result<Self,String>{
+        let original=export.recorded_original_material()?;
+        if !export.original.authored_identity.modules.iter().any(|m|m.id.as_str()==original.module&&m.sources.iter().any(|p|p==path)){
+            return Err("E_DDL_ORIGINAL_SOURCE_OWNER_REQUIRED".into());
+        }
+        Ok(Self{profile:PublicCallableProfileRecordV4{identity:original.profile.identity().into(),version:original.profile.version().into(),
+            registration_revision:original.profile.registration_revision(),content_utf8:String::from_utf8(original.profile.content().to_vec()).map_err(|_|"E_DDL_PROFILE_UTF8")?,content_sha256:original.profile.content_sha256().into()},
+            original_project_json_utf8:original.original_json,original_module_id:original.module,original_source_path:path.into(),
+            original_start_identity_hex:hex::encode(original.start_identity),original_source_capture_catalog_json_utf8:original.captures,
+            original_registration_resources:original.resources,ddl_source:FirstCallableDdlSource{path:original.ddl_path,text:original.ddl}})
+    }
+    pub(crate) fn save(&self)->Result<String,String>{public_json(self)}
+    pub(crate) fn open(raw:&str)->Result<Self,String>{let record:Self=public_read(raw)?;record.restore()?;Ok(record)}
+    pub(crate) fn restore(&self)->Result<PublicCallablePublicDdl,String>{
+        if self.profile.registration_revision!=1{return Err("E_DDL_EDITION_HISTORY_REQUIRED".into());}
+        self.restore_edition_draft()
+    }
+
+    fn restore_edition_draft(&self)->Result<PublicCallablePublicDdl,String>{
+        self.restore_edition_draft_diagnostic(None)
+    }
+
+    fn restore_edition_draft_diagnostic(&self,
+        diagnostic:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+    )->Result<PublicCallablePublicDdl,String>{
+        if self.original_project_json_utf8.len()>1_048_576||self.original_source_capture_catalog_json_utf8.len()>1_000_000
+            ||self.original_registration_resources.len()>64||self.ddl_source.text.len()>16_384||self.original_start_identity_hex.len()>8192{
+            return Err("E_DDL_ORIGINAL_RECORD_LIMIT".into());
+        }
+        if self.original_start_identity_hex.len()%2!=0||!self.original_start_identity_hex.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)){
+            return Err("E_DDL_ORIGINAL_START_CARRIER".into());
+        }
+        let original=open(self.original_project_json_utf8.as_bytes())?;
+        if !matches!(original.schema.as_str(),SCHEMA|SCHEMA_V2)||!original.authored_identity.modules.iter().any(|m|
+            m.id.as_str()==self.original_module_id&&m.sources.iter().any(|p|p==&self.original_source_path)){
+            return Err("E_DDL_ORIGINAL_SOURCE_OWNER_REQUIRED".into());
+        }
+        let mut owner=ddonirang_lang::ddl::SuccessorRegistryOwner::default();
+        let profile=owner.restore_recorded_exact(&self.profile.identity,&self.profile.version,self.profile.registration_revision,
+            &self.profile.content_utf8,&self.profile.content_sha256).map_err(|e|e.to_string())?;
+        // Exact DTO roundtrip copies raw catalog transport without trusting it;
+        // R27 reconstructs every capture/Definition/Pin correspondence below.
+        let resources=serde_json::from_value(serde_json::to_value(&self.original_registration_resources).map_err(|_|"E_DDL_V4_ENCODING")?).map_err(|_|"E_DDL_V4_FIELDS")?;
+        PublicCallablePublicDdl::restore_recorded_original_diagnostic(PublicCallableOriginalMaterial{original_json:self.original_project_json_utf8.clone(),module:self.original_module_id.clone(),
+            start_identity:hex::decode(&self.original_start_identity_hex).map_err(|_|"E_DDL_ORIGINAL_START_CARRIER")?,captures:self.original_source_capture_catalog_json_utf8.clone(),resources,
+            profile,ddl:self.ddl_source.text.clone(),ddl_path:self.ddl_source.path.clone()},diagnostic)
+    }
+}
+impl PublicCallableProjectArtifactV4 {
+    fn checksum(&self)->Result<String,String>{let mut value=serde_json::to_value(self).map_err(|_|"E_DDL_V4_ENCODING")?;
+        value.as_object_mut().ok_or("E_DDL_V4_FIELDS")?.remove("content_sha256");
+        Ok(hex::encode(Sha256::digest(serde_json::to_vec(&value).map_err(|_|"E_DDL_V4_ENCODING")?)))}
+    pub(crate) fn save(&self)->Result<String,String>{
+        if self.schema!=PUBLIC_ARTIFACT_V4||self.checksum()?!=self.content_sha256{return Err("E_DDL_V4_CHECKSUM".into());}
+        let raw=public_json(self)?;if raw.len()>8_000_000{return Err("E_DDL_V4_LIMIT".into());}Ok(raw)
+    }
+    pub(crate) fn open(raw:&str)->Result<std::sync::Arc<Self>,String>{
+        let artifact:Self=public_read(raw)?;
+        if artifact.save()?!=raw{return Err("E_DDL_V4_CANONICAL".into());}
+        artifact.restore_context()?;Ok(std::sync::Arc::new(artifact))
+    }
+    /// In-memory source/identity view for the existing compiler/issuer only.
+    /// The durable owner and bytes always remain the distinct v4 artifact.
+    /// This view is never emitted/accepted as a legacy saved artifact.
+    pub(crate) fn source_view(&self)->Result<ProjectArtifact,String>{
+        let schema=match self.authored_identity.schema.as_str(){
+            "ddn.authored_identity.v1"=>SCHEMA,"ddn.authored_identity.v2"=>SCHEMA_V2,
+            _=>return Err("E_DDL_V4_IDENTITY_SCHEMA".into()),
+        };
+        let mut source=ProjectArtifact{schema:schema.into(),source_profile:self.source_profile.clone(),source_snapshot:self.source_snapshot.clone(),
+            authored_identity:self.authored_identity.clone(),content_sha256:String::new(),language_binding:None};
+        source.content_sha256=source.checksum()?;source.validate()?;Ok(source)
+    }
+    /// Tagged structural view for existing issuer consumers. It intentionally
+    /// cannot be serialized by the legacy ProjectArtifact writer: unsupported
+    /// old frontdoors must reject v4 rather than silently drop its binding.
+    pub(crate) fn owner_view(&self)->Result<ProjectArtifact,String>{
+        let mut view=self.source_view()?;view.schema=PUBLIC_ARTIFACT_V4.into();view.content_sha256=self.content_sha256.clone();Ok(view)
+    }
+    fn original_record(&self)->Result<PublicCallableOriginalRecordV4,String>{
+        let mut value=serde_json::to_value(&self.public_callable_binding).map_err(|_|"E_DDL_V4_ENCODING")?;
+        let fields=value.as_object_mut().ok_or("E_DDL_V4_FIELDS")?;fields.remove("consumer_module_id");fields.remove("consumer_source_path");
+        serde_json::from_value(value).map_err(|_|"E_DDL_V4_FIELDS".into())
+    }
+    pub(crate) fn restore_context(&self)->Result<std::sync::Arc<PublicCallableAuthoredContext>,String>{
+        if self.schema!=PUBLIC_ARTIFACT_V4||self.checksum()?!=self.content_sha256{return Err("E_DDL_V4_CHECKSUM".into());}
+        let record=self.original_record()?;
+        let export=if self.verified_edition {record.restore_edition_draft()?}else{record.restore()?};
+        let consumer=self.source_view()?;
+        Ok(std::sync::Arc::new(export.activate_for_consumer(&consumer,&self.public_callable_binding.consumer_module_id,&self.public_callable_binding.consumer_source_path)?))
+    }
+    pub(crate) fn create(record:PublicCallableOriginalRecordV4,consumer:&ProjectArtifact,path:&str,
+        diagnostic:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>)->Result<std::sync::Arc<Self>,String>{
+        consumer.validate()?;if !matches!(consumer.schema.as_str(),SCHEMA|SCHEMA_V2)||consumer.content_sha256!=consumer.checksum()?{
+            return Err("E_DDL_CONSUMER_STALE".into());
+        }
+        let export=record.restore()?;let modules=consumer.authored_identity.modules.iter().filter(|m|m.sources.iter().any(|p|p==path)).collect::<Vec<_>>();
+        if modules.len()!=1{return Err("E_DDL_CONSUMER_SOURCE_OWNER_REQUIRED".into());}
+        export.activate_for_consumer_diagnostic(consumer,modules[0].id.as_str(),path,diagnostic)?;
+        let mut binding=serde_json::to_value(record).map_err(|_|"E_DDL_V4_ENCODING")?;
+        let fields=binding.as_object_mut().ok_or("E_DDL_V4_FIELDS")?;
+        fields.insert("consumer_module_id".into(),modules[0].id.as_str().into());fields.insert("consumer_source_path".into(),path.into());
+        let mut artifact=Self{verified_edition:false,schema:PUBLIC_ARTIFACT_V4.into(),source_profile:consumer.source_profile.clone(),source_snapshot:consumer.source_snapshot.clone(),authored_identity:consumer.authored_identity.clone(),
+            public_callable_binding:serde_json::from_value(binding).map_err(|_|"E_DDL_V4_FIELDS")?,content_sha256:String::new()};
+        artifact.content_sha256=artifact.checksum()?;artifact.restore_context()?;Ok(std::sync::Arc::new(artifact))
+    }
+    /// Replay the spelling edit from a separately verified parent. The raw
+    /// child cannot grant itself permission to use the edition reader.
+    pub(crate) fn open_spelling_successor(parent:&Self,raw:&str)->Result<std::sync::Arc<Self>,String>{
+        let supplied:Self=public_read(raw)?;
+        if supplied.save()?!=raw{return Err("E_DDL_V4_CANONICAL".into());}
+        let before=parent.restore_context()?;
+        let record=supplied.original_record()?;
+        let restored=record.restore_edition_draft()?;
+        if restored.facts!=before.export.facts{return Err("E_DDL_EDITION_ORIGINAL_CHANGED".into());}
+        let surfaces=Self::edition_surfaces(&before,&restored)?;
+        let text=supplied.source_snapshot.files.iter().find(|file|file.path==parent.consumer_path())
+            .ok_or("E_DDL_CONSUMER_SOURCE_REQUIRED")?.text.clone();
+        let mut checked=parent.check_spelling_edition(&record.profile.version,&surfaces,record.ddl_source,text,None)?;
+        if checked.save()?!=raw{return Err("E_DDL_EDITION_PARENT_MISMATCH".into());}
+        checked.verified_edition=true;
+        Ok(std::sync::Arc::new(checked))
+    }
+
+    fn edition_surfaces(before:&PublicCallableAuthoredContext, restored:&PublicCallablePublicDdl)
+        ->Result<Vec<PublicCallableSurfaceSpec>,String>{
+        before.export.facts.definitions.iter().map(|definition| {
+            let surface=restored.profile().surfaces().iter().find(|row|row.identity==definition.identity)
+                .ok_or("E_DDL_PUBLIC_COVERAGE")?;
+            let pins=definition.pins.iter().map(|pin|{
+                let row=surface.pins.iter().find(|row|row.identity==pin.identity).ok_or("E_DDL_PUBLIC_PIN_OWNER")?;
+                Ok((pin.name.clone(),row.surface.clone(),row.particle.clone()))
+            }).collect::<Result<Vec<_>,String>>()?;
+            Ok(PublicCallableSurfaceSpec{public_name:definition.public_name.clone(),surface:surface.surface.clone(),pins})
+        }).collect()
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn edition_authoring_view(&self)->Result<Value,String>{
+        let context=self.restore_context()?;
+        let source=self.source_snapshot.files.iter().find(|file|file.path==self.consumer_path())
+            .ok_or("E_DDL_CONSUMER_SOURCE_REQUIRED")?;
+        let surfaces=Self::edition_surfaces(&context,&context.export)?;
+        let original_files=context.export.original.source_snapshot.files.iter().map(|file|{
+            serde_json::json!({
+                "path":file.path,"bytes":file.text.len(),
+                "sha256":hex::encode(Sha256::digest(file.text.as_bytes())),
+            })
+        }).collect::<Vec<_>>();
+        Ok(serde_json::json!({
+            "original_files":original_files,
+            "edition":self.public_callable_binding.profile.version,
+            "ddl_source":self.public_callable_binding.ddl_source,
+            "consumer_path":source.path,"consumer_source_utf8":source.text,"surfaces":surfaces,
+        }))
+    }
+
+    /// Build an edition from this exact parent. The caller must still prove
+    /// that the parent is current in the selected durable store.
+    fn check_spelling_edition(&self, version:&str, surfaces:&[PublicCallableSurfaceSpec],
+        ddl:FirstCallableDdlSource, consumer_text:String,
+        mut diagnostic:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+    )->Result<PublicCallableProjectArtifactV4,String>{
+        let parent=self.restore_context()?;
+        let record=self.original_record()?.revise_surfaces(version,surfaces,ddl,diagnostic.as_deref_mut())?;
+        let export=record.restore_edition_draft()?;
+        let path=self.consumer_path();
+        let module=&self.public_callable_binding.consumer_module_id;
+        let mut consumer=self.source_view()?;
+        let file=consumer.source_snapshot.files.iter_mut().find(|file|file.path==path)
+            .ok_or("E_DDL_CONSUMER_SOURCE_REQUIRED")?;
+        let previous=std::mem::replace(&mut file.text,consumer_text);
+        consumer.content_sha256=consumer.checksum()?;
+        let (_,after)=export.activate_for_consumer_selected(&consumer,module,path,false,diagnostic)?;
+        let before=ddonirang_lang::parser::Parser::parse_with_public_callable_context(
+            &previous,path,parent.compiler_context().clone(),
+        ).map_err(|error|error.to_string())?;
+        let level=ddonirang_lang::NormalizationLevel::N1;
+        if ddonirang_lang::normalize(&before,level)!=ddonirang_lang::normalize(&after,level){
+            return Err("E_DDL_EDITION_CONSUMER_MEANING_CHANGED".into());
+        }
+        let mut binding=serde_json::to_value(record).map_err(|_|"E_DDL_V4_ENCODING")?;
+        let fields=binding.as_object_mut().ok_or("E_DDL_V4_FIELDS")?;
+        fields.insert("consumer_module_id".into(),module.clone().into());
+        fields.insert("consumer_source_path".into(),path.into());
+        let mut draft=Self{verified_edition:false,schema:PUBLIC_ARTIFACT_V4.into(),source_profile:consumer.source_profile,
+            source_snapshot:consumer.source_snapshot,authored_identity:consumer.authored_identity,
+            public_callable_binding:serde_json::from_value(binding).map_err(|_|"E_DDL_V4_FIELDS")?,content_sha256:String::new()};
+        draft.content_sha256=draft.checksum()?;
+        Ok(draft)
+    }
+
+    pub(crate) fn dependency_material(&self)->Result<Value,String>{serde_json::to_value(&self.public_callable_binding).map_err(|_|"E_DDL_V4_ENCODING".into())}
+    pub(crate) fn consumer_path(&self)->&str{&self.public_callable_binding.consumer_source_path}
+}
+impl fmt::Debug for PublicCallableAuthoredContext {
+    fn fmt(&self,f:&mut fmt::Formatter<'_>)->fmt::Result{f.debug_struct("PublicCallableAuthoredContext").field("path",&self.path).finish_non_exhaustive()}
+}
+impl fmt::Debug for PublicCallableProjectArtifactV4 {
+    fn fmt(&self,f:&mut fmt::Formatter<'_>)->fmt::Result{f.debug_struct("PublicCallableProjectArtifactV4").field("checksum",&self.content_sha256).finish_non_exhaustive()}
+}
+
 /// Existing project/module owners plus an explicitly supplied DDL compilation
 /// context. It has no serde/wire representation or durable admission power.
 #[derive(Clone)]
@@ -159,6 +776,10 @@ impl std::fmt::Debug for FirstCallableAuthoredContext {
     }
 }
 impl FirstCallableAuthoredContext {
+    pub(crate) fn has_legacy_ddl_original(&self)->bool {
+        self.public_export.as_ref().and_then(|export|export.owner.registration())
+            .is_some_and(|registration|registration.has_legacy_ddl_start())
+    }
     pub(crate) fn checked_native_source<'a>(&'a self,source:&crate::local_project::VirtualProjectSource)->Result<(&'a str,&'a str),String>{
         let (consumer,_,path)=self.consumer_owner.as_ref().ok_or("E_DDL_CONSUMER_OWNER_REQUIRED")?;
         if consumer.schema!=SCHEMA_V3||consumer.source_snapshot.root_path.is_none()
@@ -399,8 +1020,16 @@ fn locator(path: &str) -> bool {
             .all(|part| !part.is_empty() && part != "." && part != "..")
 }
 
+fn supports_authored_source_profile(profile: &str) -> bool {
+    matches!(
+        profile,
+        "v1-core-v25" | "v1-core-v25-logical-alpha2" | ddonirang_lang::ddl::J1_SOURCE_PROFILE
+    )
+}
+
 impl ProjectArtifact {
-    fn validate(&self) -> Result<(), String> {
+    fn validate(&self) -> Result<(), String> {self.validate_diagnostic(None)}
+    fn validate_diagnostic(&self,diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>) -> Result<(), String> {
         if self.schema!=SCHEMA_V3 && self.language_binding.is_some(){return Err("E_DDL_BINDING_SCHEMA: 기존 판본은 언어 결속 필드를 받지 않습니다".into());}
         if !matches!(
             (self.schema.as_str(), self.authored_identity.schema.as_str()),
@@ -408,10 +1037,7 @@ impl ProjectArtifact {
         ) {
             return Err(fail("지원하지 않는 저장 버전입니다"));
         }
-        if !matches!(
-            self.source_profile.as_str(),
-            "v1-core-v25" | "v1-core-v25-logical-alpha2"
-        ) {
+        if !supports_authored_source_profile(&self.source_profile) {
             return Err(fail("문법 판을 명시해야 합니다"));
         }
         if self.schema==SCHEMA_V3 {
@@ -481,14 +1107,17 @@ impl ProjectArtifact {
         }
         let mut expected_owned = files.clone();
         if let Some(root_path) = &self.source_snapshot.root_path {
-            let graph = snapshot_graph(&self.source_snapshot, &self.source_profile)?;
+            let graph = snapshot_graph_diagnostic(&self.source_snapshot, &self.source_profile,diagnostic_out)?;
             if owned.contains(root_path) {
                 return Err(fail("작품 뿌리를 모듈 원문으로 소유할 수 없습니다"));
             }
             expected_owned.remove(root_path);
             // Package custody is sealed by source_snapshot and verified by the
             // project graph, but is not an invented executable module source.
-            for file in snapshot_source(&self.source_snapshot)?.files {
+            let syntax=if self.source_profile==ddonirang_lang::ddl::J1_SOURCE_PROFILE{
+                Some(ddonirang_lang::ddl::CheckedJ1Profile::resolve(&self.source_profile).map_err(|e|e.to_string())?)
+            }else{None};
+            for file in snapshot_source_selected(&self.source_snapshot,syntax)?.files {
                 if matches!(file.role.as_str(), "metadata" | "gaji_manifest" | "lock") {
                     expected_owned.remove(&file.path);
                 }
@@ -568,8 +1197,9 @@ impl ProjectArtifact {
         Ok(hex::encode(Sha256::digest(bytes)))
     }
 
-    pub fn save(&self) -> Result<String, String> {
-        self.validate()?;
+    pub fn save(&self) -> Result<String, String> {self.save_diagnostic(None)}
+    fn save_diagnostic(&self,diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>) -> Result<String, String> {
+        self.validate_diagnostic(diagnostic_out)?;
         let mut sealed = self.clone();
         sealed.content_sha256 = sealed.checksum()?;
         let bytes =
@@ -588,13 +1218,40 @@ impl ProjectArtifact {
         source_snapshot: SourceSnapshot,
         module_name: String,
     ) -> Result<Self, String> {
+        Self::create_diagnostic(source_profile,source_snapshot,module_name,None)
+    }
+    fn create_diagnostic(source_profile:String,source_snapshot:SourceSnapshot,module_name:String,
+        mut diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>) -> Result<Self,String> {
+        if !supports_authored_source_profile(&source_profile) {
+            use crate::ddn_runtime::{E_SOURCE_PROFILE_REQUIRED, E_SOURCE_PROFILE_UNSUPPORTED};
+
+            let (code, message) = if source_profile.is_empty() {
+                (E_SOURCE_PROFILE_REQUIRED, "문법 판을 명시해야 합니다")
+            } else {
+                (E_SOURCE_PROFILE_UNSUPPORTED, "지원하지 않는 작성 원문 프로필입니다")
+            };
+            if let Some(out) = diagnostic_out.as_deref_mut() {
+                *out = Some(crate::preprocess::ExecutionDiagnostic {
+                    code,
+                    message: message.into(),
+                    source_path: String::new(),
+                    span: None,
+                    phase: "project_prepare",
+                    cause: None,
+                    offending_field: Some("source_profile".into()),
+                    expected: None,
+                    actual: Some(source_profile),
+                });
+            }
+            return Err(format!("{code}: {message}"));
+        }
         let modules = if source_snapshot.root_path.is_some() {
             if !module_name.is_empty() {
                 return Err(fail(
                     "여러 모듈의 이름은 얽음에 선언합니다. 별도 모듈 이름을 덮어쓸 수 없습니다",
                 ));
             }
-            let graph = snapshot_graph(&source_snapshot, &source_profile)?;
+            let graph = snapshot_graph_diagnostic(&source_snapshot, &source_profile,diagnostic_out.as_deref_mut())?;
             graph
                 .module_paths
                 .into_iter()
@@ -637,7 +1294,7 @@ impl ProjectArtifact {
             content_sha256: String::new(),
             language_binding:None,
         };
-        project.validate()?;
+        project.validate_diagnostic(diagnostic_out)?;
         Ok(project)
     }
 
@@ -659,6 +1316,11 @@ impl ProjectArtifact {
         )
     }
 
+    /// Complete source-owned public declarations; no registration capability.
+    pub(crate) fn source_owned_public_facts(&self, module_identity: &str) -> Result<public_surface::SourceOwnedPublicFacts,String> {
+        public_surface::from_project(self,module_identity)
+    }
+
     /// Actual linked source and graph start, separate from presentation entry.
     pub fn first_callable_registration_context(
         &self, module_identity: &str, source_path: &str, ddl_source: &str, ddl_path: &str,
@@ -678,9 +1340,16 @@ impl ProjectArtifact {
         }
         let (source_index, source) = self.source_snapshot.files.iter().enumerate().find(|(_,file)| file.path == source_path)
             .ok_or("E_MULTILANG_ORIGINAL_SOURCE_REQUIRED")?;
+        // Rootless originals retain their existing closed first-function
+        // contract; do not synthesize a Root to claim general public facts.
+        let public_targets = if self.source_snapshot.root_path.is_some() {
+            self.source_owned_public_facts(module_identity)?.public_targets()
+        } else {
+            ["총액합하다".to_string()].into_iter().collect::<BTreeSet<_>>()
+        };
         let public = ddonirang_lang::parse_module_directive_frontdoor_with_mode(&source.text, source_path,
             ddonirang_lang::ParseMode::Strict,
-            &ddonirang_lang::ModuleDirectiveContext::default().with_public_definitions(["총액합하다"]))
+            &ddonirang_lang::ModuleDirectiveContext::default().with_public_definitions(public_targets))
             .map_err(|e| e.to_string())?;
         let declaration_offset = source.text.len().checked_sub(public.directives.declaration_source.len())
             .filter(|offset| source.text.get(*offset..) == Some(public.directives.declaration_source.as_str()))
@@ -718,12 +1387,35 @@ impl ProjectArtifact {
     pub(crate) fn authored_preparation(
         &self,
     ) -> Result<Option<crate::local_project::AuthoredPreparation>, String> {
+        self.authored_preparation_diagnostic(None)
+    }
+
+    pub(crate) fn authored_preparation_diagnostic(
+        &self,
+        diagnostic: Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+    ) -> Result<Option<crate::local_project::AuthoredPreparation>, String> {
         if self.source_snapshot.root_path.is_none() {
             return Ok(None);
         }
-        crate::local_project::prepare_authored_execution(snapshot_source(&self.source_snapshot)?)
-            .map(Some)
-            .map_err(|error| fail(&format!("{}: {}", error.code, error.message)))
+        let profile=crate::ddn_runtime::resolve_supported_source_profile(Some(&self.source_profile))
+            .map_err(|error|fail(&error.message))?;
+        let prepared=match profile {
+            crate::ddn_runtime::SupportedSourceProfile::V1CoreV25JaBaseR1=>{
+                let syntax=ddonirang_lang::ddl::CheckedJ1Profile::resolve(&self.source_profile).map_err(|error|fail(&error.to_string()))?;
+                let source=snapshot_source_selected(&self.source_snapshot,Some(syntax))?;
+                crate::local_project::prepare_authored_execution_with_j1_profile(source,syntax)
+            },
+            crate::ddn_runtime::SupportedSourceProfile::V1CoreV25=>crate::local_project::prepare_authored_execution(snapshot_source(&self.source_snapshot)?),
+        };
+        prepared.map(Some).map_err(|error| {
+            let message = fail(&format!("{}: {}", error.code, error.message));
+            if let Some(output) = diagnostic.filter(|output| output.is_none()) {
+                if let Some(cause) = error.cause.filter(|cause| matches!(cause.code, "E_J1_ROLE_AMBIGUOUS" | "E_MODULE_MISSING" | "E_FIXED64_LITERAL_RANGE")) {
+                    *output = Some(*cause);
+                }
+            }
+            message
+        })
     }
 
     fn finish_explicit_edit(mut self) -> Result<Self, String> {
@@ -953,6 +1645,22 @@ fn snapshot_graph(
     snapshot: &SourceSnapshot,
     profile: &str,
 ) -> Result<crate::local_project::LocalProjectGraph, String> {
+    snapshot_graph_diagnostic(snapshot,profile,None)
+}
+fn snapshot_graph_diagnostic(
+    snapshot:&SourceSnapshot,profile:&str,
+    mut diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+)->Result<crate::local_project::LocalProjectGraph,String>{
+    if profile==ddonirang_lang::ddl::J1_SOURCE_PROFILE{
+        let syntax=ddonirang_lang::ddl::CheckedJ1Profile::resolve(profile).map_err(|e|e.to_string())?;
+        let source=snapshot_source_selected_diagnostic(snapshot,Some(syntax),diagnostic_out.as_deref_mut())?;
+        return crate::local_project::build_project_graph_with_j1_profile(source,syntax)
+            .map_err(|error|{
+                let message=fail(&format!("{}: {}",error.code,error.message));
+                if let Some(out)=diagnostic_out.as_deref_mut(){*out=Some(error.into_execution_diagnostic());}
+                message
+            });
+    }
     let source = snapshot_source(snapshot)?;
     crate::local_project::project_source_profile(&source, Some(profile))
         .map_err(|error| fail(&format!("{}: {}", error.code, error.message)))?;
@@ -963,6 +1671,14 @@ fn snapshot_graph(
 fn snapshot_source(
     snapshot: &SourceSnapshot,
 ) -> Result<crate::local_project::VirtualProjectSource, String> {
+    snapshot_source_selected(snapshot,None)
+}
+pub(crate) fn snapshot_source_selected(snapshot:&SourceSnapshot,j1:Option<ddonirang_lang::ddl::CheckedJ1Profile>)->Result<crate::local_project::VirtualProjectSource,String>{
+    snapshot_source_selected_diagnostic(snapshot,j1,None)
+}
+fn snapshot_source_selected_diagnostic(snapshot:&SourceSnapshot,j1:Option<ddonirang_lang::ddl::CheckedJ1Profile>,
+    mut diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+)->Result<crate::local_project::VirtualProjectSource,String>{
     use crate::local_project::{self, VirtualProjectFileSource, VirtualProjectSource};
     let root = snapshot
         .root_path
@@ -973,8 +1689,18 @@ fn snapshot_source(
     }
     let root_text = snapshot.files.iter().find(|file| &file.path == root)
         .ok_or_else(|| fail("작품 뿌리 원문이 없습니다"))?;
-    let metadata_roles = local_project::v25_package_metadata_roles(&root_text.text)
-        .map_err(|e| fail(&format!("{}: {}", e.code, e.message)))?;
+    let metadata_roles=if let Some(profile)=j1{
+        // The closed J1 root admits only epoch/modules/start, no metadata role.
+        ddonirang_lang::work_root::parse_work_root_with_j1_profile(&root_text.text,profile).map_err(|error|{
+            let message=fail(&format!("E_PROJECT_ROOT_PARSE: {}",error.message));
+            if let Some(out)=diagnostic_out.as_deref_mut(){*out=Some(crate::preprocess::ExecutionDiagnostic{
+                code:error.j1_source_code(),message:error.message,source_path:root.clone(),
+                span:Some((error.span.start,error.span.end)),phase:"project_root",cause:None,
+                offending_field:None,expected:None,actual:None});}
+            message
+        })?;
+        BTreeMap::new()
+    }else{local_project::v25_package_metadata_roles(&root_text.text).map_err(|e|fail(&format!("{}: {}",e.code,e.message)))?};
     let source = VirtualProjectSource {
         schema: local_project::VIRTUAL_PROJECT_SOURCE_SCHEMA.into(),
         kind: None,
@@ -993,7 +1719,7 @@ fn snapshot_source(
             })
             .collect(),
     };
-    if source.files.iter().any(|file| file.role == "ddn_source"
+    if source.files.iter().any(|file| j1.is_none() && file.role == "ddn_source"
         && crate::ddn_runtime::first_callable_header_requires_context(&file.utf8_text)) {
         return Err("E_MULTILANG_DURABLE_CONTEXT_REQUIRED: DDL을 임의의 ddn_source 저장 역할로 바꿀 수 없습니다".into());
     }
@@ -1050,7 +1776,8 @@ impl<'de> Deserialize<'de> for StrictValue {
     }
 }
 
-pub fn open(bytes: &[u8]) -> Result<ProjectArtifact, String> {
+pub fn open(bytes: &[u8]) -> Result<ProjectArtifact, String> {open_with_diagnostic(bytes,None)}
+pub(crate) fn open_with_diagnostic(bytes:&[u8],diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>)->Result<ProjectArtifact,String>{
     if bytes.len() > MAX_BYTES || bytes.starts_with(&[0xef, 0xbb, 0xbf]) {
         return Err(fail("저장 크기 초과 또는 BOM입니다"));
     }
@@ -1063,7 +1790,7 @@ pub fn open(bytes: &[u8]) -> Result<ProjectArtifact, String> {
     }
     let project: ProjectArtifact =
         serde_json::from_value(value.0).map_err(|_| fail("저장 필드가 올바르지 않습니다"))?;
-    project.validate()?;
+    project.validate_diagnostic(diagnostic_out)?;
     if project.content_sha256 != project.checksum()? {
         return Err(fail("저장 내용 해시가 다릅니다"));
     }
@@ -1101,18 +1828,57 @@ impl From<String> for FirstCallableProductError{fn from(message:String)->Self{Se
 impl From<&str> for FirstCallableProductError{fn from(message:&str)->Self{Self{message:message.into(),analysis:None}}}
 pub fn prepare_first_callable_source_with_analysis(text:&str)->Result<String,FirstCallableProductError>{source_save::prepare_first_callable_product_with_analysis(text)}
 
-pub fn operate(operation: &str, text: &str) -> Result<String, String> {
+pub(crate) fn operate_with_logic_provider_private(operation:&str,text:&str)->Result<String,String>{
+    source_save::logic_consumer::operate_private(operation,text)
+}
+
+/// Internal library/binary presentation bridge for existing CLI operations.
+/// Same request, success JSON and original error text; no new transport API.
+#[doc(hidden)]
+pub fn operate_for_cli(operation: &str, text: &str)
+    -> Result<String, (String, Option<crate::preprocess::ExecutionDiagnostic>)> {
+    if matches!(operation,"create"|"update") {
+        let mut diagnostic=None;
+        return operate_authoring_diagnostic(operation,text,Some(&mut diagnostic))
+            .map_err(|message|(message,diagnostic));
+    }
+    if operation=="public_callable_original_source_prepare" {
+        let mut diagnostic=None;
+        return source_save::prepare_public_callable_original_diagnostic(text,Some(&mut diagnostic))
+            .map_err(|message|(message,diagnostic));
+    }
+    if operation=="public_callable_source_prepare" {
+        let mut diagnostic=None;
+        return source_save::prepare_public_callable_product(text,Some(&mut diagnostic))
+            .map_err(|message|(message,diagnostic));
+    }
+    if matches!(operation,"public_callable_edition_update_native"|"public_callable_edition_reopen_native"|"public_callable_edition_run_native"){
+        return source_save::operate_public_edition_native(operation,text).map_err(|message|(message,None));
+    }
+    if operation == "linked_callable_source_run" {
+        return joint_execution::run(text).map_err(|error| (error.message.clone(), Some(error)));
+    }
+    let typed = match operation {
+        "source_probe" | "source_prepare" => true,
+        "public_callable_source_run" => source_save::logic_consumer::public_run_is_selected(text)
+            .map_err(|message| (message, None))?,
+        _ => false,
+    };
+    if typed {
+        source_save::logic_consumer::operate_private_diagnostic(operation, text)
+            .map_err(|error| (error.message.clone(), Some(error)))
+    } else if operation == "public_callable_source_run" {
+        let mut diagnostic = None;
+        source_save::run_v4_public_callable_product(text, Some(&mut diagnostic))
+            .map_err(|message| (message, diagnostic))
+    } else { operate(operation, text).map_err(|message| (message, None)) }
+}
+
+// The original authoring DTOs and custody order, with optional same-attempt
+// presentation data. No post-failure reanalysis, source rewriting or IO.
+fn operate_authoring_diagnostic(operation:&str,text:&str,
+    mut diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>)->Result<String,String>{
     match operation {
-        // Private Workbench transport operations, not DDN callables or new
-        // CLI command names. Source candidates grant no execution authority.
-        "first_callable_source_prepare"=>source_save::prepare_first_callable_product(text),
-        "first_callable_source_run"=>source_save::run_first_callable_product(text),
-        "first_callable_source_save_native"=>source_save::save_first_callable_native(text),
-        "first_callable_source_reopen_native"=>source_save::reopen_first_callable_native(text),
-        "source_prepare"=>source_save::prepare(text),
-        "source_open"=>source_save::open(text),
-        "source_probe"=>source_save::requirements(text),
-        "source_project"=>source_projection::project(text),
         "create" => {
             if text.len() > MAX_BYTES || text.starts_with('\u{feff}') {
                 return Err(fail("크기 초과 또는 BOM입니다"));
@@ -1121,15 +1887,13 @@ pub fn operate(operation: &str, text: &str) -> Result<String, String> {
                 serde_json::from_str(text).map_err(|_| fail("작성 요청 JSON을 확인하세요"))?;
             let request: CreateRequest =
                 serde_json::from_value(value.0).map_err(|_| fail("작성 요청 필드를 확인하세요"))?;
-            ProjectArtifact::create(
+            ProjectArtifact::create_diagnostic(
                 request.source_profile,
                 request.source_snapshot,
-                request.module_name,
+                request.module_name,diagnostic_out.as_deref_mut(),
             )?
-            .save()
+            .save_diagnostic(diagnostic_out)
         }
-        "open" => open(text.as_bytes())?.save(),
-        "clone" => open(text.as_bytes())?.duplicate()?.save(),
         "update" => {
             if text.len() > MAX_BYTES || text.starts_with('\u{feff}') {
                 return Err(fail("크기 초과 또는 BOM입니다"));
@@ -1140,7 +1904,7 @@ pub fn operate(operation: &str, text: &str) -> Result<String, String> {
                 serde_json::from_value(value.0).map_err(|_| fail("갱신 요청 필드를 확인하세요"))?;
             // Verify the original before any edit; do not bless a tampered
             // identity registry by simply computing a new checksum for it.
-            let mut project = open(request.original_json.as_bytes())?;
+            let mut project = open_with_diagnostic(request.original_json.as_bytes(),diagnostic_out.as_deref_mut())?;
             if project.source_snapshot.root_path != request.source_snapshot.root_path {
                 return Err(fail("원문 갱신으로 작품 뿌리를 추가·제거·바꿀 수 없습니다"));
             }
@@ -1148,8 +1912,38 @@ pub fn operate(operation: &str, text: &str) -> Result<String, String> {
             crate::authored_bogae::refresh_source_locks(&mut project)?;
             // Module ownership is retained. File moves/ownership changes must
             // use an explicit edit operation, never infer new IDs from paths.
-            project.save()
+            project.save_diagnostic(diagnostic_out)
         }
+        _=>unreachable!("authoring dispatcher is private and closed"),
+    }
+}
+
+pub fn operate(operation: &str, text: &str) -> Result<String, String> {
+    match operation {
+        "verified_dependency_tool" => crate::dependency_tool::operate(text),
+        "observe_native_source" => crate::native_source_observation::operate(text),
+        // Private Workbench transport operations, not DDN callables or new
+        // CLI command names. Source candidates grant no execution authority.
+        "public_callable_original_source_prepare"=>source_save::prepare_public_callable_original(text),
+        "public_callable_source_prepare"=>source_save::prepare_public_callable_product(text,None),
+        "public_callable_source_run"=>source_save::run_public_callable_product(text),
+        "public_callable_source_save_native"=>source_save::save_public_callable_native(text),
+        "public_callable_source_reopen_native"=>source_save::reopen_public_callable_native(text),
+        "first_callable_original_source_prepare"=>source_save::prepare_first_callable_original(text),
+        "first_callable_source_prepare"=>source_save::prepare_first_callable_product(text),
+        "first_callable_source_run"=>source_save::run_first_callable_product(text),
+        "first_callable_source_save_native"=>source_save::save_first_callable_native(text),
+        "first_callable_source_reopen_native"=>source_save::reopen_first_callable_native(text),
+        "source_prepare"=>source_save::prepare(text),
+        "source_open"=>source_save::open(text),
+        "source_probe"=>source_save::logic_consumer::probe(text),
+        "linked_callable_source_run" => joint_execution::run(text).map_err(|error| error.message),
+        "source_project"=>source_projection::project(text),
+        "source_language_support" => language_support::inspect(text),
+        "create" => operate_authoring_diagnostic(operation,text,None),
+        "open" => open(text.as_bytes())?.save(),
+        "clone" => open(text.as_bytes())?.duplicate()?.save(),
+        "update" => operate_authoring_diagnostic(operation,text,None),
         "register_bogae" => {
             if text.len() > MAX_BYTES || text.starts_with('\u{feff}') {
                 return Err(fail("크기 초과 또는 BOM입니다"));
@@ -1632,3 +2426,48 @@ use super::*;
   let mut imposter=original.clone();let file=imposter.source_snapshot.files.iter_mut().find(|f|f.path=="세금.ddn").unwrap();file.text=file.text.replace("금액 + 세액","(110,1) 나눔수");let imposter=open(imposter.save().unwrap().as_bytes()).unwrap();let fake_context=context(&imposter);let fake_source=prepare(&imposter,&fake_context);let err=fake_context.produce_public_ddl(&imposter.save().unwrap(),&fake_source).err().unwrap();assert!(err.contains("E_DDL_FIRST_BODY_SCOPE"),"{err}");
  }
 }
+
+#[cfg(test)]
+mod isolated_j1_original_tests{
+    use super::*;
+    const CREATE:&str="{\"source_profile\":\"v1-core-v25-ja-base-r1\",\"module_name\":\"\",\"source_snapshot\":{\"root_path\":\"root.ddn\",\"entry_path\":\"main.ddn\",\"files\":[{\"path\":\"root.ddn\",\"text\":\"#!日本語\\n(版=\\\"v25\\\", モジュール群=列[\\n  (名前=アプリ, 見出し=\\\"main.ddn\\\", 原文=\\\"main.ddn\\\"),\\n  (名前=計算, 見出し=\\\"calc.ddn\\\", 原文=\\\"calc.ddn\\\")\\n], 開始=(モジュール=アプリ, 定義=実行)) 構成.\\n\"},{\"path\":\"calc.ddn\",\"text\":\"#!日本語\\n(F=合計, G=倍) 公開.\\n(金額:有理数~に, 税額:有理数~を) 合計:有理数:関数 := {\\n  合計 <- 金額 + 税額.\\n}.\\n(金額:有理数~を) 倍:有理数:関数 := {\\n  倍 <- 金額 + 金額.\\n}.\\n(金額:有理数~を) 内部:有理数:関数 := {\\n  内部 <- 金額 + 金額.\\n}.\\n\"},{\"path\":\"main.ddn\",\"text\":\"#!日本語\\n(計算=計算) 使用.\\n実行:手続き := {\\n  ((税額=(3,1) 有理数, 金額=(12,1) 有理数) 計算.F) 表示.\\n  ((金額=(4,1) 有理数) 計算.G) 表示.\\n}.\\n\"}]}}";
+    #[test]fn isolated_j1_projection_and_snapshot_keep_actual_profile(){
+        let project=operate("create",CREATE).unwrap();
+        let artifact=open(project.as_bytes()).unwrap();
+        let projected=operate("source_project",&project).unwrap();
+        let source:crate::local_project::VirtualProjectSource=serde_json::from_str(&projected).unwrap();
+        assert_eq!(source.root_path,"root.ddn");
+        assert_eq!(source.files.len(),artifact.source_snapshot.files.len());
+        for (actual,original) in source.files.iter().zip(&artifact.source_snapshot.files){
+            assert_eq!(actual.path,original.path);assert_eq!(actual.utf8_text,original.text);
+        }
+        let owned=crate::project_revision_envelope_supply::admit_fresh_authored_project(project.as_bytes()).unwrap();
+        assert!(owned.sources().saved().j1_profile().is_some());
+        crate::project_snapshot_identity::current::issue_saved_project(&owned).unwrap();
+        assert_eq!(operate("open",&project).unwrap(),project);
+    }
+    #[test]fn isolated_j1_actual_original_record_roundtrip(){
+        let project=operate("create",CREATE).unwrap();
+        let artifact=open(project.as_bytes()).unwrap();
+        let (source,path,start)=artifact.execution_source().unwrap();
+        assert_eq!(start.as_deref(),Some("実行"));
+        let result=crate::runtime_surface::run_summary_with_authored_bogae(&source,&path,Some(1),&artifact.source_profile,&project,None,None).unwrap();
+        assert_eq!(result["engine_state"]["output_display"]["texts"],serde_json::json!(["15/1","8/1"]));
+        let request=serde_json::json!({"original_project_json_utf8":project,"original_source_path":"calc.ddn",
+            "ddl_source":{"path":"関数.ddl","text":"#!日本語\n(金額:有理数~に, 税額:有理数~を) 合計:有理数:関数 :={...}.\n(金額:有理数~を) 倍:有理数:関数 :={...}.\n"},
+            "surfaces":[{"public_name":"F","surface":"合計","pins":[["金額","金額","に"],["税額","税額","を"]]},
+                {"public_name":"G","surface":"倍","pins":[["金額","金額","を"]]}],"revision_hex":"41"});
+        let raw=operate("public_callable_original_source_prepare",&request.to_string()).unwrap();
+        let record=PublicCallableOriginalRecordV4::open(&raw).unwrap();
+        let restored=record.restore().unwrap();assert_eq!(restored.profile().identity(),record.profile.identity);
+        assert_eq!(restored.profile().version(),record.profile.version);assert_eq!(record.save().unwrap(),raw);
+        let call="(계산=\"./calc.ddn\", 옮김=(대상말씨=\"日本語\", 대상판본=\"2\")) 쓰임.\n실행:움직씨 := { ((税額=(3,1) 有理数, 金額=(12,1) 有理数) 合計) 보여주기. ((金額=(4,1) 有理数) 倍) 보여주기. }.\n";
+        let consumer=ProjectArtifact::create("v1-core-v25".into(),SourceSnapshot{root_path:Some("root.ddn".into()),entry_path:"main.ddn".into(),files:vec![
+            SourceFile{path:"root.ddn".into(),text:"(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"main.ddn\",원문=\"main.ddn\")], 시작=(모듈=앱,정의=실행)) 얽음.\n".into()},SourceFile{path:"main.ddn".into(),text:call.into()}]},String::new()).unwrap();
+        let consumer_source=operate("public_callable_source_prepare",&serde_json::json!({"original_record_json_utf8":raw,"consumer_project_json_utf8":consumer.save().unwrap(),"consumer_source_path":"main.ddn","revision_hex":"42"}).to_string()).unwrap();
+        let result=operate("public_callable_source_run",&serde_json::json!({"source_artifact_utf8":consumer_source}).to_string()).unwrap();
+        let result:serde_json::Value=serde_json::from_str(&result).unwrap();assert_eq!(result["output_log_texts"],serde_json::json!(["15/1","8/1"]));
+
+    }
+}
+

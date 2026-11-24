@@ -13,14 +13,14 @@ export function createMultilangController({runtimeBridge, persistence = null} = 
   let locale = 'ko';
   let disposed = false;
   function slot() { return {generation:0, documentEpoch:0, status:'idle', document:null,
-    analysis:null, result:null, savedReceipt:null, error:null, busy:false}; }
+    analysis:null, result:null, preparation:null, savedReceipt:null, error:null, executionDiagnostic:null, busy:false}; }
   function current(language) {
     if (disposed) throw new Error('닫힌 다국어 패널입니다.');
     if (!Object.hasOwn(slots, language)) throw new TypeError('원문 말씨는 ko/ja만 지원합니다.');
     return slots[language];
   }
   function snapshot() {
-    const view = clone({locale, slots, comparison:'supplier_required'});
+    const view = clone({locale, slots, comparison:slots.ko.document?.limitedRole ? 'limited_callable' : 'supplier_required'});
     for (const item of Object.values(view.slots)) {
       // receipt 호환 읽기는 재열기 위치만 뜻한다. 현재 원문/분석/저장 성공을 나타내지 않는다.
       item.receipt = item.savedReceipt?.receipt ?? null;
@@ -51,9 +51,21 @@ export function createMultilangController({runtimeBridge, persistence = null} = 
       || document.sourceProfileIdentity !== item.document.sourceProfileIdentity;
     Object.assign(item, {generation:item.generation + 1, document:clone(document),
       documentEpoch:item.documentEpoch + (replacement ? 1 : 0),
-      analysis:null, result:null, savedReceipt:replacement ? null : item.savedReceipt,
-      error:null, status:recheckOnly ? 'recheck_required' : 'edited'});
+      analysis:null, result:null, preparation:null, savedReceipt:replacement ? null : item.savedReceipt,
+      error:null, executionDiagnostic:null, status:recheckOnly ? 'recheck_required' : 'edited'});
+    // The consumer depends on this exact original, including A -> B -> A edits.
+    if (language === 'ko' && (document.limitedRole || item.document?.limitedRole)
+        && slots.ja.document?.limitedRole) {
+      const consumer = slots.ja;
+      Object.assign(consumer,{generation:consumer.generation+1,analysis:null,result:null,
+        preparation:null,error:null,executionDiagnostic:null,status:'recheck_required'});
+    }
     notify();
+  }
+  function clearDocument(language) {
+    const item=current(language);
+    if (item.busy) throw new Error('진행 중인 문서를 교체할 수 없습니다.');
+    Object.assign(item,slot(),{generation:item.generation+1,documentEpoch:item.documentEpoch+1});notify();
   }
   async function perform(language, pending, operation, {allowEmpty = false} = {}) {
     const item = current(language);
@@ -62,7 +74,11 @@ export function createMultilangController({runtimeBridge, persistence = null} = 
     const generation = item.generation;
     const documentEpoch = item.documentEpoch;
     const document = clone(item.document);
-    item.busy = true; item.status = pending; item.error = null; notify();
+    item.busy = true; item.status = pending; item.error = null; item.executionDiagnostic = null;
+    // A new explicit execution replaces the prior attempt's visible output.
+    // Save/reopen do not erase an unrelated completed execution.
+    if (pending === 'running') item.result = null;
+    notify();
     const fresh = () => !disposed && item.generation === generation;
     try {
       const answer = await operation(document, generation, item);
@@ -77,6 +93,32 @@ export function createMultilangController({runtimeBridge, persistence = null} = 
       if (!fresh()) return {status:'stale'};
       item.status = ['unsupported','supply_missing'].includes(error?.presentationStatus) ? error.presentationStatus : 'failed';
       item.error = String(error?.message ?? error);
+      // Worker supplies this machine diagnostic from the same failed request.
+      // It remains separate from SourceAnalysis and from translated guidance.
+      let diagnostic = error?.diagnostic;
+      // Authored update/prepare already returns ExecutionDiagnostic JSON on its
+      // existing machine wire. Consume only that whole-project checking reply;
+      // never extract positions from prose, saved replies, or a later analysis.
+      if (!diagnostic && pending === 'checking' && document.projectPreparation === true
+          && typeof error?.message === 'string') {
+        try {
+          const value = JSON.parse(error.message);
+          if (error.code == null || error.code === value?.code) diagnostic = value;
+        } catch { /* Legacy/non-machine failures keep their original message. */ }
+      }
+      if (['checking', 'running'].includes(pending) && diagnostic && typeof diagnostic === 'object'
+          && /^E_[A-Z0-9_]+$/u.test(diagnostic.code) && typeof diagnostic.message === 'string'
+          && typeof diagnostic.phase === 'string' && typeof diagnostic.source_path === 'string'
+          && Object.hasOwn(diagnostic, 'source_span')) {
+        const source = diagnostic.source_path === document.path ? document.sourceText
+          : document.projectPreparation === true ? runtimeBridge.readOtherSource?.(document, diagnostic.source_path) : null;
+        const span = diagnostic.source_span;
+        const byteLength = typeof source === 'string' ? new TextEncoder().encode(source).length : -1;
+        if ((span === null && byteLength >= 0) || (Number.isSafeInteger(span?.start) && Number.isSafeInteger(span?.end)
+            && span.start >= 0 && span.end >= span.start && span.end <= byteLength)) {
+          item.executionDiagnostic = clone(diagnostic);
+        }
+      }
       return {status:item.status};
     } finally {
       item.busy = false;
@@ -85,8 +127,36 @@ export function createMultilangController({runtimeBridge, persistence = null} = 
   }
   function analyze(language) {
     const item = current(language);
-    if (!item.busy) { item.analysis = null; item.result = null; }
+    if (!item.busy) {
+      item.analysis=null;item.result=null;item.preparation=null;
+      // Explicit re-registration can issue a new owner binding even with identical bytes.
+      if(language==='ko' && item.document?.limitedRole==='original' && slots.ja.document?.limitedRole) {
+        Object.assign(slots.ja,{generation:slots.ja.generation+1,analysis:null,result:null,
+          preparation:null,error:null,executionDiagnostic:null,status:'recheck_required'});
+      }
+    }
     return perform(language, 'checking', async (document, generation) => {
+      if (document.projectPreparation === true) {
+        if (typeof runtimeBridge?.prepareSelectedProject !== 'function') return {status:'supply_missing'};
+        const prepared=clone(await runtimeBridge.prepareSelectedProject({document:clone(document),generation}));
+        if (!prepared || typeof prepared.sourceArtifactText!=='string' || !prepared.sourceArtifactText) {
+          throw new Error('E_MULTILANG_PREPARED_SOURCE_REQUIRED: 실제 작품 준비 응답이 필요합니다.');
+        }
+        return {status:'prepared',commit:target=>{target.preparation=prepared;target.analysis=null;target.result=null;}};
+      }
+      if (document.limitedRole) {
+        const original=slots.ko.preparation;
+        const operation=document.limitedRole==='original' ? runtimeBridge?.prepareLimitedOriginal
+          : runtimeBridge?.prepareLimitedConsumer;
+        if (typeof operation!=='function') return {status:'supply_missing'};
+        if (document.limitedRole==='consumer' && !original) return {status:'original_required'};
+        const prepared=clone(await operation({document:clone(document),generation,original:clone(original)}));
+        if (!prepared || typeof prepared.sourceArtifactText!=='string' || !prepared.sourceArtifactText) {
+          throw new Error('E_MULTILANG_PREPARED_SOURCE_REQUIRED: 실제 제품 준비 응답이 필요합니다.');
+        }
+        // Product preparation is not a fabricated SourceAnalysisSnapshot.
+        return {status:'prepared',commit:target=>{target.preparation=prepared;target.analysis=null;target.result=null;}};
+      }
       if (!document.sourceProfileIdentity || typeof runtimeBridge?.sourceAnalysis !== 'function') {
         return {status:'supply_missing'};
       }
@@ -97,18 +167,31 @@ export function createMultilangController({runtimeBridge, persistence = null} = 
       if (answer.schema !== SCHEMA || answer.analysis_generation !== generation
           || answer.source_profile_identity !== document.sourceProfileIdentity
           || typeof answer.source_revision_identity !== 'string' || !answer.source_revision_identity
-          || !['ACCEPTED','REJECTED'].includes(answer.outcome) || !Array.isArray(answer.diagnostics)
+          || !['ACCEPTED','REJECTED','UNSUPPORTED'].includes(answer.outcome) || !Array.isArray(answer.diagnostics)
           || (answer.outcome === 'ACCEPTED' && answer.diagnostics.some(d => d.severity === 'error'))) {
         throw new Error('공통 분석 응답의 판본·세대·프로필 또는 상태가 맞지 않습니다.');
       }
-      return {status:answer.outcome === 'ACCEPTED' ? 'accepted' : 'rejected',
+      return {status:answer.outcome === 'ACCEPTED' ? 'accepted' : answer.outcome === 'UNSUPPORTED' ? 'unsupported' : 'rejected',
         commit:item => { item.analysis = answer; item.result = null; }};
     });
   }
   function run(language) {
     const item = current(language);
-    if (item.analysis?.outcome !== 'ACCEPTED') return Promise.resolve({status:'analysis_required'});
+    if (item.document?.limitedRole==='original') return Promise.resolve({status:'original_registered'});
+    if (item.document?.projectPreparation === true ? !item.preparation : item.document?.limitedRole ? !item.preparation : item.analysis?.outcome !== 'ACCEPTED') {
+      return Promise.resolve({status:'analysis_required'});
+    }
     return perform(language, 'running', async document => {
+      if (document.projectPreparation === true) {
+        if (typeof runtimeBridge?.runSelectedProject !== 'function') return {status:'supply_missing'};
+        const result=clone(await runtimeBridge.runSelectedProject({document:clone(document),preparation:clone(item.preparation)}));
+        return {status:'completed',commit:target=>{target.result=result;}};
+      }
+      if (document.limitedRole==='consumer') {
+        if (typeof runtimeBridge?.runLimitedConsumer!=='function') return {status:'supply_missing'};
+        const result=clone(await runtimeBridge.runLimitedConsumer({document:clone(document),preparation:clone(item.preparation)}));
+        return {status:'completed',commit:target=>{target.result=result;}};
+      }
       if (typeof runtimeBridge?.runSummaryWithSourceProfile !== 'function') return {status:'supply_missing'};
       const result = clone(await runtimeBridge.runSummaryWithSourceProfile({sourceText:document.sourceText,
         sourcePath:document.path, requestedTicks:1, sourceProfileIdentity:document.sourceProfileIdentity}));
@@ -117,12 +200,15 @@ export function createMultilangController({runtimeBridge, persistence = null} = 
     });
   }
   function save(language) {
+    if (current(language).document?.limitedRole) return Promise.resolve({status:'unsupported'});
     return perform(language, 'saving', async (document, generation, item) => {
       const documentEpoch = item.documentEpoch;
       if (typeof persistence?.saveDocument !== 'function') return {status:'supply_missing'};
       const receipt = clone(await persistence.saveDocument(clone(document)));
       if (receipt == null) throw new Error('원문 저장 응답이 없습니다.');
-      return {status:'saved', retainSaved:target => {
+      return {status:receipt.recheckRequired===true?'recheck_required':'saved', commit:target=>{
+        if(receipt.recheckRequired===true){target.analysis=null;target.result=null;target.preparation=null;}
+      }, retainSaved:target => {
         target.savedReceipt = {receipt, generation, documentEpoch, document:clone(document)};
       }};
     });
@@ -140,14 +226,14 @@ export function createMultilangController({runtimeBridge, persistence = null} = 
       return {status:'edited', commit:target => {
         target.document = reopened; target.generation += 1;
         openedGeneration = target.generation;
-        target.analysis = null; target.result = null; target.error = null;
+        target.analysis = null; target.result = null; target.preparation = null; target.error = null; target.executionDiagnostic = null;
       }};
     }, {allowEmpty:true});
     // 재열기만으로 실행하지 않는다. 이전 분석은 폐기하고 공통 생산자에게 새로 검사한다.
     if (answer.status === 'edited' && !disposed && item.generation === openedGeneration) return analyze(language);
     return answer;
   }
-  return Object.freeze({snapshot, setDocument, analyze, run, save, reopen,
+  return Object.freeze({snapshot, setDocument, clearDocument, analyze, run, save, reopen,
     setLocale(value) {
       if (!['ko','ja'].includes(value)) throw new TypeError('표시 언어는 ko/ja만 지원합니다.');
       locale = value; notify();

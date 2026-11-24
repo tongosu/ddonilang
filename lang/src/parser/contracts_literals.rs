@@ -552,6 +552,7 @@ impl Parser {
             ExprKind::Eval { thunk, .. } => self.expr_exec_has_mutation(thunk),
             ExprKind::Thunk(_) => false,
             ExprKind::FieldAccess { target, .. } => self.expr_has_mutation(target),
+            ExprKind::FunctionBlock{statements,result}=>self.body_has_mutation(statements)||self.expr_has_mutation(result),
             ExprKind::SeedLiteral { body, .. } => self.expr_has_mutation(body),
             ExprKind::Call { args, .. } => args.iter().any(|arg| self.expr_has_mutation(&arg.expr)),
             ExprKind::Infix { left, right, .. } => {
@@ -595,6 +596,7 @@ impl Parser {
             }
             ExprKind::Thunk(_) => false,
             ExprKind::FieldAccess { target, .. } => self.expr_has_eval_do(target),
+            ExprKind::FunctionBlock{statements,result}=>self.body_has_eval_do(statements)||self.expr_has_eval_do(result),
             ExprKind::SeedLiteral { body, .. } => self.expr_has_eval_do(body),
             ExprKind::Call { args, .. } => args.iter().any(|arg| self.expr_has_eval_do(&arg.expr)),
             ExprKind::Infix { left, right, .. } => {
@@ -624,6 +626,7 @@ impl Parser {
             ExprKind::Eval { thunk, .. } => self.expr_exec_has_random(thunk),
             ExprKind::Thunk(_) => false,
             ExprKind::FieldAccess { target, .. } => self.expr_has_random(target),
+            ExprKind::FunctionBlock{statements,result}=>self.body_has_random(statements)||self.expr_has_random(result),
             ExprKind::SeedLiteral { body, .. } => self.expr_has_random(body),
             ExprKind::Call { func, args } => {
                 if is_random_func(func) {
@@ -658,6 +661,7 @@ impl Parser {
             ExprKind::Eval { thunk, .. } => self.expr_exec_has_show(thunk),
             ExprKind::Thunk(_) => false,
             ExprKind::FieldAccess { target, .. } => self.expr_has_show(target),
+            ExprKind::FunctionBlock{statements,result}=>self.body_has_show(statements)||self.expr_has_show(result),
             ExprKind::SeedLiteral { body, .. } => self.expr_has_show(body),
             ExprKind::Call { args, .. } => args.iter().any(|arg| self.expr_has_show(&arg.expr)),
             ExprKind::Infix { left, right, .. } => {
@@ -938,13 +942,17 @@ impl Parser {
                 }
                 accepted
             };
-            let pin = if coordinate_input { self.advance().raw }
-                else { self.expect_ident("핀")?.raw.clone() };
+            let pin_token = if coordinate_input { self.advance() }
+                else { self.expect_ident("핀")? };
+            let pin_span=self.to_ast_span(pin_token.span);
+            let pin=pin_token.raw;
             self.expect(&TokenKind::Equals, "=")?;
             let arg_expr = self.parse_expr()?;
             let suffix = self.parse_arg_suffix()?;
+            let id=self.next_id();
+            self.authored_pin_label_spans.insert(id,pin_span);
             return Ok(ArgBinding {
-                id: self.next_id(),
+                id,
                 span: arg_expr.span,
                 expr: arg_expr,
                 josa: suffix.josa,

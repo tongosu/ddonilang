@@ -543,6 +543,7 @@ fn collect_v1_core_named_calls_expr(
             collect_v1_core_named_calls_expr(left, alias_owner, calls);
             collect_v1_core_named_calls_expr(right, alias_owner, calls);
         }
+        ExprKind::FunctionBlock{statements,result}=>{collect_v1_core_named_calls_body(statements,alias_owner,calls);collect_v1_core_named_calls_expr(result,alias_owner,calls);},
         ExprKind::Thunk(body) => collect_v1_core_named_calls_body(body, alias_owner, calls),
         ExprKind::Pipe { stages } => {
             for stage in stages {
@@ -884,6 +885,7 @@ fn collect_public_observation_fields_expr<'a>(
             collect_public_observation_fields_expr(left, fields);
             collect_public_observation_fields_expr(right, fields);
         }
+        ExprKind::FunctionBlock{statements,result}=>{collect_public_observation_fields_body(statements,fields);collect_public_observation_fields_expr(result,fields);},
         ExprKind::Thunk(body) => collect_public_observation_fields_body(body, fields),
         ExprKind::Pipe { stages } => {
             for stage in stages {
@@ -918,7 +920,7 @@ pub(super) fn collect_top_level_decl_names(source: &str) -> HashSet<String> {
     names
 }
 
-pub(super) fn authored_top_level_decl_names(program:&CanonProgram,source:&str) -> HashSet<String> {
+pub(crate) fn authored_top_level_decl_names(program:&CanonProgram,source:&str) -> HashSet<String> {
     let ranges=top_level_decl_ranges(source);
     let mut names=HashSet::new();
     let in_range=|span:ddonirang_lang::Span| ranges.iter().any(|range|range.start<=span.start && span.end<=range.end);
@@ -1738,6 +1740,7 @@ fn expr_regex_feature(expr: &Expr) -> Option<&'static str> {
             expr_regex_feature(left).or_else(|| expr_regex_feature(right))
         }
         ExprKind::Suffix { value, .. } => expr_regex_feature(value),
+        ExprKind::FunctionBlock{statements,result}=>body_regex_feature(statements).or_else(||expr_regex_feature(result)),
         ExprKind::Thunk(body) => body_regex_feature(body),
         ExprKind::Eval { thunk, .. } => expr_regex_feature(thunk),
         ExprKind::Pipe { stages } => {
@@ -1807,6 +1810,7 @@ fn expr_assertion_feature(expr: &Expr) -> Option<&'static str> {
             expr_assertion_feature(left).or_else(|| expr_assertion_feature(right))
         }
         ExprKind::Suffix { value, .. } => expr_assertion_feature(value),
+        ExprKind::FunctionBlock{statements,result}=>body_assertion_feature(statements).or_else(||expr_assertion_feature(result)),
         ExprKind::Thunk(body) => body_assertion_feature(body),
         ExprKind::Eval { thunk, .. } => expr_assertion_feature(thunk),
         ExprKind::Pipe { stages } => {
@@ -1876,6 +1880,7 @@ fn expr_state_machine_feature(expr: &Expr) -> Option<&'static str> {
             expr_state_machine_feature(left).or_else(|| expr_state_machine_feature(right))
         }
         ExprKind::Suffix { value, .. } => expr_state_machine_feature(value),
+        ExprKind::FunctionBlock{statements,result}=>body_state_machine_feature(statements).or_else(||expr_state_machine_feature(result)),
         ExprKind::Thunk(body) => body_state_machine_feature(body),
         ExprKind::Eval { thunk, .. } => expr_state_machine_feature(thunk),
         ExprKind::Pipe { stages } => {

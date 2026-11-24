@@ -3,7 +3,7 @@ import { collectSpace2dRangePoints } from '../wasm_page_common.js';
 // This cache contains display data only, never runtime state or authored payloads.
 export function createSpatialViewState({ maxFrames = 512 } = {}) {
   return { identity: null, maxFrames: Math.max(2, Math.floor(maxFrames) || 512),
-    frames: [], range: null, initialRange: null, rawRange: null, mode: 'expand' };
+    frames: [], range: null, initialRange: null, rawRange: null, userMoved: false, mode: 'expand' };
 }
 
 function bounds(points) {

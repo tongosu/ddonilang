@@ -1,5 +1,5 @@
 // Existing approved inspection and action facade; exact object literal retained.
-export function createApprovedWorkbenchApi({ activeFrame, analyzeSourceReadiness, applySourceReadinessFixIt, attemptMutateParentHash, attemptOverwriteActiveRun, attemptReuseRunId, branchFromCursor, buildCurrentPortableProjectArtifact, buildProjectSnapshot, buildServerProjectArtifact, cloneCurrentPortableProject, currentPortableLineage, currentProject, els, exportPortableProject, getSourceReadinessCandidate, openPendingPortableProject, openRunArchiveDetail, pauseRun, previewPortableProjectFile, projectStorageKey, readMyWorkIndex, readPortableProjectCatalog, reopenProjectSnapshot, resumeRun, saveProjectSnapshot, sourceReadinessSnapshot, startRun, state, stepForward, stopRun, summarizeRunArchiveBoundary, workbenchProjectRegistryState }) {
+export function createApprovedWorkbenchApi({ activeFrame, analyzeSourceReadiness, applySourceReadinessFixIt, attemptMutateParentHash, attemptOverwriteActiveRun, attemptReuseRunId, branchFromCursor, buildCurrentPortableProjectArtifact, buildProjectSnapshot, buildServerProjectArtifact, cloneCurrentPortableProject, currentPortableLineage, currentProject, els, exportPortableProject, getSourceReadinessCandidate, openPendingPortableProject, openRunArchiveDetail, pauseRun, previewPortableProjectFile, projectStorageKey, readMyWorkIndex, readPortableProjectCatalog, reopenProjectSnapshot, resumeRun, saveProjectSnapshot, sourceReadinessSnapshot, startRun, state, stepForward, stopRun, summarizeRunArchiveBoundary, workbenchProjectRegistryState, readProjectLanguageSupport = () => ({status:'unknown'}), refreshProjectLanguageSupport = async () => ({status:'unknown'}) }) {
   return {
   getSnapshot() {
     const project = currentProject();
@@ -17,6 +17,7 @@ export function createApprovedWorkbenchApi({ activeFrame, analyzeSourceReadiness
         initialization: "ready",
         source: sourceReadinessSnapshot(),
       },
+      projectLanguageSupport: readProjectLanguageSupport(),
       projectId: state.projectId,
       project: {
         project_id: project.id,
@@ -249,6 +250,7 @@ export function createApprovedWorkbenchApi({ activeFrame, analyzeSourceReadiness
   analyzeSourceReadiness,
   getSourceReadinessCandidate,
   applySourceReadinessFixIt,
+  refreshProjectLanguageSupport,
   saveProjectSnapshot,
   reopenProjectSnapshot,
   buildProjectSnapshot,

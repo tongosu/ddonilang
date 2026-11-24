@@ -14,6 +14,7 @@ use ddonirang_lang::runtime::Value;
 use ddonirang_lang::{ExecutionModeDecision, ParseMode};
 use serde_json::{json, Map, Value as JsonValue};
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 
 use crate::canon;
 
@@ -21,6 +22,13 @@ use crate::canon;
 #[wasm_bindgen]
 pub fn wasm_math_notebook_observe_project(artifact: &str) -> Result<String, JsValue> {
     crate::math_notebook::observe_uniform_motion_project(artifact)
+        .map_err(|message| JsValue::from_str(&message))
+}
+
+/// Explicit project model observer; no fallback or proof admission.
+#[wasm_bindgen]
+pub fn wasm_math_notebook_observe_project_model(artifact: &str, model_kind: &str) -> Result<String, JsValue> {
+    crate::math_notebook::observe_project_model(artifact,model_kind)
         .map_err(|message| JsValue::from_str(&message))
 }
 
@@ -54,6 +62,12 @@ const DEFAULT_UPDATE_NAME: &str = "매마디";
 
 #[wasm_bindgen]
 pub fn authored_project_operation(operation: &str, artifact_json: &str) -> Result<String, JsValue> {
+    if matches!(operation, "create" | "update" | "source_probe" | "source_prepare"
+        | "public_callable_source_prepare" | "public_callable_source_run" | "linked_callable_source_run") {
+        return crate::authored_project::operate_for_cli(operation, artifact_json)
+            .map_err(|(message, diagnostic)| JsValue::from_str(&diagnostic
+                .map(|value| value.to_json_value().to_string()).unwrap_or(message)));
+    }
     crate::authored_project::operate(operation, artifact_json).map_err(|error| JsValue::from_str(&error))
 }
 
@@ -468,6 +482,7 @@ fn canonicalize_for_wasm(source: &str) -> Result<canon::CanonOutput, JsValue> {
 #[wasm_bindgen]
 pub fn wasm_verify_assumption_source_json(source: &str, source_path: &str) -> Result<String, JsValue> {
     let path = require_wasm_source_path(source_path)?;
+    if let Some(report) = crate::proof_workflow::observe_card_goal(source, path).map_err(|e| JsValue::from_str(&e))? { return Ok(report); }
     let checked = crate::proof_workflow::verify_conditional_source(source, path)
         .map_err(|error| JsValue::from_str(&crate::proof_workflow::format_source_error(source, path, &error)))?;
     Ok(serde_json::json!({
@@ -477,6 +492,16 @@ pub fn wasm_verify_assumption_source_json(source: &str, source_path: &str) -> Re
         "unconditional_proof_issued": false,
         "message": "가정 의존 정의 검사 수용; 무가정 증명 발급 아님"
     }).to_string())
+}
+
+/// Read-only observations from the same conditional source checker.
+/// This response never issues an unconditional theorem or a saved receipt.
+#[wasm_bindgen]
+pub fn wasm_observe_assumption_source_json(source: &str, source_path: &str) -> Result<String, JsValue> {
+    let path = require_wasm_source_path(source_path)?;
+    let mut report = crate::proof_workflow::assumption_observation::observe_assumption_source(source, path);
+    report.as_object_mut().expect("observation object").remove("contract_status");
+    Ok(report.to_string())
 }
 
 fn canonicalize_for_wasm_with_supported_profile(
@@ -610,6 +635,11 @@ pub fn wasm_run_summary_with_source_profile_json(
         Some(requested_ticks as u32)
     };
     let source_path = require_wasm_source_path(source_path)?;
+    if source_profile_identity==ddonirang_lang::ddl::J1_SOURCE_PROFILE{
+        return runtime_surface::run_summary_from_supported_source_profile_diagnostic(source,source_path,requested,Some(source_profile_identity))
+            .map(|summary|crate::unit_wire::SnapshotJsonOwner::from_value(summary).compact_text())
+            .map_err(|error|JsValue::from_str(&error.to_json_value().to_string()));
+    }
     runtime_surface::run_summary_from_supported_source_profile(
         source,
         source_path,
@@ -1264,6 +1294,7 @@ fn native_source_exchange(request:&JsonValue,catalog:Option<&crate::authored_pro
 
 #[wasm_bindgen]
 pub struct DdnWasmVm {
+    model_source: Option<crate::model_runtime::source_session::ModelSourceSession>,
     native_source_binding:Option<NativeSourceBinding>,
     runner: DdnRunner,
     saved_project_owner: Option<Arc<crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1>>,
@@ -1297,13 +1328,19 @@ pub struct DdnWasmVm {
     public_observation_trace_hash: String,
     public_observation_table_projection: JsonValue,
     project_asset_registry: Option<Arc<crate::gate0_registry::ProjectAssetRegistry>>,
+    binary_project_assets: Option<Arc<crate::authored_bogae::xy::binary_assets::PreparedBinaryAssets>>,
 }
 
 impl DdnWasmVm {
     /// Same raw project, actual protected Native owner and the exact binary
     /// checkpoint. Standalone/Node source readback cannot take this route.
-    fn from_native_project_connected(authored:&str)->Result<DdnWasmVm,JsValue>{
-        let reply=native_source_exchange(&json!({"operation":"connect","authored_project_json_utf8":authored}),None)?;
+    fn from_native_project_connected(authored:&str,restore_only:bool)->Result<DdnWasmVm,JsValue>{
+        let mut request=json!({"operation":"connect","authored_project_json_utf8":authored});
+        if restore_only {request["restore_only"]=json!(true);}
+        let reply=native_source_exchange(&request,None)?;
+        if restore_only&&reply["first_frame_pending"].as_bool()!=Some(false) {
+            return Err(JsValue::from_str("E_NATIVE_SOURCE_RESTORE_REPLY"));
+        }
         Self::from_native_project_reply(authored,reply)
     }
     fn from_native_project_reply(authored:&str,reply:crate::unit_wire::SnapshotJsonOwner)->Result<DdnWasmVm,JsValue>{
@@ -1327,6 +1364,36 @@ impl DdnWasmVm {
         let mut candidate=build_saved_authored_project_vm(Arc::new(owned.clone()))?;
         if let Some(stage)=bootstrap{candidate.runner.bind_subject_bootstrap(stage);}
         candidate.restore_state_with_complete_frame(context.runtime_state(),Some(layout.world))?;
+        if runtime_surface::projection_may_need_table_history(candidate.last_bogae_projection.as_ref()) {
+            // A serialized scene is presentation data, never a typed selection
+            // capability. Rebuild it from the already checked original source,
+            // initial subject material and actual consumed Native input prefix.
+            let rows=crate::unit_wire::resumable_complete_state::decode_general_processed_inputs(
+                layout.supplies[4],descriptor.initial_tick,descriptor.base_rng_seed)
+                .map_err(|e|JsValue::from_str(&format!("E_NATIVE_SOURCE_TABLE_HISTORY_INPUT: {e:?}")))?;
+            let bootstrap=crate::unit_wire::subject_execution::SubjectExecutionStage::from_recorded_initial(&owned,&descriptor.initial_world)
+                .map_err(|e|JsValue::from_str(&e))?;
+            let history=runtime_surface::rebuild_native_table_history(&owned,&rows,descriptor.initial_tick,
+                descriptor.base_rng_seed,descriptor.age,bootstrap.as_ref(),candidate.world.world(),
+                candidate.runner.bogae_history_for_resume()).map_err(|e|JsValue::from_str(&e))?;
+            if let (Some(history),Some(projection))=(&history,&candidate.last_bogae_projection) {
+                let cursor=last_committed_madi(&candidate.public_observation_frames).as_u64()
+                    .ok_or_else(||JsValue::from_str("E_NATIVE_SOURCE_TABLE_HISTORY_INPUT: 복원 마디가 없습니다"))?;
+                let selections=history.resolve_committed(cursor,projection)
+                    .map_err(|e|JsValue::from_str(&e))?;
+                if !selections.is_empty() {
+                    let resolved=crate::bogae_time::resolve_typed_result_tables(projection,
+                        &candidate.public_observation_frames,
+                        &format!("sha256:{}",candidate.source_bytes_sha256),
+                        &format!("sha256:{}",candidate.canonical_ddn_sha256),&selections)
+                        .map_err(|e|JsValue::from_str(&e))?;
+                    if let Some(previous)=candidate.last_bogae_projection.replace(resolved) {
+                        drop(crate::unit_wire::SnapshotJsonOwner::from_value(previous));
+                    }
+                }
+            }
+            candidate.runner.restore_table_selection_history_after_rollback(history);
+        }
         let first_frame_pending=reply["first_frame_pending"].as_bool().ok_or_else(||JsValue::from_str("E_NATIVE_SOURCE_RESPONSE_FIELDS"))?;
         let first_input_receipt=if first_frame_pending {
             let receipt=&reply["first_input_receipt"];
@@ -1342,6 +1409,41 @@ impl DdnWasmVm {
         candidate.native_source_binding=Some(NativeSourceBinding{authored:authored.into(),checkpoint_tick:candidate.tick_id,
             first_frame_pending,first_input_receipt,initial_reset_pending:true,authoring_selection:reply["authoring_selection"].to_string()});
         Ok(candidate)
+    }
+    fn install_model_source(&mut self, source: &str, path: &str, profile: crate::ddn_runtime::SupportedSourceProfile) -> Result<(), JsValue> {
+        if self.native_source_binding.is_some() || self.saved_project_owner.is_some() {
+            return Err(JsValue::from_str("E_MODEL_SOURCE_BOUND_WORLD: 세계 실행과 모형 원문 실험을 바꿔 연결할 수 없습니다"));
+        }
+        let candidate = crate::model_runtime::source_session::ModelSourceSession::prepare(source, path, profile)
+            .map_err(|error| JsValue::from_str(&error))?;
+        self.source_bytes_sha256 = runtime_surface::sha256_hex(source.as_bytes());
+        self.canonical_ddn_sha256 = runtime_surface::sha256_hex(candidate.canonical().as_bytes());
+        self.source_path = path.into();
+        self.configured_madi = 1;
+        self.parse_warnings.clear();
+        self.debug_evaluator = None;
+        self.binary_project_assets = None;
+        self.project_asset_registry = None;
+        self.clear_retained_observation_json();
+        self.param_overrides.clear();
+        self.pending_ai_injections.clear();
+        self.tick_id = 0;
+        self.rng_seed = 0;
+        self.input_keys_pressed = 0;
+        self.input_last_key_name.clear();
+        self.input_pointer_x_i32 = 0;
+        self.input_pointer_y_i32 = 0;
+        self.input_dt = crate::input_receipt::alpha_host_dt();
+        self.last_patch = None;
+        self.display_outputs.clear();
+        self.model_source = Some(candidate);
+        Ok(())
+    }
+    fn require_ordinary_vm(&self) -> Result<(), JsValue> {
+        if self.model_source.is_some() {
+            return Err(JsValue::from_str("E_MODEL_SOURCE_OPERATION_UNSUPPORTED: 모형 원문의 조건을 직접 고친 뒤 새 실험을 실행하세요. 세계 상태 저장은 지원하지 않습니다"));
+        }
+        Ok(())
     }
     fn clear_retained_observation_json(&mut self) {
         crate::unit_wire::clear_retained_json_option(&mut self.last_bogae_projection);
@@ -1363,23 +1465,31 @@ fn update_wasm_logic_with_supported_source_profile(
     vm: &mut DdnWasmVm,
     source: &str,
     source_profile_identity: &str,
+    source_path: Option<&str>,
 ) -> Result<(), JsValue> {
     let profile = resolve_supported_source_profile(Some(source_profile_identity))
         .map_err(|error| JsValue::from_str(&format!("{}: {}", error.code, error.message)))?;
-    let mut program = DdnProgram::from_supported_source_profile_with_mode(
-        source,
-        &vm.source_path,
-        vm.lang_mode,
-        profile,
-    )
-    .map_err(|error| JsValue::from_str(&error))?;
-    source_analysis::validate_program_for_execution(program.canonical_program())
-        .map_err(|error| JsValue::from_str(&error))?;
+    let path=match source_path {Some(path)=>require_wasm_source_path(path)?.to_owned(),None=>vm.source_path.clone()};
+    if ddonirang_lang::has_model_surface(source) {
+        return vm.install_model_source(source, &path, profile);
+    }
+    let mut program = DdnProgram::from_supported_source_profile_diagnostic(
+        source, &path, vm.lang_mode, profile, crate::ddn_runtime::default_age_target(),
+    ).map_err(|error|JsValue::from_str(&error.to_json_value().to_string()))?;
+    if let Some(mut diagnostic) = source_analysis::existing_static_rejection_diagnostic(
+        program.canonical_program(), &path,
+    ) {
+        diagnostic.phase = "source_type_check";
+        return Err(JsValue::from_str(&diagnostic.to_json_value().to_string()));
+    }
     program.prepare_temporary_source_execution().map_err(|error|JsValue::from_str(&error))?;
+    vm.model_source = None;
+    vm.source_path=path;
     let canonical_ddn = program.canonical_ddn();
     vm.configured_madi = program.configured_madi().unwrap_or(0);
     vm.execution_mode_decision = program.execution_mode_decision();
     vm.parse_warnings = program.parse_warnings().to_vec();
+    if vm.binary_project_assets.take().is_some() { vm.project_asset_registry = None; }
     vm.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME).with_bogae_activation();
     vm.saved_project_owner = None;
     vm.runner
@@ -1402,6 +1512,7 @@ fn apply_currentline_result_to_vm(
             vm,
             &result.project_source,
             source_profile_identity,
+            None,
         )?;
     } else {
         vm.update_logic(&result.project_source)?;
@@ -1546,7 +1657,7 @@ fn build_wasm_vm_from_program(
         program.prepare_temporary_source_execution().map_err(|error|JsValue::from_str(&error))?;
         let configured_madi = program.configured_madi().unwrap_or(0);
         let parse_warnings = program.parse_warnings().to_vec();
-        let prepared = if program.sealed_project_sources().is_some() {
+        let prepared = if program.sealed_project_sources().is_some() || program.nominal_source_registration().is_some() {
             runtime_surface::prepare_supported_source_for_execution_with_program(source,source_path,&program)
                 .map_err(|error|JsValue::from_str(&format!("{}: {}",error.code,error.message)))?
         } else {
@@ -1568,6 +1679,7 @@ fn build_wasm_vm_from_program(
             runner: DdnRunner::new(program, DEFAULT_UPDATE_NAME).with_bogae_activation(),
             saved_project_owner: None,
             native_source_binding:None,
+            model_source:None,
             world: DetNuri::new(),
             defaults,
             param_overrides: BTreeMap::new(),
@@ -1601,6 +1713,7 @@ fn build_wasm_vm_from_program(
             public_observation_trace_hash: observation_surface.trace_hash,
             public_observation_table_projection: observation_surface.table_projection.into_parent_value(),
             project_asset_registry: None,
+            binary_project_assets: None,
         })
 }
 
@@ -1650,10 +1763,46 @@ pub(crate) fn restore_saved_v25_project_candidate(
     ).map_err(|err|JsValue::from_str(&err))?;
     let mut candidate=build_saved_authored_project_vm(Arc::new(owned.clone()))?;
     candidate.restore_state(state_json)?;
+    // Saved presentation is only a hint that a graph existed. It cannot
+    // authorize publishing a typed selection without checked input replay.
+    if candidate.last_bogae_projection.as_ref().is_some_and(|restored| {
+        crate::runtime_surface::projection_may_need_table_history(Some(restored))
+    }) {
+        let saved = context.parse_runtime().map_err(|error| JsValue::from_str(&error))?;
+        if saved_xy_projection_lost(&saved.into_parent_value()["bogae_projection"], candidate.last_bogae_projection.as_ref()) {
+            return Err(JsValue::from_str(
+                "E_PROJECT_RUNTIME_XY_HISTORY_REQUIRED: 저장한 좌표 보기의 선택 이력을 복원할 수 없습니다. 원문을 열어 다시 실행하세요.",
+            ));
+        }
+    }
     let captures=owned.sources().captures().iter().map(|(_,capture)|capture).collect::<Vec<_>>();
     crate::source_snapshot_admission::retain_verified_replay(&captures)
         .map_err(|error|JsValue::from_str(&format!("E_SOURCE_ADMISSION_CUSTODY: {error:?}")))?;
     Ok(candidate)
+}
+
+fn saved_xy_projection_lost(saved: &JsonValue, restored: Option<&JsonValue>) -> bool {
+    if saved["status"] != "ready" {
+        return false;
+    }
+    fn graph(owner: &JsonValue) -> bool {
+        owner["view"]["spatial_profile"] == "plane2"
+            && owner["view"]["table_projection"]["schema"] == "ddn.public_observation_table_projection.v2"
+    }
+    fn owners(projection: &JsonValue) -> impl Iterator<Item = &JsonValue> {
+        projection["candidates"].as_array().into_iter().flatten().flat_map(|candidate| {
+            let artifact = &candidate["artifact"];
+            std::iter::once(artifact).chain(artifact["relations"].as_array().into_iter().flatten())
+        })
+    }
+    owners(saved).filter(|owner| graph(owner)).any(|saved_owner| {
+        !restored.into_iter().flat_map(owners).any(|restored_owner| {
+            graph(restored_owner)
+                && restored_owner["identity"] == saved_owner["identity"]
+                && restored_owner["resolved_madi"] == saved_owner["resolved_madi"]
+                && restored_owner["view"] == saved_owner["view"]
+        })
+    })
 }
 
 fn build_saved_authored_project_vm(
@@ -1698,7 +1847,9 @@ fn decode_storage_lineage(text:&str,allow_empty:bool) -> Result<Vec<u8>,JsValue>
 
 #[wasm_bindgen]
 impl DdnWasmVm {
-    pub fn from_native_project_json(authored:&str)->Result<DdnWasmVm,JsValue>{Self::from_native_project_connected(authored)}
+    pub fn from_native_project_json(authored:&str,restore_only:Option<bool>)->Result<DdnWasmVm,JsValue>{
+        Self::from_native_project_connected(authored,restore_only.unwrap_or(false))
+    }
     /// Only an explicit Run action requests consumption. Selection JSON is
     /// untrusted locator data; the Native protected owner issues the permit.
     pub fn from_native_project_json_for_new_run(authored:&str,selection_json:&str)->Result<DdnWasmVm,JsValue>{
@@ -1714,14 +1865,16 @@ impl DdnWasmVm {
     /// Explicit project execution retains exactly the captures that this VM
     /// executes. Saving does not reread source or allocate replacement ordinals.
     pub fn from_authored_project_json(artifact_json:&str) -> Result<DdnWasmVm,JsValue> {
-        let owner=crate::project_revision_envelope_supply::admit_fresh_authored_project(artifact_json.as_bytes())
-            .map_err(|error|JsValue::from_str(&error))?;
+        let mut diagnostic=None;
+        let owner=crate::project_revision_envelope_supply::admit_fresh_authored_project_with_diagnostic(artifact_json.as_bytes(),Some(&mut diagnostic))
+            .map_err(|message|JsValue::from_str(&diagnostic.map(|d|d.to_json_value().to_string()).unwrap_or(message)))?;
         build_saved_authored_project_vm(Arc::new(owner))
     }
 
     pub fn is_native_source_bound(&self)->bool{self.native_source_binding.is_some()}
 
     pub fn save_native_source_checkpoint(&self,authored:&str)->Result<String,JsValue>{
+        self.require_ordinary_vm()?;
         let Some(binding)=self.native_source_binding.as_ref()else{return Ok("null".into())};
         if binding.authored!=authored||binding.first_frame_pending||!self.pending_ai_injections.is_empty(){
             return Err(JsValue::from_str("E_NATIVE_SOURCE_SAVE_CONTEXT: 현재 실행 원문과 처리 입력을 확인하세요"));
@@ -1736,6 +1889,7 @@ impl DdnWasmVm {
     pub fn export_saved_project_artifact_json(
         &self,expected_parent_hex:&str,revision_hex:&str,
     ) -> Result<String,JsValue> {
+        self.require_ordinary_vm()?;
         if self.runner.has_temporary_registration(){return Err(JsValue::from_str("E_VC04_TEMPORARY_SAVED_ESCAPE: 임시 실행을 저장 작품 상태로 승격할 수 없습니다"))}
         if self.native_source_binding.is_some(){return Err(JsValue::from_str("E_NATIVE_SOURCE_FOLLOWUP_SAVE_UNSUPPORTED: 현재 Native 실행의 후속 저장 연결은 아직 지원하지 않습니다"));}
         if !self.pending_ai_injections.is_empty() {
@@ -1777,6 +1931,19 @@ impl DdnWasmVm {
         restore_saved_v25_project_candidate(&context)
     }
 
+    /// Read-only source+registration restoration. No world, issuer or Start.
+    pub fn from_nominal_source_artifact_json(artifact_json:&str,source:&str,source_path:&str,profile:&str)->Result<DdnWasmVm,JsValue>{
+        let artifact=crate::unit_wire::project_runtime_attachment::nominal_source::NominalSource::decode(artifact_json)
+            .map_err(|e|JsValue::from_str(&e))?;
+        let context=artifact.fresh_context().map_err(|e|JsValue::from_str(&e))?;
+        if artifact.profile!=profile||context.source()!=source||context.path()!=source_path{
+            return Err(JsValue::from_str("E_NOMINAL_SOURCE_EXECUTION_CONTEXT: 보관한 등록자료와 실행 원문·경로·프로필이 다릅니다"));
+        }
+        let program=DdnProgram::from_nominal_source_context(std::sync::Arc::new(context)).map_err(|e|JsValue::from_str(&e))?;
+        let decision=program.execution_mode_decision();
+        build_wasm_vm_from_program(program,source,source_path,decision)
+    }
+
     #[wasm_bindgen(constructor)]
     pub fn new(source: &str) -> Result<DdnWasmVm, JsValue> {
         let source_path = "<wasm>";
@@ -1808,6 +1975,7 @@ impl DdnWasmVm {
             runner: DdnRunner::new(program, DEFAULT_UPDATE_NAME).with_bogae_activation(),
             saved_project_owner: None,
             native_source_binding:None,
+            model_source:None,
             world: DetNuri::new(),
             defaults,
             param_overrides: BTreeMap::new(),
@@ -1841,6 +2009,7 @@ impl DdnWasmVm {
             public_observation_trace_hash: observation_surface.trace_hash,
             public_observation_table_projection: observation_surface.table_projection.into_parent_value(),
             project_asset_registry: None,
+            binary_project_assets: None,
         })
     }
 
@@ -1860,8 +2029,9 @@ impl DdnWasmVm {
         &mut self,
         source: &str,
         source_profile_identity: &str,
+        source_path: Option<String>,
     ) -> Result<(), JsValue> {
-        update_wasm_logic_with_supported_source_profile(self, source, source_profile_identity)
+        update_wasm_logic_with_supported_source_profile(self, source, source_profile_identity,source_path.as_deref())
     }
 
     pub fn update_logic_with_source_path(
@@ -1874,9 +2044,11 @@ impl DdnWasmVm {
             parse_program_for_wasm(source, source_path, self.lang_mode)?;
         let prepared = runtime_surface::prepare_source_for_execution(source)
             .map_err(|err| JsValue::from_str(&format!("WASM preprocess 실패: {err}")))?;
+        self.model_source = None;
         self.configured_madi = program.configured_madi().unwrap_or(0);
         self.execution_mode_decision = execution_mode_decision;
         self.parse_warnings = program.parse_warnings().to_vec();
+        if self.binary_project_assets.take().is_some() { self.project_asset_registry = None; }
         self.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME).with_bogae_activation();
         self.saved_project_owner = None;
         self.runner
@@ -1897,6 +2069,7 @@ impl DdnWasmVm {
     /// Bind the entry selected by the explicit work-root linker. Call again
     /// after installing a replacement program; no filename or name inference.
     pub fn configure_project_entry(&mut self, name: &str) -> Result<(), JsValue> {
+        self.require_ordinary_vm()?;
         if let Some(owner) = &self.saved_project_owner {
             if name != owner.sources().entry_declaration().name() {
                 return Err(JsValue::from_str("E_PROJECT_RUNTIME_ENTRY_CHANGED: 저장 원문의 시작 정의를 바꿀 수 없습니다."));
@@ -1906,10 +2079,12 @@ impl DdnWasmVm {
     }
 
     pub fn configure_bogae_entry(&mut self, name: &str) -> Result<(), JsValue> {
+        self.require_ordinary_vm()?;
         self.runner.configure_bogae_entry(name).map_err(|err|JsValue::from_str(&err))
     }
 
     pub fn configure_authored_bogae(&mut self, artifact_json: &str) -> Result<(), JsValue> {
+        self.require_ordinary_vm()?;
         if let Some(owner) = &self.saved_project_owner {
             let expected = owner.project().save().map_err(|err|JsValue::from_str(&err))?;
             if artifact_json != expected {
@@ -1923,6 +2098,9 @@ impl DdnWasmVm {
     }
 
     pub fn get_execution_mode_decision_json(&self) -> String {
+        if let Some(model) = self.model_source.as_ref() {
+            return model.state()["model_execution_envelope"]["execution_mode_decision"].to_string();
+        }
         runtime_surface::execution_mode_decision_json(self.execution_mode_decision).to_string()
     }
 
@@ -1932,9 +2110,11 @@ impl DdnWasmVm {
             parse_program_for_wasm(source, &self.source_path, mode)?;
         let prepared = runtime_surface::prepare_source_for_execution(source)
             .map_err(|err| JsValue::from_str(&format!("WASM preprocess 실패: {err}")))?;
+        self.model_source = None;
         self.configured_madi = program.configured_madi().unwrap_or(0);
         self.execution_mode_decision = execution_mode_decision;
         self.parse_warnings = program.parse_warnings().to_vec();
+        if self.binary_project_assets.take().is_some() { self.project_asset_registry = None; }
         self.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME).with_bogae_activation();
         self.saved_project_owner = None;
         self.runner
@@ -1952,6 +2132,7 @@ impl DdnWasmVm {
         &mut self,
         project_source_json: &str,
     ) -> Result<String, JsValue> {
+        self.require_ordinary_vm()?;
         let registry = local_project::project_asset_registry_from_json(project_source_json)
             .map_err(|err| JsValue::from_str(&err.to_string()))?;
         let identities = registry
@@ -1960,6 +2141,7 @@ impl DdnWasmVm {
             .transpose()
             .map_err(|err| JsValue::from_str(&err))?
             .unwrap_or_default();
+        self.binary_project_assets = None;
         self.project_asset_registry = registry;
         self.runner
             .set_project_asset_registry(self.project_asset_registry.clone());
@@ -1968,6 +2150,76 @@ impl DdnWasmVm {
             "sealed_dataset_assets": identities,
         })
         .to_string())
+    }
+
+    /// Transient binary companion input. Successful preparation does not grant
+    /// an AssetRef, a physical identity, rights, public image admission or storage.
+    pub fn configure_project_assets_binary(
+        &mut self,
+        project_source_json: &str,
+        binary_files: &js_sys::Map,
+    ) -> Result<js_sys::Map, JsValue> {
+        self.require_ordinary_vm()?;
+        if self.tick_id != 0 || self.saved_project_owner.is_some() {
+            return Err(JsValue::from_str("E_PROJECT_BINARY_ASSETS_LIFECYCLE: 실행 시작 전 독립 원문 문맥에서만 그림 바이트를 연결할 수 있습니다"));
+        }
+        // A failed replacement cannot fall back to the preceding attachment.
+        self.binary_project_assets = None;
+        self.project_asset_registry = None;
+        self.runner.set_project_asset_registry(None);
+        let (prepared,verified_bytes) = (|| -> Result<_, String> {
+            if !binary_files.is_instance_of::<js_sys::Map>() {
+                return Err("E_PROJECT_BINARY_ASSETS: 실제 Map 입력이 필요합니다".into());
+            }
+            if binary_files.size() == 0 || binary_files.size() as usize > local_project::MAX_PROJECT_FILES {
+                return Err("E_PROJECT_BINARY_ASSETS: 바이너리 입력 개수 한도".into());
+            }
+            let mut files = HashMap::new();let mut total = 0usize;
+            let entries = js_sys::try_iter(binary_files.as_ref())
+                .map_err(|_| "E_PROJECT_BINARY_ASSETS: 파일 Map을 읽지 못했습니다".to_owned())?
+                .ok_or_else(|| "E_PROJECT_BINARY_ASSETS: 파일 Map이 필요합니다".to_owned())?;
+            for entry in entries {
+                // Enforce the budget while iterating too: a custom iterable on
+                // a Map must not bypass its advertised size with empty files.
+                if files.len() >= local_project::MAX_PROJECT_FILES {
+                    return Err("E_PROJECT_BINARY_ASSETS: 파일 Map 순회 개수 한도".into());
+                }
+                let entry = entry.map_err(|_| "E_PROJECT_BINARY_ASSETS: 파일 Map 읽기 실패".to_owned())?;
+                let pair = js_sys::Array::from(&entry);
+                if pair.length() != 2 { return Err("E_PROJECT_BINARY_ASSETS: 파일 Map 항목".into()); }
+                let path = pair.get(0).as_string().ok_or_else(|| "E_PROJECT_BINARY_ASSETS: 문자열 경로가 필요합니다".to_owned())?;
+                let bytes = pair.get(1).dyn_into::<js_sys::Uint8Array>()
+                    .map_err(|_| "E_PROJECT_BINARY_ASSETS: 원시 Uint8Array가 필요합니다".to_owned())?;
+                if bytes.length() as usize > local_project::MAX_FILE_BYTES {
+                    return Err("E_PROJECT_BINARY_ASSETS: 바이너리 파일 크기 한도".into());
+                }
+                total = total.checked_add(bytes.length() as usize).ok_or_else(|| "E_PROJECT_BINARY_ASSETS: 입력 크기 초과".to_owned())?;
+                if total > local_project::MAX_PROJECT_TOTAL_UTF8_BYTES {
+                    return Err("E_PROJECT_BINARY_ASSETS: 바이너리 합계 크기 한도".into());
+                }
+                if files.insert(path, bytes.to_vec()).is_some() {
+                    return Err("E_PROJECT_BINARY_ASSETS: 중복 경로".into());
+                }
+            }
+            let source_capture = self.runner.sealed_execution_source_capture()
+                .ok_or_else(|| "E_PROJECT_BINARY_ASSETS_SOURCE_SNAPSHOT_REQUIRED: 실제 컴파일 원문 고정본이 필요합니다".to_owned())?;
+            let prepared=crate::authored_bogae::xy::binary_assets::prepare_binary_assets(
+                project_source_json, &files, &self.source_path, source_capture)?;
+            let mut verified=Vec::new();
+            for path in files.keys() {
+                let handle=prepared.registry().resolve_handle(path)?;
+                let read=prepared.registry().read_verified_asset_bytes(handle,prepared.registry().manifest_sha256())?;
+                verified.push((handle.to_hex(),read.bytes.to_vec()));
+            }
+            Ok((prepared,verified))
+        })().map_err(|err| JsValue::from_str(&err))?;
+        let prepared = Arc::new(prepared);
+        self.runner.set_source_bound_binary_assets(prepared.clone()).map_err(|error| JsValue::from_str(&error))?;
+        self.project_asset_registry = Some(prepared.registry().clone());
+        self.binary_project_assets = Some(prepared);
+        let result=js_sys::Map::new();
+        for (handle,bytes) in verified_bytes { result.set(&JsValue::from_str(&handle),&js_sys::Uint8Array::from(bytes.as_slice())); }
+        Ok(result)
     }
 
     pub fn get_debug_source_identity_json(&self) -> String {
@@ -1979,6 +2231,7 @@ impl DdnWasmVm {
     }
 
     pub fn configure_debug_plan(&mut self, plan_json: &str) -> Result<JsValue, JsValue> {
+        self.require_ordinary_vm()?;
         let plan: JsonValue = serde_json::from_str(plan_json)
             .map_err(|err| JsValue::from_str(&format!("E_DEBUG_PLAN_JSON_INVALID: {err}")))?;
         let evaluator = DebugEvaluator::from_plan(&plan, Some(&self.source_bytes_sha256))
@@ -2160,6 +2413,7 @@ impl DdnWasmVm {
     }
 
     pub fn set_param(&mut self, key: &str, value: JsValue) -> Result<JsValue, JsValue> {
+        self.require_ordinary_vm()?;
         let key = key.trim();
         if key.is_empty() {
             return Err(wasm_error(
@@ -2193,6 +2447,7 @@ impl DdnWasmVm {
     }
 
     pub fn set_param_fixed64(&mut self, key: &str, raw_i64: i64) -> Result<JsValue, JsValue> {
+        self.require_ordinary_vm()?;
         let key = key.trim();
         if key.is_empty() {
             return Err(wasm_error(
@@ -2220,6 +2475,7 @@ impl DdnWasmVm {
     }
 
     pub fn set_param_fixed64_str(&mut self, key: &str, raw_i64: &str) -> Result<JsValue, JsValue> {
+        self.require_ordinary_vm()?;
         let key = key.trim();
         if key.is_empty() {
             return Err(wasm_error(
@@ -2262,6 +2518,19 @@ impl DdnWasmVm {
     }
 
     pub fn reset(&mut self, keep_params: Option<bool>) -> Result<JsValue, JsValue> {
+        if let Some(model) = self.model_source.as_mut() {
+            model.reset();
+            self.tick_id = 0;
+            self.rng_seed = 0;
+            self.input_keys_pressed = 0;
+            self.input_last_key_name.clear();
+            self.input_pointer_x_i32 = 0;
+            self.input_pointer_y_i32 = 0;
+            self.input_dt = crate::input_receipt::alpha_host_dt();
+            self.pending_ai_injections.clear();
+            return Ok(self.get_state_json());
+        }
+
         if let Some(binding)=self.native_source_binding.as_mut(){
             if binding.initial_reset_pending{binding.initial_reset_pending=false;return Ok(self.get_state_json());}
             return Err(JsValue::from_str("E_NATIVE_SOURCE_RESTART_REQUIRES_REOPEN: 저장된 Native 작품을 다시 열어 실행하세요"));
@@ -2333,6 +2602,18 @@ impl DdnWasmVm {
     }
 
     pub fn step_one(&mut self) -> Result<JsValue, JsValue> {
+        if let Some(model) = self.model_source.as_mut() {
+            if self.input_keys_pressed != 0 || !self.input_last_key_name.is_empty()
+                || self.input_pointer_x_i32 != 0 || self.input_pointer_y_i32 != 0
+                || self.input_dt != crate::input_receipt::alpha_host_dt() || self.rng_seed != 0
+                || !self.pending_ai_injections.is_empty() || !self.param_overrides.is_empty() {
+                return Err(JsValue::from_str("E_MODEL_SOURCE_INPUT_UNSUPPORTED: 이 모형 실험은 원문에 선언된 조건만 사용합니다"));
+            }
+            model.step().map_err(|error| JsValue::from_str(&error))?;
+            self.tick_id = 1;
+            return Ok(self.get_state_json());
+        }
+
         let native_catalog=if self.native_source_binding.is_some(){self.saved_project_owner.as_ref()
             .map(|owner|owner.registration().map(|registration|registration.saved_nominal_catalog(owner)).transpose())
             .transpose().map_err(|e|JsValue::from_str(&e))?.flatten()}else{None};
@@ -2353,7 +2634,7 @@ impl DdnWasmVm {
                 .ok_or_else(||JsValue::from_str("E_NATIVE_SOURCE_MADI_LIMIT"))?;
             Some(native_source_exchange(&json!({"operation":"run_to","authored_project_json_utf8":binding.authored,"next_tick":next.to_string()}),native_catalog.as_ref())?)
         }else{None};
-        let native_runner_checkpoint=native_expected.as_ref().map(|_|(self.runner.bogae_history_for_resume().clone(),self.runner.consumed_keys_pressed()));
+        let native_runner_checkpoint=native_expected.as_ref().map(|_|(self.runner.bogae_history_for_resume().clone(),self.runner.consumed_keys_pressed(),self.runner.table_selection_history_for_rollback()));
         let tick_seed = self.rng_seed ^ self.tick_id;
         let ai_injections = self
             .pending_ai_injections
@@ -2405,7 +2686,7 @@ impl DdnWasmVm {
             let mut candidate=DetNuri::new();*candidate.world_mut()=self.world.world().clone();candidate.apply_patch(&output.patch,input.tick_id,&mut sink);
             if expected["summary"]["state_hash"]!=current_state_hash(&candidate,&self.view_prefixes)
                 ||expected["summary"]["next_tick_id"]!=self.tick_id+1 {
-                if let Some((history,keys))=native_runner_checkpoint{self.runner.restore_scene_history(history);self.runner.restore_consumed_keys_pressed(keys);}
+                if let Some((history,keys,selection_history))=native_runner_checkpoint{self.runner.restore_scene_history(history);self.runner.restore_consumed_keys_pressed(keys);self.runner.restore_table_selection_history_after_rollback(selection_history);}
                 return Err(JsValue::from_str("E_NATIVE_SOURCE_PARITY: Native·WASM 결과가 달라 게시하지 않았습니다"));
             }
             self.world=candidate;
@@ -2458,9 +2739,16 @@ impl DdnWasmVm {
             return Err(JsValue::from_str(&err));
         }
         if let Some(projection)=self.last_bogae_projection.as_mut() {
-            crate::bogae_time::resolve_result_tables(projection,&self.public_observation_frames,
-                &format!("sha256:{}",self.source_bytes_sha256),&format!("sha256:{}",self.canonical_ddn_sha256))
-                .map_err(|err|JsValue::from_str(&err))?;
+            if output.table_selections.is_empty() {
+                crate::bogae_time::resolve_result_tables(projection,&self.public_observation_frames,
+                    &format!("sha256:{}",self.source_bytes_sha256),&format!("sha256:{}",self.canonical_ddn_sha256))
+                    .map_err(|err|JsValue::from_str(&err))?;
+            } else {
+                let selected=crate::bogae_time::resolve_typed_result_tables(projection,&self.public_observation_frames,
+                    &format!("sha256:{}",self.source_bytes_sha256),&format!("sha256:{}",self.canonical_ddn_sha256),&output.table_selections)
+                    .map_err(|err|JsValue::from_str(&err))?;
+                drop(crate::unit_wire::SnapshotJsonOwner::from_value(std::mem::replace(projection,selected)));
+            }
         }
         self.tick_id = self.tick_id.saturating_add(1);
         crate::unit_wire::clear_retained_json_rows(&mut self.last_public_observations);
@@ -2557,6 +2845,11 @@ impl DdnWasmVm {
     }
 
     pub fn run_ticks(&mut self, count: u32) -> Result<JsValue, JsValue> {
+        if self.model_source.is_some() {
+            if count != 1 { return Err(JsValue::from_str("E_MODEL_ONESHOT_TICKS: 모형 실험은 한 번의 명시 실행만 받습니다")); }
+            return self.step_one();
+        }
+
         let count = count.max(1);
         let mut state = JsValue::NULL;
         for _ in 0..count {
@@ -2640,6 +2933,7 @@ impl DdnWasmVm {
     }
 
     pub fn get_state_hash(&self) -> String {
+        if let Some(model) = self.model_source.as_ref() { return model.state()["state_hash"].as_str().unwrap_or("").into(); }
         current_state_hash(&self.world, &self.view_prefixes)
     }
 
@@ -2653,6 +2947,7 @@ impl DdnWasmVm {
         crate::unit_wire::serialize_resource_snapshot_json(&self.current_state_json_owner())
     }
     fn current_state_json_owner(&self)->crate::unit_wire::SnapshotJsonOwner{
+        if let Some(model) = self.model_source.as_ref() { return crate::unit_wire::SnapshotJsonOwner::clone_from_value(model.state()); }
         let resources = crate::unit_wire::SnapshotJsonOwner::from_value(serialize_world_resources(self.world.world()));
         let (columns, row) = collect_columns_and_row(self.world.world());
         let streams = collect_streams(self.world.world());
@@ -2728,6 +3023,7 @@ impl DdnWasmVm {
     }
 
     pub fn restore_state(&mut self, state_json: &str) -> Result<JsValue, JsValue> {
+        self.require_ordinary_vm()?;
         if self.native_source_binding.is_some(){return Err(JsValue::from_str("E_NATIVE_SOURCE_RESTORE_REQUIRES_REOPEN"));}
         self.restore_state_with_complete_frame(state_json,None)
     }
@@ -2902,4 +3198,10 @@ use resource_projection::*;
 pub fn wasm_observe_algebra_source_json(source:&str,source_path:&str)->Result<String,JsValue> {
     let path=require_wasm_source_path(source_path)?;
     Ok(crate::proof_workflow::observe_algebra_source(source,path).to_string())
+}
+
+/// Whole authored artifact observation; saved success is never accepted.
+#[wasm_bindgen]
+pub fn wasm_observe_algebra_project_json(artifact:&str)->Result<String,JsValue> {
+    Ok(crate::proof_workflow::observe_algebra_project(artifact).to_string())
 }

@@ -107,6 +107,40 @@ pub enum TokenKind {
     Eof,
 }
 
+#[cfg(test)]
+mod r20_korean_header_tests {
+    use super::*;
+    #[test]
+    fn r20_korean_header_keeps_original_utf8_spans_and_default_lexer() {
+        let raw="#!한국어\r\n// 日本語 위치\r\n값 <- 1.\r\n";
+        let (mut lexer,header)=Lexer::with_korean_source_header(raw).unwrap();
+        assert_eq!(header,Some("#!한국어"));let tokens=lexer.tokenize().unwrap();
+        assert_eq!(tokens[0].span.start,raw.find("값").unwrap());
+        assert_eq!(&raw[tokens[0].span.start..tokens[0].span.end],tokens[0].raw);
+        assert_eq!(tokens.last().unwrap().span.end,raw.len());
+        assert!(matches!(Lexer::new(raw).tokenize().unwrap()[0].kind,TokenKind::Pragma(_)));
+    }
+    #[test]
+    fn r20_header_unknown_duplicate_and_nonfirst_are_not_silently_accepted() {
+        for raw in ["#!日本語\n값 <- 1.","#!韓國語\n값 <- 1.","#!한국어 \n값 <- 1."] {
+            assert!(Lexer::with_korean_source_header(raw).is_err());
+        }
+        for raw in [" #!한국어\n값 <- 1.","\n#!한국어\n값 <- 1.","#!한국어\n#!한국어\n값 <- 1."] {
+            let (mut lexer,_)=Lexer::with_korean_source_header(raw).unwrap();
+            let error=lexer.tokenize().unwrap_err();assert!(error.message.contains("HEADER_NOT_FIRST"));
+            assert!(error.pos>0);
+        }
+    }
+    #[test]
+    fn r20_header_spelling_in_strings_and_comments_is_not_metadata() {
+        let raw="// #!한국어\n글 <- \"#!한국어\".\n";
+        let (mut lexer,header)=Lexer::with_korean_source_header(raw).unwrap();assert_eq!(header,None);
+        let tokens=lexer.tokenize().unwrap();
+        assert!(!tokens.iter().any(|t|matches!(t.kind,TokenKind::Pragma(_))));
+        assert!(tokens.iter().any(|t|t.raw=="\"#!한국어\""));
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Span {
     pub start: usize,
@@ -130,21 +164,57 @@ pub struct Lexer<'a> {
     pos: usize,
     pending: Option<Token>,
     dialect: DialectConfig,
+    public_callable_projection: Option<crate::ddl::RegisteredSuccessorProfile>,
+    public_callable_declaration: bool,
     first_callable_registered: bool,
     first_callable_projection: Option<crate::ddl::CheckedFirstCallableProfile>,
+    korean_header_aware: bool,
+    j1_profile: Option<crate::ddl::CheckedJ1Profile>,
+    rejected_j1_word_end: Option<usize>,
 }
 
 impl<'a> Lexer<'a> {
+    /// Internal mapped-source fragments only. Public source admission still
+    /// requires with_j1_profile's exact byte-zero header.
+    pub fn with_j1_linked_source(source:&'a str,profile:crate::ddl::CheckedJ1Profile)->Self{
+        let mut lexer=Self::new(source);lexer.j1_profile=Some(profile);lexer
+    }
+    pub fn with_j1_profile(source:&'a str,profile:crate::ddl::CheckedJ1Profile)->Result<Self,LexError>{
+        if source.lines().next()!=Some("#!日本語"){return Err(LexError::new(0,"E_J1_HEADER_PROFILE_MISMATCH"));}
+        let mut lexer=Self::new(source);lexer.j1_profile=Some(profile);
+        lexer.pos=source.find('\n').map_or(source.len(),|at|at+1);Ok(lexer)
+    }
+
     pub fn new(source: &'a str) -> Self {
         Self {
             source,
             pos: 0,
             pending: None,
             dialect: DialectConfig::from_source(source),
+            public_callable_projection: None,public_callable_declaration:false,
             first_callable_registered: false,
             first_callable_projection: None,
+            korean_header_aware: false,
+            j1_profile: None,
+            rejected_j1_word_end: None,
         }
     }
+    /// Existing Korean source selection, not a new profile or execution grant.
+    /// Consume only the exact byte-zero registered header with the ordinary
+    /// cursor. Original source and all later token spans remain unchanged.
+    pub fn with_korean_source_header(source: &'a str) -> Result<(Self, Option<&'static str>), LexError> {
+        let mut lexer=Self::new(source);
+        lexer.korean_header_aware=true;
+        let first=source.lines().next().unwrap_or("");
+        if first=="#!한국어" {
+            let end=source.find('\n').map_or(source.len(),|end|end+1);
+            while lexer.pos<end {lexer.advance();}
+            Ok((lexer,Some("#!한국어")))
+        } else if source.starts_with("#!") {
+            Err(LexError::new(0,"E_MULTILANG_HEADER_UNSUPPORTED: 이 공통 원문 경로는 등록된 한국어 머리표만 받습니다"))
+        } else {Ok((lexer,None))}
+    }
+
     /// Explicit declaration-side context, never inferred from locale/header.
     /// The original binding must come from the common public-declaration path.
     pub fn with_first_callable_registration(
@@ -170,7 +240,38 @@ impl<'a> Lexer<'a> {
         lexer.first_callable_projection=Some(profile.clone());
         Ok(lexer)
     }
+    pub(crate) fn with_public_callable_projection(source:&'a str,profile:&crate::ddl::RegisteredSuccessorProfile,declaration:bool)->Result<Self,LexError>{
+        let mut lexer=Self::new(source);
+        if declaration {
+            if source.lines().next()!=Some("#!日本語"){return Err(LexError::new(0,"E_MULTILANG_HEADER_REQUIRED"));}
+            lexer.pos=source.find('\n').map_or(source.len(),|end|end+1);
+        }else if source.starts_with("#!"){
+            return Err(LexError::new(0,"E_MULTILANG_SUCCESSOR_HEADER_SCOPE: 실행 틀은 기존 한국어 문법과 명시 옮김을 사용하세요"));
+        }
+        lexer.public_callable_projection=Some(profile.clone());lexer.public_callable_declaration=declaration;Ok(lexer)
+    }
+
+    #[doc(hidden)]
+    pub fn tokenize_j1_source(
+        source: &'a str,
+        profile: crate::ddl::CheckedJ1Profile,
+    ) -> Result<Vec<Token>, (LexError, Span)> {
+        let scalar_end = |pos: usize| {
+            pos + source.get(pos..).and_then(|tail| tail.chars().next()).map_or(0, char::len_utf8)
+        };
+        let mut lexer = Self::with_j1_profile(source, profile).map_err(|error| {
+            let span = Span::new(error.pos, scalar_end(error.pos));
+            (error, span)
+        })?;
+        lexer.tokenize().map_err(|error| {
+            let end = lexer.rejected_j1_word_end.unwrap_or_else(|| scalar_end(error.pos));
+            let span = Span::new(error.pos, end);
+            (error, span)
+        })
+    }
+
     pub fn tokenize(&mut self) -> Result<Vec<Token>, LexError> {
+        self.rejected_j1_word_end = None;
         // F5-GA[LEXER-EOF]: 성공 반환에는 항상 EOF 토큰이 붙는다. 토큰 오류는 ?로 반환되어 불완전한 벡터를 소비자에게 주지 않는다.
         let mut tokens = Vec::new();
         while !self.is_eof() {
@@ -179,6 +280,9 @@ impl<'a> Lexer<'a> {
                 break;
             }
             if self.peek_char() == Some('#') && self.is_line_directive_start() {
+                if self.korean_header_aware && self.source[self.pos..].starts_with("#!") {
+                    return Err(LexError::new(self.pos,"E_MULTILANG_HEADER_NOT_FIRST: 언어 머리표는 byte zero에서 한 번만 지정하세요"));
+                }
                 if self.first_callable_registered {
                     return Err(LexError::new(self.pos, "E_MULTILANG_DUPLICATE_HEADER: 先頭以外の言語ヘッダーは使えません"));
                 }
@@ -198,7 +302,9 @@ impl<'a> Lexer<'a> {
     // Source-bound checkpoints for the common module-prefix owner. No caller
     // can assign a position; failed lookahead leaves the real cursor intact.
     pub(crate) fn prefix_checkpoint(&self)->Self {
-        Self{source:self.source,pos:self.pos,pending:self.pending.clone(),
+        Self{source:self.source,pos:self.pos,pending:self.pending.clone(),korean_header_aware:self.korean_header_aware,j1_profile:self.j1_profile,
+            rejected_j1_word_end:None,
+            public_callable_projection:self.public_callable_projection.clone(),public_callable_declaration:self.public_callable_declaration,
             dialect:self.dialect.clone(),first_callable_registered:self.first_callable_registered,first_callable_projection:self.first_callable_projection.clone()}
     }
     pub(crate) fn prefix_token_start(&mut self)->(usize,Option<char>){
@@ -211,10 +317,13 @@ impl<'a> Lexer<'a> {
             if self.first_callable_registered{return Err(LexError::new(self.pos,"E_MULTILANG_DUPLICATE_HEADER: 先頭以外の言語ヘッダーは使えません"));}
             return Ok(self.read_line_pragma());
         }
+        let public_projection=self.public_callable_projection.take();
+        let public_declaration=self.public_callable_declaration;self.public_callable_declaration=false;
         let registered=self.first_callable_registered;
         let projection=self.first_callable_projection.take();
         self.first_callable_registered=false;
         let result=self.next_token();
+        self.public_callable_projection=public_projection;self.public_callable_declaration=public_declaration;
         self.first_callable_registered=registered;
         self.first_callable_projection=projection;
         result
@@ -227,6 +336,45 @@ impl<'a> Lexer<'a> {
             '\u{ff01}'..='\u{ff5e}' | '、' | '。' | '〈' | '〉' | '《' | '》'
             | '「' | '」' | '『' | '』' | '【' | '】' | '〔' | '〕'
             | '〖' | '〗' | '〘' | '〙' | '〚' | '〛' | '・');
+        if let Some(profile)=self.j1_profile {
+            let start=self.pos;let ch=self.peek_char().ok_or_else(||LexError::new(start,"EOF"))?;
+            if is_fullwidth_syntax(ch){return Err(LexError::new(start,"E_MULTILANG_FULLWIDTH_SYNTAX: ASCII 구문 기호가 필요합니다"));}
+            if ch=='#'&&self.source[start..].starts_with("#!"){return Err(LexError::new(start,"E_J1_DUPLICATE_HEADER"));}
+            if !ch.is_ascii()&&!ch.is_whitespace()&&!matches!(ch,'가'..='힣'|'ㄱ'..='ㅎ'|'ㅏ'..='ㅣ'){
+                while let Some(next)=self.peek_char(){
+                    if is_fullwidth_syntax(next){return Err(LexError::new(self.pos,"E_MULTILANG_FULLWIDTH_SYNTAX: ASCII 구문 기호가 필요합니다"));}
+                    if next.is_whitespace()||next.is_ascii()&&!(next.is_alphanumeric()||next=='_'){break;}
+                    self.advance();
+                }
+                let raw=&self.source[start..self.pos];
+                if !profile.admits_word(raw) {
+                    self.rejected_j1_word_end = Some(self.pos);
+                    return Err(LexError::new(start, "E_J1_UNREGISTERED_SURFACE"));
+                }
+                let kind=if matches!(raw,"に"|"を"){TokenKind::Josa(raw.into())}else{TokenKind::Ident(raw.into())};
+                return Ok(Token{kind,span:Span::new(start,self.pos),raw:raw.into()});
+            }
+        }
+        if let Some(profile)=self.public_callable_projection.clone(){
+            let start=self.pos;let ch=self.peek_char().ok_or_else(||LexError::new(start,"EOF"))?;
+            if is_fullwidth_syntax(ch){return Err(LexError::new(start,"E_MULTILANG_FULLWIDTH_SYNTAX: ASCII 숫자·구문 기호를 사용하세요"));}
+            let foreign=!ch.is_ascii()&&!ch.is_whitespace()&&!matches!(ch,'가'..='힣'|'ㄱ'..='ㅎ'|'ㅏ'..='ㅣ');
+            if foreign||self.public_callable_declaration&&(ch.is_alphabetic()||ch=='_'){
+                while let Some(next)=self.peek_char(){
+                    if is_fullwidth_syntax(next){return Err(LexError::new(self.pos,"E_MULTILANG_FULLWIDTH_SYNTAX: ASCII 숫자·구문 기호를 사용하세요"));}
+                    if next.is_whitespace()||next.is_ascii()&&!(self.public_callable_declaration&&(next.is_alphanumeric()||next=='_')){break;}
+                    self.advance();
+                }
+                let raw=&self.source[start..self.pos];
+                let registered=profile.surfaces().iter().any(|row|row.surface==raw||row.pins.iter().any(|pin|pin.surface==raw));
+                let kind=if raw=="関数"&&self.public_callable_declaration{TokenKind::KwSemssi}
+                    else if matches!(raw,"に"|"を"){TokenKind::Josa(raw.into())}
+                    else if raw=="有理数"||registered{TokenKind::Ident(raw.into())}
+                    else{return Err(LexError::new(start,"E_MULTILANG_UNREGISTERED_SURFACE"));};
+                return Ok(Token{kind,span:Span::new(start,self.pos),raw:raw.into()});
+            }
+        }
+
         if self.first_callable_projection.is_some() {
             let start=self.pos;
             let ch=self.peek_char().ok_or_else(||LexError::new(start,"EOF"))?;
@@ -1807,5 +1955,22 @@ mod r15_fullwidth_tests {
         // The ordinary lexer remains the authority outside registered contexts.
         let plain = Lexer::new("合計する。").tokenize();
         assert!(!plain.err().is_some_and(|e| e.message.starts_with("E_MULTILANG_FULLWIDTH_SYNTAX:")));
+    }
+}
+
+#[cfg(test)]
+mod r31_j1_lexer_tests {
+    use super::*;
+    #[test] fn r31_j1_lex_is_explicit_and_keeps_literal_bytes_and_spans(){
+        let profile=crate::ddl::CheckedJ1Profile::resolve(crate::ddl::J1_SOURCE_PROFILE).unwrap();
+        let raw="#!日本語\r\n実行:手続き := { \"表示\" 表示. }.\r\n";
+        let tokens=Lexer::with_j1_profile(raw,profile).unwrap().tokenize().unwrap();
+        for token in &tokens{if !matches!(token.kind,TokenKind::Eof){assert_eq!(&raw[token.span.start..token.span.end],token.raw);}}
+        assert!(matches!(tokens[0].kind,TokenKind::Ident(ref name) if name=="実行"));
+        assert!(Lexer::with_j1_profile("実行:手続き := {}.",profile).is_err());
+        assert!(crate::ddl::CheckedJ1Profile::resolve("v1-core-v25").is_err());
+        let bad="#!日本語\n実行:手続き := { (金額） 表示. }.";
+        let err=Lexer::with_j1_profile(bad,profile).unwrap().tokenize().unwrap_err();assert_eq!(err.pos,bad.find('）').unwrap());
+        assert!(err.message.contains("FULLWIDTH"));
     }
 }

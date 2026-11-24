@@ -347,6 +347,7 @@ fn reject_writes(root: Scan<'_>, rejected: &mut BTreeSet<String>) {
         let stmt = match job {
             Scan::Expr(expr) => {
                 match &expr.kind {
+                    ExprKind::FunctionBlock{statements,result}=>{pending.push(Scan::Expr(result));pending.extend(statements.stmts.iter().map(Scan::Stmt));},
                     ExprKind::Thunk(body) => pending.extend(body.stmts.iter().map(Scan::Stmt)),
                     ExprKind::TupleConstructor { elements } | ExprKind::CollectionConstructor { elements } | ExprKind::Pipe { stages: elements } => pending.extend(elements.iter().map(Scan::Expr)),
                     ExprKind::Call { args, .. } | ExprKind::ProductConstruction { fields: args, .. } => pending.extend(args.iter().map(|arg| Scan::Expr(&arg.expr))),

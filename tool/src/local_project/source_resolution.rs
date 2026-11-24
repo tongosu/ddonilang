@@ -130,6 +130,18 @@ pub(super) fn module_alias_rewrites(
     Ok(rewrites)
 }
 
+pub(super) fn strip_j1_module_metadata_mapped(text:&str,profile:ddonirang_lang::ddl::CheckedJ1Profile)->Result<MappedSourceText,LocalProjectError>{
+    let tokens=Lexer::with_j1_profile(text,profile).and_then(|mut lexer|lexer.tokenize()).map_err(|e|LocalProjectError::new("E_PROJECT_ENTRY_PARSE",e.message))?;
+    let names=tokens.iter().filter_map(|token|match &token.kind{TokenKind::Ident(name)|TokenKind::Josa(name)|TokenKind::StringLit(name)=>Some(name.clone()),_=>None}).collect::<Vec<_>>();
+    let context=ModuleDirectiveContext::default().with_known_imports(names.clone()).with_public_definitions(names);
+    let prefix=ddonirang_lang::module_directive::parse_module_directive_prefix_with_j1_profile(text,"<mapped-module>",&context,profile).map_err(|e|LocalProjectError::new("E_CURRENT_MODULE_DIRECTIVE",e.to_string()))?;
+    let mut bytes=text.as_bytes().to_vec();let header_end=text.find('\n').map_or(text.len(),|at|at+1);
+    for (start,end) in std::iter::once((0,header_end)).chain([prefix.imports,prefix.exports].into_iter().flatten().map(|d|(d.span.start,d.span.end))){
+        for byte in &mut bytes[start..end]{if !matches!(*byte,b'\n'|b'\r'){*byte=b' ';}}
+    }
+    Ok(MappedSourceText{text:String::from_utf8(bytes).map_err(|_|LocalProjectError::new("E_PROJECT_AUTHORING_MASK_UTF8","원문 범위 보존 실패"))?,source_boundaries:(0..=text.len()).collect()})
+}
+
 pub(super) fn strip_module_metadata_blocks_mapped(text: &str) -> Result<MappedSourceText, LocalProjectError> {
     let mut mapped = MappedSourceText {
         // Current parenthesized metadata is first blanked through the shared
@@ -211,7 +223,8 @@ pub(super) fn legacy_named_brace_ranges(
 pub(crate) fn mask_module_metadata_blocks(text: &str) -> Result<String, LocalProjectError> {
     reject_source_bom(text, None)?;
     let mut bytes = text.as_bytes().to_vec();
-    let tokens = Lexer::new(text).tokenize().map_err(|error| {
+    let tokens = Lexer::with_korean_source_header(text)
+        .and_then(|(mut lexer, _)| lexer.tokenize()).map_err(|error| {
         LocalProjectError::new(
             "E_PROJECT_ENTRY_PARSE",
             format!("current module source 토큰화 실패: {}", error.message),
@@ -340,11 +353,14 @@ pub(super) fn rewrite_alias_refs_in_mapped_source(
     mapped: MappedSourceText,
     rewrites: &BTreeMap<String, String>,
 ) -> Result<MappedSourceText, LocalProjectError> {
+    rewrite_alias_refs_in_mapped_source_selected(mapped,rewrites,None)
+}
+pub(super) fn rewrite_alias_refs_in_mapped_source_selected(mapped:MappedSourceText,rewrites:&BTreeMap<String,String>,j1:Option<ddonirang_lang::ddl::CheckedJ1Profile>)->Result<MappedSourceText,LocalProjectError>{
     let text = &mapped.text;
     if rewrites.is_empty() {
         return Ok(mapped);
     }
-    let tokens = Lexer::new(text).tokenize().map_err(|err| {
+    let tokens = match j1{Some(profile)=>Lexer::with_j1_linked_source(text,profile),None=>Lexer::new(text)}.tokenize().map_err(|err| {
         LocalProjectError::new(
             "E_PROJECT_LINKER_LEX",
             format!("프로젝트 alias rewrite 토큰화 실패: {}", err.message),
@@ -386,6 +402,12 @@ pub(super) fn rewrite_alias_refs_in_mapped_source(
             }
         }
     }
+    rewrite_mapped_source_ranges(mapped, replacements)
+}
+
+// Internal compiler edits keep the original file-byte provenance.
+pub(super) fn rewrite_mapped_source_ranges(mapped:MappedSourceText, mut replacements:Vec<(usize,usize,String)>)->Result<MappedSourceText,LocalProjectError>{
+    let text=&mapped.text;
     if replacements.is_empty() {
         return Ok(mapped);
     }
@@ -641,15 +663,23 @@ pub fn build_project_prepare_link(
             format!("프로젝트 목표 {target}을 찾을 수 없습니다"),
         )
     })?;
+    // Lock validation is an admission gate in every build. Inspection only
+    // controls the reported view, never whether stale/missing input is accepted.
     let lock_required = !graph.gaji_aliases.is_empty();
-    let verified_lock = if (inspect_lock || cfg!(feature = "v2-shared-modules")) && lock_required {
+    let verified_lock = if lock_required {
         Some(build_project_gaji_lock(source.clone(), true)?)
     } else {
         None
     };
     let linked = build_linked_project_with_options(source, Some(&target_path), false, None)?;
+    let target = linked.start_definition.as_deref().ok_or_else(||
+        LocalProjectError::new("E_PROJECT_START_REQUIRED", "검증한 시작 정의가 없습니다"))?;
     // The linker validated the authored start definition. Let the shared
     // execution frontdoor report call errors with their original source span.
+    // Read-only preparation describes syntax/profile/mode, not an execution
+    // grant. Keep the existing requirement as a diagnostic for its consumers;
+    // actual project-run and VM registered-context guards remain in place.
+    let requires_registered_nominal_owner=linked.requires_registered_nominal_owner;
     let linked_execution_source_sha256 = sha256_hex(linked.execution_source.as_bytes());
     let mut runtime_execution_envelope = runtime_surface::execution_envelope_from_source_with_profile(
         &linked.execution_source,
@@ -672,6 +702,11 @@ pub fn build_project_prepare_link(
                 .expect("domain evidence identities serialize"),
         );
     }
+    let registration_diagnostics=if requires_registered_nominal_owner{vec![ProjectDiagnostic{
+        code:"E_PROJECT_REGISTERED_NOMINAL_OWNER_REQUIRED",
+        message:"모듈의 이름씨 실행에는 현재 원문과 일치하는 실제 Native 등록 보관 문맥이 필요합니다. 원문 전체를 명시 저장한 뒤 실행하세요".into(),
+        path:Some(graph.entry_path.clone()),
+    }]}else{Vec::new()};
     let mut prepared = LocalProjectPrepareLink {
         source_profile_identity: source_profile,
         schema: "ddn.local_project.prepare_link.v1",
@@ -693,7 +728,7 @@ pub fn build_project_prepare_link(
         symbol_boundary: linked.symbol_boundary,
         sealed_dataset_assets,
         domain_evidence_manifests,
-        diagnostics: Vec::new(),
+        diagnostics: registration_diagnostics,
         state_hash_formula_change: false,
         prepare_link_sha256: String::new(),
     };
@@ -844,7 +879,7 @@ pub(super) fn build_project_run_summary_internal(
             format!("프로젝트 목표 {target}을 찾을 수 없습니다"),
         )
     })?;
-    if (inspect_lock || cfg!(feature = "v2-shared-modules")) && !graph.gaji_aliases.is_empty() {
+    if !graph.gaji_aliases.is_empty() {
         build_project_gaji_lock(source.clone(), true)?;
     }
     let lock_sha256 = if graph.gaji_aliases.is_empty() {
@@ -855,6 +890,12 @@ pub(super) fn build_project_run_summary_internal(
     // project-run은 아래의 asset-aware 공통 runtime에서 실제 실행을 한 번 수행한다.
     // linker 내부의 asset-unaware 사전 실행을 중복 호출하면 검증된 registry를 잃는다.
     let linked = build_linked_project_with_options(source, Some(&target_path), false, None)?;
+    if linked.requires_registered_nominal_owner {
+        return Err(LocalProjectError::new("E_PROJECT_REGISTERED_NOMINAL_OWNER_REQUIRED",
+            "동명 모듈 이름씨는 실제 등록자료를 Native에 명시 보관한 뒤 실행해 주세요"));
+    }
+    let target = linked.start_definition.as_deref().ok_or_else(||
+        LocalProjectError::new("E_PROJECT_START_REQUIRED", "검증한 시작 정의가 없습니다"))?;
     // Current V25 project sources must take the same shared runtime profile as
     // the explicit supported-profile entrypoint.  Leaving this choice to the
     // legacy project-run default makes a valid `:=` module reach an old
@@ -2327,3 +2368,33 @@ pub(super) fn load_gaji_manifest_for_path(
     Ok(manifest)
 }
 
+
+#[cfg(test)]
+mod r20_mask_header_caller_tests {
+    use super::*;
+    use sha2::Digest;
+
+    #[test]
+    fn r20_mask_registered_korean_header_keeps_raw_offsets_and_declarations() {
+        // Exact source from CLI_ACTUAL_01/05_header_original.request.json.
+        let source = "#!한국어\n// 日本語 원문 위치\n(총액합하다=총액합하다) 드러냄.\n(금액:나눔수~에, 세액:나눔수~을~를)\n총액합하다{총액합하기}:나눔수:셈씨 := { 총액합하다 <- 금액 + 세액. }.\n";
+        assert_eq!(hex::encode(sha2::Sha256::digest(source.as_bytes())), "5b5edb822192924a3380aefb7065564428b167c1b02c96e0b9048f8492f37cce");
+        let masked = mask_module_metadata_blocks(source).unwrap();
+        assert_eq!(masked.len(), source.len());
+        let start = source.find("(총액합하다=총액합하다) 드러냄.").unwrap();
+        let end = start + "(총액합하다=총액합하다) 드러냄.".len();
+        for (index, (original, actual)) in source.bytes().zip(masked.bytes()).enumerate() {
+            let expected = if (start..end).contains(&index) && !matches!(original, b'\r' | b'\n') {
+                b' '
+            } else { original };
+            assert_eq!(actual, expected, "원문 바이트 위치 {index}");
+        }
+        let program = parse_unlinked_work_module(&masked, "내계산.ddn").unwrap();
+        assert!(program.root_stmts.is_empty());
+        assert_eq!(program.items.len(), 1);
+        let TopLevelItem::SeedDef(seed) = &program.items[0];
+        assert_eq!(seed.canonical_name, "총액합하다");
+        assert_eq!(seed.params.len(), 2);
+        assert!(source.get(seed.span.start..seed.span.end).unwrap().contains("총액합하다"));
+    }
+}

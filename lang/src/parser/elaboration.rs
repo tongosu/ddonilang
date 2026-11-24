@@ -91,6 +91,24 @@ impl Parser {
     }
 
     pub(super) fn apply_default_args(&mut self, program: &mut CanonProgram) -> Result<(), ParseError> {
+        // Only a lexically resolved generated form of an actual niladic definition
+        // becomes an invocation. Canonical function values and local bindings stay values.
+        if self.source_epoch == SourceEpoch::V25 {
+            let names = crate::name_resolution::resolve(program, &self.tokens);
+            for usage in names.uses() {
+                let crate::name_resolution::BindingState::Final(key) = usage.state() else { continue; };
+                let Some(owner) = names.definition(*key) else { continue; };
+                if owner.kind() != crate::name_resolution::DefinitionKind::Callable { continue; }
+                for item in &program.items {
+                    let TopLevelItem::SeedDef(seed) = item;
+                    if seed.span == owner.syntax_span() && seed.params.is_empty()
+                        && usage.spelling() != seed.canonical_name
+                        && seed.rd714_first_call_forms().iter().any(|f| f == usage.spelling()) {
+                        self.rd714_niladic_calls.insert(usage.node(), seed.canonical_name.clone());
+                    }
+                }
+            }
+        }
         let mut signatures = HashMap::new();
         for item in &program.items {
             let TopLevelItem::SeedDef(seed) = item;
@@ -475,6 +493,7 @@ impl Parser {
                 self.infer_expr_dim(index)?;
                 Ok(DimState::Unknown)
             }
+            ExprKind::FunctionBlock{statements,result}=>{self.validate_body_units(statements)?;self.infer_expr_dim(result)},
             ExprKind::Thunk(body) => {
                 self.validate_body_units(body)?;
                 Ok(DimState::Unknown)
@@ -802,11 +821,17 @@ impl Parser {
         signatures: &HashMap<String, Vec<ParamPin>>,
         known_seeds: &HashSet<String>,
     ) -> Result<(), ParseError> {
+        if matches!(expr.kind, ExprKind::Var(_)) {
+            if let Some(canonical) = self.rd714_niladic_calls.get(&expr.id) {
+                expr.kind = ExprKind::Call { func: canonical.clone(), args: Vec::new() };
+            }
+        }
         match &mut expr.kind {
             ExprKind::SumBranchValue {payload,..} => {
                 for value in payload {self.apply_defaults_in_expr(&mut value.value,signatures,known_seeds)?;}
             }
             ExprKind::Call { args, func } => {
+                self.authored_argument_order.entry(expr.id).or_insert_with(||args.iter().map(|arg|arg.id).collect());
                 for arg in args.iter_mut() {
                     self.apply_defaults_in_expr(&mut arg.expr, signatures, known_seeds)?;
                 }
@@ -879,10 +904,57 @@ impl Parser {
                     self.subject_reference_calls.insert(expr.id,binding);
                     return Ok(());
                 }
+                if self.source_epoch == SourceEpoch::V25
+                    && func == crate::stdlib::vc17::SUJARO_CALL_TAIL {
+                    use crate::stdlib::vc17::{self,Definition};
+                    if signatures.contains_key("숫자로") || signatures.contains_key(func.as_str()) {
+                        return Err(ParseError{span:expr.span,message:format!("E_VC17_ADMISSION: {}",vc17::AdmissionError::Ambiguous)});
+                    }
+                    // The phrase binds the existing provider definition and its
+                    // owned fixed pin. It does not mint a spelling-based owner.
+                    if args.len()!=1 || args[0].resolved_pin.as_deref()!=Some("글")
+                        || args[0].josa.is_some() {
+                        return Err(ParseError{span:expr.span,message:format!("E_VC17_ADMISSION: {}",vc17::AdmissionError::PinSet)});
+                    }
+                    vc17::bind_source_pins("숫자로",args).map_err(|error|
+                        ParseError{span:expr.span,message:error.to_string()})?;
+                    self.vc17_named_calls.insert(expr.id,Definition::Sujaro);
+                    return Ok(());
+                }
                 let func_name = func.clone();
                 self.record_registered_call(expr.id, expr.span, &func_name);
                 let resolved = self.resolve_call_target(&func_name, known_seeds, expr.span)?;
                 self.record_authored_call(expr.id, &func_name, &resolved.0);
+                // RD-684/685/688: resolve a named builtin through its sealed
+                // definition/pins before projecting its existing WorkCost name.
+                // Authored owners and legacy positional calls keep their paths.
+                if self.source_epoch == SourceEpoch::V25
+                    && !signatures.contains_key(&resolved.0)
+                    && args.iter().any(|arg| arg.resolved_pin.is_some()) {
+                    use crate::stdlib::vc17::{self, Definition};
+                    let definition = match resolved.0.as_str() {
+                        "숫자로" => Some(Definition::Sujaro),
+                        "제거" => Some(Definition::Jego),
+                        "추가" => Some(Definition::Chuga),
+                        _ => None,
+                    };
+                    // Existing direct legacy collection signatures remain valid.
+                    // They do not acquire the new registered pin identity: select
+                    // them only by their existing complete canonical pin set.
+                    let legacy_direct=func_name==resolved.0
+                        && matches!(resolved.0.as_str(),"제거"|"추가")
+                        && crate::stdlib::minimal_stdlib_sigs().iter().any(|signature|
+                            signature.name==resolved.0 && signature.params.len()==args.len()
+                            && signature.params.iter().all(|pin|args.iter().filter(|arg|
+                                arg.josa.is_none() && arg.resolved_pin.as_deref()==Some(*pin)).count()==1));
+                    if let Some(definition) = definition.filter(|_|!legacy_direct) {
+                        vc17::bind_source_pins(&resolved.0, args).map_err(|error|
+                            ParseError { span: expr.span, message: error.to_string() })?;
+                        self.vc17_named_calls.insert(expr.id, definition);
+                        *func = resolved.0;
+                        return Ok(());
+                    }
+                }
                 if *func != resolved.1 {
                     *func = resolved.1;
                 }
@@ -916,6 +988,8 @@ impl Parser {
             ExprKind::Suffix { value, .. } => {
                 self.apply_defaults_in_expr(value, signatures, known_seeds)?;
             }
+            ExprKind::SeedLiteral{body,..}=>self.apply_defaults_in_expr(body,signatures,known_seeds)?,
+            ExprKind::FunctionBlock{statements,result}=>{self.apply_defaults_in_body(statements,signatures,known_seeds)?;self.apply_defaults_in_expr(result,signatures,known_seeds)?;},
             ExprKind::Thunk(body) => {
                 self.apply_defaults_in_body(body, signatures, known_seeds)?;
             }
@@ -1412,7 +1486,23 @@ impl Parser {
                     .collect();
                 if candidates.is_empty() {
                     let mut arg = arg;
-                    let _ = self.merge_josa_into_expr(&mut arg.expr, &josa);
+                    let particle = self.tokens.iter().find(|token|
+                        token.span.start >= arg.expr.span.end && token.span.end <= span.end
+                        && matches!(&token.kind, TokenKind::Josa(value) if value == &josa));
+                    // Only a contiguous name can be recovered. Explicit `~` or
+                    // whitespace must not silently become part of another name.
+                    let contiguous = particle.is_some_and(|token| token.span.start == arg.expr.span.end);
+                    // Once v25 has resolved an existing value boundary, an
+                    // unregistered particle cannot turn it into a new name.
+                    let bound_value = self.source_epoch == SourceEpoch::V25
+                        && matches!(&arg.expr.kind, ExprKind::Var(name) if self.pattern_name_is_bound(name));
+                    if bound_value || !contiguous || !self.merge_josa_into_expr(&mut arg.expr, &josa) {
+                        let particle_span = particle.map(|token| self.to_ast_span(token.span)).unwrap_or(arg.span);
+                        return Err(ParseError {
+                            span: particle_span,
+                            message: format!("조사 '{}'에 해당하는 핀이 없습니다", josa),
+                        });
+                    }
                     arg.josa = None;
                     if !matches!(arg.binding_reason, BindingReason::FlowInjected) {
                         arg.binding_reason = BindingReason::Positional;
@@ -1481,7 +1571,11 @@ impl Parser {
         if pos_iter.next().is_some() {
             return Err(ParseError {
                 span,
-                message: "인자 수가 너무 많습니다".to_string(),
+                message: if self.public_callable_context.is_some() {
+                    "E_CALL_POSITIONAL_ARGUMENT_EXCESS: 인자 수가 너무 많습니다".to_string()
+                } else {
+                    "인자 수가 너무 많습니다".to_string()
+                },
             });
         }
 

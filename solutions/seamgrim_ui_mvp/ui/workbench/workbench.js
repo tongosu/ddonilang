@@ -1,7 +1,43 @@
+import {installStageNavigation} from './cleanup/stage_navigation.mjs';
+import {installWorkbenchCleanup} from './cleanup/shell.mjs';
+import {completionAcceptsKey} from './cleanup/policy.mjs';
+let cleanupShell=null;
+import { createCoCreation } from './co_creation/co_creation.mjs';
+import { createCompletedRunSelection } from './co_creation/completed_run_selection.mjs';
+import { installCompletedSceneHost } from './co_creation/completed_scene_host.mjs';
+let completedSceneHost = null;
+const completedRunSelection=createCompletedRunSelection({readRuns:()=>state.runs});
+function archiveRunWithComparisonContext(run,options){
+  const project=currentProject();
+  completedRunSelection.capture(run,{project:{id:project.id,name:project.name,primaryView:project.primaryView},
+    viewConfig:{primary_view:project.primaryView,role:'primary',mode:state.mode},sourceProfile:workbenchSourceProfile(project)});
+  return createServerRunArchive(run,options);
+}
+import { mountCoCreationPanel } from './co_creation/panel.mjs';
+import { createEditorCoCreationAdapter, fixedSpeedSuggestion } from './co_creation/adapter.mjs';
+let coCreationFlow = null, coCreationEditEpoch = 0, coCreationApplying = false;
+let coCreationExactEdit = null;
+import {textareaSelectionForUtf8Span} from './multilang/source_selection.js';
+const coCreationDisplayText = source => source.replace(/\r\n?/g, "\n");
+function invalidateCoCreation(reason='edit'){
+  mathWorkbenchProductHost?.invalidate('원문 전환을 시작해 이전 수학 결과와 요청을 폐기했습니다.');
+  for (const changed of projectMathSourceListeners) changed();
+  invalidateSelectedTableHost(reason);
+  if(coCreationApplying)return;
+  coCreationEditEpoch++;coCreationFlow?.invalidate(reason);
+}
 import { displayMessage } from './display_locale.js';
 import { installMultilangHost } from './multilang/host.js';
 import { installProofSourceInspection } from "./proof_source_inspection.js";
 import { installNotebookHost } from './notebook_host.js';
+import { mountProjectMathInspector } from './bogae/math_observation_view.mjs';
+import { mountSelectedTableView } from './bogae/selected_table_view.mjs';
+import { equationObservationHtml } from './notebook/view.js';
+const projectMathSourceListeners = new Set();
+// BOGAE_SELECTED_TABLE_HOST_STATE_BEGIN
+const selectedTableStateListeners = new Set();
+const selectedTableHostState = {contextFence: null, blockedRuns: new Set(), blockedLogical: new Set(), notified: undefined, disposed: false};
+// BOGAE_SELECTED_TABLE_HOST_STATE_END
 import { createUniformMotionProvider } from './notebook/uniform_motion.js';
 let notebookHost = null;
 import { createGajiController } from "./gaji_controller.js";
@@ -22,11 +58,19 @@ import { createSourceReadinessModel } from "./source_readiness_model.js";
 import { createProjectNavigation } from "./project_navigation.js";
 import { createWorkbenchProjectCatalog } from "./project_catalog.js";
 import { createRuntimeBridgeV1 } from "../runtime/runtime_bridge.js";
+import {mountTemporaryEditorRun} from './co_creation/temporary_run.mjs';
+import {mountPngProductHost} from './bogae/xy/png_product_host.mjs';
+let pngProductHost=null;
+const pngProductListeners=new Set();
+const syncPngSelector=()=>{const choice=document.querySelector('[data-testid="bogae-entry"]')?.closest('details');if(choice)choice.hidden=!pngProductHost?.state().hasInput;};
+const notifyPngProduct=()=>{syncPngSelector();for(const listener of pngProductListeners)listener();};
+import {installMathWorkbenchProductHost} from './math_workbench_product_host.mjs';
 import {nativeSourceAvailable,nativeSourceRequest,sourceStorageErrorMessage} from '../runtime/native_source_transport.js';
 import { installLogicalInputPanel, committedLogicalSpace2d } from "./logical_input_panel.js";
 import { installAuthoredProjectPanel } from "./authored_project_panel.js";
 import { createEditRecoveryGuard } from './persistence/edit_recovery_guard.js';
 import { readDdnSourceFile } from './source_file.js';
+import {installDdnWorkOpen} from './source_project_open.mjs';
 import { loadRuntimeProject, commitRuntimeProject, newRuntimeRevisionHex, runtimeStorageRecord } from './persistence/runtime_project_store.js';
 import { renderAuthoredBogae, createAuthoredCompositionHost } from "./authored_bogae_renderer.js";
 import { applyExplorationPreset } from "./exploration_presets.js";
@@ -82,6 +126,7 @@ import { renderSpace2dCanvas2d } from "../wasm_page_common.js";
 import { selectCommittedOutputView } from "./committed_output_view.js";
 import { createSpatialViewState, updateSpatialView, fitSpatialHistory, resetSpatialRange } from "./spatial_view_state.js";
 const spatialView = createSpatialViewState();
+let stageNavigation=null;
 const workbenchSpatialPresentationState = {
   showSpatialTrail: true,
 };
@@ -186,9 +231,12 @@ import {
 } from "./project_control_model.js";
 
 const runtimeBridge = createRuntimeBridgeV1();
+let temporaryEditorRun = null;
+let temporaryEditorRunning = false;
+let mathWorkbenchProductHost = null;
 const proofSourceInspection = installProofSourceInspection({
   runtimeBridge,
-  readSource: () => ({projectId: currentProject().id, path: activeFile().path, sourceText: state.fileTexts.get(activeFile().path) ?? ""}),
+  readSource: () => ({projectId: currentProject().id, path: activeFile().path, sourceText: state.fileTexts.get(activeFile().path) ?? "", profile: workbenchSourceProfile(currentProject())}),
 });
 const hostBridge = createHostBridgeV1();
 
@@ -253,6 +301,7 @@ function initialProjectIdFromLocation() {
     for (const key of ["project", "project_id", "lesson", "lesson_id", "source_lesson_id"]) {
       const value = String(params.get(key) ?? "").trim();
       if (value && PROJECTS.some((project) => project.id === value)) return value;
+      if (key === "lesson" && FIRST_STEPS_PROJECTS.some(lesson => lesson.id === value && !lesson.documentOnly)) return value;
     }
   } catch (_) {
     // Static file and restricted contexts can keep the default public project.
@@ -837,6 +886,7 @@ function renderExecutionControls() {
     els.root.dataset.executionState = logical.running ? "running" : logical.started ? "paused" : "idle";
     const committed=currentLogicalPresentation()?.value;
     els.runStatus.textContent=displayMessage(logical.failed ? 'logicalFailed' : logical.running ? 'logicalRunning' : committed ? 'logicalPaused' : 'logicalReady', locale).text;
+    if(logical.temporary)els.runStatus.textContent='편집판 임시 입력 · '+els.runStatus.textContent;
     renderCurrentMadi(committed);
     els.runHash.textContent=`state_hash: ${committed?.state_hash ?? committed?.frame?.state_hash ?? '-'}`;
   } else {
@@ -844,6 +894,16 @@ function renderExecutionControls() {
     if(workbenchLogicalPresentationState.logicalPanel?.logicalExecution.status().busy){
       primary.disabled=true;
       for(const id of ['lifecycle-step','lifecycle-stop'])document.querySelector(`[data-testid="${id}"]`).disabled=true;
+    }
+  }
+  if (temporaryEditorRunning) {
+    primary.textContent = '취소';
+    primary.dataset.action = 'cancel-temporary';
+    primary.title = '현재 편집판 실행 취소';
+    primary.setAttribute('aria-label', primary.title);
+    primary.disabled = false;
+    for (const id of ['lifecycle-step','lifecycle-stop']) {
+      document.querySelector(`[data-testid="${id}"]`).disabled = true;
     }
   }
 }
@@ -857,7 +917,42 @@ function activeRunSourceChanged() {
   return Boolean(run && run.source_hash !== sourceHash);
 }
 
+function isPortableJ1Tree(project, projectSource) {
+  return Boolean(project.portableArtifact && workbenchSourceProfile(project) === 'v1-core-v25-ja-base-r1'
+    && (projectSource ?? currentVirtualProjectSource(project))?.root_path);
+}
+
 async function primaryExecutionCommand() {
+  if(cleanupShell&&temporaryEditorRunning){temporaryEditorRun.cancel();renderExecutionControls();cleanupShell.refresh();return false;}
+  if(currentProject().logicalInput&&workbenchLogicalPresentationState.logicalPanel&&logicalEditorSourceSnapshot()){
+    const logical=workbenchLogicalPresentationState.logicalPanel.logicalExecution;
+    if(logical.status().busy)return false;
+    if(!logical.ownsCurrentSource())await selectProjectInputContract(currentProject());
+    return logical.command('primary');
+  }
+  if(cleanupShell&&temporaryEditorRun&&!state.runtimeBusy&&state.runtimeStatus!=='running'){
+    const panel=workbenchAuthoredPanelAccess.current;
+    // A checked registered Native source must use the existing selected-source
+    // run owner, not the separate temporary editor VM (which has no Run grant).
+    let registeredNative=false;
+    if(currentProject().sourceOnlyFreshExecution&&panel.hasNativeSourceContext()&&!panel.hasSourceEdits()){
+      const artifact=panel.getRunProjectArtifact();
+      if(artifact){
+      const binding=JSON.stringify([state.projectId,state.projectEditGeneration,els.sourceEditor.value,artifact]);
+      const probe=await runtimeBridge.authoredProjectOperation({operation:'source_probe',text:JSON.stringify({artifact_json_utf8:artifact})});
+      if(binding!==JSON.stringify([state.projectId,state.projectEditGeneration,els.sourceEditor.value,panel.getRunProjectArtifact()]))return false;
+      if(!['true','false'].includes(probe))throw Error('등록 원문의 실행 문맥을 확인하지 못했습니다. 저장본은 유지했습니다.');
+      if(state.runtimeBusy||state.runtimeStatus==='running')return false;
+      registeredNative=probe==='true'||panel.nativeSourceRunOptions?.().nativeSourceFirstRetry===true;
+      }
+    }
+    // Other editor-local execution retains its existing A/B/C isolation.
+    if(!registeredNative&&(pngProductHost?.state().hasInput||currentProject().directDdnWork||isPortableJ1Tree(currentProject())||(currentProject().sourceOnlyFreshExecution&&!workbenchLogicalPresentationState.logicalPanel?.logicalExecution.ownsCurrentSource())||panel.hasSourceEdits()||(currentProject().nativeSaveOnFirstUse&&!panel.hasNativeSourceContext()))){
+      const result=await temporaryEditorRun.start(Number(temporaryRunRoot.querySelector('[data-temp="count"]').value),
+        {bogaeEntry:pngProductHost?.state().hasInput?document.querySelector('[data-testid="bogae-entry"]').value.trim():temporaryRunRoot.querySelector('[data-temp="view"]').value});
+      renderExecutionControls();cleanupShell.refresh();return result;
+    }
+  }
   if(workbenchLogicalPresentationState.logicalPanel?.logicalExecution.status().busy)return false;
   if(currentProject().nativeSaveOnFirstUse&&!workbenchAuthoredPanelAccess.current.getRunProjectArtifact()) {
     if(!window.confirm('이 공식 작품을 새 ID로 내 작업에 저장하고 실행할까요? 기존 작품과 저장본은 바꾸지 않습니다.'))return false;
@@ -974,7 +1069,7 @@ function activeRuntimeSourceText(project = currentProject()) {
   return state.fileTexts.get(entryPath) ?? state.fileTexts.get("lesson.ddn") ?? state.fileTexts.get(activeFile(project).path) ?? "";
 }
 
-const { sourceReadinessViewOnly, sourceReadinessApplyOutcome, sourceReadinessRunOutcome, refreshPendingSourceReadiness, refreshSourceReadiness, moduleDirectiveRegistryForProject, refreshAuthoritativeSourceReadiness, getSourceReadinessCandidate, sameAuthoritativeRepairCandidate, sourceReadinessSnapshot, applySourceReadinessFixIt } = createSourceReadinessModel({ state, els, currentProject, activeRuntimeSourceText, localProjectEntryPath, analyzeSourceReadiness, workbenchSourceProfile, currentVirtualProjectSource, SOURCE_ANALYSIS_PROFILE_IDENTITY, runtimeBridge, projectEditDiagnostic, MODULE_DIRECTIVE_ANALYSIS_SNAPSHOT_SCHEMA, projectAuthoritativeSourceAnalysis, projectSourceAnalysisUnavailable, applySourceReadinessFix, SOURCE_READINESS_FIX_ID, pushDiagnostic, renderAll, syncNativeProjectFromState, markCurrentProjectExecutionStale, refreshProjectGraph, ONE_FILE_DDN_PROJECT_ID, writeOneFileDraft });
+const { sourceReadinessViewOnly, sourceReadinessApplyOutcome, sourceReadinessRunOutcome, refreshPendingSourceReadiness, refreshSourceReadiness, moduleDirectiveRegistryForProject, refreshAuthoritativeSourceReadiness, getSourceReadinessCandidate, sameAuthoritativeRepairCandidate, sourceReadinessSnapshot, applySourceReadinessFixIt } = createSourceReadinessModel({ readNativeProjectArtifact:()=>workbenchAuthoredPanelAccess.current.hasNativeSourceContext()?workbenchAuthoredPanelAccess.current.getRunProjectArtifact():"", state, els, currentProject, activeRuntimeSourceText, localProjectEntryPath, analyzeSourceReadiness, workbenchSourceProfile, currentVirtualProjectSource, SOURCE_ANALYSIS_PROFILE_IDENTITY, runtimeBridge, projectEditDiagnostic, MODULE_DIRECTIVE_ANALYSIS_SNAPSHOT_SCHEMA, projectAuthoritativeSourceAnalysis, projectSourceAnalysisUnavailable, applySourceReadinessFix, SOURCE_READINESS_FIX_ID, pushDiagnostic, renderAll, syncNativeProjectFromState, markCurrentProjectExecutionStale, refreshProjectGraph, ONE_FILE_DDN_PROJECT_ID, writeOneFileDraft });
 
 function currentVirtualProjectSource(project = currentProject()) {
   const payload = localProjectTreePayloadFromSnapshot(project.portableSnapshot ?? {});
@@ -1053,6 +1148,10 @@ function seedImportedProjectExecutionRecord(project = currentProject()) {
 }
 
 function markCurrentProjectExecutionStale(reason = "source_edit") {
+  invalidateSelectedTableHost(reason);
+  temporaryEditorRun?.contextChanged();
+  workbenchLogicalPresentationState.logicalPanel?.logicalExecution.contextChanged()?.catch(error=>pushDiagnostic('E_LOGICAL_INPUT_CLOSE',String(error),'error'));
+  mathWorkbenchProductHost?.invalidate('원문이 바뀌어 이전 수학 결과와 요청을 폐기했습니다.');
   notebookHost?.invalidate();
   const current = state.projectExecution?.current;
   if (!current) return;
@@ -1332,6 +1431,7 @@ function readStateHash(wasmState, fallback = "-") {
 function logicalInputRequired(code, message) {
   return code === "E_LOGICAL_INPUT_PROFILE_REQUIRED" || String(message).includes("E_LOGICAL_INPUT_PROFILE_REQUIRED");
 }
+let space3RunNotice = null;
 function pushDiagnostic(code, message, severity = "warning") {
   if (logicalInputRequired(code, message)) {
     message += "\n이 원문은 논리 행동 입력이 필요합니다. 아래 ‘알파2 논리 입력 실행’에서 입력 계약을 선택하고 ‘현재 원문으로 새로 시작’을 누르세요.";
@@ -1352,6 +1452,10 @@ function pushDiagnostic(code, message, severity = "warning") {
     },
     ...state.diagnostics,
   ].slice(0, 8);
+  if (code === 'E_PROJECT_RUNTIME_SPACE3_DURABILITY_UNSUPPORTED' || code === 'E_SPACE3_PREVIEW_READONLY') {
+    space3RunNotice = {diagnostic: state.diagnostics[0], projectId: state.projectId,
+      sourceHash: currentVirtualProjectSourceHash()};
+  }
   renderDiagnostics();
 }
 
@@ -1360,36 +1464,56 @@ function clearDiagnostics() {
   renderDiagnostics();
 }
 
-const { resizeCanvasToDisplaySize, setPrimaryAspect, drawProjectRunEvidence, buildCommittedFrameCanonicalViewPayloads, buildCommittedCanonicalViewHistory, drawPreview } = createCanvasPresentation({ activeFrame, activeRun, authoredCompositionHost, buildCanonicalViewPayloadSet, buildCommittedSemanticViewPayload, buildCommittedSpace2dOverlay, committedLogicalSpace2d, currentLogicalPresentation, currentProject, displayedProjectTitle, els, EXECUTION_STATES, extractCanonicalViewAuthorityInputsFromState, localProjectRunEvidenceFromProject, overlayViewInstances, primaryViewInstance, reconcileViewWorkspace, renderAuthoredBogae, renderCommittedSemanticView, renderSpace2dCanvas2d, selectCommittedOutputView, spatialView, stableCanonicalJson, stableHash, stableSemanticJson, state, updateSpatialView, workbenchHostExecutionState, workbenchSpatialPresentationState });
+const { canShowSpace3Run, resizeCanvasToDisplaySize, setPrimaryAspect, drawProjectRunEvidence, buildCommittedFrameCanonicalViewPayloads, buildCommittedCanonicalViewHistory, drawPreview } = createCanvasPresentation({ activeFrame, activeRun, activeRunSourceChanged, authoredCompositionHost, buildCanonicalViewPayloadSet, buildCommittedSemanticViewPayload, buildCommittedSpace2dOverlay, committedLogicalSpace2d, currentLogicalPresentation, currentProject, displayedProjectTitle, els, EXECUTION_STATES, extractCanonicalViewAuthorityInputsFromState, localProjectRunEvidenceFromProject, overlayViewInstances, primaryViewInstance, reconcileViewWorkspace, renderAuthoredBogae, renderCommittedSemanticView, renderSpace2dCanvas2d, selectCommittedOutputView, spatialView, stableCanonicalJson, stableHash, stableSemanticJson, state, updateSpatialView, workbenchHostExecutionState, workbenchSpatialPresentationState });
 
-const { renderMode, buildViewInstanceSemanticPayload, setViewActionState, renderSideViewInstances, initialDragPoint, renderViewPolicy, selectPrimaryCanvasTarget, renderSemanticObservations, renderRunMetadata, renderPersistenceFeedback, renderDiagnostics } = createViewPresentation({ activeFrame, activeRun, activeRuntimeSourceText, applyExplorationPreset, applySourceReadinessFixIt, authoredCompositionHost, buildCommittedCanonicalViewHistory, buildCommittedFrameCanonicalViewPayloads, buildCommittedSemanticViewPayload, currentLogicalPresentation, currentProject, currentVirtualProjectSourceHash, describePersistenceStatus, els, escapeHtml, EXECUTION_STATES, executionStatusLabel, extractObservationOutputRowsFromState, formatNumber, getSourceReadinessCandidate, loadLocalFallbackSnapshot, localProjectRunEvidenceFromProject, overlayViewInstances, primaryViewInstance, pushDiagnostic, reconcileViewWorkspace, renderAll, renderCommittedSemanticView, renderCurrentMadi, resizeCanvasToDisplaySize, selectCommittedOutputView, selectViewTarget, sideViewInstances, sourceReadinessViewOnly, stableHash, state, viewRoleCapabilities, workbenchHostExecutionState });
+const { renderMode, buildViewInstanceSemanticPayload, setViewActionState, renderSideViewInstances, initialDragPoint, renderViewPolicy, selectPrimaryCanvasTarget, renderSemanticObservations, renderRunMetadata, renderPersistenceFeedback, renderDiagnostics } = createViewPresentation({ activeFrame, activeRun, activeRuntimeSourceText, applyExplorationPreset, applySourceReadinessFixIt, authoredCompositionHost, buildCommittedCanonicalViewHistory, buildCommittedFrameCanonicalViewPayloads, buildCommittedSemanticViewPayload, canShowSpace3Run, currentLogicalPresentation, currentProject, currentVirtualProjectSourceHash, describePersistenceStatus, els, escapeHtml, EXECUTION_STATES, executionStatusLabel, extractObservationOutputRowsFromState, formatNumber, getSourceReadinessCandidate, loadLocalFallbackSnapshot, localProjectRunEvidenceFromProject, overlayViewInstances, primaryViewInstance, pushDiagnostic, reconcileViewWorkspace, renderAll, renderCommittedSemanticView, renderCurrentMadi, resizeCanvasToDisplaySize, selectCommittedOutputView, selectViewTarget, sideViewInstances, sourceReadinessViewOnly, stableHash, state, viewRoleCapabilities, workbenchHostExecutionState });
 
 const { inputSnapshotRequestBinding, inputSnapshotRequestHash, queuedInputBindingValid, makeSnapshot, buildFrame, appendFrame, runtimeStateSignalsDone, runReachedDone, editableProjectSession, renderRunArchiveHistory, openRunArchiveDetail, refreshRunArchives, createServerRunArchive, persistRunCheckpoint, finalizeRunRecord, finalizeActiveRun, finalizeFailedRunArchive } = createWorkbenchRunArchive({ activeRun, activeRuntimeSourceText, appendRunCheckpoint, buildCheckpointPayload, buildRunArchiveDraft, claimRunFinalization, createRunArchive, currentProject, currentVirtualProjectSourceHash, els, finalizeRunArchive, getRunArchive, listRunArchives, localProjectEntryPath, primaryViewInstance, pushDiagnostic, readMadi, readStateHash, readWorkbenchCapabilitySession, stableCanonicalJson, stableHash, state, workbenchSourceProfile });
 
 const { renderPortableExportStatus, renderPortableImportPreview, renderPortableMetadataEditor, triggerPortableDownload, tapeStatus, exportCurrentInputTape, checkInputTapeFile, buildCurrentPortableProjectArtifact, exportPortableProject, previewPortableProjectFile, openPendingPortableProject, updatePortableMetadataDraftFromInputs, updateServerStateFromPayload } = createPortableActions({ activeRun, activeRuntimeSourceText, buildPortableProjectArtifact, buildPortableProjectInput, currentLocalProjectTreePayload, currentPortableMetadata, currentProject, currentVirtualProjectSource, els, gajiIdsFromLocalProjectPayload, hostBridge, localProjectEntryPath, localProjectTreePayloadFromSnapshot, normalizePortableMetadataDraft, normalizePortableTextArray, parsePortableProjectArtifactBytes, portableListFromText, portableProjectDiagnostic, portableProjectFromArtifact, pushDiagnostic, readPortableProjectCatalog, rememberMyWorkProject, rememberPortableProject, renderAll, runtimeBridge, seedImportedProjectExecutionRecord, selectProject, selectUnversionedDocumentProfile, SOURCE_ANALYSIS_PROFILE_IDENTITY, state, workbenchProjectRegistryState, workbenchSourceProfile, writeWorkbenchCapabilitySession });
 
-const { clearFailedExecutionOutput, startRun, commitNextLiveStep, stepForward, pauseRun, resumeRun, stopRun, backOneMadi, branchFromCursor } = createExecutionController({ activeFrame, activeRun, activeRuntimeSourceText, activeSourceText, alpha2HostPacing, appendFrame, applyExecutionEvent, applyRunRecipeToWasm, assertExecutionGeneration, beginCommittedLiveStep, buildCurrentProjectRunEvidence, buildFrame, buildRunId, cancelLivePump, clearDiagnostics, createServerRunArchive, currentProject, currentVirtualProjectSource, els, EXECUTION_EVENTS, EXECUTION_STATES, executionControlPolicy, executionGenerationIsCurrent, executionLifecycleContext, finalizeActiveRun, finalizeFailedRunArchive, finalizeRunRecord, inputSnapshotRequestBinding, livePumpToken, livePumpTokenIsCurrent, localProjectEntryPath, logicalInputRequired, makeSnapshot, markCurrentProjectExecutionStale, openProgressiveDialog, persistRunCheckpoint, prepareCurrentProjectLink, projectDiagnosticFromError, projectExecutionPlanFromPrepared, pushDiagnostic, queuedInputBindingValid, readStateHash, recipeHash, recordVerifiedProjectLockTrust, refreshAuthoritativeSourceReadiness, refreshGeneratedProjectLockForRun, renderAll, requireParsedExecutionModeDecision, resetLivePumpMetricsForRun, runReachedDone, runtimeBridge, scheduleLivePump, sha256HexUtf8, sharedRunSummaryBindingValid, SOURCE_READINESS_DIAGNOSTIC_CODE, sourceReadinessRunOutcome, stableHash, state, stepWithHostStop, virtualProjectSourceHash, workbenchAuthoredPanelAccess, workbenchHostExecutionState, workbenchSourceProfile });
+function blocksReadOnlyFirstFrame() {
+  if (!temporaryEditorRun || activeFrame()) return false;
+  const panel = workbenchAuthoredPanelAccess.current;
+  if (!panel.hasNativeSourceContext() || panel.hasSourceEdits()) return false;
+  const options = panel.nativeSourceRunOptions();
+  if (!options.nativeSourceFirstRetry
+    && (options.nativeSourceNewRun || state.persistenceStatus?.mode !== 'source_only')) return false;
+  if (!temporaryEditorRun.hasReadOnlyFirstFrame(panel.getRunProjectArtifact())) return false;
+  pushDiagnostic('E_SPACE3_PREVIEW_READONLY',
+    '현재 원문의 첫 3D 보기는 읽기 전용입니다. Native 세계 실행을 시작하지 않았습니다. 더보기에서 저장 없이 실행을 선택하세요.',
+    'warning');
+  renderAll();
+  return true;
+}
+
+const { clearFailedExecutionOutput, startRun, commitNextLiveStep, stepForward, pauseRun, resumeRun, stopRun, backOneMadi, branchFromCursor } = createExecutionController({ activeFrame, activeRun, activeRuntimeSourceText, activeSourceText, alpha2HostPacing, appendFrame, applyExecutionEvent, applyRunRecipeToWasm, assertExecutionGeneration, beginCommittedLiveStep, buildCurrentProjectRunEvidence, buildFrame, buildRunId, cancelLivePump, clearDiagnostics, createServerRunArchive:archiveRunWithComparisonContext, currentProject, currentVirtualProjectSource, els, EXECUTION_EVENTS, EXECUTION_STATES, executionControlPolicy, executionGenerationIsCurrent, executionLifecycleContext, finalizeActiveRun, finalizeFailedRunArchive, finalizeRunRecord, inputSnapshotRequestBinding, livePumpToken, livePumpTokenIsCurrent, localProjectEntryPath, logicalInputRequired, makeSnapshot, markCurrentProjectExecutionStale, openProgressiveDialog, persistRunCheckpoint, prepareCurrentProjectLink, projectDiagnosticFromError, projectExecutionPlanFromPrepared, pushDiagnostic, queuedInputBindingValid, readStateHash, recipeHash, recordVerifiedProjectLockTrust, refreshAuthoritativeSourceReadiness, refreshGeneratedProjectLockForRun, renderAll, requireParsedExecutionModeDecision, resetLivePumpMetricsForRun, runReachedDone, runtimeBridge, scheduleLivePump, sha256HexUtf8, sharedRunSummaryBindingValid, SOURCE_READINESS_DIAGNOSTIC_CODE, sourceReadinessRunOutcome, stableHash, state, stepWithHostStop, virtualProjectSourceHash, workbenchAuthoredPanelAccess, workbenchHostExecutionState, workbenchSourceProfile, blocksReadOnlyFirstFrame });
 
 const { captureRuntimeStorageContext, restoredRuntimeCandidate, saveCurrentRuntimeProject, reopenCurrentRuntimeProject, exportCurrentRuntimeProject } = createRuntimePersistence({ activeFrame, activeRun, activeRunSourceChanged, alpha2HostPacing, buildFrame, buildRunId, commitRuntimeProject, currentProject, currentVirtualProjectSource, drawPreview, EXECUTION_EVENTS, hostBridge, loadRuntimeProject, nativeSourceAvailable, nativeSourceRequest, newRuntimeRevisionHex, projectExecutionPlanFromPrepared, readStateHash, recipeHash, renderAll, runtimeBridge, runtimeStorageRecord, state, syncExecutionLifecycleCompatibility, transitionExecutionLifecycle, virtualProjectSourceHash, workbenchAuthoredPanelAccess, workbenchHostExecutionState, workbenchLogicalPresentationState, workbenchSourceProfile });
 
-const { beginPersistenceOperation, completePersistenceOperation, saveProjectSnapshot, reopenProjectSnapshot } = createProjectPersistence({ activeRun, appendServerRevision, applyExecutionEvent, applySetupRecipe, authoredCompositionHost, backOneMadi, branchFromCursor, buildProjectSnapshot, buildServerProjectArtifact, cancelLivePump, closeAllSideViews, closeViewInstance, createServerProject, currentProject, describePersistenceStatus, editRecoveryGuard, els, EXECUTION_EVENTS, finalizeRunRecord, hydrateProductViewWorkspace, loadLocalFallbackSnapshot, openProjectFromServerSession, primaryExecutionCommand, pushDiagnostic, readWorkbenchCapabilitySession, recordServerConflict, refreshServerRevisions, rememberMyWorkProject, renderAll, renderPersistenceFeedback, renderServerProject, saveCurrentRuntimeProject, saveLocalFallbackSnapshot, selectProjectInputContract, setNextAction, sourceStorageErrorMessage, state, stepForward, stopRun, updateServerStateFromPayload, workbenchAuthoredPanelAccess, workbenchLogicalPresentationState });
+const { beginPersistenceOperation, completePersistenceOperation, saveProjectSnapshot, reopenProjectSnapshot } = createProjectPersistence({ activeRun, appendServerRevision, applyExecutionEvent, applySetupRecipe, authoredCompositionHost, backOneMadi, branchFromCursor, buildProjectSnapshot, buildServerProjectArtifact, cancelLivePump, closeAllSideViews, closeViewInstance, createServerProject, currentProject, describePersistenceStatus, editRecoveryGuard, els, EXECUTION_EVENTS, finalizeRunRecord, hydrateProductViewWorkspace, isPortableJ1Tree, loadLocalFallbackSnapshot, nativeSourceAvailable, openProjectFromServerSession, primaryExecutionCommand, pushDiagnostic, readWorkbenchCapabilitySession, recordServerConflict, refreshServerRevisions, rememberMyWorkProject, renderAll, renderPersistenceFeedback, renderServerProject, saveCurrentRuntimeProject, saveLocalFallbackSnapshot, selectProjectInputContract, setNextAction, sourceStorageErrorMessage, state, stepForward, stopRun, updateServerStateFromPayload, workbenchAuthoredPanelAccess, workbenchLogicalPresentationState });
 
 const { renderFileDrawer, projectDiagnosticFix, renderProjectGraph, renderSource, completionPosition, completionOffset, closeCompletionPopup, renderCompletionPopup, selectCompletion, requestCompletion, renderProjectMeta, renderFirstSteps } = createEditorPresentation({ activeFile, currentProject, displayedProjectTitle, els, escapeHtml, FIRST_STEPS_PROJECTS, localProjectTreePayloadFromSnapshot, runtimeBridge, selectFile, SOURCE_ANALYSIS_PROFILE_IDENTITY, state, workbenchProjectRegistryState, workbenchSourceProfile });
 
 const { closeGajiBundleDialog, openGajiBundleDialog, previewGajiBundle, publishGajiBundle, currentCapabilityIsViewOnly, selectedShelfProfiles, refreshGajiShelf, reportGajiShelfError, previewShelfInstall, applyShelfInstall, removeShelfInstall, startShelfRemix, publishShelfRemix, openGajiShelf, exportSelectedGajiArtifact, importGajiArtifactFile } = createGajiController({ activeFile, applyVirtualProjectSource, currentProject, currentVirtualProjectSource, ddnQuotedText, els, exportLocalGotganArtifact, hostBridge, importLocalGotganArtifact, loadLocalGotganStore, publishToLocalGotgan, pushDiagnostic, refreshProjectGraph, renderAll, runtimeBridge, searchLocalGotgan, state, triggerPortableDownload, workbenchGajiPresentationState, workbenchProjectRegistryState });
 
 function renderAll() {
+  // Publish the current editor source before any observer reads strict context.
+  const project = currentProject();
+  renderSource(project);
+  pngProductHost?.contextChanged();
+  syncPngSelector();
+  temporaryEditorRun?.contextChanged();
+  mathWorkbenchProductHost?.observe();
   const hostNotice = document.querySelector('[data-testid="host-stop-notice"]');
   hostNotice.textContent = workbenchHostExecutionState.hostStopNotice;
   hostNotice.hidden = !workbenchHostExecutionState.hostStopNotice;
-  const project = currentProject();
   refreshSourceReadiness(project);
   renderGlobalNav();
   renderProjects();
   renderProjectMeta(project);
   renderFileTabs(project);
   renderFileDrawer(project);
-  renderSource(project);
   proofSourceInspection.observe();
   renderMode();
   // Metadata below consumes semanticRenderModel. Derive it from this committed
@@ -1414,6 +1538,34 @@ function renderAll() {
   drawPreview();
   // Logical execution owns these labels; ordinary metadata must not overwrite them.
   renderExecutionControls();
+  notifySelectedTableHost();
+  cleanupShell?.refresh();
+}
+
+function logicalEditorSourceSnapshot() {
+  const project=currentProject(),panel=workbenchAuthoredPanelAccess.current;
+  let selection=null;try{selection=JSON.parse(panel.nativeSourceRunOptions().nativeSourceSelectionJson??'null');}catch{}
+  const edited=panel.hasSourceEdits();
+  // An existing saved world keeps its original Native admission/continuation.
+  if(!edited&&selection?.kind===1)return null;
+  if(!(edited||project.directDdnWork||project.sourceOnlyFreshExecution
+      ||(project.nativeAuthoredFiles&&!panel.hasNativeSourceContext())))return null;
+  const projectSource=currentVirtualProjectSource(project);
+  if(!projectSource?.root_path)return null;
+  return {projectId:project.id,documentId:activeFile().path,profile:workbenchSourceProfile(project),projectSource,
+    original:project.directDdnArtifactText??(project.authoredArtifact?.source_snapshot?.root_path?JSON.stringify(project.authoredArtifact):null)};
+}
+function logicalEditorSourceKey(){return JSON.stringify(logicalEditorSourceSnapshot());}
+async function prepareLogicalEditorSource() {
+  const captured=logicalEditorSourceSnapshot();if(!captured)return null;
+  const key=JSON.stringify(captured),snapshot={root_path:captured.projectSource.root_path,entry_path:captured.projectSource.entry_path,
+    files:captured.projectSource.files.map(file=>({path:file.path,text:file.utf8_text}))};
+  const operation=captured.original?'update':'create';
+  const input=captured.original?{original_json:captured.original,source_snapshot:snapshot}
+    :{source_profile:captured.profile,module_name:'',source_snapshot:snapshot};
+  const artifact=await runtimeBridge.authoredProjectOperation({operation,text:JSON.stringify(input)});
+  if(logicalEditorSourceKey()!==key)throw new Error('E_LOGICAL_INPUT_BINDING_CHANGED: 편집판 준비 중 작품·원문이 바뀌었습니다.');
+  return {contextKey:key,authoredProjectJson:artifact};
 }
 
 async function selectProjectInputContract(project) {
@@ -1436,6 +1588,10 @@ async function selectProject(projectId, { preserveServerSession = false, selecte
     if (target.origin !== window.location.origin) throw new Error("E_COURSE_DOCUMENT_ORIGIN");
     window.open(target.href, "_blank", "noopener");
     return;
+  }
+  if(projectId!==state.projectId){
+    temporaryEditorRun?.retireForContextChange();
+    invalidateCoCreation('context');
   }
   state.projectEditGeneration += 1;
   closeProjectEditDialog();
@@ -1518,7 +1674,7 @@ async function selectProject(projectId, { preserveServerSession = false, selecte
     state.wasm = null;
     state.projectControls = emptyProjectControlModel(project.id, "error");
     pushDiagnostic("E_PROJECT_FILE_LOAD", state.projectLoadError, "error");
-    if (!els.projectVerificationDrawer.open) els.projectVerificationDrawer.showModal();
+    if (!cleanupShell && !els.projectVerificationDrawer.open) els.projectVerificationDrawer.showModal();
   } finally {
     state.runtimeBusy = false;
     renderAll();
@@ -1548,6 +1704,7 @@ async function createOneFileDdnProject() {
 }
 
 function selectFile(path) {
+  if(path!==state.activeFilePath)invalidateCoCreation('context');
   closeCompletionPopup();
   state.activeFilePath = path;
   renderAll();
@@ -1607,6 +1764,7 @@ document.querySelectorAll("[data-view-action]").forEach((button) => {
   });
 });
 
+document.querySelector('[data-testid="authored-side-chip"]').addEventListener('click',()=>authoredCompositionHost.toggleSides());
 els.canvas?.addEventListener("click", (event) => selectPrimaryCanvasTarget(event));
 els.bogaeSourceAccess?.addEventListener("click", () => {
   state.mode = "ddn-main";
@@ -1769,10 +1927,15 @@ document.querySelector("[data-testid='project-edit-apply']")?.addEventListener("
 
 els.sourceEditor.addEventListener("input", (event) => {
   const editedPath = activeFile().path;
-  const nextSource = els.sourceEditor.value;
+  const exactEdit = coCreationApplying ? coCreationExactEdit : null;
+  if (exactEdit && (exactEdit.projectId !== state.projectId || exactEdit.documentId !== editedPath
+      || coCreationDisplayText(exactEdit.source) !== els.sourceEditor.value)) return;
+  coCreationExactEdit = null;
+  const nextSource = exactEdit ? exactEdit.source : els.sourceEditor.value;
   // 다중행 붙여넣기가 같은 전체 값을 여러 input 이벤트로 전달해도
   // 실제 변경 한 번만 처리한다. 게시 이력·세계 입력은 바꾸지 않는다.
   if (state.fileTexts.get(editedPath) === nextSource) return;
+  invalidateCoCreation();
   state.completionDocumentVersion += 1;
   state.completionGeneration += 1;
   closeCompletionPopup();
@@ -1823,6 +1986,8 @@ els.sourceEditor.addEventListener("input", (event) => {
   renderSemanticObservations(currentProject());
   renderRunMetadata(currentProject());
   renderExecutionControls();
+  if(activeFrame()?.wasm_state?.bogae_projection?.candidates?.[0]?.artifact?.view?.spatial_profile==='space3')
+    renderViewPolicy(currentProject());
   drawPreview();
   // Suggestions are explicit only; ordinary edits never reopen the popup.
 });
@@ -1841,7 +2006,7 @@ els.sourceEditor.addEventListener("compositionend", () => {
   state.completionComposing = false;
   closeCompletionPopup();
 });
-document.querySelector('[data-testid="completion-request"]').addEventListener("click", () => {
+document.querySelector('[data-testid="completion-request"]')?.addEventListener("click", () => {
   els.sourceEditor.focus();
   requestCompletion();
 });
@@ -1863,8 +2028,9 @@ els.sourceEditor.addEventListener("keydown", (event) => {
     return;
   }
   if (["Enter", "Tab"].includes(event.key) && !(event.ctrlKey || event.metaKey)) {
+    if(completionAcceptsKey(event,!els.completionPopup?.hidden,Boolean(state.completionItems[state.completionSelectedIndex]),state.completionComposing)){event.preventDefault();selectCompletion();return;}
     closeCompletionPopup();
-    return; // Preserve normal newline/focus; never accept a suggestion implicitly.
+    return;
   }
   if (els.completionPopup?.hidden || !state.completionItems.length) return;
   if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -1881,11 +2047,11 @@ els.sourceEditor.addEventListener("keydown", (event) => {
   }
 });
 
-document.querySelector("[data-testid='spatial-fit']").addEventListener("click", () => {
+document.querySelector("[data-testid='spatial-fit']")?.addEventListener("click", () => {
   fitSpatialHistory(spatialView);
   drawPreview();
 });
-document.querySelector("[data-testid='spatial-reset']").addEventListener("click", () => {
+document.querySelector("[data-testid='spatial-reset']")?.addEventListener("click", () => {
   resetSpatialRange(spatialView);
   drawPreview();
 });
@@ -1895,6 +2061,7 @@ document.querySelector("[data-testid='spatial-trail']").addEventListener("click"
   drawPreview();
 });
 
+stageNavigation=installStageNavigation({canvas:els.canvas,resetButton:document.querySelector('[data-testid="cleanup-reset-view"]'),view:spatialView,draw:()=>drawPreview()});
 const panelDivider = document.querySelector("[data-testid='panel-divider']");
 const panelLayout = panelDivider.parentElement;
 function setSourcePanelWidth(percent) {
@@ -1933,8 +2100,8 @@ window.addEventListener("resize", () => drawPreview());
 const bogaeCanvasResizeObserver = new ResizeObserver(() => {
   const rect = els.canvas.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0) return;
-  const width = Math.max(320, Math.floor(rect.width));
-  const height = Math.max(240, Math.floor(rect.height));
+  const width = Math.max(1, Math.floor(rect.width));
+  const height = Math.max(1, Math.floor(rect.height));
   if (els.canvas.width !== width || els.canvas.height !== height) drawPreview();
 });
 bogaeCanvasResizeObserver.observe(els.canvas);
@@ -2024,6 +2191,7 @@ async function requestProjectEdit(operation) {
 }
 
 async function applyVirtualProjectSource(source, { rememberUndo = true } = {}) {
+  invalidateCoCreation();
   const currentProjectValue=currentProject();
   const authored=Boolean(currentProjectValue.authoredArtifact?.source_snapshot?.root_path);
   const context={projectId:state.projectId,generation:state.projectEditGeneration,sourceJson:JSON.stringify(currentVirtualProjectSource())};
@@ -2789,7 +2957,11 @@ function openProgressiveDialog(dialog) {
 
 document.querySelector("[data-testid='project-storage-open']")?.addEventListener("click", () => openProgressiveDialog(els.projectStorageDrawer));
 
-document.querySelector("[data-testid='authored-project-open']")?.addEventListener("click", () => openProgressiveDialog(document.querySelector('[data-testid="authored-project-drawer"]')));
+document.querySelector("[data-testid='authored-project-open']")?.addEventListener("click", () => {
+  // The opener is hidden when More closes. Let the modal restore visible focus.
+  document.querySelector('[data-testid="project-more-menu"] > summary')?.focus();
+  openProgressiveDialog(document.querySelector('[data-testid="authored-project-drawer"]'));
+});
 document.querySelector('[data-authored-close]')?.addEventListener('click',()=>{
   const dialog=document.querySelector('[data-testid="authored-project-drawer"]');
   if(workbenchLogicalPresentationState.logicalPanel?.logicalExecution.status().started)workbenchLogicalPresentationState.logicalPanel.logicalExecution.closeViewDialog(dialog);
@@ -2803,6 +2975,12 @@ const authoredProjectPanel = installAuthoredProjectPanel({
   exportRuntime:exportCurrentRuntimeProject,
   saveProject:saveProjectSnapshot,
   reopenProject:reopenProjectSnapshot,
+  onSourceReopened:()=>{
+    const message='저장 원문을 다시 열었습니다.';
+    state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'source_only',
+      server_saved:false,local_saved:true,user_label:message};
+    renderPersistenceFeedback({phase:'source_reopened',original:message});
+  },
   capture:()=>({
     selected_project:state.projectId,
     source_profile:workbenchSourceProfile(currentProject()),
@@ -2812,6 +2990,7 @@ const authoredProjectPanel = installAuthoredProjectPanel({
     },
   }),
   apply:async (artifact,projectContext={})=>{
+    for (const changed of projectMathSourceListeners) changed();
     const id=`authored_${artifact.authored_identity.logical_dependency_id}`;
     // Display context only. The admitted artifact remains the sole source of
     // authored identity, source bytes and registration; never infer them here.
@@ -2839,7 +3018,7 @@ const authoredProjectPanel = installAuthoredProjectPanel({
       }
       files=projected.files.map(file=>({path:file.path,role:file.role,fallback:file.utf8_text}));
     }else files=snapshot.files.map(file=>({path:file.path,role:'main',fallback:file.text}));
-    const project={id,title,kind:'내 작업',summary:'명시 정체를 가진 원문입니다. 등록한 보개짜임은 저장된 정체로 실행합니다.',tags:['내 작업'],primaryView:'line',viewGrade:'output-only',viewPolicy:{primary:'원문 결과',side:'',overlay:'',magnifier:''},sourceProfileIdentity:artifact.source_profile,files,authoredArtifact:artifact};
+    const project={id,title,kind:'내 작업',summary:'명시 정체를 가진 원문입니다. 등록한 보개짜임은 저장된 정체로 실행합니다.',tags:['내 작업'],primaryView:'line',viewGrade:'output-only',viewPolicy:{primary:'원문 결과',side:'',overlay:'',magnifier:''},sourceProfileIdentity:artifact.source_profile,files,authoredArtifact:artifact,sourceOnlyFreshExecution:projectContext.sourceOnlyFreshExecution===true};
     if(projectContext.logicalInput) {project.logicalInput={...projectContext.logicalInput};}
     if(snapshot.root_path) project.portableSnapshot={source_profile_identity:artifact.source_profile,local_package_payload:{kind:'seamgrim.local_project_tree.v0',root_path:snapshot.root_path,entry_path:snapshot.entry_path,files:files.map(file=>({path:file.path,role:file.role,utf8_text:file.fallback}))}};
     workbenchProjectRegistryState.receivedPortableProjects=[project,...workbenchProjectRegistryState.receivedPortableProjects.filter(row=>row.id!==id)];
@@ -2907,6 +3086,17 @@ els.portableImport?.addEventListener("click", () => {
 });
 const sourceFileInput=document.querySelector('[data-testid="source-file-input"]');
 document.querySelector('[data-testid="source-file-open"]')?.addEventListener('click',()=>sourceFileInput.click());
+document.querySelector('[data-testid="source-file-save"]').onclick=()=>{
+  const notice=document.querySelector('[data-testid="source-file-save-status"]');
+  try {
+    const c=coCreationAdapter.read();
+    const name=c.documentId.split(/[\\/]/u).at(-1);
+    if(!/\.(ddn|또니)$/iu.test(name))throw Error('현재 DDN 파일의 이름을 확인하세요.');
+    const blob=new Blob([c.source],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    notice.textContent=currentProject().directDdnWork?'현재 DDN 파일 하나만 저장을 요청했습니다. 다른 원문과 세계·진행은 포함하지 않습니다. 다운로드 완료는 브라우저에서 확인하세요.':'DDN 원문 파일 저장을 요청했습니다. 다운로드 완료는 브라우저에서 확인하세요. 세계·진행은 포함하지 않습니다.';
+  }catch(error){notice.textContent=String(error.message??error);}
+};
 let sourceFileRequest=0;
 sourceFileInput?.addEventListener('change',async()=>{
   const file=sourceFileInput.files?.[0];if(!file)return;
@@ -2918,9 +3108,9 @@ sourceFileInput?.addEventListener('change',async()=>{
       || state.sourceAnalysisGeneration!==prior.generation || els.sourceEditor.value!==prior.text)
       throw new Error('E_SOURCE_FILE_STALE: 파일을 읽는 동안 원문이 바뀌었습니다. 다시 여세요.');
     // This ID is an in-memory UI locator, never a permanent authored identity.
-    const id='opened_v25_source';
+    const id=`opened_v25_source_${Date.now().toString(36)}_${request}`;
     const project={...buildOneFileProject(opened.source),id,title:opened.name,
-      kind:'v25 한 파일',summary:'v25로 명시하여 연 원문입니다. 열기만으로 실행하거나 영구 정체를 만들지 않습니다.',
+      kind:'v25 한 파일',nativeStandaloneSource:true,nativeSaveOnFirstUse:true,directDdnWork:true,sourceOnlyFreshExecution:true,summary:'v25로 명시하여 연 원문입니다. 열기만으로 실행하거나 영구 정체를 만들지 않습니다.',
       sourceProfileIdentity:SOURCE_ANALYSIS_PROFILE_IDENTITY,
       files:[{path:opened.name,role:'main',fallback:opened.source}]};
     workbenchProjectRegistryState.receivedPortableProjects=[project,...workbenchProjectRegistryState.receivedPortableProjects.filter(row=>row.id!==id)];
@@ -2930,6 +3120,22 @@ sourceFileInput?.addEventListener('change',async()=>{
     pushDiagnostic(diagnostic.code,diagnostic.message,'error');renderAll();
   }finally{if(request===sourceFileRequest)sourceFileInput.value='';}
 });
+const ddnWorkOpen=installDdnWorkOpen({bridge:runtimeBridge,
+  readContext:()=>coCreationAdapter.read(),
+  apply:async(projected,expected,opened)=>{
+    if(JSON.stringify(coCreationAdapter.read())!==expected)throw Error('작품·원문이 바뀌어 열기를 취소했습니다.');
+    const id=`opened_v25_work_${Date.now().toString(36)}_${++sourceFileRequest}`;
+    const files=projected.files.map(f=>({path:f.path,role:f.role,fallback:f.utf8_text}));
+    const project={...buildOneFileProject(' '),id,title:projected.root_path,kind:'직접 연 DDN 작품',directDdnWork:true,
+      summary:'선택한 DDN 원문을 공통 검사기로 확인했습니다. 열기만으로 실행·저장하지 않습니다.',files,
+      sourceProfileIdentity:opened.profile,directDdnArtifactText:opened.artifactText??null,
+      portableSnapshot:{source_profile_identity:opened.profile,local_package_payload:{
+        kind:'seamgrim.local_project_tree.v0',root_path:projected.root_path,entry_path:projected.entry_path,
+        files:projected.files}}};
+    workbenchProjectRegistryState.receivedPortableProjects=[project,...workbenchProjectRegistryState.receivedPortableProjects.filter(p=>p.id!==id)];
+    await selectProject(id,{selectedFilePath:projected.entry_path});
+  }});
+window.addEventListener('pagehide',()=>ddnWorkOpen.dispose(),{once:true});
 els.portableImportInput?.addEventListener("change", async () => {
   const file = els.portableImportInput.files?.[0] ?? null;
   if(!file)return;
@@ -3043,6 +3249,18 @@ els.myWorkList?.addEventListener("click", (event) => {
   if(row?.origin_kind==='native_source') {
     workbenchAuthoredPanelAccess.current.reopenNativeLocator(row.native_source_locator,{title:row.title,logicalInput:row.native_input_profile,expectedNativeProjectId:projectId}).then(async result=>{
       await selectProjectInputContract(currentProject());
+      // A project switch during input-contract resolution invalidates this UI completion.
+      if(currentProject().authoredArtifact?.authored_identity?.logical_dependency_id!==projectId)return;
+      // Refresh this row only from the panel's actual protected readback.
+      // The global last locator may belong to a different open work.
+      try {
+        const nativeLocator=workbenchAuthoredPanelAccess.current.getNativeSourceLocator();
+        if(nativeLocator&&JSON.parse(nativeLocator).native_source_project_id===projectId)
+          rememberMyWorkProject({projectId,title:currentProject().title,
+            source:'native_source',nativeLocator,logicalInput:row.native_input_profile});
+      } catch(error) {
+        pushDiagnostic('W_NATIVE_WORK_LIST_NOT_UPDATED','Native 저장 원문은 열었지만 내 작업 목록을 갱신하지 못했습니다. 현재 편집을 보관하세요.');
+      }
       state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'source_only',server_saved:false,local_saved:true,user_label:result.message};
       renderAll();
     }).catch(error=>{pushDiagnostic('E_NATIVE_WORK_REOPEN_FAILED',sourceStorageErrorMessage(error),'error');renderAll();});
@@ -3080,7 +3298,7 @@ els.myWorkList?.addEventListener("click", (event) => {
   });
 });
 
-window.__SEAMGRIM_APPROVED_WORKBENCH__ = createApprovedWorkbenchApi({ activeFrame, analyzeSourceReadiness, applySourceReadinessFixIt, attemptMutateParentHash, attemptOverwriteActiveRun, attemptReuseRunId, branchFromCursor, buildCurrentPortableProjectArtifact, buildProjectSnapshot, buildServerProjectArtifact, cloneCurrentPortableProject, currentPortableLineage, currentProject, els, exportPortableProject, getSourceReadinessCandidate, openPendingPortableProject, openRunArchiveDetail, pauseRun, previewPortableProjectFile, projectStorageKey, readMyWorkIndex, readPortableProjectCatalog, reopenProjectSnapshot, resumeRun, saveProjectSnapshot, sourceReadinessSnapshot, startRun, state, stepForward, stopRun, summarizeRunArchiveBoundary, workbenchProjectRegistryState });
+window.__SEAMGRIM_APPROVED_WORKBENCH__ = createApprovedWorkbenchApi({ activeFrame, analyzeSourceReadiness, applySourceReadinessFixIt, attemptMutateParentHash, attemptOverwriteActiveRun, attemptReuseRunId, branchFromCursor, buildCurrentPortableProjectArtifact, buildProjectSnapshot, buildServerProjectArtifact, cloneCurrentPortableProject, currentPortableLineage, currentProject, els, exportPortableProject, getSourceReadinessCandidate, openPendingPortableProject, openRunArchiveDetail, pauseRun, previewPortableProjectFile, projectStorageKey, readMyWorkIndex, readPortableProjectCatalog, reopenProjectSnapshot, resumeRun, saveProjectSnapshot, sourceReadinessSnapshot, startRun, state, stepForward, stopRun, summarizeRunArchiveBoundary, workbenchProjectRegistryState, readProjectLanguageSupport:()=>multilangHost.languageSupportState(), refreshProjectLanguageSupport:()=>multilangHost.refreshLanguageSupport() });
 const multilangDialog = document.querySelector('[data-testid="multilang-dialog"]');
 function readNotebookEquationContext() {
   return { projectId: currentProject().id, path: activeFile().path,
@@ -3128,6 +3346,11 @@ notebookHost = installNotebookHost({
   opener: document.querySelector('[data-testid="math-notebook-open"]'),
   runtimeBridge,
   readEquationContext: readNotebookEquationContext,
+  sourceStatusElement: els.saveStatus,
+  modelProviders: {
+    uniform_motion: createUniformMotionProvider(runtimeBridge, 'uniform_motion'),
+    water_tank: createUniformMotionProvider(runtimeBridge, 'water_tank'),
+  },
   applyEquationSource: applyNotebookEquationSource,
   saveEquationSource: saveNotebookEquationSource,
   readSource: () => {
@@ -3153,13 +3376,136 @@ notebookHost = installNotebookHost({
 });
 notebookHost.connectProducer(createUniformMotionProvider(runtimeBridge));
 window.addEventListener('pagehide', () => notebookHost.dispose(), { once: true });
+const projectMathRoot = document.createElement('details');
+projectMathRoot.dataset.testid = 'project-math-inspector';
+const projectMathSummary = document.createElement('summary');
+projectMathSummary.textContent = '전체 작품 보임 관찰'; projectMathRoot.append(projectMathSummary);
+const projectMathBody = document.createElement('div'); projectMathRoot.append(projectMathBody);
+document.querySelector('[data-testid="math-notebook-dialog"]').append(projectMathRoot);
+const projectMathInspector = mountProjectMathInspector(projectMathBody, {
+  readSourceProject: () => {
+    const raw = workbenchAuthoredPanelAccess.current?.getRunProjectArtifact();
+    if (!raw) throw new Error('현재 전체 작품의 작성 자료를 먼저 여세요.');
+    return raw;
+  },
+  inspectObservation: request => runtimeBridge.observeAlgebraProject(request),
+  renderSteps: equationObservationHtml,
+  subscribeSource: invalidate => {
+    projectMathSourceListeners.add(invalidate);
+    const saved = new MutationObserver(invalidate);
+    saved.observe(els.saveStatus, {childList:true, subtree:true, characterData:true});
+    return () => { projectMathSourceListeners.delete(invalidate); saved.disconnect(); };
+  },
+});
+window.addEventListener('pagehide', () => projectMathInspector.dispose(), {once:true});
+
+// BOGAE_SELECTED_TABLE_HOST_BEGIN
+function selectedTableRunKey(run) {
+  return JSON.stringify([run.project_id, run.run_id]);
+}
+function selectedTableLogicalKey(presentation) {
+  return JSON.stringify([presentation.projectId, presentation.generation]);
+}
+function invalidateSelectedTableHost(reason) {
+  if (selectedTableHostState.disposed) return;
+  if (reason === 'context') {
+    selectedTableHostState.contextFence = {projectId: state.projectId, path: state.activeFilePath};
+  } else {
+    const run = activeRun();
+    if (run) selectedTableHostState.blockedRuns.add(selectedTableRunKey(run));
+    const logical = workbenchLogicalPresentationState.logicalPresentation;
+    if (logical) selectedTableHostState.blockedLogical.add(selectedTableLogicalKey(logical));
+  }
+  selectedTableHostState.notified = null;
+  for (const changed of [...selectedTableStateListeners]) changed();
+}
+function selectedTableCurrentContext() {
+  if (selectedTableHostState.disposed || state.runtimeBusy || state.sourceAnalysisInFlight || state.projectLoadError) return null;
+  const project = currentProject();
+  if (!project || project.id !== state.projectId || !state.fileTexts.has(state.activeFilePath)) return null;
+  if (coCreationDisplayText(state.fileTexts.get(state.activeFilePath)) !== els.sourceEditor.value) return null;
+  const fence = selectedTableHostState.contextFence;
+  if (fence && fence.projectId === state.projectId && fence.path === state.activeFilePath) return null;
+  const logicalStatus = workbenchLogicalPresentationState.logicalPanel?.logicalExecution.status();
+  if (logicalStatus?.busy) return null;
+  const logical = currentLogicalPresentation();
+  let context;
+  if (logical) {
+    if (!logical.value || selectedTableHostState.blockedLogical.has(selectedTableLogicalKey(logical))) return null;
+    context = {kind: 'logical', owner: logical, value: logical.value};
+  } else {
+    // An active logical owner without an admitted current presentation must not
+    // borrow an unrelated ordinary run's old frame.
+    if (logicalStatus?.started) return null;
+    const run = activeRun(), frame = activeFrame();
+    if (!run || run.project_id !== state.projectId || activeRunSourceChanged() || !frame?.wasm_state
+      || selectedTableHostState.blockedRuns.has(selectedTableRunKey(run))) return null;
+    if (frame.state_hash && frame.wasm_state.state_hash && frame.state_hash !== frame.wasm_state.state_hash) return null;
+    context = {kind: 'ordinary', owner: run, frame, value: frame.wasm_state};
+  }
+  // Local change detection, never a new source identity, seal or producer hash.
+  context.projectId = state.projectId;
+  context.path = state.activeFilePath;
+  context.source = JSON.stringify(project.files.map(file => [file.path, state.fileTexts.get(file.path)]));
+  context.projectGeneration = state.projectEditGeneration;
+  selectedTableHostState.contextFence = null;
+  return context;
+}
+function readSelectedTableState() {
+  try { return selectedTableCurrentContext()?.value ?? null; } catch { return null; }
+}
+function notifySelectedTableHost() {
+  if (selectedTableHostState.disposed || !selectedTableStateListeners.size) return;
+  let next;
+  try { next = selectedTableCurrentContext(); } catch { next = null; }
+  const previous = selectedTableHostState.notified;
+  if (next === previous || (next && previous && next.kind === previous.kind && next.owner === previous.owner
+    && next.frame === previous.frame && next.value === previous.value && next.projectId === previous.projectId
+    && next.path === previous.path && next.source === previous.source && next.projectGeneration === previous.projectGeneration)) return;
+  selectedTableHostState.notified = next;
+  for (const changed of [...selectedTableStateListeners]) changed();
+}
+const selectedTableRoot = document.createElement('details');
+selectedTableRoot.dataset.testid = 'selected-table-inspector';
+const selectedTableSummary = document.createElement('summary');
+selectedTableSummary.textContent = '현재 작품의 표 관측';
+const selectedTableBody = document.createElement('div');
+selectedTableRoot.append(selectedTableSummary, selectedTableBody);
+document.querySelector('[data-testid="math-notebook-dialog"]').append(selectedTableRoot);
+const selectedTableInspector = mountSelectedTableView(selectedTableBody, {
+  readState: readSelectedTableState,
+  subscribeState: changed => {
+    selectedTableStateListeners.add(changed);
+    return () => selectedTableStateListeners.delete(changed);
+  },
+});
+window.addEventListener('pagehide', () => {
+  selectedTableHostState.disposed = true;
+  selectedTableInspector.dispose();
+  selectedTableRoot.remove();
+  selectedTableStateListeners.clear();
+  selectedTableHostState.blockedRuns.clear();
+  selectedTableHostState.blockedLogical.clear();
+  selectedTableHostState.notified = null;
+}, {once: true});
+// BOGAE_SELECTED_TABLE_HOST_END
+
 const multilangHost = installMultilangHost({
   root:multilangDialog.querySelector('[data-testid="multilang-root"]'),runtimeBridge,
+  rememberNativeSave:({projectId,nativeLocator}) => {
+    try {
+      rememberMyWorkProject({projectId,title:currentProject().title,source:'native_source',nativeLocator});
+    } catch (error) {
+      pushDiagnostic('W_NATIVE_WORK_LIST_NOT_UPDATED','Native 원문은 저장했지만 내 작업 목록을 갱신하지 못했습니다.','warning');
+    }
+  },
   readContext:() => {
     const project=currentProject();
     return {projectId:project.id,path:activeFile().path,profile:workbenchSourceProfile(project),
       running:Boolean(state.runtimeBusy||state.livePump?.in_flight||state.runtimeStatus==='running'),
-      artifactText:workbenchAuthoredPanelAccess.current.getRunProjectArtifact()||workbenchAuthoredPanelAccess.current.getRunArtifact(),
+      artifactText:(project.directDdnWork && workbenchSourceProfile(project) === 'v1-core-v25-ja-base-r1'
+        ? project.directDdnArtifactText : null) || workbenchAuthoredPanelAccess.current.getRunProjectArtifact()
+        || workbenchAuthoredPanelAccess.current.getRunArtifact(),
       locator:localStorage.getItem('ddn.authored_project.last.v1')??'',
       sourceSnapshot:{entry_path:localProjectEntryPath(project),
         files:project.files.map(file=>({path:file.path,text:state.fileTexts.get(file.path)??''})),
@@ -3172,11 +3518,11 @@ document.querySelector('[data-testid="multilang-open"]').addEventListener('click
     pushDiagnostic('E_MULTILANG_PAUSE_REQUIRED','현재 실행을 일시정지한 뒤 다국어 소비 패널을 여세요.','warning');return;
   }
   if(!multilangDialog.open)multilangDialog.show();
-  void multilangHost.loadCurrent();
+  void multilangHost.loadCurrent({quietWhenMissing:true});
 });
 document.querySelector('[data-testid="multilang-close"]').addEventListener('click',()=>multilangDialog.close());
 window.addEventListener('pagehide',()=>multilangHost.dispose(),{once:true});
-workbenchLogicalPresentationState.logicalPanel = createLogicalPresentationPanel({ installLogicalInputPanel, activeSourceText, workbenchAuthoredPanelAccess, nativeSourceAvailable, nativeSourceRequest, renderExecutionControls, els, workbenchLogicalPresentationState, state, renderViewPolicy, currentProject, drawPreview, renderSemanticObservations, createNativeProject });
+workbenchLogicalPresentationState.logicalPanel = createLogicalPresentationPanel({ installLogicalInputPanel, activeSourceText, workbenchAuthoredPanelAccess, nativeSourceAvailable, nativeSourceRequest, renderExecutionControls:()=>{renderExecutionControls();notifySelectedTableHost();}, els, workbenchLogicalPresentationState, state, renderViewPolicy, currentProject, drawPreview, renderSemanticObservations, createNativeProject, prepareLogicalEditorSource, logicalEditorSourceKey });
 document.querySelector('[data-testid="logical-record-open"]').addEventListener('click', () => {
   const drawer = document.querySelector('[data-testid="logical-record-drawer"]');
   workbenchLogicalPresentationState.logicalPanel.open = true;
@@ -3204,3 +3550,290 @@ document.querySelector('[data-testid="first-steps-input-contract"]').addEventLis
     await workbenchLogicalPresentationState.logicalPanel.logicalExecution.selectContract({bindingJson,actionsJson,capacity:128});
   } catch(error){pushDiagnostic('E_FIRST_STEPS_INPUT',String(error),'error');renderAll();}
 });
+
+// V6 first vertical: one fixed proposal, editor CAS only, explicit existing save/run.
+const coCreationAdapter=createEditorCoCreationAdapter({
+  readCompletedRuns:()=>completedSceneHost ? completedSceneHost.list() : completedRunSelection.list(),
+  selectCompletedRunPair:(a,b)=>completedSceneHost.choose(a,b),
+  readContext:()=>{
+    const project=currentProject(),projectSource=currentVirtualProjectSource(project);
+    const documentId=activeFile().path, source=state.fileTexts.get(documentId);
+    if(typeof source!=='string'||coCreationDisplayText(source)!==els.sourceEditor.value)
+      throw Error('화면과 프로젝트 원문이 다릅니다. 현재 문서를 다시 확인하세요.');
+    return {projectId:project.id,documentId,source,
+      profile:workbenchSourceProfile(project),projectSource,
+      // Editor-local token, not authored identity or persistent source revision.
+      revision:JSON.stringify([coCreationEditEpoch,project.id,activeFile().path,
+        workbenchSourceProfile(project),project.authoredArtifact?.authored_identity?.logical_dependency_id??'',projectSource])};
+  },
+  assertCanEdit:()=>{if(els.sourceEditor.readOnly||sourceReadinessViewOnly())throw Error('현재 원문은 편집할 수 없습니다.');},
+  replaceSource:source=>{
+    const projectId=state.projectId, documentId=activeFile().path;
+    if(source===state.fileTexts.get(documentId))return;
+    if(coCreationExactEdit)throw Error('원문 교체가 이미 진행 중입니다.');
+    coCreationApplying=true;
+    try{
+      coCreationEditEpoch++;
+      coCreationExactEdit={projectId,documentId,source};
+      els.sourceEditor.value=source;
+      els.sourceEditor.dispatchEvent(new Event('input',{bubbles:true}));
+      if(state.projectId!==projectId||activeFile().path!==documentId||state.fileTexts.get(documentId)!==source)
+        throw Error('정확한 원문 교체를 확인할 수 없습니다. 현재 문서를 확인하세요.');
+    }finally{coCreationExactEdit=null;coCreationApplying=false;}
+  },
+  validateProject:source=>runtimeBridge.prepareProjectLink(source,'',true,true),
+});
+coCreationFlow=createCoCreation({...coCreationAdapter,provider:fixedSpeedSuggestion});
+const coCreationRoot=document.createElement('details');
+coCreationRoot.dataset.testid='co-creation';
+coCreationRoot.style.cssText='flex:0 0 auto;max-height:18vh;overflow:auto;box-sizing:border-box;padding:0.5rem;border:1px solid #8b8b8b';
+const coCreationSummary=document.createElement('summary');coCreationSummary.textContent='고정 제안 체험 · AI 미연결';coCreationRoot.append(coCreationSummary);
+for(const example of [
+  {label:'배달 로봇 예제 열기',testid:'co-creation-open-robot',directory:'./co_creation/배달로봇/'},
+  {label:'원 그림 예제 열기',testid:'co-creation-open-circle',directory:'../../first_steps_rc1/course36/23/'},
+]) {
+  const button=document.createElement('button');button.type='button';button.textContent=example.label;button.dataset.testid=example.testid;
+  button.addEventListener('click',async()=>{
+    button.disabled=true;
+    const openingContext=JSON.stringify([coCreationEditEpoch,state.projectId,state.activeFilePath]);
+    try{
+      const files=await Promise.all(['root.ddn','main.ddn'].map(async path=>{
+        const response=await fetch(new URL(example.directory+path,import.meta.url));
+        if(!response.ok)throw Error(`DDN 예제 원문을 열 수 없습니다: ${path}`);
+        return new File([await response.arrayBuffer()],path,{type:'text/plain'});
+      }));
+      if(openingContext!==JSON.stringify([coCreationEditEpoch,state.projectId,state.activeFilePath]))throw Error('예제를 여는 동안 원문이나 작품이 바뀌었습니다. 다시 여세요.');
+      await ddnWorkOpen.openFiles(files,{rootPath:'root.ddn',entryPath:'main.ddn'});
+      coCreationRoot.open=true;
+    }catch(error){pushDiagnostic('E_CO_CREATION_OPEN',String(error?.message??error),'error');renderAll();}
+    finally{button.disabled=false;}
+  });
+  coCreationRoot.append(button);
+}
+const coCreationGuide=document.createElement('a');coCreationGuide.href=new URL('./co_creation/첫걸음.md',import.meta.url).href;coCreationGuide.target='_blank';coCreationGuide.rel='noopener';coCreationGuide.textContent='첫걸음 읽기';coCreationRoot.append(coCreationGuide);
+const coCreationBody=document.createElement('div');coCreationRoot.append(coCreationBody);
+const unmountCoCreationPanel = mountCoCreationPanel(coCreationBody,coCreationFlow);
+const completedSceneRoot = document.createElement('section');
+completedSceneRoot.dataset.testid = 'completed-scene-host';
+coCreationBody.append(completedSceneRoot);
+completedSceneHost = installCompletedSceneHost(completedSceneRoot, {
+  selectionRoot: coCreationBody.querySelector('[data-testid="completed-run-selection"]'),
+  selection: completedRunSelection,
+  canonicalForFrame: snapshot => buildCommittedFrameCanonicalViewPayloads(snapshot.run, snapshot.frame),
+  semanticForFrame: snapshot => buildCommittedSemanticViewPayload({
+    project: snapshot.project, run: snapshot.run, frame: snapshot.frame, viewConfig: snapshot.viewConfig,
+    canonicalViewPayloads: buildCommittedFrameCanonicalViewPayloads(snapshot.run, snapshot.frame),
+    canonicalViewHistory: buildCommittedCanonicalViewHistory(snapshot.run, snapshot.frame, snapshot.project.primaryView),
+  }),
+  selectOutput: selectCommittedOutputView,
+  renderSpace2d: renderSpace2dCanvas2d,
+});
+window.addEventListener('pagehide', () => {
+  completedSceneHost.dispose(); unmountCoCreationPanel();
+}, { once: true });
+for(const pre of coCreationBody.querySelectorAll('pre'))pre.style.cssText='max-height:8rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere';
+els.sourceEditor.closest('section')?.append(coCreationRoot);
+// Independent ordinary Worker: no Native locator, source-save, or world grant.
+const temporaryRunRoot=document.createElement('details');
+temporaryRunRoot.style.cssText='margin:12px 0;padding:12px;border:1px solid var(--line,#ccc);max-width:100%;overflow-wrap:anywhere';
+document.querySelector('[data-testid="workbench-layout"]').after(temporaryRunRoot);
+document.querySelector('[data-testid="editor-run"]').onclick=()=>{
+  temporaryRunRoot.open=true;
+  temporaryRunRoot.querySelector('[data-temp="start"]').click();
+  temporaryRunRoot.scrollIntoView({block:'start'});
+};
+temporaryEditorRun=mountTemporaryEditorRun(temporaryRunRoot,{onChanged:record=>{
+  const running=record?.status==='running';
+  if(temporaryEditorRunning!==running){
+    temporaryEditorRunning=running;
+    renderExecutionControls();
+  }
+  notifyPngProduct();
+  cleanupShell?.refresh();
+},onDiagnosticSource:(location,context)=>{
+  const path=location.source_path;
+  const captured=context.projectSource?.files.find(file=>file.path===path)?.utf8_text;
+  if(currentProject().id!==context.projectId||state.fileTexts.get(path)!==captured)return;
+  const selection=textareaSelectionForUtf8Span(captured,location.source_span);
+  if(!selection||!currentProject().files.some(file=>file.path===path))return;
+  selectFile(path);
+  if(activeFile().path!==path||els.sourceEditor.value!==coCreationDisplayText(captured))return;
+  els.sourceEditor.focus();
+  els.sourceEditor.setSelectionRange(selection.start,selection.end);
+},readContext:()=>{
+  const project=currentProject(),documentId=activeFile().path,source=state.fileTexts.get(documentId);
+  if(typeof source!=='string'||coCreationDisplayText(source)!==els.sourceEditor.value)throw Error('화면과 실제 원문이 다릅니다.');
+  if(state.nextInput&&!queuedInputBindingValid(state.nextInput,inputSnapshotRequestBinding(project,source)))throw Error('E_INPUT_SNAPSHOT_BINDING_REQUIRED');
+  const projectSource=currentVirtualProjectSource(project);
+  const recipe=state.pendingRecipe?.project_id===project.id&&state.pendingRecipe?.authoring_plan_hash===state.projectControls?.authoring_plan_hash?state.pendingRecipe:null;
+  const panel = workbenchAuthoredPanelAccess.current;
+  const nominalSourceArtifactText = panel.getNominalSourceArtifact();
+  const savedProjectArtifactText = panel.hasNativeSourceContext() && !panel.hasSourceEdits()
+    && (state.persistenceStatus?.mode === 'source_only' || panel.nativeSourceRunOptions().nativeSourceFirstRetry)
+    ? panel.getRunProjectArtifact() : '';
+  const captured={projectId:project.id,documentId,source,profile:workbenchSourceProfile(project),projectSource,
+    portableJ1Tree:isPortableJ1Tree(project,projectSource),nominalSourceArtifactText,
+    projectArtifactText:savedProjectArtifactText||(project.directDdnArtifactText??(project.sourceOnlyFreshExecution&&project.authoredArtifact?.source_snapshot?.root_path?JSON.stringify(project.authoredArtifact):null)),
+    revision:JSON.stringify([coCreationEditEpoch,project.id,documentId,source,projectSource,nominalSourceArtifactText]),
+    initialInput:state.nextInput?{keys:state.nextInput.keys,lastKey:state.nextInput.lastKey,px:state.nextInput.px,py:state.nextInput.py,dt:state.nextInput.dt,dtText:state.nextInput.dtText}:null,
+    controls:recipe?.controls??[],bogaeEntry:document.querySelector('[data-testid="bogae-entry"]').value.trim(),
+    running:Boolean(state.runtimeBusy||state.livePump?.in_flight||state.runtimeStatus==='running')};
+  captured.binaryInput=pngProductHost?.captureFor(captured)??null;return captured;
+}});
+window.addEventListener('pagehide',()=>temporaryEditorRun.dispose(),{once:true});
+const pngRoot=document.createElement('details');pngRoot.dataset.testid='png-product-host';
+const pngSummary=document.createElement('summary');pngSummary.textContent='그림 원자료와 현재 보기';pngRoot.append(pngSummary);pngRoot.style.cssText='flex:0 1 auto;min-height:0;max-height:60%;overflow:auto;padding:8px;box-sizing:border-box';document.querySelector('[data-testid="bogae-panel"]').append(pngRoot);
+pngProductHost=mountPngProductHost(pngRoot,{readRun:()=>temporaryEditorRun.snapshot(),
+  readContext:()=>{const c=coCreationAdapter.read(),project=currentProject();return {...c,profile:workbenchSourceProfile(project),projectArtifactText:project.directDdnArtifactText??null,projectSource:currentVirtualProjectSource(project)};},
+  subscribeState:listener=>{pngProductListeners.add(listener);return()=>pngProductListeners.delete(listener);},onInputChanged:syncPngSelector});
+temporaryRunRoot.querySelector('[data-temp="cancel"]').addEventListener('click',()=>pngProductHost.retireRun());
+window.addEventListener('pagehide',()=>{pngProductHost.dispose();pngProductListeners.clear();},{once:true});
+let mathProductContextEpoch=0,mathProductContextKey='';
+function readMathProductContext(){
+  const c=coCreationAdapter.read(),profile=workbenchSourceProfile(currentProject());
+  const key=JSON.stringify([c.projectId,c.documentId,c.revision,c.source,profile]);
+  if(key!==mathProductContextKey){mathProductContextKey=key;mathProductContextEpoch++;}
+  return {projectId:c.projectId,path:c.documentId,sourceText:c.source,generation:mathProductContextEpoch,profile,
+    running:Boolean(state.runtimeBusy||state.livePump?.in_flight||state.runtimeStatus==='running')};
+}
+mathWorkbenchProductHost=installMathWorkbenchProductHost({toolbar:document.querySelector('[data-testid="cleanup-extension-tools"]'),readContext:readMathProductContext,
+  readProjectSource:()=>currentVirtualProjectSource(currentProject()),
+  applySource:(expected,text)=>{
+    const c=readMathProductContext();if(!expected||['projectId','path','generation','sourceText','profile'].some(k=>c[k]!==expected[k]))throw Error('원문·의존 판본이 바뀌어 적용하지 않았습니다.');
+    const result=coCreationAdapter.compareAndSet(coCreationAdapter.read(),text);if(!result.ok)throw Error('현재 원문 비교 후 적용이 거부됐습니다.');return readMathProductContext();
+  },
+  saveSource:async expected=>{
+    const c=readMathProductContext();if(['projectId','path','generation','sourceText','profile'].some(k=>c[k]!==expected[k]))throw Error('저장 전 현재 원문이 바뀌었습니다.');
+    await saveProjectSnapshot();const p=state.persistenceOperation,current=readMathProductContext();
+    if(p?.phase!=='saved'||current.path!==expected.path||current.sourceText!==expected.sourceText)throw Error('현재 원문 저장 완료를 확인하지 못했습니다.');
+    return {outcome:p.outcome,generation:p.generation};
+  }});
+window.addEventListener('pagehide',()=>mathWorkbenchProductHost.dispose(),{once:true});
+
+
+// BOGAE_MOBILE_DIALOG_BEGIN — private UI lifetime, no observation production.
+const coCreationMobileHome=document.createComment('co-creation home');
+coCreationRoot.before(coCreationMobileHome);
+const coCreationMobileDialog=document.createElement('dialog');
+coCreationMobileDialog.className='workbench-drawer';
+coCreationMobileDialog.dataset.testid='co-creation-mobile-dialog';
+coCreationMobileDialog.setAttribute('aria-labelledby','co-creation-mobile-title');
+const coCreationMobileScopedStyle=document.createElement('style');
+coCreationMobileScopedStyle.textContent=`
+[data-testid="co-creation-mobile-dialog"] { grid-template-columns:minmax(0,1fr); }
+[data-testid="co-creation-mobile-dialog"] > * { min-width:0; max-width:100%; box-sizing:border-box; }
+[data-testid="co-creation-mobile-dialog"] > .drawer-header > button { flex-shrink:0; min-width:44px; }
+[data-testid="co-creation-mobile-dialog"] > [data-testid="co-creation"] { width:100%; overflow-wrap:anywhere; }
+[data-testid="co-creation-mobile-dialog"] select { min-width:0; max-width:100%; box-sizing:border-box; }
+[data-testid="co-creation-mobile-dialog"] pre { max-width:100%; overflow-wrap:anywhere; white-space:pre-wrap; box-sizing:border-box; }
+[data-testid="co-creation-mobile-dialog"] [data-completed-pair-view] { display:grid; grid-template-columns:minmax(0,1fr); }
+`;
+document.head.append(coCreationMobileScopedStyle);
+const coCreationMobileHeader=document.createElement('header');
+coCreationMobileHeader.className='drawer-header';
+const coCreationMobileTitle=document.createElement('h2');
+coCreationMobileTitle.id='co-creation-mobile-title';
+coCreationMobileTitle.textContent='실행 비교 · 수정 후보';
+const coCreationMobileClose=document.createElement('button');
+coCreationMobileClose.type='button';coCreationMobileClose.textContent='닫기';
+coCreationMobileClose.setAttribute('aria-label','실행 비교와 수정 후보 닫기');
+coCreationMobileClose.style.minHeight='44px';
+coCreationMobileHeader.append(coCreationMobileTitle,coCreationMobileClose);
+coCreationMobileDialog.append(coCreationMobileHeader);
+document.body.append(coCreationMobileDialog);
+const coCreationMobileMedia=matchMedia('(max-width:720px)');
+const coCreationMobileStyle={maxHeight:coCreationRoot.style.maxHeight,overflow:coCreationRoot.style.overflow};
+let coCreationMobileDisposed=false;
+function showMobileCoCreation(){
+  if(coCreationMobileDisposed || !coCreationMobileMedia.matches || !coCreationRoot.open
+    || coCreationMobileDialog.open || document.querySelector('dialog[open]'))return;
+  coCreationSummary.hidden=true;
+  coCreationRoot.style.maxHeight='none';coCreationRoot.style.overflow='visible';
+  coCreationMobileDialog.append(coCreationRoot);
+  coCreationMobileDialog.showModal();coCreationMobileClose.focus();
+}
+function restoreMobileCoCreation(returnFocus=true){
+  if(coCreationMobileHome.parentNode)coCreationMobileHome.after(coCreationRoot);
+  coCreationRoot.style.maxHeight=coCreationMobileStyle.maxHeight;
+  coCreationRoot.style.overflow=coCreationMobileStyle.overflow;
+  coCreationRoot.open=false;coCreationSummary.hidden=false;
+  if(returnFocus && coCreationSummary.isConnected)coCreationSummary.focus({preventScroll:true});
+}
+const coCreationMobileClosed=()=>restoreMobileCoCreation();
+coCreationMobileClose.addEventListener('click',()=>coCreationMobileDialog.close());
+coCreationRoot.addEventListener('toggle',showMobileCoCreation);
+coCreationMobileMedia.addEventListener('change',showMobileCoCreation);
+coCreationMobileDialog.addEventListener('close',coCreationMobileClosed);
+window.addEventListener('pagehide',()=>{
+  if(coCreationMobileDisposed)return;coCreationMobileDisposed=true;
+  coCreationRoot.removeEventListener('toggle',showMobileCoCreation);
+  coCreationMobileMedia.removeEventListener('change',showMobileCoCreation);
+  coCreationMobileDialog.removeEventListener('close',coCreationMobileClosed);
+  if(coCreationMobileDialog.open)coCreationMobileDialog.close();
+  restoreMobileCoCreation(false);coCreationMobileDialog.remove();coCreationMobileHome.remove();coCreationMobileScopedStyle.remove();
+},{once:true});
+showMobileCoCreation();
+// BOGAE_MOBILE_DIALOG_END
+
+
+function currentTemporaryExecutionDiagnostics() {
+  const run=temporaryEditorRun?.snapshot();
+  if(run?.status!=='failed'||run.currentEditorDifferent)return [];
+  const project=currentProject(),path=activeFile().path,source=state.fileTexts.get(path),captured=run.context;
+  if(typeof source!=='string'||captured.projectId!==project.id||captured.documentId!==path
+    ||captured.source!==source||coCreationDisplayText(source)!==els.sourceEditor.value
+    ||captured.profile!==workbenchSourceProfile(project))return [];
+  const revision=JSON.stringify([coCreationEditEpoch,project.id,path,source,currentVirtualProjectSource(project),
+    workbenchAuthoredPanelAccess.current.getNominalSourceArtifact()]);
+  if(captured.revision!==revision)return [];
+  // ExecutionDiagnostic JSON is the same failed attempt's machine response,
+  // not a SourceAnalysis snapshot or a position parsed from human wording.
+  let diagnostic;try{diagnostic=JSON.parse(run.error);}catch{return [];}
+  const span=diagnostic?.source_span;
+  if(typeof diagnostic?.code!=='string'||typeof diagnostic.message!=='string'||diagnostic.source_path!==path
+    ||!span||!Number.isSafeInteger(span.start)||!Number.isSafeInteger(span.end)
+    ||span.start<0||span.end<span.start)return [];
+  const bytes=new TextEncoder().encode(source);if(span.end>bytes.length)return [];
+  try {const decoder=new TextDecoder('utf-8',{fatal:true});decoder.decode(bytes.slice(0,span.start));decoder.decode(bytes.slice(0,span.end));}
+  catch{return [];}
+  return [{...diagnostic,path,span:{...span,encoding:'utf-8-byte'},severity:'error'}];
+}
+
+// WO17 common shell; dedicated producers/math components keep their ownership.
+const requestedLesson = new URLSearchParams(location.search).get("lesson");
+cleanupShell=installWorkbenchCleanup({
+ openLessonOnStartup: requestedLesson === state.projectId
+   && FIRST_STEPS_PROJECTS.some(lesson => lesson.id === requestedLesson && !lesson.documentOnly),
+ read:()=>({title:displayedProjectTitle(currentProject()),path:activeFile().path,mode:state.mode,diagnostics:[...((state.projectLoadError||activeRun()&&!activeRunSourceChanged())?state.diagnostics:
+   space3RunNotice?.projectId===state.projectId&&space3RunNotice.sourceHash
+     &&space3RunNotice.sourceHash===currentVirtualProjectSourceHash()&&state.diagnostics.includes(space3RunNotice.diagnostic)
+     ?[space3RunNotice.diagnostic]:[]),...currentTemporaryExecutionDiagnostics()],temporaryRunning:temporaryEditorRunning,committedSourceCurrent:Boolean(activeRun()?.frames?.length&&!activeRunSourceChanged()),
+   readiness:state.sourceReadiness,runId:activeRun()?.run_id,hasFrames:Boolean(activeRun()?.frames?.length),save:state.persistenceOperation}),
+ openDdnWork:()=>ddnWorkOpen.open(),
+ projects:allProjects,lanes:()=>({learning:FIRST_STEPS_PROJECTS.map(p=>p.id),examples:PROJECTS.map(p=>p.id)}),
+ openProject:selectProject,
+ newProject:async()=>{const project={...buildOneFileProject(' '),id:`새작품_${Date.now()}`,title:'새 작품',summary:'DDN 원문을 작성하고 실행하세요.',
+   files:[{path:'새작품.또니',role:'main',fallback:''}],viewGrade:'source-only',sourceProfileIdentity:SOURCE_ANALYSIS_PROFILE_IDENTITY};
+   workbenchProjectRegistryState.customOneFileProject=project;await selectProject(project.id);},
+ readSavedLocator:()=>{const panel=workbenchAuthoredPanelAccess.current;
+   if(panel.hasNativeSourceContext()){try{const locator=panel.getNativeSourceLocator(),id=JSON.parse(locator).native_source_project_id;
+     const row=readMyWorkIndex().find(r=>r.project_id===id&&r.origin_kind==='native_source');if(row)return {kind:'native_source',id};}catch{}}
+   const snapshot=state.persistenceStatus?.snapshot;
+   return state.persistenceStatus?.mode==='local_fallback'&&snapshot?.project_id===currentProject().id?{kind:'local_fallback',id:currentProject().id}:null;},
+ restoreSaved:async locator=>{
+   if(state.capabilitySession?.project_id)return false;
+   if(locator.kind==='native_source'){
+     const row=readMyWorkIndex().find(r=>r.project_id===locator.id&&r.origin_kind==='native_source');if(!row)return false;
+     const readback=await workbenchAuthoredPanelAccess.current.reopenNativeLocator(row.native_source_locator,{title:row.title,logicalInput:row.native_input_profile,expectedNativeProjectId:locator.id});
+     await selectProjectInputContract(currentProject());
+     if(currentProject().authoredArtifact?.authored_identity?.logical_dependency_id!==locator.id)return false;
+     if(workbenchAuthoredPanelAccess.current.hasSourceEdits()){renderAll();return true;}
+     state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'source_only',server_saved:false,local_saved:true,user_label:'Native 원문 저장본을 열었습니다. 실행 진행 저장과는 별개입니다.'};
+     renderAll();renderPersistenceFeedback({phase:'source_reopened',original:readback.message});return true;
+   }
+   if(locator.kind==='local_fallback'&&allProjects().some(p=>p.id===locator.id)&&loadLocalFallbackSnapshot(locator.id)){
+     await selectProject(locator.id);return Boolean(await reopenProjectSnapshot());
+   }
+   return false;
+ }});
+window.addEventListener('pagehide',()=>cleanupShell.dispose(),{once:true});

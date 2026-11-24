@@ -6,6 +6,7 @@ pub mod commit_canon;
 pub mod engine;
 pub mod external_boundary;
 pub mod fixed64;
+pub mod solver_rk4;
 pub mod gogae3;
 pub mod input;
 pub mod nurigym;

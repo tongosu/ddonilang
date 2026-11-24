@@ -251,6 +251,7 @@ dependencies = [
  "ddonirang-core",
  "ddonirang-symbolic",
  "regex",
+ "serde",
  "serde_json",
  "unicode-normalization",
 ]

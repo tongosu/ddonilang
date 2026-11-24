@@ -90,7 +90,7 @@ export function describePersistenceStatus(status = null) {
     return "저장 전";
   }
   if(status.mode==='local_fallback') {
-    return '이 기기에만 임시 저장 · Native 저장·영수증 재현 아님. Native 실행에서 작성 자료를 가져와 저장하세요.';
+    return '이 브라우저에만 원문을 임시 저장했습니다. Native 내구 저장이나 세계 이어하기는 아닙니다. 원문을 따로 보관하세요.';
   }
   if (status.mode === "server_restore" && status.user_label) {
     return status.user_label;

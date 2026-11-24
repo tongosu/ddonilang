@@ -12,8 +12,15 @@ struct DefinitionScope { source: Arc<SourceContext> }
 pub struct Scope(Arc<DefinitionScope>);
 impl PartialEq for Scope { fn eq(&self, other: &Self) -> bool { Arc::ptr_eq(&self.0, &other.0) } }
 impl Eq for Scope {}
+/// Source display coordinates only. Never an identity or checker authority.
+#[derive(Debug, Clone)]
+pub struct SourceDeclaration { label: String, span: Span }
+impl SourceDeclaration {
+    pub fn label(&self) -> &str { &self.label }
+    pub fn span(&self) -> Span { self.span }
+}
 #[derive(Debug)]
-struct PropositionDeclaration { scope: Scope, parts: Option<Vec<Proposition>>, law: Option<Arc<ResolvedStructureLaw>>, coordinate: Option<Arc<ResolvedCoordinateGoal>> }
+struct PropositionDeclaration { declaration: Option<SourceDeclaration>, scope: Scope, parts: Option<Vec<Proposition>>, law: Option<Arc<ResolvedStructureLaw>>, coordinate: Option<Arc<ResolvedCoordinateGoal>> }
 #[derive(Debug, Clone)]
 pub struct Proposition(Arc<PropositionDeclaration>);
 impl PartialEq for Proposition { fn eq(&self, other: &Self) -> bool {
@@ -24,16 +31,19 @@ impl Eq for Proposition {}
 impl Proposition {
     pub fn scope(&self) -> &Scope { &self.0.scope }
     pub fn coordinate_goal(&self) -> Option<&ResolvedCoordinateGoal> { self.0.coordinate.as_deref() }
+    pub fn declaration(&self) -> Option<&SourceDeclaration> { self.0.declaration.as_ref() }
     pub fn conjunction_parts(&self) -> Option<&[Proposition]> { self.0.parts.as_deref() }
     pub fn structure_law(&self) -> Option<&ResolvedStructureLaw> { self.0.law.as_deref() }
 }
 #[derive(Debug)]
-struct AssumptionDeclaration { scope: Scope, goal: Proposition }
+struct AssumptionDeclaration { declaration: SourceDeclaration, public_pin: String, scope: Scope, goal: Proposition }
 #[derive(Debug, Clone)]
 pub struct Assumption(Arc<AssumptionDeclaration>);
 impl PartialEq for Assumption { fn eq(&self, other: &Self) -> bool { Arc::ptr_eq(&self.0, &other.0) } }
 impl Eq for Assumption {}
 impl Assumption {
+    pub fn declaration(&self) -> &SourceDeclaration { &self.0.declaration }
+    pub fn public_pin(&self) -> &str { &self.0.public_pin }
     pub fn scope(&self) -> &Scope { &self.0.scope }
     pub fn goal(&self) -> &Proposition { &self.0.goal }
 }
@@ -41,6 +51,7 @@ impl Assumption {
 /// Unforgeable resolution facts, not a checker success or an unconditional proof.
 #[derive(Debug, Clone)]
 pub struct ResolvedTransfer {
+    definition_name: String,
     scope: Scope,
     goal: Proposition,
     assumptions: Vec<Assumption>,
@@ -95,6 +106,7 @@ impl ResolvedApplication {
     }
 }
 impl ResolvedTransfer {
+    pub fn definition_name(&self) -> &str { &self.definition_name }
     pub fn coordinate_calculation(&self) -> Option<&Expr> { self.coordinate_calculation.as_ref() }
     pub fn calculation_application(&self) -> Option<&ResolvedCalculationApplication> { self.calculation.as_ref() }
     pub fn structure_consumption(&self) -> Option<&ResolvedStructureConsumption> { self.consumption.as_ref() }
@@ -135,7 +147,7 @@ fn resolve_proposition(kind: &TypeRef, declarations: &HashMap<String, Propositio
         TypeRef::Named(name) => declarations.get(name).cloned().ok_or_else(|| failure(span, "E_PROOF_GOAL", "선언되지 않은 정적 명제입니다")),
         TypeRef::PropositionConjunction(parts) if parts.len() >= 2 => {
             let parts: Vec<_> = parts.iter().map(|p| resolve_proposition(p, declarations, span, depth + 1)).collect::<Result<_,_>>()?;
-            Ok(Proposition(Arc::new(PropositionDeclaration { scope: parts[0].scope().clone(), parts: Some(parts), law: None, coordinate: None })))
+            Ok(Proposition(Arc::new(PropositionDeclaration { declaration: None, scope: parts[0].scope().clone(), parts: Some(parts), law: None, coordinate: None })))
         },
         _ => Err(failure(span, "E_PROOF_GOAL", "정적 명제 또는 논리곱이 필요합니다")),
     }
@@ -155,7 +167,7 @@ fn infer_required(formal: &Proposition, actual: &Proposition, substitution: &mut
 fn instantiate_goal(goal: &Proposition, substitution: &[(Proposition, Proposition)]) -> Option<Proposition> {
     if let Some(parts) = goal.conjunction_parts() {
         let parts: Vec<_> = parts.iter().map(|p| instantiate_goal(p, substitution)).collect::<Option<_>>()?;
-        Some(Proposition(Arc::new(PropositionDeclaration { scope: parts.first()?.scope().clone(), parts: Some(parts), law: None, coordinate: None })))
+        Some(Proposition(Arc::new(PropositionDeclaration { declaration: None, scope: parts.first()?.scope().clone(), parts: Some(parts), law: None, coordinate: None })))
     } else { substitution.iter().find(|(from, _)| from == goal).map(|(_, to)| to.clone()) }
 }
 
@@ -300,24 +312,26 @@ impl PreparedProofSource {
             let [id]=ids.as_slice() else {return Err(failure(call.span,"E_PROOF_CALL_AMBIGUOUS","유일한 계산 정의가 필요합니다"))};
             let seed=self.program.items.iter().map(|TopLevelItem::SeedDef(s)|s).find(|s|s.id==*id)
                 .ok_or_else(||failure(call.span,"E_PROOF_CALL_UNRESOLVED","같은 원문의 계산 정의가 필요합니다"))?;
-            let definition=facts.iter().find(|f|f.definition_span()==seed.span && f.structure_consumption().is_some())
+            let definition=facts.iter().find(|f|f.definition_span()==seed.span
+                && (f.structure_consumption().is_some() || f.calculation_application().is_some()))
                 .ok_or_else(||failure(call.span,"E_PROOF_STRUCTURE_EXECUTION","직접 구조 소비 정의만 실행할 수 있습니다"))?;
-            let consumption=definition.structure_consumption().unwrap();
+            let direct=definition.calculation_application().map_or(definition,|call|call.definition());
+            let consumption=direct.structure_consumption().ok_or_else(||failure(call.span,
+                "E_PROOF_STRUCTURE_EXECUTION","검사된 직접 소비에 결속된 계산 호출이 필요합니다"))?;
+            let value_pin=seed.params.iter().find(|p|p.type_ref==*consumption.law().domain())
+                .ok_or_else(||failure(call.span,"E_PROOF_STRUCTURE_EXECUTION","실제 소비 정의의 값 핀이 없습니다"))?;
             let proof_pin=seed.params.iter().find(|p|matches!(&p.type_ref,TypeRef::Applied{name,..} if name=="보임")).unwrap();
-            let Stmt::Definition{name:structure,..}=consumption.law().declaration() else {unreachable!()};
-            let mut value=None; let mut proof=false;
+            let mut value=None; let mut proof=None;
             for arg in args {
-                if arg.resolved_pin.as_deref()==Some(consumption.input().pin_name.as_str()) && value.is_none() {
+                if arg.resolved_pin.as_deref()==Some(value_pin.pin_name.as_str()) && value.is_none() {
                     value=Some(arg.expr.clone());
-                } else if arg.resolved_pin.as_deref()==Some(proof_pin.pin_name.as_str()) && !proof {
-                    if !matches!(&arg.expr.kind,ExprKind::FieldAccess{target,field,..} if field=="법칙" && matches!(&target.kind,ExprKind::Var(n) if n==structure)) {
-                        return Err(failure(arg.expr.span,"E_PROOF_STRUCTURE_CONSUMPTION","같은 구조의 정적 법칙 요청이 필요합니다"));
-                    }
-                    proof=true;
+                } else if arg.resolved_pin.as_deref()==Some(proof_pin.pin_name.as_str()) && proof.is_none() {
+                    proof=Some(resolve_identity_argument(&self.program,&facts,&arg.expr,
+                        &direct.consumption.as_ref().unwrap().law,0,&mut 4096)?);
                 } else {return Err(failure(arg.expr.span,"E_PROOF_STRUCTURE_CONSUMPTION","중복되거나 다른 값/법칙 핀입니다"))}
             }
-            if args.len()!=2 || !proof || value.is_none() {return Err(failure(call.span,"E_PROOF_ASSUMPTION","실제 값과 정적 법칙 요청이 모두 필요합니다"))}
-            out.push(ResolvedIdentityExecution{definition:definition.clone(),seed:seed.clone(),call:call.clone(),value:value.unwrap()});
+            if args.len()!=2 || proof.is_none() || value.is_none() {return Err(failure(call.span,"E_PROOF_ASSUMPTION","실제 값과 정적 법칙 요청이 모두 필요합니다"))}
+            out.push(ResolvedIdentityExecution{definition:definition.clone(),seed:seed.clone(),call:call.clone(),value:value.unwrap(),argument:proof.unwrap()});
         }
         Ok(out)
     }
@@ -325,8 +339,17 @@ impl PreparedProofSource {
         self.program.items.iter().any(|TopLevelItem::SeedDef(seed)|
             seed.result_type.as_ref().is_some_and(crate::algebra_authoring::is_goal))
     }
+    pub fn has_conditional_algebra_contract(&self)->bool { crate::conditional_algebra::has_contract(&self.program) }
+    pub fn resolve_conditional_algebra(&self)->Result<Vec<crate::conditional_algebra::ResolvedDefinition>,ParseError> {crate::conditional_algebra::resolve(&self.program,&self.source,&self.path,false)}
+    pub fn resolve_project_conditional_algebra(&self)->Result<Vec<crate::conditional_algebra::ResolvedDefinition>,ParseError>{crate::conditional_algebra::resolve(&self.program,&self.source,&self.path,true)}
+    pub fn resolve_other_project_algebra(&self)->Result<Vec<crate::algebra_authoring::ResolvedAlgebraDefinition>,ParseError>{crate::algebra_authoring::resolve_other_project(&self.program,&self.source,&self.path)}
     pub fn resolve_algebra(&self)->Result<Vec<crate::algebra_authoring::ResolvedAlgebraDefinition>,ParseError> {
         crate::algebra_authoring::resolve(&self.program,&self.source,&self.path)
+    }
+    /// Typed algebra declarations only. Other declarations are not certified by
+    /// this projection; the enclosing product must retain the whole project.
+    pub fn resolve_project_algebra(&self)->Result<Vec<crate::algebra_authoring::ResolvedAlgebraDefinition>,ParseError> {
+        crate::algebra_authoring::resolve_project(&self.program,&self.source,&self.path)
     }
     pub fn program(&self) -> &CanonProgram { &self.program }
     pub fn has_coordinate_contract(&self) -> bool {
@@ -379,7 +402,7 @@ fn resolve_prepared_source(program: &CanonProgram, source: &str, path: &str) -> 
         let scope = Scope(Arc::new(DefinitionScope { source: context.clone() }));
         let mut propositions = HashMap::new();
         for (name, span) in &header.propositions {
-            if propositions.insert(name.clone(), Proposition(Arc::new(PropositionDeclaration { scope: scope.clone(), parts: None, law: None, coordinate: None }))).is_some() {
+            if propositions.insert(name.clone(), Proposition(Arc::new(PropositionDeclaration { declaration: Some(SourceDeclaration { label: name.clone(), span: *span }), scope: scope.clone(), parts: None, law: None, coordinate: None }))).is_some() {
                 return Err(failure(*span, "E_PROOF_BINDER_DUPLICATE", "정적 명제 이름이 중복되었습니다"));
             }
         }
@@ -398,6 +421,8 @@ fn resolve_prepared_source(program: &CanonProgram, source: &str, path: &str) -> 
                 return Err(failure(binding.span, "E_PROOF_BINDER_DUPLICATE", "증거 변수·명제·결과 자리는 서로 구별되어야 합니다"));
             }
             let assumption = Assumption(Arc::new(AssumptionDeclaration {
+                declaration: SourceDeclaration { label: binding.local_name.clone(), span: binding.span },
+                public_pin: binding.public_pin.clone(),
                 scope: scope.clone(), goal: resolve_goal(&pin.type_ref, &propositions, pin.span)?,
             }));
             locals.insert(binding.local_name.clone(), assumption.clone());
@@ -469,7 +494,7 @@ fn resolve_prepared_source(program: &CanonProgram, source: &str, path: &str) -> 
         };
         for index in &suffix_projection { evidence = ResolvedEvidence::Projection { evidence: Box::new(evidence), index: *index }; }
         projection.extend(suffix_projection);
-        let transfer = ResolvedTransfer { scope, goal, assumptions, evidence, definition_span: seed.span,
+        let transfer = ResolvedTransfer { definition_name: seed.canonical_name.clone(), scope, goal, assumptions, evidence, definition_span: seed.span,
             result_span: value.span, propositions: header.propositions.iter().map(|(name, _)| propositions[name].clone()).collect(),
             application, application_depth, projection, consumption: None, calculation: None, coordinate_calculation: None };
         definitions.insert(seed.id, Arc::new(transfer.clone()));
@@ -483,7 +508,7 @@ fn resolve_prepared_source(program: &CanonProgram, source: &str, path: &str) -> 
 
 fn contains_structure_law(kind: &TypeRef) -> bool {
     match kind {
-        TypeRef::AlgebraEquality { .. } => false,
+        TypeRef::AlgebraEquality { .. } | TypeRef::CardCallEquality { .. } | TypeRef::AlgebraNonzero { .. } => false,
         TypeRef::StructureLaw { .. } => true,
         TypeRef::Applied { args, .. } | TypeRef::Tuple(args)
             | TypeRef::PropositionConjunction(args) => args.iter().any(contains_structure_law),
@@ -547,12 +572,93 @@ pub struct ResolvedIdentityExecution {
     seed: SeedDef,
     call: Expr,
     value: Expr,
+    argument: ResolvedIdentityArgument,
 }
 impl ResolvedIdentityExecution {
     pub fn definition(&self)->&ResolvedTransfer { &self.definition }
     pub fn seed(&self)->&SeedDef { &self.seed }
     pub fn call(&self)->&Expr { &self.call }
     pub fn value(&self)->&Expr { &self.value }
+    pub fn argument(&self)->&ResolvedIdentityArgument { &self.argument }
+}
+
+/// A compilation-local law request or actual proof-return call. This candidate
+/// cannot be constructed by a caller or deserialized as a proof receipt.
+#[derive(Debug, Clone)]
+pub struct ResolvedIdentityArgument {
+    law: Arc<ResolvedStructureLaw>,
+    expression: Expr,
+    application: Option<Box<ResolvedIdentityArgumentApplication>>,
+}
+#[derive(Debug, Clone)]
+pub struct ResolvedIdentityArgumentApplication {
+    definition: ResolvedTransfer,
+    callee: SeedDef,
+    resolved_definition: NodeId,
+    argument: ResolvedIdentityArgument,
+}
+impl ResolvedIdentityArgument {
+    pub fn law(&self)->&ResolvedStructureLaw { &self.law }
+    pub fn expression(&self)->&Expr { &self.expression }
+    pub fn application(&self)->Option<&ResolvedIdentityArgumentApplication> { self.application.as_deref() }
+    pub fn source_matches(&self,source:&str,path:&str)->bool {
+        self.law.owner.source.source==source && self.law.owner.source.path==path
+    }
+    pub fn bindings_match(&self)->bool {
+        let Some(app)=self.application() else {
+            let Stmt::Definition{name,..}=self.law.declaration() else {return false};
+            return matches!(&self.expression.kind,ExprKind::FieldAccess{target,field,..}
+                if field=="법칙" && matches!(&target.kind,ExprKind::Var(n) if n==name));
+        };
+        let ExprKind::Call{args,..}=&self.expression.kind else {return false};
+        let [pin]=app.callee.params.as_slice() else {return false};
+        let [formal]=app.definition.assumptions.as_slice() else {return false};
+        args.len()==1 && app.resolved_definition==app.callee.id
+            && app.definition.definition_span==app.callee.span
+            && args[0].resolved_pin.as_deref()==Some(pin.pin_name.as_str())
+            && args[0].expr.id==app.argument.expression.id
+            && args[0].expr.span==app.argument.expression.span
+            && formal.public_pin()==pin.pin_name
+            && formal.declaration().span()==pin.span
+            && app.definition.goal().structure_law().is_some_and(|law|law.same_structure(&self.law))
+            && formal.goal().structure_law().is_some_and(|law|law.same_structure(app.argument.law()))
+            && self.law.same_structure(app.argument.law())
+            && self.law.belongs_to(app.definition.scope())
+            && app.definition.structure_consumption().is_none()
+            && app.definition.calculation_application().is_none()
+            && matches!(&app.callee.result_type,Some(TypeRef::Applied{name,..}) if name=="보임")
+    }
+}
+impl ResolvedIdentityArgumentApplication {
+    pub fn definition(&self)->&ResolvedTransfer { &self.definition }
+    pub fn argument(&self)->&ResolvedIdentityArgument { &self.argument }
+}
+fn resolve_identity_argument(program:&CanonProgram,facts:&[ResolvedTransfer],expr:&Expr,
+    law:&Arc<ResolvedStructureLaw>,depth:usize,budget:&mut usize)->Result<ResolvedIdentityArgument,ParseError> {
+    if depth>64 || *budget==0 {return Err(failure(expr.span,"E_PROOF_BUDGET","법칙 반환 호출 깊이·예산을 넘었습니다"))}
+    *budget-=1;
+    let application=if let ExprKind::Call{args,..}=&expr.kind {
+        let ids=program.origin.authored_call_candidates.get(&expr.id)
+            .ok_or_else(||failure(expr.span,"E_PROOF_CALL_UNRESOLVED","실제 법칙 반환 정의가 없습니다"))?;
+        let [id]=ids.as_slice() else {return Err(failure(expr.span,"E_PROOF_CALL_AMBIGUOUS","법칙 반환 정의가 유일하지 않습니다"))};
+        let callee=program.items.iter().map(|TopLevelItem::SeedDef(s)|s).find(|s|s.id==*id)
+            .ok_or_else(||failure(expr.span,"E_PROOF_CALL_UNRESOLVED","현재 원문의 법칙 반환 선언이 없습니다"))?;
+        let definition=facts.iter().find(|f|f.definition_span()==callee.span
+            && f.structure_consumption().is_none() && f.calculation_application().is_none())
+            .ok_or_else(||failure(expr.span,"E_PROOF_EVIDENCE","검사할 법칙 반환 정의가 아닙니다"))?;
+        let [pin]=callee.params.as_slice() else {return Err(failure(expr.span,"E_PROOF_ARGUMENT_COUNT","명시된 법칙 가정 하나가 필요합니다"))};
+        if args.len()!=1 || args[0].resolved_pin.as_deref()!=Some(pin.pin_name.as_str()) {
+            return Err(failure(expr.span,"E_PROOF_ARGUMENT_BINDING","법칙 반환의 실제 입력 핀 결속이 다릅니다"));
+        }
+        if !definition.goal().structure_law().is_some_and(|actual|actual.same_structure(law)) {
+            return Err(failure(expr.span,"E_PROOF_CONTEXT_MISMATCH","소비와 반환 법칙의 실제 소유자가 다릅니다"));
+        }
+        Some(Box::new(ResolvedIdentityArgumentApplication{definition:definition.clone(),callee:callee.clone(),resolved_definition:*id,
+            argument:resolve_identity_argument(program,facts,&args[0].expr,law,depth+1,budget)?}))
+    }else{None};
+    let candidate=ResolvedIdentityArgument{law:law.clone(),expression:expr.clone(),application};
+    if !candidate.bindings_match() {return Err(failure(expr.span,"E_PROOF_STRUCTURE_CONSUMPTION","같은 구조의 정적 법칙 또는 검사할 법칙 반환 호출이 필요합니다"))}
+    Ok(candidate)
 }
 /// A source-owned call of a direct conditional calculation, never proof return.
 /// All fields are private; this is a candidate for the checker, not a receipt.
@@ -568,6 +674,7 @@ pub struct ResolvedCalculationApplication {
 }
 impl ResolvedCalculationApplication {
     pub fn definition(&self) -> &ResolvedTransfer { &self.definition }
+    pub fn callee(&self) -> &SeedDef { &self.callee }
     pub fn argument(&self) -> &Assumption { &self.argument }
     pub fn call(&self) -> &Expr { &self.call }
     pub fn bindings_match(&self) -> bool {
@@ -766,8 +873,8 @@ fn resolve_structure_source_mode(program:&CanonProgram,source:&str,path:&str,exe
                     if member!="법칙" || seed.params.iter().any(|p|p.pin_name==*structure) {return Err(failure(pin.span,"E_PROOF_GOAL","가려지거나 미지원인 구조 법칙 목표입니다"))}
                     let law=laws.get(structure.as_str()).filter(|law| match &law.owner.declaration {Stmt::Definition{span,..}=>span.end<seed.span.start,_=>false})
                         .ok_or_else(||failure(pin.span,"E_PROOF_GOAL","현재 위치에서 해소된 구조 정의가 없습니다"))?;
-                    let goal=scoped_goals.entry(structure).or_insert_with(||Proposition(Arc::new(PropositionDeclaration{scope:scope.clone(),parts:None,law:Some(law.clone()),coordinate:None}))).clone();
-                    let assumption=Assumption(Arc::new(AssumptionDeclaration{scope:scope.clone(),goal}));
+                    let goal=scoped_goals.entry(structure).or_insert_with(||Proposition(Arc::new(PropositionDeclaration{declaration:None,scope:scope.clone(),parts:None,law:Some(law.clone()),coordinate:None}))).clone();
+                    let assumption=Assumption(Arc::new(AssumptionDeclaration{declaration:SourceDeclaration{label:pin.pin_name.clone(),span:pin.span},public_pin:pin.pin_name.clone(),scope:scope.clone(),goal}));
                     proof_inputs.push((pin,assumption.clone()));assumptions.push(assumption);continue;
                 }
             }
@@ -837,7 +944,7 @@ fn resolve_structure_source_mode(program:&CanonProgram,source:&str,path:&str,exe
                 None
             }
         };
-        let transfer=ResolvedTransfer{scope,goal:assumption.goal().clone(),assumptions,evidence:ResolvedEvidence::Assumption(assumption.clone()),
+        let transfer=ResolvedTransfer{definition_name:seed.canonical_name.clone(),scope,goal:assumption.goal().clone(),assumptions,evidence:ResolvedEvidence::Assumption(assumption.clone()),
             definition_span:seed.span,result_span:value.span,propositions:Vec::new(),application,application_depth,projection:Vec::new(),consumption,calculation,coordinate_calculation:None};
         completed.insert(seed.id,Arc::new(transfer.clone()));out.push(transfer);
     }
@@ -1021,9 +1128,9 @@ fn resolve_coordinate_source(prepared:&PreparedProofSource,candidate:&NumericSou
             let index=COORDINATE_GOAL_MEMBERS.iter().position(|n|*n==member).ok_or_else(||reject(pin.span,"지원하지 않는 좌표 목표입니다"))?;
             if !indices.insert(index) || selected.as_ref().is_some_and(|s|!Arc::ptr_eq(s,owner)) {return Err(reject(pin.span,"목표가 중복되거나 서로 다른 구조의 가정입니다"));}
             selected=Some(owner.clone());
-            let goal=Proposition(Arc::new(PropositionDeclaration{scope:scope.clone(),parts:None,law:None,
+            let goal=Proposition(Arc::new(PropositionDeclaration{declaration:None,scope:scope.clone(),parts:None,law:None,
                 coordinate:Some(Arc::new(ResolvedCoordinateGoal{owner:owner.clone(),index}))}));
-            assumptions.push(Assumption(Arc::new(AssumptionDeclaration{scope:scope.clone(),goal})));
+            assumptions.push(Assumption(Arc::new(AssumptionDeclaration{declaration:SourceDeclaration{label:pin.pin_name.clone(),span:pin.span},public_pin:pin.pin_name.clone(),scope:scope.clone(),goal})));
         }
         let owner=selected.ok_or_else(||reject(seed.span,"좌표 구조 가정이 없습니다"))?;
         let law_index=assumptions.iter().position(|a|a.goal().coordinate_goal().is_some_and(|g|g.index==7)).unwrap();
@@ -1042,7 +1149,7 @@ fn resolve_coordinate_source(prepared:&PreparedProofSource,candidate:&NumericSou
                 || !matches!(&value.kind,ExprKind::Var(n) if n==&seed.params[law_index].pin_name) {return Err(reject(value.span,"실제 법칙 가정을 같은 법칙 목표에 전달해야 합니다"));}
             None
         };
-        transfers.push(ResolvedTransfer{scope,goal:law.goal().clone(),assumptions,evidence:ResolvedEvidence::Assumption(law),
+        transfers.push(ResolvedTransfer{definition_name:seed.canonical_name.clone(),scope,goal:law.goal().clone(),assumptions,evidence:ResolvedEvidence::Assumption(law),
             definition_span:seed.span,result_span:value.span,propositions:Vec::new(),application:None,application_depth:0,projection:Vec::new(),
             consumption:None,calculation:None,coordinate_calculation});
     }
@@ -1182,3 +1289,6 @@ impl PreparedProofSource {
         cache.insert(name.into(),law.clone());Ok(law)
     }
 }
+
+mod card;
+pub use card::{ResolvedCardCall, ResolvedCardGoal};

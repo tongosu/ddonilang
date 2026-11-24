@@ -24,7 +24,8 @@ export function projectUniformMotion(report, sourceProjectText) {
   if (report?.schema !== 'ddn.math-notebook.observation.v1' || report.model !== 'uniform_motion'
       || report.proof !== false || report.source_profile !== 'v1-core-v25'
       || report.time_domain !== 't>=0' || report.normalization?.unit_dimension_schema !== 'ddn.unit_dimension_wire.v2'
-      || ['length_basis', 'time_basis', 'velocity_basis'].some(key => report.normalization[key] !== 1)
+      || report.normalization.length_basis !== 1 || report.normalization.velocity_basis !== 1
+      || ![1, 60].includes(report.normalization.time_basis)
       || !Array.isArray(report.rows) || !report.rows.length || report.rows.length > 256) {
     throw new Error('지원하는 공통 등속운동 관찰 결과가 아닙니다.');
   }
@@ -42,8 +43,8 @@ export function projectUniformMotion(report, sourceProjectText) {
       solutionMessage = `도달 시간 ${time.text} s · 검산 ${left.text} m ${report.solution.substitution.equal ? '=' : '≠'} ${right.text} m`;
       break;
     }
-    case 'no_solution': solutionMessage = '정한 시간 범위에서 목표에 도달하는 해가 없습니다.'; break;
-    case 'non_unique': solutionMessage = '목표에 도달하는 시각을 하나로 정할 수 없습니다.'; break;
+    case 'no_solution': solutionMessage = '해 없음 · 정한 시간 범위에서 목표에 도달하지 않습니다. 위치 표는 별도로 읽을 수 있습니다.'; break;
+    case 'non_unique': solutionMessage = '비유일 · 정한 시간 범위의 모든 시각이 해입니다. 0초만 유일한 답으로 고르지 않습니다.'; break;
     case 'outside_domain': {
       const time = quantity(report.solution.algebraic_time, TIME);
       const left = quantity(report.solution.substitution?.left, LENGTH);
@@ -65,7 +66,7 @@ export function projectUniformMotion(report, sourceProjectText) {
     positions: canPlot ? samples.map(row => ({ label: `${row.time.text} s`,
       coordinate: row.position.coordinate, exact: `${row.position.text} m` })) : null,
     positionAxis: '위치 (m)', solutionMessage,
-    inputSummary: `처음 위치 ${initial.text} m · 속도 ${velocity.text} m/s · 목표 ${target.text} m`,
+    inputSummary: `처음 위치 ${initial.text} m · 속도 ${velocity.text} m/s · 목표 ${target.text} m${report.normalization.time_basis === 60 ? ' · 표본 시간 기준 60 s, 결과 시각은 s' : ''}`,
     comparisonKey: { model: report.model, profile: report.source_profile,
       entryPath: artifact?.source_snapshot?.entry_path ?? null,
       rootSource: artifact?.source_snapshot?.files?.find(file => file.path === artifact.source_snapshot.root_path)?.text ?? null,
@@ -75,7 +76,60 @@ export function projectUniformMotion(report, sourceProjectText) {
   };
 }
 
-export function createUniformMotionProvider(runtimeBridge) {
+export function projectWaterTank(report, sourceProjectText) {
+  const volume = [3, 0, 0, 0, 0, 0, 0, 0, 0];
+  const rate = [3, -1, 0, 0, 0, 0, 0, 0, 0];
+  if (report?.schema !== 'ddn.math-notebook.water-tank.observation.v1' || report.model !== 'water_tank'
+      || report.proof !== false || report.source_profile !== 'v1-core-v25' || report.time_domain !== 't>=0'
+      || report.normalization?.unit_dimension_schema !== 'ddn.unit_dimension_wire.v2'
+      || report.normalization.amount_basis !== 1 || report.normalization.rate_basis !== 1
+      || ![1, 60].includes(report.normalization.time_basis)
+      || !Array.isArray(report.rows) || !report.rows.length || report.rows.length > 256) {
+    throw new Error('지원하는 공통 물탱크 관찰 결과가 아닙니다.');
+  }
+  const initial = quantity(report.inputs?.initial_amount, volume);
+  const inflow = quantity(report.inputs?.inflow_rate, rate);
+  const target = quantity(report.inputs?.target_amount, volume);
+  const samples = report.rows.map(row => ({ time: quantity(row.time, TIME), amount: quantity(row.amount, volume) }));
+  let solutionMessage;
+  switch (report.solution?.kind) {
+    case 'solution':
+    case 'outside_domain': {
+      const outside = report.solution.kind === 'outside_domain';
+      const time = quantity(outside ? report.solution.algebraic_time : report.solution.time, TIME);
+      const left = quantity(report.solution.substitution?.left, volume);
+      const right = quantity(report.solution.substitution?.right, volume);
+      if (typeof report.solution.substitution.equal !== 'boolean') throw new Error('검산 결과 공급이 없습니다.');
+      solutionMessage = `${outside ? '시간 범위 밖의 대수해' : '도달 시간'} ${time.text} s · 검산 ${left.text} m³ ${report.solution.substitution.equal ? '=' : '≠'} ${right.text} m³`;
+      break;
+    }
+    case 'no_solution': solutionMessage = '해 없음 · 정한 시간 범위에서 목표 양에 도달하지 않습니다.'; break;
+    case 'non_unique': solutionMessage = '비유일 · 정한 시간 범위의 모든 시각이 해입니다.'; break;
+    default: throw new Error('지원하지 않는 물탱크 풀이 결과입니다.');
+  }
+  const canPlot = samples.every(row => Number.isFinite(row.time.coordinate) && Number.isFinite(row.amount.coordinate));
+  const artifact = sourceProjectText ? JSON.parse(sourceProjectText) : null;
+  return {
+    columns: [{ label: '시각', unit: 's' }, { label: '물의 양', unit: 'm³' }],
+    rows: samples.map(row => [row.time.text, row.amount.text]),
+    graph: canPlot ? { schema: 'seamgrim.graph.v0', series: [{ id: '물의 양',
+      points: samples.map(row => ({ x: row.time.coordinate, y: row.amount.coordinate })) }] } : null,
+    axisLabels: { x: '시각 (s)', y: '물의 양 (m³)' },
+    positions: canPlot ? samples.map(row => ({ label: `${row.time.text} s`,
+      coordinate: row.amount.coordinate, exact: `${row.amount.text} m³` })) : null,
+    positionAxis: '물의 양 (m³)', solutionMessage,
+    inputSummary: `처음 양 ${initial.text} m³ · 유량 ${inflow.text} m³/s · 목표 ${target.text} m³${report.normalization.time_basis === 60 ? ' · 표본 시간 기준 60 s, 결과 시각은 s' : ''}`,
+    comparisonKey: { model: report.model, profile: report.source_profile,
+      entryPath: artifact?.source_snapshot?.entry_path ?? null,
+      rootSource: artifact?.source_snapshot?.files?.find(file => file.path === artifact.source_snapshot.root_path)?.text ?? null,
+      domain: report.time_domain, initial: [initial.n, initial.d], target: [target.n, target.d],
+      times: samples.map(row => [row.time.n, row.time.d]) },
+    comparedInput: [inflow.n, inflow.d],
+  };
+}
+
+export function createUniformMotionProvider(runtimeBridge, modelKind = 'uniform_motion') {
+  if (!['uniform_motion', 'water_tank'].includes(modelKind)) throw new Error('지원하지 않는 명시 모형입니다.');
   return {
     async inspect(raw) {
       const artifact = JSON.parse(raw);
@@ -93,19 +147,20 @@ export function createUniformMotionProvider(runtimeBridge) {
           || Object.keys(graph.gaji_aliases ?? {}).length || graph.diagnostics?.length) {
         throw new Error('첫 모형은 의존 가지 없이 명시한 시작 정의를 실행하는 작품이어야 합니다.');
       }
-      const report = await runtimeBridge.observeMathNotebook({ sourceProjectText: raw });
+      const report = await runtimeBridge.observeMathNotebook({ sourceProjectText: raw, modelKind });
       const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
       const expected = Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('');
       if (report.authored_source?.artifact_sha256 !== expected
           || report.authored_source?.content_sha256 !== artifact.content_sha256
           || report.authored_source?.project_identity !== artifact.authored_identity.logical_dependency_id
           || report.authored_source?.artifact_schema !== artifact.schema
-          || report.authored_source?.source_profile !== artifact.source_profile) {
+          || report.authored_source?.source_profile !== artifact.source_profile
+          || report.source_path !== snapshot.entry_path || report.model !== modelKind) {
         throw new Error('계산 결과와 실제 원문이 일치하지 않습니다.');
       }
       return {...report, notebookContext: uniformMotionSourceContext(raw)};
     },
-    project: projectUniformMotion,
+    project: modelKind === 'water_tank' ? projectWaterTank : projectUniformMotion,
   };
 }
 

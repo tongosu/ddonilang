@@ -1,5 +1,5 @@
 // Source analysis and repair keep the original state, authority and failure paths.
-export function createSourceReadinessModel({ state, els, currentProject, activeRuntimeSourceText, localProjectEntryPath, analyzeSourceReadiness, workbenchSourceProfile, currentVirtualProjectSource, SOURCE_ANALYSIS_PROFILE_IDENTITY, runtimeBridge, projectEditDiagnostic, MODULE_DIRECTIVE_ANALYSIS_SNAPSHOT_SCHEMA, projectAuthoritativeSourceAnalysis, projectSourceAnalysisUnavailable, applySourceReadinessFix, SOURCE_READINESS_FIX_ID, pushDiagnostic, renderAll, syncNativeProjectFromState, markCurrentProjectExecutionStale, refreshProjectGraph, ONE_FILE_DDN_PROJECT_ID, writeOneFileDraft }) {
+export function createSourceReadinessModel({ readNativeProjectArtifact = () => "", state, els, currentProject, activeRuntimeSourceText, localProjectEntryPath, analyzeSourceReadiness, workbenchSourceProfile, currentVirtualProjectSource, SOURCE_ANALYSIS_PROFILE_IDENTITY, runtimeBridge, projectEditDiagnostic, MODULE_DIRECTIVE_ANALYSIS_SNAPSHOT_SCHEMA, projectAuthoritativeSourceAnalysis, projectSourceAnalysisUnavailable, applySourceReadinessFix, SOURCE_READINESS_FIX_ID, pushDiagnostic, renderAll, syncNativeProjectFromState, markCurrentProjectExecutionStale, refreshProjectGraph, ONE_FILE_DDN_PROJECT_ID, writeOneFileDraft }) {
 function sourceReadinessViewOnly() {
   const capabilityRole = state.capabilitySession?.role || state.serverProject.role || "";
   return Boolean((state.serverProject.projectId || state.capabilitySession?.project_id) && capabilityRole === "view");
@@ -98,6 +98,7 @@ async function refreshAuthoritativeSourceReadiness(project = currentProject()) {
   // before the same shared project owner can bind the module identities.
   if (projectSource) {
     const sourceAtRequest = activeRuntimeSourceText(project);
+    const projectSourceAtRequest=JSON.stringify(projectSource);
     const generation = state.sourceAnalysisGeneration + 1;
     state.sourceAnalysisGeneration = generation;
     state.sourceAnalysisSourceText = sourceAtRequest;
@@ -110,6 +111,25 @@ async function refreshAuthoritativeSourceReadiness(project = currentProject()) {
       if (rootProfile !== SOURCE_ANALYSIS_PROFILE_IDENTITY
         || (sourceProfileIdentity && sourceProfileIdentity !== rootProfile)) {
         throw new Error("프로젝트 뿌리의 글판이 없거나 문서 글판과 일치하지 않습니다.");
+      }
+      if (currentProject().id !== projectIdAtRequest || state.sourceAnalysisGeneration !== generation
+        || JSON.stringify(currentVirtualProjectSource(currentProject())) !== projectSourceAtRequest) {
+        return {...pending,ready:false,blocked:true,superseded:true};
+      }
+      const requirement=prepared.diagnostics?.find(row=>row.code==='E_PROJECT_REGISTERED_NOMINAL_OWNER_REQUIRED');
+      if(requirement){
+        let artifact=null;try{const text=readNativeProjectArtifact();artifact=text?JSON.parse(text):null;}catch{}
+        const snapshot=artifact?.source_snapshot;
+        const exact=artifact?.source_profile===rootProfile&&snapshot?.root_path===projectSource.root_path
+          &&snapshot?.entry_path===projectSource.entry_path&&Array.isArray(snapshot.files)
+          &&snapshot.files.length===projectSource.files.length
+          &&snapshot.files.every(file=>projectSource.files.some(raw=>raw.path===file.path&&raw.utf8_text===file.text));
+        if(!exact){
+          const waiting={...pending,authority_status:'shared_project_frontdoor',ready:false,blocked:true,stale:false,
+            analysis_outcome:'ACCEPTED',analysis_generation:generation,source_profile_identity:rootProfile,
+            diagnostics:[{...requirement,severity:'error',message:requirement.message}],candidate:null,candidates:[]};
+          state.sourceReadiness=waiting;return waiting;
+        }
       }
       project.resolvedRootSourceProfileIdentity = rootProfile;
       if (currentProject().id !== projectIdAtRequest) {
@@ -136,6 +156,10 @@ async function refreshAuthoritativeSourceReadiness(project = currentProject()) {
       state.sourceReadiness = projected;
       return projected;
     } catch (error) {
+      if (currentProject().id !== projectIdAtRequest || state.sourceAnalysisGeneration !== generation
+        || JSON.stringify(currentVirtualProjectSource(currentProject())) !== projectSourceAtRequest) {
+        return { ...pending, ready: false, blocked: true, superseded: true };
+      }
       const diagnostic = projectEditDiagnostic(error);
       const rejected = {
         ...pending,
@@ -164,6 +188,7 @@ async function refreshAuthoritativeSourceReadiness(project = currentProject()) {
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const sourceAtRequest = activeRuntimeSourceText(project);
+    const projectSourceAtRequest=JSON.stringify(projectSource);
     const generation = state.sourceAnalysisGeneration + 1;
     state.sourceAnalysisGeneration = generation;
     state.sourceAnalysisSourceText = sourceAtRequest;

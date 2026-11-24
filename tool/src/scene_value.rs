@@ -1,6 +1,8 @@
 //! RD-538 subset: exact typed circle/text/plane/view construction.
 //! Coordinate/range payload uses existing two-number collections; no unit
 //! coercion, fitting, camera inference or fallback geometry.
+pub(crate) mod space3_geometry;
+mod space3_source;
 use ddonirang_core::Fixed64;
 use ddonirang_lang::runtime::{PlaneElement, PlaneScene, Value, ViewValue};
 use serde_json::{json, Value as Json};
@@ -79,7 +81,10 @@ fn pair(value: &Value) -> Result<[Fixed64; 2], String> {
 pub fn clone_visits(value: &Value) -> usize {
     match value {
         Value::SceneElement(PlaneElement::Polygon{vertices}) => vertices.len(),
+        Value::SceneElement(PlaneElement::Face3{vertices,..}) => vertices.len()*3,
+        Value::SceneElement(PlaneElement::Camera3(_)) => 9,
         Value::Scene(scene) => scene_clone_visits(scene),
+        Value::SpaceScene(scene)=>scene.elements.len()+scene.elements.iter().map(|e|match e {PlaneElement::Face3{vertices,..}=>vertices.len(),_=>0}).sum::<usize>(),
         Value::View(view) => view_clone_visits(view),
         Value::List(items) => items.iter().map(clone_visits).sum(),
         Value::Pack(fields) | Value::Set(fields) => fields.values().map(clone_visits).sum(),
@@ -92,14 +97,33 @@ fn scene_clone_visits(scene:&PlaneScene)->usize {
         PlaneElement::Polygon{vertices}=>1+vertices.len(),_=>1}).sum()
 }
 pub fn view_clone_visits(view:&ViewValue)->usize {
-    match view {ViewValue::Scene(scene)=>scene_clone_visits(scene),ViewValue::ResultTable=>0,
+    match view {ViewValue::Scene(scene)=>scene_clone_visits(scene),ViewValue::SpaceScene(scene)=>scene.elements.len()+scene.elements.iter().map(|e|match e {PlaneElement::Face3{vertices,..}=>vertices.len(),_=>0}).sum::<usize>(),ViewValue::ResultTable=>0,
+        ViewValue::SelectedResultTable(selection)=>selection.columns().len(),
+        ViewValue::SelectedXy(_)=>2,
         ViewValue::Timed {view,..}=>view_clone_visits(view)}
+}
+
+/// Internal producer path: callers need an actual source-bound material and
+/// must revalidate current source. This does not enable the public image role.
+pub(crate) fn construct_static_png_image(
+    bound:&crate::authored_bogae::xy::binary_assets::SourceBoundStaticPng<'_>,
+    source_path:&str, capture:&crate::source_snapshot_admission::SourceCapture,
+    horizontal:&Value, vertical:&Value) -> Result<Value,String> {
+    if !bound.matches_current_source(source_path,capture) {
+        return Err("E_STATIC_PNG_SOURCE: 실제 원문 고정본이 다릅니다".into());
+    }
+    let horizontal=pair(horizontal)?;let vertical=pair(vertical)?;
+    if horizontal[0]>=horizontal[1] || vertical[0]>=vertical[1] {
+        return Err("E_STATIC_PNG_BOUNDS: 그림 범위는 유한 증가 구간이어야 합니다".into());
+    }
+    Ok(Value::SceneElement(PlaneElement::Image {selection:bound.image_selection()?,horizontal,vertical}))
 }
 
 pub fn construct(name: &str, args: &[Value]) -> Result<Value, String> {
     construct_with_meter(name,args,None)
 }
-pub fn construct_with_meter(name: &str, args: &[Value],meter:Option<&mut crate::work_cost::WorkCostMeter>) -> Result<Value, String> {
+pub fn construct_with_meter(name: &str, args: &[Value],mut meter:Option<&mut crate::work_cost::WorkCostMeter>) -> Result<Value, String> {
+    if let Some(result)=space3_source::construct(name,args,meter.as_deref_mut()) {return result;}
     match (name,args) {
         ("표준장면.원", [center,Value::Fixed64(radius)]) => {
             if *radius <= Fixed64::ZERO { return Err("E_SCENE_RADIUS: 원 반지름은 양수여야 합니다".into()); }
@@ -114,11 +138,12 @@ pub fn construct_with_meter(name: &str, args: &[Value],meter:Option<&mut crate::
                 return Err("E_SCENE_BOUNDS: 평면 범위는 유한 증가 구간이어야 합니다".into());
             }
             let elements = elements.iter().map(|element| match element {
-                Value::SceneElement(element) => Ok(element.clone()),
+                Value::SceneElement(element) if !matches!(element,PlaneElement::Face3{..}|PlaneElement::Camera3(_)) => Ok(element.clone()),
                 _ => Err("E_SCENE_ELEMENT_TYPE: 요소들은 장면요소값 차림이어야 합니다".to_string()),
             }).collect::<Result<Vec<_>,_>>()?;
             Ok(Value::Scene(PlaneScene {elements,horizontal,vertical}))
         }
+        ("표준보기.장면", [Value::SpaceScene(scene)]) => Ok(Value::View(ViewValue::SpaceScene(scene.clone()))),
         ("표준보기.장면", [Value::Scene(scene)]) => Ok(Value::View(ViewValue::Scene(scene.clone()))),
         _ => Err("E_SCENE_ARGUMENT: 장면 생성자의 받는자리 수와 씨를 확인하세요".into()),
     }
@@ -127,15 +152,32 @@ pub fn construct_with_meter(name: &str, args: &[Value],meter:Option<&mut crate::
 fn raw_pair(pair: &[Fixed64;2]) -> Json { json!([pair[0].raw_i64().to_string(),pair[1].raw_i64().to_string()]) }
 pub fn project_element(element: &PlaneElement) -> Json {
     match element {
+        PlaneElement::Face3{vertices,source}=>space3_source::project_face(vertices,source.as_ref()),
+        PlaneElement::Camera3(camera)=>space3_source::project_camera(camera),
         PlaneElement::Circle {center,radius} => json!({"kind":"circle","center":raw_pair(center),"radius":radius.raw_i64().to_string()}),
         PlaneElement::Polygon {vertices} => json!({"kind":"polygon","vertices":vertices.iter().map(raw_pair).collect::<Vec<_>>()}),
         PlaneElement::Text {position,content} => json!({"kind":"text","position":raw_pair(position),"content":content}),
+        PlaneElement::Image {selection,horizontal,vertical} => {
+            let asset=selection.material();
+            json!({"kind":"image","horizontal":raw_pair(horizontal),"vertical":raw_pair(vertical),
+                "asset":{"owner":hex::encode(asset.owner()),"identity":hex::encode(asset.asset()),
+                    "version":asset.version(),"resource_handle":selection.handle().to_hex(),
+                    "byte_sha256":hex::encode(asset.byte_sha256()),"byte_size":asset.byte_size(),"mime":asset.mime()},
+                "source_content_sha256":hex::encode(selection.source_content_sha256())})
+        },
     }
 }
+pub(crate) fn xy_projection_placeholder() -> Json {
+    project_view(&ViewValue::Scene(PlaneScene {elements:Vec::new(),
+        horizontal:[Fixed64::ZERO,Fixed64::ONE],vertical:[Fixed64::ZERO,Fixed64::ONE]}))
+}
+
 pub fn project_view(view: &ViewValue) -> Json {
     match view {
         ViewValue::Timed {view,..} => project_view(view),
-        ViewValue::ResultTable => json!({"kind":"result_table"}),
+        ViewValue::SpaceScene(scene)=>space3_source::project_scene(scene),
+        ViewValue::ResultTable | ViewValue::SelectedResultTable(_) => json!({"kind":"result_table"}),
+        ViewValue::SelectedXy(_)=>xy_projection_placeholder(),
         ViewValue::Scene(scene) => json!({"kind":"scene","spatial_profile":"plane2",
             "coordinate_encoding":"fixed64_raw_decimal.v1", "horizontal":raw_pair(&scene.horizontal),
             "vertical":raw_pair(&scene.vertical), "elements":scene.elements.iter().map(project_element).collect::<Vec<_>>()}),

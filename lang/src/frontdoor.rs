@@ -225,6 +225,8 @@ fn source_span_text(source: &str, span: crate::Span) -> Option<&str> {
 
 fn type_ref_label(type_ref: &crate::TypeRef) -> String {
     match type_ref {
+        crate::TypeRef::CardCallEquality {left,right} => format!("{} =:= {}",left.source_text(),right.source_text()),
+        crate::TypeRef::AlgebraNonzero {term} => format!("{} != 0",term.source_text()),
         crate::TypeRef::AlgebraEquality {left,right} => format!("{} =:= {}",left.source_text(),right.source_text()),
         crate::TypeRef::StructureLaw { structure, member } => format!("{structure}.{member}"),
         crate::TypeRef::PropositionConjunction(items) => format!("({})", items.iter().map(type_ref_label).collect::<Vec<_>>().join(" 이고 ")),
@@ -1886,5 +1888,30 @@ mod tests {
         )
         .expect_err("unsupported endpoint connect is not V1C surface");
         assert!(!err.message.is_empty());
+    }
+}
+
+
+/// Explicit J1 syntax on the same lexer/parser/directive and canonical path.
+/// Original bytes/spans remain authoritative; no preprocess or source rewrite.
+pub fn parse_module_directive_frontdoor_with_j1_profile(source:&str,file_path:&str,mode:ParseMode,context:&ModuleDirectiveContext,profile:crate::ddl::CheckedJ1Profile)->Result<ModuleDirectiveFrontdoorResult,ParseError>{
+    let (directives,tokens)=crate::module_directive::j1_module_tokens(source,file_path,context,profile)?;
+    let start=source.len()-directives.declaration_source.len();
+    let declaration_program=if directives.declaration_source.is_empty(){None}else{
+        Some(crate::parser::Parser::parse_j1_tokens(source,file_path,tokens.into_iter().filter(|t|t.span.start>=start).collect(),mode,profile)?)
+    };
+    let canonical_source=canonicalize_module_directive_document(&directives);
+    Ok(ModuleDirectiveFrontdoorResult{directives,declaration_program,canonical_source})
+}
+#[cfg(test)]
+mod r31_j1_frontdoor_tests{
+    use super::*;
+    #[test]fn r31_j1_public_owner_prefix_and_utf8_tail(){
+        let raw="#!日本語\r\n(F=合計, G=倍) 公開.\r\n(金額:有理数~に, 税額:有理数~を) 合計:有理数:関数 := { 合計 <- 金額 + 税額. }.\r\n(金額:有理数~を) 倍:有理数:関数 := { 倍 <- 金額 + 金額. }.";
+        let context=ModuleDirectiveContext::default().with_public_definitions(["合計","倍"]);
+        let p=parse_module_directive_frontdoor_with_j1_profile(raw,"calc.ddn",ParseMode::Strict,&context,crate::ddl::CheckedJ1Profile::resolve(crate::ddl::J1_SOURCE_PROFILE).unwrap()).unwrap();
+        assert_eq!(p.directives.exports.unwrap().entries[0].target,"合計");let program=p.declaration_program.unwrap();
+        assert_eq!(program.items.len(),2);assert_eq!(program.origin.source,raw);
+        assert!(program.items.iter().all(|crate::TopLevelItem::SeedDef(seed)|raw.is_char_boundary(seed.span.start)&&raw.is_char_boundary(seed.span.end)));
     }
 }

@@ -7,7 +7,7 @@ use super::*;
 // Only metadata implied by explicit installed module heads is admitted.
 pub(crate) fn v25_package_metadata_roles(root_text: &str) -> Result<BTreeMap<String, String>, LocalProjectError> {
     let mut roles = BTreeMap::new();
-    if !cfg!(feature = "v2-shared-modules") { return Ok(roles); }
+    // Readonly source custody/validation is required in every CLI build.
     let root = ddonirang_lang::work_root::parse_work_root(root_text).map_err(|e|
         LocalProjectError::new("E_PROJECT_ROOT_PARSE", e.message))?;
     let modules = root.typed_modules().map_err(|e|
@@ -470,7 +470,7 @@ pub(super) fn v25_installed_gaji_aliases(
     texts: &BTreeMap<String, String>,
 ) -> Result<BTreeMap<String, String>, LocalProjectError> {
     let mut aliases = BTreeMap::new();
-    if !cfg!(feature = "v2-shared-modules") { return Ok(aliases); }
+    // Installed package ownership must not disappear in a default build.
     for (alias, head) in module_paths {
         let Some(tail) = head.strip_prefix("vendor/") else { continue; };
         let id = tail.split('/').next().unwrap_or_default();

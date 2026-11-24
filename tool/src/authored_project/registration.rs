@@ -7,7 +7,51 @@ use crate::registered_atom_contract::{RecordedAtomContract,source_binding as wir
 use std::collections::{BTreeMap,BTreeSet};
 use sha2::{Digest,Sha256};
 pub(crate) mod temporary;
-mod resolved_supply;
+pub(crate) mod nominal_source;
+pub(crate) mod resolved_supply;
+pub(crate) mod logic_dependency;
+pub(crate) use resolved_supply::CheckedLogicSourceScope;
+/// Registration-owned runtime admission, after actual source/capture parsing.
+/// This is not a storage receipt or a public feature switch.
+pub(crate) fn admit_logic_source_program(
+    owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,
+    program:&mut crate::ddn_runtime::DdnProgram,
+    entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>,
+)->Result<(),String>{
+    if owned.sources().logic_callable_context().is_none()
+        ||!program.sealed_project_sources().is_some_and(|sources|std::ptr::eq(sources,owned.sources().as_ref())){
+        return Err("E_LOGIC_SOURCE_OWNER_MISMATCH".into());
+    }
+    let draft=prepare_precanon_under_candidate_owner(owned,None,entropy)?;
+    bind_recorded_logic_source_program(owned,program,&draft)
+}
+/// Rebind only a checked retained registration. No entropy/issuer argument is
+/// available on this restore path, and source-generation admission is repeated.
+pub(crate) fn bind_recorded_logic_source_program(
+    owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,
+    program:&mut crate::ddn_runtime::DdnProgram,draft:&RegistrationDraft,
+)->Result<(),String>{
+    if owned.sources().logic_callable_context().is_none()
+        ||!program.sealed_project_sources().is_some_and(|sources|std::ptr::eq(sources,owned.sources().as_ref())){
+        return Err("E_LOGIC_SOURCE_OWNER_MISMATCH".into());
+    }
+    draft.verify_precanon_binding(owned)?;
+    let sites=program.canonical_program().logic_call_sites();
+    let scopes=resolved_supply::prepare_logic_source_scopes(owned,draft,&sites)?;
+    program.bind_logic_source_scopes(scopes)
+}
+#[cfg(test)]
+pub(crate) fn prepare_logic_source_scope_for_test(
+    owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,site:ddonirang_lang::Span,
+)->Result<CheckedLogicSourceScope,String>{
+    let draft=prepare_precanon_under_candidate_owner(owned,None,&mut |_|Err("unexpected nominal issue".into()))?;
+    prepare_logic_source_scope(owned,&draft,site)
+}
+/// Source/Bool-type scope only; never DDL activation or target resolution.
+pub(crate) fn prepare_logic_source_scope(
+    owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,
+    nominals:&RegistrationDraft,site:ddonirang_lang::Span,
+)->Result<CheckedLogicSourceScope,String>{resolved_supply::prepare_logic_source_scope(owned,nominals,site)}
 
 /// Only the actual registration/source owner constructs this witness. It is
 /// neither decoded from RESULT bytes nor inferred from a runtime Value.
@@ -68,6 +112,9 @@ impl<'a> SavedRegistrationSource<'a> {
     }
 }
 impl RegistrationSourceView for SavedRegistrationSource<'_> {
+    fn declarations(&self,path:&str,capture:&crate::source_snapshot_admission::SourceCapture)->Result<Vec<ddonirang_lang::SeedDef>,String>{
+        saved_module_declarations(self.project,self.sources,path,capture)
+    }
     fn scope(&self)->&str {self.project.authored_identity.logical_dependency_id.as_str()}
     fn captures(&self)->&[(String,crate::source_snapshot_admission::SourceCapture)] {self.sources.captures()}
     fn module(&self,path:&str)->Result<Option<[u8;32]>,String>{
@@ -130,6 +177,9 @@ impl SavedNominalCatalogV1 {
 #[derive(serde::Serialize,serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct RecordedRegistrationBlob {logical_path:String,role:Option<String>,byte_length:u64,sha256:String,raw_hex:String}
+impl RecordedRegistrationBlob {
+    pub(crate) fn role_name(&self)->Option<&str>{self.role.as_deref()}
+}
 impl RegistrationBlob {
     pub(crate) fn path(&self)->&str {&self.path}
     pub(crate) fn role(&self)->Option<&str> {self.role}
@@ -188,6 +238,9 @@ impl RegistrationDraft {
         } else if !rows.is_empty(){return Err(fail("원문에 없는 여분의 고름씨 등록 자료입니다"));}
         Ok(())
     }
+    pub(super) fn has_legacy_ddl_start(&self)->bool {
+        self.resolved.as_ref().is_some_and(|catalog|catalog.has_legacy_ddl_start())
+    }
     pub(crate) fn resolved_start_material(&self,source:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1)->Result<Option<(String,Vec<u8>,Vec<u8>)>,String> {
         let source=resolved_supply::Source::saved(source);
         match self.resolved.as_deref() {
@@ -200,9 +253,8 @@ impl RegistrationDraft {
         }
     }
     pub(crate) fn saved_nominal_catalog(&self,owned:&Project)->Result<SavedNominalCatalogV1,String> {
-        let prepared=owned.sources().preparation();
-        let program=ddonirang_lang::parse_v25_with_mode(&prepared.source,&prepared.target_path,ddonirang_lang::ParseMode::Strict)
-            .map_err(|error|fail(&error.to_string()))?;
+        let program=owned.sources().parse_prepared_program()
+            .map_err(|error|fail(&error))?;
         let constructors=self.bind_constructors(owned,&program)?;
         let mut schemas=BTreeMap::new();
         for schema in constructors.into_values() {
@@ -339,13 +391,21 @@ pub(crate) fn restore_precanon_recorded_candidate(
     records:Vec<RecordedRegistrationBlob>,
 )->Result<RegistrationDraft,String> {
     let mut draft=restore_recorded_candidate_parts(owned.project(),owned.sources(),records)?;
-    draft.restore_resolved(owned)?;Ok(draft)
+    draft.restore_resolved(owned)?;if draft.artifacts.iter().any(|b|b.role==Some(logic_dependency::ROLE)){draft.verify_logic_dependency(owned)?;}Ok(draft)
 }
 fn restore_recorded_candidate_parts(
     project:&crate::authored_project::ProjectArtifact,
     sources:&crate::project_revision_envelope_supply::VerifiedSavedV25Sources,
     records:Vec<RecordedRegistrationBlob>,
 )->Result<RegistrationDraft,String> {
+    let draft=decode_recorded_candidate_parts(project,records,sources.logic_callable_context().is_some())?;
+    draft.verify_saved_source_parts(project,sources)?;verify_nominal_source_binding_parts(project,sources,&draft)?;
+    Ok(draft)
+}
+// Shared strict data decoder; each checked source owner must then verify its
+// own captures/module/declarations before the candidate can be consumed.
+fn decode_recorded_candidate_parts(project:&crate::authored_project::ProjectArtifact,
+    records:Vec<RecordedRegistrationBlob>,allow_logic:bool)->Result<RegistrationDraft,String>{
     if records.is_empty()||records.len()>257{return Err(fail("등록 자료 개수 오류"));}
     let mut artifacts=Vec::new();let mut total=0usize;let mut descriptor_count=0;
     for row in records {
@@ -359,6 +419,7 @@ fn restore_recorded_candidate_parts(
         let role=match row.role.as_deref(){
             Some("vc04_atom_source_binding")=>{descriptor_count+=1;Some("vc04_atom_source_binding")},
             Some(resolved_supply::RESOLVED_ROLE)=>Some(resolved_supply::RESOLVED_ROLE),
+            Some(logic_dependency::ROLE) if allow_logic=>Some(logic_dependency::ROLE),
             None=>None, // Contract blobs are declared resources, not another input role.
             _=>return Err(fail("등록 자료 role 오류")),
         };
@@ -386,17 +447,98 @@ fn restore_recorded_candidate_parts(
         atoms=row.entries.iter().map(|entry|Ok(Atom{id:entry.identity.try_into().map_err(|_|fail("local atom 길이 오류"))?,label:entry.label.into()})).collect::<Result<_,String>>()?;
     }
     let resolved_count=artifacts.iter().filter(|blob|blob.role==Some(resolved_supply::RESOLVED_ROLE)).count();
-    if resolved_count>1||artifacts.len()!=1+contracts.len()+resolved_count{return Err(fail("여분의 등록 자료입니다"));}
+    let logic_count=artifacts.iter().filter(|blob|blob.role==Some(logic_dependency::ROLE)).count();
+    if resolved_count>1||logic_count>1||artifacts.len()!=1+contracts.len()+resolved_count+logic_count{return Err(fail("여분의 등록 자료입니다"));}
     let schemas=parsed.nominal.as_ref().map(|tail|tail.schemas.iter().map(|row|Schema{module:row.module.try_into().unwrap(),definition:row.definition.try_into().unwrap(),
         name_type:row.name_type.try_into().unwrap(),category:row.category,label:row.label.into(),slots:row.slots.iter().map(|slot|Slot{id:slot.identity.try_into().unwrap(),label:slot.label.into(),kind:slot.kind,ty:slot.resolved_type.into()}).collect()}).collect()).unwrap_or_default();
     let draft=RegistrationDraft{project:project.authored_identity.logical_dependency_id.as_str().into(),schemas,registry,atoms,descriptor:descriptor_blob.bytes.clone(),contracts,artifacts,resolved:None};
-    draft.verify_saved_source_parts(project,sources)?;verify_nominal_source_binding_parts(project,sources,&draft)?;
+
     Ok(draft)
+}
+
+// Parse through the admitted whole-project preparation, including real import
+// permissions and complete bodies. Registration still binds each declaration
+// to its original capture and byte range, never the linked file's owner.
+fn saved_module_declarations(project:&crate::authored_project::ProjectArtifact,sources:&crate::project_revision_envelope_supply::VerifiedSavedV25Sources,
+    path:&str,capture:&crate::source_snapshot_admission::SourceCapture)->Result<Vec<ddonirang_lang::SeedDef>,String>{
+    let matches=sources.captures().iter().filter(|(name,_)|name==path).collect::<Vec<_>>();
+    if matches.len()!=1 || matches[0].1.identity()!=capture.identity()
+        || matches[0].1.bytes()!=capture.bytes(){return Err(fail("선언 공급의 원문 소유자가 다릅니다"));}
+    let program=sources.parse_prepared_program().map_err(|error|fail(&error))?;
+    let modules=project.authored_identity.modules.iter().filter(|module|module.sources.iter().any(|source|source==path)).collect::<Vec<_>>();
+    if modules.len()!=1{return Err(fail("타입 선언의 실제 모듈 소유자가 유일하지 않습니다"));}
+    // Derive the private type names from actual parsed schema declarations,
+    // their original capture spans and this exact physical module's source
+    // membership. Never recover an owner by stripping a generated prefix.
+    let mut type_links=BTreeMap::new();
+    for ddonirang_lang::TopLevelItem::SeedDef(seed)in &program.items{
+        if !matches!(seed.seed_kind,ddonirang_lang::SeedKind::Schema(_)){continue;}
+        let(owner,span)=sources.preparation().original_span(seed.span).map_err(|error|fail(&error))?;
+        if !modules[0].sources.iter().any(|source|source==&owner){continue;}
+        let originals=sources.preparation().original_declarations.iter().filter(|(source,declaration)|source==&owner&&declaration.span==span).collect::<Vec<_>>();
+        if originals.is_empty()&&sources.preparation().original_declarations.is_empty(){continue;}
+        if originals.len()!=1||originals[0].1.seed_kind!=seed.seed_kind{return Err(fail("타입 정의의 원래 원문 소유가 유일하지 않습니다"));}
+        let name=originals[0].1.canonical_name.clone();
+        if type_links.insert(name,seed.canonical_name.clone()).is_some(){return Err(fail("모듈 안의 타입 정의가 중복됩니다"));}
+    }
+    fn linked_type(ty:&ddonirang_lang::TypeRef,names:&BTreeMap<String,String>,bound:&BTreeSet<String>)->ddonirang_lang::TypeRef{
+        use ddonirang_lang::TypeRef as T;
+        match ty{
+            T::Named(name) if !bound.contains(name)=>T::Named(names.get(name).cloned().unwrap_or_else(||name.clone())),
+            // Applied constructors/structure goals are different roles. Only
+            // their named type arguments may refer to this schema owner.
+            T::Applied{name,args}=>T::Applied{name:name.clone(),args:args.iter().map(|t|linked_type(t,names,bound)).collect()},
+            T::Tuple(items)=>T::Tuple(items.iter().map(|t|linked_type(t,names,bound)).collect()),
+            T::PropositionConjunction(items)=>T::PropositionConjunction(items.iter().map(|t|linked_type(t,names,bound)).collect()),
+            T::Tensor{element,shape}=>T::Tensor{element:Box::new(linked_type(element,names,bound)),shape:shape.clone()},
+            T::Function{params,result}=>T::Function{params:params.iter().map(|t|linked_type(t,names,bound)).collect(),result:Box::new(linked_type(result,names,bound))},
+            _=>ty.clone(),
+        }
+    }
+    let mut declarations=Vec::new();
+    for ddonirang_lang::TopLevelItem::SeedDef(mut seed) in program.items {
+        // Imported registered definitions keep their original owner and may
+        // never be allocated or interpreted as local capture declarations.
+        if sources.linked_public_seed(seed.id) { continue; }
+        let (owner,span)=sources.preparation().original_span(seed.span).map_err(|error|fail(&error))?;
+        if owner!=path {continue;}
+        if capture.text().get(span.start..span.end).is_none(){return Err(fail("선언의 원문 범위가 다릅니다"));}
+        let originals=sources.preparation().original_declarations.iter().filter(|(source,declaration)|source==path&&declaration.span==span).collect::<Vec<_>>();
+        if originals.len()>1{return Err(fail("선언의 원래 원문 소유가 중복됩니다"));}
+        if let Some((_,original))=originals.first().copied(){
+            if original.seed_kind!=seed.seed_kind||original.params.len()!=seed.params.len(){return Err(fail("연결 선언과 원래 선언의 종류·핀 수가 다릅니다"));}
+            let bound=original.type_params.iter().map(|p|p.name.clone()).collect::<BTreeSet<_>>();
+            for(a,b)in original.params.iter().zip(&mut seed.params){
+                if a.pin_name!=b.pin_name{return Err(fail("연결 선언의 핀 소유가 다릅니다"));}
+                let expected=linked_type(&a.type_ref,&type_links,&bound);
+                if expected!=a.type_ref{
+                    if expected!=b.type_ref{return Err(fail("연결 타입 참조와 실제 모듈 타입 소유가 다릅니다"));}
+                    b.type_ref=a.type_ref.clone();
+                }else if matches!(original.seed_kind,ddonirang_lang::SeedKind::Schema(_))&&a.type_ref!=b.type_ref{
+                    return Err(fail("명목 필드의 원래 씨가 다릅니다"));
+                }
+            }
+            if let Some(ty)=&original.result_type{
+                let expected=linked_type(ty,&type_links,&bound);
+                if expected!=*ty{
+                    if seed.result_type.as_ref()!=Some(&expected){return Err(fail("결과 타입 참조의 실제 소유가 다릅니다"));}
+                    seed.result_type=Some(ty.clone());
+                }
+            }
+            if matches!(original.seed_kind,ddonirang_lang::SeedKind::Schema(_)){seed=original.clone();}
+        }else if matches!(seed.seed_kind,ddonirang_lang::SeedKind::Schema(_))&&!sources.preparation().original_declarations.is_empty(){
+            return Err(fail("명목 선언의 원래 모듈·원문 소유를 찾지 못했습니다"));
+        }
+        seed.span=span;
+        declarations.push(seed);
+    }
+    declarations.sort_by_key(|seed|(seed.span.start,seed.span.end));
+    Ok(declarations)
 }
 
 fn verify_nominal_source_binding_parts(project:&crate::authored_project::ProjectArtifact,
     sources:&crate::project_revision_envelope_supply::VerifiedSavedV25Sources,draft:&RegistrationDraft)->Result<(),String>{
-    use ddonirang_lang::{SeedKind,SchemaCategory,TopLevelItem};
+    use ddonirang_lang::{SeedKind,SchemaCategory};
     let parsed=wire::Candidate::parse(&draft.descriptor).map_err(contract_error)?;
     if draft.schemas.iter().any(|schema|!project.authored_identity.modules.iter().any(|module|hex::encode(schema.module)==module.id.as_str())){return Err(fail("다른 모듈의 명목 catalog입니다"));}
     let mut expected=Vec::new();
@@ -405,8 +547,7 @@ fn verify_nominal_source_binding_parts(project:&crate::authored_project::Project
         if modules.is_empty(){continue;}if modules.len()!=1{return Err(fail("모듈 owner 중복"));}
         // F5-GA[ADMITTED_MODULE]: len==1 guards modules[0]; the only callers consume projects opened/validated as exact64 lowercase hex through private source-admission holders.
         let module:[u8;32]=hex::decode(modules[0].id.as_str()).unwrap().try_into().unwrap();
-        let program=ddonirang_lang::parse_v25_with_mode(capture.text(),path,ddonirang_lang::ParseMode::Strict).map_err(|e|fail(&e.to_string()))?;
-        for TopLevelItem::SeedDef(seed) in program.items {if let SeedKind::Schema(category)=seed.seed_kind {
+        for seed in saved_module_declarations(project,sources,path,capture)? {if let SeedKind::Schema(category)=seed.seed_kind {
             expected.push((source,seed.span,module,seed.canonical_name,match category{SchemaCategory::Subject=>1,SchemaCategory::NominalValue=>2},seed.params));
         }}
     }
@@ -519,6 +660,78 @@ impl RegistrationDraft {
     }
 }
 
+/// Source-owner checked full public callable denominator. These facts are
+/// process-local and carry no serde/PURE-provider/wire admission authority.
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub(super) struct PublicCallablePinExport {
+    pub name:String,pub identity:String,pub type_hex:String,
+}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub(super) struct PublicCallableDefinitionExport {
+    pub public_name:String,pub internal_name:String,pub identity:String,
+    pub capture:String,pub source_path:String,pub start:u64,pub end:u64,
+    pub result_type:String,pub pins:Vec<PublicCallablePinExport>,
+    pub closed_body_canon:String,
+}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub(super) struct CheckedPublicCallableExport {
+    pub module:String,pub project_content_sha256:String,pub catalog_sha256:String,
+    pub captures:Vec<(String,String,String,u64)>,
+    pub definitions:Vec<PublicCallableDefinitionExport>,
+}
+#[derive(Clone,Debug)]
+pub(super) struct PublicCallableSurfaceRequest {
+    pub definition:String,pub surface:String,
+    /// Actual pin identity, finite surface spelling, registered particle.
+    pub pins:Vec<(String,String,String)>,
+}
+impl RegistrationDraft {
+    pub(super) fn checked_public_callable_export(&self,
+        owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,module:&str,
+    )->Result<CheckedPublicCallableExport,String> {
+        self.checked_public_callable_export_diagnostic(owned,module,None)
+    }
+
+    pub(super) fn checked_public_callable_export_diagnostic(&self,
+        owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,module:&str,
+        diagnostic:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+    )->Result<CheckedPublicCallableExport,String> {
+        self.verify_precanon_binding(owned)?;
+        self.resolved.as_deref().ok_or("E_DDL_ORIGINAL_G1_CATALOG_REQUIRED")?
+            .checked_public_callable_export(&resolved_supply::Source::saved(owned),self,module,diagnostic)
+    }
+    /// Only this source-owner bridge joins registry lexical facts to the
+    /// actual complete Definition/Pin/type/body/closure proof. Registry lookup
+    /// alone is not a DDL export capability and never activates a consumer.
+    pub(super) fn issue_public_callable_profile(&self,
+        owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,module:&str,
+        requested:Vec<PublicCallableSurfaceRequest>,
+        registry:&mut ddonirang_lang::ddl::SuccessorRegistryOwner,
+        entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>,
+    )->Result<(CheckedPublicCallableExport,ddonirang_lang::ddl::RegisteredSuccessorProfile),String> {
+        let facts=self.checked_public_callable_export(owned,module)?;
+        if requested.len()!=facts.definitions.len(){return Err("E_DDL_PUBLIC_COVERAGE: 전체 공개 정의 분모가 다릅니다".into());}
+        let mut seen=BTreeSet::new();let mut surfaces=Vec::new();
+        for definition in &facts.definitions {
+            let matches=requested.iter().filter(|row|row.definition==definition.identity).collect::<Vec<_>>();
+            if matches.len()!=1||!seen.insert(definition.identity.clone()) {return Err("E_DDL_PUBLIC_COVERAGE: 공개 정의 대응이 누락·중복됐습니다".into());}
+            let row=matches[0];
+            if row.pins.len()!=definition.pins.len(){return Err("E_DDL_PUBLIC_PIN_OWNER: 전체 핀 분모가 다릅니다".into());}
+            let mut pins=Vec::new();
+            for pin in &definition.pins {
+                let matches=row.pins.iter().filter(|candidate|candidate.0==pin.identity).collect::<Vec<_>>();
+                if matches.len()!=1{return Err("E_DDL_PUBLIC_PIN_OWNER: 정의 소유 핀 대응이 누락·중복·교체됐습니다".into());}
+                let mapped=matches[0];
+                pins.push(ddonirang_lang::ddl::SuccessorPinSurface{identity:pin.identity.clone(),surface:mapped.1.clone(),particle:mapped.2.clone()});
+            }
+            surfaces.push(ddonirang_lang::ddl::SuccessorCallableSurface{identity:definition.identity.clone(),surface:row.surface.clone(),pins});
+        }
+        let profile=registry.issue(surfaces,entropy).map_err(|error|error.to_string())?;
+        Ok((facts,profile))
+    }
+}
+
+
 pub(super) fn prepare_first_callable_under_candidate_owner(
     owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,
     first:&crate::authored_project::FirstCallableAuthoredContext,previous:Option<&RegistrationDraft>,
@@ -542,6 +755,51 @@ pub(super) fn restore_precanon_first_callable_candidate(
     let resolved=resolved_supply::ResolvedCatalog::restore_first_callable(&view,&draft,first,rows[0].bytes())?;
     draft.resolved=Some(std::sync::Arc::new(resolved));Ok(draft)
 }
+/// Explicit public-callable owner entry. Default and first-callable paths do
+/// not opt into this selection, including when opening old saved records.
+pub(super) fn prepare_public_callables_under_candidate_owner(
+    owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,module:&str,
+    previous:Option<&RegistrationDraft>,entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>,
+)->Result<RegistrationDraft,String> {
+    let view=resolved_supply::Source::saved(owned);
+    let selected=resolved_supply::ResolvedCatalog::select_public_callables(&view,module)?;
+    let mut draft=prepare_from_source_view(&SavedRegistrationSource::precanon(owned),previous,entropy)?;
+    draft.attach_public_callables(owned,previous,module,entropy)?;
+    Ok(draft)
+}
+pub(super) fn restore_precanon_public_callables_candidate(
+    owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,module:&str,
+    records:Vec<RecordedRegistrationBlob>,
+)->Result<RegistrationDraft,String> {
+    let view=resolved_supply::Source::saved(owned);
+    let selected=resolved_supply::ResolvedCatalog::select_public_callables(&view,module)?;
+    let mut draft=restore_recorded_candidate_parts(owned.project(),owned.sources(),records)?;
+    let rows=draft.artifacts.iter().filter(|row|row.role==Some(resolved_supply::RESOLVED_ROLE)).collect::<Vec<_>>();
+    if rows.len()!=1||rows[0].path!=resolved_supply::RESOLVED_PATH {return Err(fail("선택한 공개 함수의 기록 catalog가 누락·중복됐습니다"));}
+    let resolved=resolved_supply::ResolvedCatalog::restore_public_callables(&view,&draft,rows[0].bytes(),selected)?;
+    draft.resolved=Some(std::sync::Arc::new(resolved));Ok(draft)
+}
+impl RegistrationDraft {
+    fn attach_public_callables(&mut self,owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,
+        previous:Option<&RegistrationDraft>,module:&str,
+        entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>)->Result<(),String> {
+        let view=resolved_supply::Source::saved(owned);
+        let selected=resolved_supply::ResolvedCatalog::select_public_callables(&view,module)?;
+        let resolved=if let Some(old)=previous.and_then(|old|old.resolved.as_deref()) {
+            resolved_supply::ResolvedCatalog::restore_public_callables(&view,self,old.bytes(),selected)?
+        } else {resolved_supply::ResolvedCatalog::issue_public_callables(&view,self,selected,entropy)?};
+        if self.artifacts.iter().any(|blob|blob.path==resolved_supply::RESOLVED_PATH)
+            ||owned.project().source_snapshot.files.iter().any(|file|file.path.eq_ignore_ascii_case(resolved_supply::RESOLVED_PATH)) {
+            return Err(fail("공개 함수 등록 자료 경로가 중복됩니다"));
+        }
+        let bytes=resolved.bytes().to_vec();let sha=Sha256::digest(&bytes).into();
+        self.artifacts.push(RegistrationBlob{path:resolved_supply::RESOLVED_PATH.into(),role:Some(resolved_supply::RESOLVED_ROLE),bytes,sha});
+        let total=self.artifacts.iter().try_fold(0usize,|size,row|size.checked_add(row.bytes.len())).ok_or_else(||fail("등록 자료 합계 한도"))?;
+        if total>2_000_000{return Err(fail("등록 자료 합계 한도"));}
+        self.artifacts.sort_by(|a,b|a.path.cmp(&b.path));self.resolved=Some(std::sync::Arc::new(resolved));Ok(())
+    }
+}
+
 pub(super) fn requires_resolved_program(program:&ddonirang_lang::CanonProgram)->bool {
     resolved_supply::requires_resolved_program(program)
 }
@@ -678,6 +936,40 @@ fn resolve_type(ty:&ddonirang_lang::TypeRef,module:[u8;32],schemas:&[Schema],act
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn saved_module_declarations_bind_imports_capture_and_original_schema_spans() {
+        let directory=std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../pack/reusable_math_workbench_r1/다른작품_후보/첫작품");
+        let files=["root.ddn","main.ddn","정리.ddn"].into_iter().map(|path|
+            super::super::SourceFile{path:path.into(),text:std::fs::read_to_string(directory.join(path)).unwrap()}).collect();
+        let artifact=super::super::ProjectArtifact::create("v1-core-v25".into(),super::super::SourceSnapshot{
+            root_path:Some("root.ddn".into()),entry_path:"main.ddn".into(),files},String::new()).unwrap();
+        let admitted=crate::project_revision_envelope_supply::admit_fresh_precanon_authored_source(
+            artifact.save().unwrap().as_bytes()).unwrap();
+        let sources=admitted.sources();
+        let (_,capture)=sources.captures().iter().find(|(path,_)|path=="main.ddn").unwrap();
+        // The old individual-file parser cannot resolve an imported callable.
+        assert!(ddonirang_lang::parse_v25_with_mode(capture.text(),"main.ddn",ddonirang_lang::ParseMode::Strict).is_err());
+        let declarations=saved_module_declarations(admitted.project(),sources,"main.ddn",capture).unwrap();
+        assert_eq!(declarations.len(),2);
+        assert!(declarations.iter().any(|seed|seed.canonical_name=="실행"));
+        assert!(declarations.iter().all(|seed|capture.text().get(seed.span.start..seed.span.end).is_some()));
+        let (_,foreign)=sources.captures().iter().find(|(path,_)|path=="정리.ddn").unwrap();
+        assert!(saved_module_declarations(admitted.project(),sources,"main.ddn",foreign).is_err());
+        assert!(saved_module_declarations(admitted.project(),sources,"없는.ddn",capture).is_err());
+        // Existing standalone schema labels/types and original spans are stable.
+        let standalone=create(SOURCE);
+        let (_,raw)=standalone.sources().captures().iter().find(|(path,_)|path=="main.ddn").unwrap();
+        let old=ddonirang_lang::parse_v25_with_mode(raw.text(),"main.ddn",ddonirang_lang::ParseMode::Strict).unwrap();
+        let new=saved_module_declarations(standalone.project(),standalone.sources(),"main.ddn",raw).unwrap();
+        let expected=old.items.into_iter().map(|ddonirang_lang::TopLevelItem::SeedDef(seed)|seed).collect::<Vec<_>>();
+        assert_eq!(expected.len(),new.len());
+        for (a,b) in expected.iter().zip(&new) {
+            assert_eq!(a.canonical_name,b.canonical_name);
+            assert_eq!(a.span,b.span);
+            assert_eq!(format!("{:?}",a.params),format!("{:?}",b.params));
+        }
+    }
     #[test]
     fn r3_precanon_nominal_registration_matches_existing_owner_without_final_start() {
         let finalized=create(SOURCE);
@@ -889,5 +1181,56 @@ mod tests {
         drop(prepared);
         assert!(prepare_native_authoring(&mut adapter,&project,None,Some(&stale)).is_err());
         // No durable commit or VM publication has occurred in this test.
+    }
+}
+
+
+#[cfg(test)]
+mod module_nominal_owner_regression {
+    use super::*;
+    use serde_json::{json,Value};
+    fn source()->Value {json!({"root_path":"뿌리.또니","entry_path":"앱.또니","files":[
+        {"path":"뿌리.또니","text":"(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"앱.또니\",원문=\"앱.또니\"),(이름=공급,머리=\"공급.또니\",원문=\"공급.또니\"),(이름=다른,머리=\"다른.또니\",원문=\"다른.또니\")], 시작=(모듈=앱,정의=시작)) 얽음."},
+        {"path":"앱.또니","text":"(왼자료=공급, 오른자료=다른) 쓰임. 시작:움직씨 := {}. (왼점수:왼자료.공개.점수, 오른점수:오른자료.공개.점수) 내보임."},
+        {"path":"공급.또니","text":"(공개=기록) 드러냄. 점수표:이름씨 := { 점수:바른수. }. 기록 := (점수=2)인 점수표."},
+        {"path":"다른.또니","text":"(공개=기록) 드러냄. 점수표:이름씨 := { 점수:바른수. }. 기록 := (점수=9)인 점수표."}]})}
+    #[test]
+    fn original_modules_keep_distinct_physical_type_and_slot_owners_across_value_edit(){
+        use crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnlyRevision as Source;
+        let a=crate::authored_project::operate("create",&json!({"source_profile":"v1-core-v25","module_name":"","source_snapshot":source()}).to_string()).unwrap();
+        let ar=crate::authored_project::operate("source_prepare",&json!({"artifact_json_utf8":a,"expected_parent_hex":"","revision_hex":"07","previous_source_artifact_utf8":null}).to_string()).unwrap();
+        let selected=Source::from_artifact(&ar).unwrap();
+        let registry=selected.owned().registration().unwrap();
+        assert_eq!(registry.schemas.len(),2);
+        let owners=registry.schemas.iter().map(|s|(s.module,s.definition,s.name_type,s.slots.iter().map(|p|p.id).collect::<Vec<_>>())).collect::<Vec<_>>();
+        assert_ne!(owners[0].0,owners[1].0);assert_ne!(owners[0].1,owners[1].1);assert_ne!(owners[0].2,owners[1].2);assert_ne!(owners[0].3,owners[1].3);
+        assert!(registry.schemas.iter().all(|s|s.label=="점수표"&&s.slots.len()==1&&s.slots[0].label=="점수"));
+        let mut snapshot=source();snapshot["files"][3]["text"]=json!(snapshot["files"][3]["text"].as_str().unwrap().replace("점수=9","점수=12"));
+        let b=crate::authored_project::operate("update",&json!({"original_json":a,"source_snapshot":snapshot}).to_string()).unwrap();
+        let br=crate::authored_project::operate("source_prepare",&json!({"artifact_json_utf8":b,"expected_parent_hex":"07","revision_hex":"08","previous_source_artifact_utf8":ar}).to_string()).unwrap();
+        let next=Source::from_artifact(&br).unwrap();let next_registry=next.owned().registration().unwrap();
+        assert_eq!(owners,next_registry.schemas.iter().map(|s|(s.module,s.definition,s.name_type,s.slots.iter().map(|p|p.id).collect::<Vec<_>>())).collect::<Vec<_>>());
+        assert_eq!(next.owned().project().save().unwrap(),b);
+    }
+}
+
+
+#[cfg(test)]
+mod module_typeref_physical_owners {
+    use super::*;
+    #[test]
+    fn nested_schema_field_type_ids_bind_the_actual_same_module_schema(){
+        use serde_json::json;
+        use crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnlyRevision as Source;
+        let root="(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"앱.또니\",원문=\"앱.또니\"),(이름=왼,머리=\"왼.또니\",원문=\"왼.또니\"),(이름=오른,머리=\"오른.또니\",원문=\"오른.또니\")], 시작=(모듈=앱,정의=시작)) 얽음.";
+        let provider="(공개=기록) 드러냄. 점수표:이름씨 := { 점수:바른수. }. 점수갑:이름씨 := { 값:점수표. }. 기록 := (점수=2)인 점수표. (값:점수표) 그대로:점수표:셈씨 := { 그대로 <- 값. }.";
+        let a=crate::authored_project::operate("create",&json!({"source_profile":"v1-core-v25","module_name":"","source_snapshot":{"root_path":"뿌리.또니","entry_path":"앱.또니","files":[{"path":"뿌리.또니","text":root},{"path":"앱.또니","text":"시작:움직씨 := {}."},{"path":"왼.또니","text":provider},{"path":"오른.또니","text":provider}]}}).to_string()).unwrap();
+        let raw=crate::authored_project::operate("source_prepare",&json!({"artifact_json_utf8":a,"expected_parent_hex":"","revision_hex":"0b","previous_source_artifact_utf8":null}).to_string()).unwrap();
+        let source=Source::from_artifact(&raw).unwrap();let schemas=&source.owned().registration().unwrap().schemas;assert_eq!(schemas.len(),4);
+        for wrapper in schemas.iter().filter(|s|s.label=="점수갑"){
+            let same=schemas.iter().find(|s|s.module==wrapper.module&&s.label=="점수표").unwrap();
+            let other=schemas.iter().find(|s|s.module!=wrapper.module&&s.label=="점수표").unwrap();
+            assert_eq!(wrapper.slots[0].kind,1);assert_eq!(wrapper.slots[0].ty,same.name_type.to_vec());assert_ne!(wrapper.slots[0].ty,other.name_type.to_vec());
+        }
     }
 }

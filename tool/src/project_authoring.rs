@@ -2158,6 +2158,63 @@ fn parse_authoring_file(
     }
 }
 
+
+// Compilation-local binding facts from the same parsed AST/scopes. These are
+// not public DefinitionIdentity issuance or a UI name-lookup authority.
+pub(crate) struct ModuleLinkOccurrence {
+    pub name:String, pub start:usize, pub end:usize, pub surface:String, pub label:Option<String>,
+}
+pub(crate) struct ModuleLinkFacts {
+    pub globals:BTreeSet<String>, pub occurrences:Vec<ModuleLinkOccurrence>, pub unsupported:bool,
+    pub type_names:BTreeSet<String>,
+    pub type_occurrences:Vec<(String,Span)>,
+    pub unmapped_type_names:BTreeSet<String>,
+}
+pub(crate) fn module_link_facts(program:&CanonProgram,source:&str,path:&str,forms:&BTreeMap<String,String>,j1:Option<ddonirang_lang::ddl::CheckedJ1Profile>)->Result<ModuleLinkFacts,LocalProjectError>{
+    let mut lexer=match j1 {
+        Some(profile)=>Lexer::with_j1_profile(source,profile),
+        None=>Lexer::with_korean_source_header(source).map(|(lexer,_)|lexer),
+    }.map_err(|e|LocalProjectError::with_path("E_PROJECT_NAMESPACE_LEX",path,e.message))?;
+    let tokens=lexer.tokenize().map_err(|e|LocalProjectError::with_path("E_PROJECT_NAMESPACE_LEX",path,e.message))?;
+    let(mut scopes,mut definitions,mut occurrences)=(Vec::new(),Vec::new(),Vec::new());
+    let(mut labels,mut unsupported,type_names,type_occurrences,unmapped_type_names)={
+        let mut c=DefinitionCollector::new(path,source,&tokens,0,&[],&mut scopes,&mut definitions,&mut occurrences);
+        c.link_mode=true;c.link_call_forms=forms.clone();c.collect(program,false);
+        (c.link_labels,c.link_unsupported,c.link_type_names,c.link_type_occurrences,c.link_unmapped_type_names)
+    };
+    let file_scope=scopes.iter().find(|s|s.parent_id.is_none()).map(|s|s.id.as_str());
+    let mut globals=definitions.iter().filter(|d|Some(d.scope_id.as_str())==file_scope).map(|d|d.normalized_name.clone()).collect::<BTreeSet<_>>();
+    // Root derived targets are actual world destinations in this AST. They
+    // supply a compiler binding, never a callable/physical DefinitionIdentity.
+    for stmt in &program.root_stmts {if let Stmt::DerivedBinding{name,..}=stmt {
+        globals.insert(name.clone());
+    }}
+    let mut result=Vec::new();
+    for d in definitions.iter().filter(|d|Some(d.scope_id.as_str())==file_scope){
+        result.push(ModuleLinkOccurrence{name:d.normalized_name.clone(),start:d.range.start,end:d.range.end,surface:d.normalized_name.clone(),label:None});
+    }
+    for o in occurrences {
+        // A local parameter/binder/definition wins before module globals.
+        let(found,resolution)=resolve_simple_reference(&o,&o.name,&scopes,&definitions);
+        if resolution=="ambiguous"{unsupported=true;continue;}
+        if let Some(found)=found {if definitions.iter().any(|d|d.id==found&&Some(d.scope_id.as_str())!=file_scope){continue;}}
+        if o.name.contains('.') {continue;}
+        let surface=source.get(o.start..o.end).ok_or_else(||LocalProjectError::new("E_PROJECT_NAMESPACE_SPAN","참조 원문 범위가 다릅니다"))?;
+        result.push(ModuleLinkOccurrence{name:o.name,start:o.start,end:o.end,surface:ddonirang_lang::dialect::DialectConfig::from_source(source).canonicalize_keyword(surface).unwrap_or(surface).into(),label:labels.remove(&(o.start,o.end))});
+    }
+    // Explicit owned lexical alternates belong to their seed, not a new global.
+    for item in &program.items {let TopLevelItem::SeedDef(seed)=item;
+        if seed.alternate_forms.is_empty(){continue;}
+        let Some(name)=result.iter().find(|r|r.name==seed.canonical_name&&r.start>=seed.span.start&&r.end<=seed.span.end)else{continue};
+        let Some(index)=tokens.iter().position(|t|t.span.start==name.start)else{continue};
+        if !tokens.get(index+1).is_some_and(|t|matches!(t.kind,TokenKind::LBrace)){continue;}
+        for t in tokens.iter().skip(index+2).take_while(|t|!matches!(t.kind,TokenKind::RBrace)){
+            if token_name(t).is_some_and(|n|seed.alternate_forms.iter().any(|a|a==n)) {result.push(ModuleLinkOccurrence{name:seed.canonical_name.clone(),start:t.span.start,end:t.span.end,surface:token_name(t).unwrap().into(),label:None});}
+        }
+    }
+    Ok(ModuleLinkFacts{globals,occurrences:result,unsupported,type_names,type_occurrences,unmapped_type_names})
+}
+
 struct DefinitionCollector<'a> {
     path: &'a str,
     source: &'a str,
@@ -2169,6 +2226,14 @@ struct DefinitionCollector<'a> {
     occurrences: &'a mut Vec<RawOccurrence>,
     implicit_globals: BTreeSet<String>,
     scope_serial: usize,
+    link_mode: bool,
+    link_call_forms: BTreeMap<String,String>,
+    link_labels: BTreeMap<(usize,usize),String>,
+    link_unsupported: bool,
+    link_type_names:BTreeSet<String>,
+    link_type_occurrences:Vec<(String,Span)>,
+    link_unmapped_type_names:BTreeSet<String>,
+    link_type_parameters:BTreeSet<String>,
 }
 
 impl<'a> DefinitionCollector<'a> {
@@ -2193,9 +2258,64 @@ impl<'a> DefinitionCollector<'a> {
             occurrences,
             implicit_globals: BTreeSet::new(),
             scope_serial: 0,
+            link_mode:false, link_call_forms:BTreeMap::new(), link_labels:BTreeMap::new(), link_unsupported:false, link_type_names:BTreeSet::new(),link_type_occurrences:Vec::new(),link_unmapped_type_names:BTreeSet::new(),link_type_parameters:BTreeSet::new(),
         }
     }
 
+    fn type_name_counts(ty:&TypeRef,out:&mut BTreeMap<String,usize>) {
+        match ty {
+            TypeRef::Named(name)=>{*out.entry(name.clone()).or_default()+=1;}
+            TypeRef::Applied{args,..}=>{for arg in args{Self::type_name_counts(arg,out);}}
+            TypeRef::Tuple(items)|TypeRef::PropositionConjunction(items)=>for item in items{Self::type_name_counts(item,out);},
+            TypeRef::Tensor{element,..}=>Self::type_name_counts(element,out),
+            TypeRef::Function{params,result}=>{for param in params{Self::type_name_counts(param,out);}Self::type_name_counts(result,out);}
+            TypeRef::StructureLaw{..}=>{}
+            TypeRef::AlgebraEquality{..}|TypeRef::CardCallEquality { .. } | TypeRef::AlgebraNonzero{..}|TypeRef::Infer=>{}
+        }
+    }
+    fn type_names_for(&self,ty:&TypeRef)->BTreeMap<String,usize>{
+        let mut names=BTreeMap::new();Self::type_name_counts(ty,&mut names);
+        names.retain(|name,_|!self.link_type_parameters.contains(name));names
+    }
+    fn collect_type(&mut self, ty:&TypeRef) {
+        if !self.link_mode{return;}
+        let names=self.type_names_for(ty);
+        self.link_type_names.extend(names.keys().cloned());
+        self.link_unmapped_type_names.extend(names.into_keys());
+    }
+    fn collect_type_at(&mut self,ty:&TypeRef,owner:Span) {
+        if !self.link_mode{return;}
+        let names=self.type_names_for(ty);if names.is_empty(){return;}
+        self.link_type_names.extend(names.keys().cloned());
+        let found=(||{
+            let (start,end)=self.map(owner)?;
+            // Only an AST-owned declaration header is eligible. The first
+            // top-level colon follows its binder/name; nested pin colons and
+            // values/defaults do not supply another declaration's type.
+            let mut depth=0usize;let mut type_start=None;
+            for (index,t) in self.tokens.iter().enumerate().filter(|(_,t)|t.span.start>=start&&t.span.end<=end){
+                match t.kind {
+                    TokenKind::LParen|TokenKind::LBracket|TokenKind::LBrace=>depth+=1,
+                    TokenKind::RParen|TokenKind::RBracket|TokenKind::RBrace=>depth=depth.checked_sub(1)?,
+                    TokenKind::Colon if depth==0=>{type_start=Some(index+1);break;}
+                    TokenKind::Arrow|TokenKind::Equals if depth==0=>break,
+                    _=>{}
+                }
+            }
+            let index=type_start?;
+            let mut tokens=self.tokens[index..].iter().take_while(|t|t.span.end<=end&&!matches!(t.kind,TokenKind::Eof)).cloned().collect::<Vec<_>>();
+            tokens.push(Token{kind:TokenKind::Eof,span:ddonirang_lang::lexer::Span::new(end,end),raw:String::new()});
+            let(parsed,sites)=ddonirang_lang::Parser::parse_type_reference_prefix(self.source,tokens).ok()?;
+            if parsed!=*ty{return None;}
+            Some(sites)
+        })();
+        let Some(sites)=found else{self.link_unmapped_type_names.extend(names.into_keys());return;};
+        for(name,count)in names{
+            let matching=sites.iter().filter(|(candidate,span,named)|*named&&candidate==&name&&self.source.get(span.start..span.end)==Some(candidate.as_str())).collect::<Vec<_>>();
+            if matching.len()!=count{self.link_unmapped_type_names.insert(name);continue;}
+            self.link_type_occurrences.extend(matching.into_iter().map(|(name,span,_)|(name.clone(),*span)));
+        }
+    }
     fn collect(&mut self, program: &CanonProgram, wrapped: bool) {
         let file_scope = self.add_scope(None, "file", 0, self.source.len());
         if wrapped {
@@ -2207,11 +2327,31 @@ impl<'a> DefinitionCollector<'a> {
             }
             return;
         }
+        if self.link_mode {
+            // These are existing explicit AST declarations, not runtime
+            // initialization. Body writes must not mint competing implicit
+            // world bindings merely because setup was visited later.
+            self.collect_stmts(&program.root_stmts,&file_scope);
+            for item in &program.items {let TopLevelItem::SeedDef(seed)=item;
+                if let Some(body)=&seed.body {
+                    let synthetic=seed.span==body.span&&body.stmts.iter().all(|s|matches!(s,Stmt::DeclBlock{..}));
+                    for stmt in &body.stmts {
+                        if matches!(stmt,Stmt::DeclBlock{span,..} if synthetic||span.start<seed.span.start||span.end>seed.span.end){
+                            self.collect_stmts(std::slice::from_ref(stmt),&file_scope);
+                        }
+                    }
+                }
+            }
+        }
         for item in &program.items {
             let TopLevelItem::SeedDef(seed) = item;
             let Some(seed_span) = self.map(seed.span) else {
                 continue;
             };
+            if self.link_mode && seed.body.as_ref().is_some_and(|body|
+                seed.span==body.span && body.stmts.iter().all(|s|matches!(s,Stmt::DeclBlock{..}))) {
+                continue;
+            }
             if let Some(name_span) = self.name_span(&seed.canonical_name, seed.span, false) {
                 self.add_definition(
                     &seed.canonical_name,
@@ -2224,9 +2364,14 @@ impl<'a> DefinitionCollector<'a> {
                     true,
                 );
             }
+            if self.link_mode&&seed.proof_header.is_some(){self.link_unsupported=true;}
             let seed_scope =
                 self.add_scope(Some(file_scope.clone()), "seed", seed_span.0, seed_span.1);
+            let saved_type_parameters=self.link_type_parameters.clone();
+            self.link_type_parameters.extend(seed.type_params.iter().map(|p|p.name.clone()));
+            if let Some(ty)=&seed.result_type {self.collect_type_at(ty,seed.span);}
             for param in &seed.params {
+                self.collect_type_at(&param.type_ref,param.span);
                 if let Some(default_value) = &param.default_value {
                     self.collect_expr(default_value, &seed_scope, false);
                 }
@@ -2247,12 +2392,18 @@ impl<'a> DefinitionCollector<'a> {
                 }
             }
             if let Some(body) = &seed.body {
-                self.collect_body(body, &seed_scope, false);
+                if self.link_mode {
+                    for stmt in &body.stmts {
+                        let world=matches!(stmt,Stmt::DeclBlock{span,..} if span.start<seed.span.start||span.end>seed.span.end);
+                        if !world {self.collect_stmts(std::slice::from_ref(stmt),&seed_scope);}
+                    }
+                }else{self.collect_body(body, &seed_scope, false);}
             }
+            self.link_type_parameters=saved_type_parameters;
         }
         // Root statements became first-class in dae9389628f8. Navigation must
         // collect that AST too, without manufacturing a wrapper callable.
-        self.collect_stmts(&program.root_stmts, &file_scope);
+        if !self.link_mode {self.collect_stmts(&program.root_stmts, &file_scope);}
     }
 
     fn collect_body(&mut self, body: &Body, parent_scope: &str, nested: bool) {
@@ -2272,6 +2423,7 @@ impl<'a> DefinitionCollector<'a> {
             match stmt {
                 Stmt::SumDefinition { .. } => {}
                 Stmt::SumMatch { subject, arms, default_body, .. } => {
+                    if self.link_mode {self.link_unsupported=true;}
                     self.collect_expr(subject, &scope_id, false);
                     for arm in arms {
                         self.collect_body(&arm.body, &scope_id, true);
@@ -2282,6 +2434,7 @@ impl<'a> DefinitionCollector<'a> {
                 }
                 Stmt::DeclBlock { items, .. } => {
                     for item in items {
+                        self.collect_type_at(&item.type_ref,item.span);
                         if let Some(value) = &item.value {
                             self.collect_expr(value, &scope_id, false);
                         }
@@ -2312,6 +2465,8 @@ impl<'a> DefinitionCollector<'a> {
                     value,
                     ..
                 } => {
+                    self.collect_type_at(type_ref,*span);
+                    if self.link_mode&&matches!(stmt,Stmt::Definition{reaction:Some(_),..}){self.link_unsupported=true;}
                     self.collect_expr(value, &scope_id, false);
                     if let Some(name_span) = self.name_span(name, *span, false) {
                         self.add_definition(
@@ -2327,7 +2482,15 @@ impl<'a> DefinitionCollector<'a> {
                         self.set_last_value_label(value);
                     }
                 }
-                Stmt::DerivedBinding {value,..} => {
+                Stmt::DerivedBinding {name,value,span,..} => {
+                    if self.link_mode {
+                        // The AST owns a root world destination, not a callable
+                        // or a new DefinitionIdentity. Record its exact target
+                        // token through the same source/scopes as other writes.
+                        if let Some(target)=self.name_span(name,*span,false) {
+                            self.record_occurrence(name,&scope_id,target,true);
+                        } else {self.link_unsupported=true;}
+                    }
                     self.collect_expr(value,&scope_id,false);
                 }
                 Stmt::Mutate { target, value, .. } => {
@@ -2377,9 +2540,9 @@ impl<'a> DefinitionCollector<'a> {
                     body,
                     ..
                 } => {
-                    if let Some(condition) = condition {
+                    if !self.link_mode {if let Some(condition) = condition {
                         self.collect_expr(condition, &scope_id, false);
-                    }
+                    }}
                     let child = self.child_scope_for_body(&scope_id, body, "receive");
                     if let Some(name) = binding {
                         if let Some(span) = self.name_span(name, *span, false) {
@@ -2388,6 +2551,7 @@ impl<'a> DefinitionCollector<'a> {
                             );
                         }
                     }
+                    if self.link_mode {if let Some(condition)=condition{self.collect_expr(condition,&child,false);}}
                     self.collect_body(body, &child, false);
                 }
                 Stmt::ForEach {
@@ -2398,6 +2562,7 @@ impl<'a> DefinitionCollector<'a> {
                     body,
                     ..
                 } => {
+                    if let Some(ty)=item_type{self.collect_type(ty);}
                     self.collect_expr(iterable, &scope_id, false);
                     let child = self.child_scope_for_body(&scope_id, body, "foreach");
                     if let Some(span) = self.name_span(item, *span, false) {
@@ -2421,6 +2586,7 @@ impl<'a> DefinitionCollector<'a> {
                     body,
                     ..
                 } => {
+                    self.collect_type(domain);
                     let child = self.child_scope_for_body(&scope_id, body, "quantifier");
                     if let Some(span) = self.name_span(variable, *span, false) {
                         self.add_definition(
@@ -2530,6 +2696,7 @@ impl<'a> DefinitionCollector<'a> {
                                 self.set_last_value_label(&field.value);
                             }
                         }
+                        if self.link_mode&&shorthand {if let Some(span)=self.map(field.value.span){self.link_labels.insert(span,field.name.clone());}}
                         self.collect_expr(&field.value, &scope_id, false);
                     }
                 }
@@ -2577,7 +2744,19 @@ impl<'a> DefinitionCollector<'a> {
                     }
                 }
             }
+            ExprKind::FunctionBlock{statements,result}=>{
+                let child=self.child_scope_for_body(scope_id,statements,"function_body");
+                self.collect_stmts(&statements.stmts,&child);self.collect_expr(result,&child,write);
+            }
             ExprKind::Thunk(body) => self.collect_body(body, scope_id, true),
+            ExprKind::SeedLiteral { param,body,.. } if self.link_mode => {
+                let range=self.map(expr.span).unwrap_or((0,self.source.len()));
+                let child=self.add_scope(Some(scope_id.into()),"link_lambda",range.0,range.1);
+                for name in param.split(',').map(str::trim).filter(|name|!name.is_empty()) {
+                    if let Some(span)=self.name_span(name,expr.span,false){self.add_definition(name,"parameter",&child,span,None,None,false,true);}
+                }
+                self.collect_expr(body,&child,write);
+            }
             ExprKind::SeedLiteral { body, .. }
             | ExprKind::Nuance { expr: body, .. }
             | ExprKind::Suffix { value: body, .. } => self.collect_expr(body, scope_id, write),
@@ -2586,6 +2765,7 @@ impl<'a> DefinitionCollector<'a> {
                     self.record_occurrence(name, scope_id, span, write);
                 }
             }
+            ExprKind::FieldAccess { target,.. } if self.link_mode => self.collect_expr(target,scope_id,write),
             ExprKind::FieldAccess { .. } => {
                 if let Some(path) = field_access_path(expr) {
                     if let Some(span) = self.map(expr.span) {
@@ -2599,14 +2779,16 @@ impl<'a> DefinitionCollector<'a> {
                 for arg in args {
                     self.collect_expr(&arg.expr, scope_id, false);
                 }
+                let canonical=if self.link_mode {self.link_call_forms.get(func).cloned().unwrap_or_else(||func.clone())}else{func.clone()};
                 let span = if func.contains('.') {
                     self.qualified_name_span(func, expr.span)
-                } else {
-                    self.name_span(func, expr.span, true)
-                };
-                if let Some(span) = span {
-                    self.record_occurrence(func, scope_id, span, false);
-                }
+                } else if self.link_mode {
+                    self.map(expr.span).and_then(|range|self.tokens.iter().filter(|t|t.span.start>=range.0&&t.span.end<=range.1)
+                        .filter(|t|token_name(t).is_some_and(|name|name==canonical||self.link_call_forms.get(name)==Some(&canonical)))
+                        .last().map(|t|(t.span.start,t.span.end)))
+                }else {self.name_span(func, expr.span, true)};
+                if let Some(span) = span {self.record_occurrence(&canonical, scope_id, span, false);}
+                else if self.link_mode&&!func.contains('.')&&self.link_call_forms.contains_key(func){self.link_unsupported=true;}
             }
             ExprKind::CollectionConstructor { elements } | ExprKind::TupleConstructor { elements } => {
                 for element in elements {
@@ -2628,7 +2810,13 @@ impl<'a> DefinitionCollector<'a> {
                 }
             }
             ExprKind::Pack { fields } => {
-                for (_, value) in fields {
+                for (label, value) in fields {
+                    if self.link_mode&&matches!(&value.kind,ExprKind::Var(name) if name==label) {
+                        if let Some(span)=self.map(value.span){
+                            let explicit=self.tokens.iter().rev().find(|t|t.span.end<=span.0).is_some_and(|t|matches!(t.kind,TokenKind::Colon));
+                            if !explicit {self.link_labels.insert(span,label.clone());}
+                        }
+                    }
                     self.collect_expr(value, scope_id, false);
                 }
             }
@@ -2642,7 +2830,7 @@ impl<'a> DefinitionCollector<'a> {
             | ExprKind::Assertion(_)
             | ExprKind::StateMachine(_)
             | ExprKind::Formula(_)
-            | ExprKind::Template(_) => {}
+            | ExprKind::Template(_) => {if self.link_mode&&!matches!(expr.kind,ExprKind::Literal(_)|ExprKind::FlowValue){self.link_unsupported=true;}}
         }
     }
 
@@ -2949,6 +3137,8 @@ fn line_column_utf16(source: &str, byte_offset: usize) -> Option<(usize, usize)>
 
 fn type_ref_label(type_ref: &TypeRef) -> String {
     match type_ref {
+        TypeRef::CardCallEquality {left,right} => format!("{} =:= {}",left.source_text(),right.source_text()),
+        TypeRef::AlgebraNonzero {term} => format!("{} != 0",term.source_text()),
         TypeRef::AlgebraEquality {left,right} => format!("{} =:= {}",left.source_text(),right.source_text()),
         TypeRef::StructureLaw { structure, member } => format!("{structure}.{member}"),
         TypeRef::PropositionConjunction(items) => format!("({})", items.iter().map(type_ref_label).collect::<Vec<_>>().join(" 이고 ")),

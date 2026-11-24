@@ -13,6 +13,8 @@ use unicode_normalization::UnicodeNormalization;
 pub const MODEL_IR_SCHEMA_CANDIDATE: &str = "ddn.model_ir.candidate.w1";
 pub const EXACT_ACYCLIC_RELATION_BACKEND_ID: &str = "ddn.exact_acyclic_relation.v1";
 pub const FIXED_DEFAULT_PRECISE_RECIPE_NAME: &str = "정밀한방법";
+/// Current public selector; the existing internal recipe identity stays fixed.
+pub const PRECISE_SOLVER_VALUE_NAME: &str = "정밀풀이";
 pub const STANDARD_REPRO_PROFILE_IDENTITY: &str = "표준재현_v1";
 pub const EXECUTION_CONTRACT_SCHEMA_CANDIDATE: &str = "ddn.model_execution_contract.candidate.v1";
 
@@ -653,9 +655,12 @@ fn omitted_execution_contract_field<T>(
     }
 }
 
+pub const FIXED_STEP_RK4_MODEL_BACKEND_ID:&str="ddn.fixed_step_rk4_model.v1";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SolveMethodValue {
     Precise,
+    FixedStepRk4,
     HistoricalExactAcyclicRelationV1,
     Unsupported(String),
 }
@@ -664,6 +669,7 @@ impl SolveMethodValue {
     fn from_expr(value: &ModelExpr) -> Self {
         match value.node.as_ref() {
             Some(ModelExprNode::Atom(name)) if name == "정밀" => Self::Precise,
+            Some(ModelExprNode::Atom(name)) if name == "고정RK4" => Self::FixedStepRk4,
             Some(ModelExprNode::String(name)) if name == EXACT_ACYCLIC_RELATION_BACKEND_ID => {
                 Self::HistoricalExactAcyclicRelationV1
             }
@@ -676,6 +682,7 @@ impl SolveMethodValue {
             Self::Precise | Self::HistoricalExactAcyclicRelationV1 => {
                 Some(EXACT_ACYCLIC_RELATION_BACKEND_ID)
             }
+            Self::FixedStepRk4 => Some(FIXED_STEP_RK4_MODEL_BACKEND_ID),
             Self::Unsupported(_) => None,
         }
     }
@@ -683,6 +690,7 @@ impl SolveMethodValue {
     pub fn diagnostic_surface(&self) -> &str {
         match self {
             Self::Precise => "#정밀",
+            Self::FixedStepRk4 => "#고정RK4",
             Self::HistoricalExactAcyclicRelationV1 => EXACT_ACYCLIC_RELATION_BACKEND_ID,
             Self::Unsupported(surface) => surface,
         }
@@ -1214,7 +1222,7 @@ impl<'a> Parser<'a> {
         self.tokens
             .get(close + 1)
             .and_then(token_ident)
-            .is_some_and(|word| word == "보임")
+            .is_some_and(|word| matches!(word, "내보임" | "보임"))
     }
 
     fn parse_definition(&mut self) -> Result<ModelDefinition, ModelParseError> {
@@ -1940,7 +1948,7 @@ impl<'a> Parser<'a> {
                 span.end,
             )
         })?;
-        if token_ident(&view_word) != Some("보임") {
+        if !matches!(token_ident(&view_word), Some("내보임" | "보임")) {
             return Err(error(
                 "E_MODEL_VIEW_KEYWORD_CANDIDATE",
                 "결과표 값꾸러미 뒤에 '보임'이 필요합니다",
@@ -2639,7 +2647,7 @@ fn parse_run_request(
             span.end,
         )
     })?;
-    let allowed: HashSet<&str> = ["대상", "들임", "처음", "실행계약", "방법", "내줌", "끝"]
+    let allowed: HashSet<&str> = ["대상", "들임", "처음", "실행계약", "푸는법", "내줌", "끝"]
         .into_iter()
         .collect();
     let mut pins = Vec::new();
@@ -2749,7 +2757,7 @@ fn parse_run_request(
                 )?;
             }
             "실행계약" => {}
-            "방법" => {
+            "푸는법" => {
                 recipe_binding = direct_path(&value).map(str::to_string);
                 method_source_range = Some(span_of(group));
             }
@@ -4189,30 +4197,12 @@ fn canonical_program(ir: &ModelIr) -> String {
         out.push_str(").\n");
         fragments.push((recipe.span.start, out));
     }
-    if let Some(request) = ir
-        .requests
-        .iter()
-        .find(|request| !request.method_provenance.is_authored())
-    {
-        if !ir
-            .recipes
-            .iter()
-            .any(|recipe| recipe.name == FIXED_DEFAULT_PRECISE_RECIPE_NAME)
-        {
-            fragments.push((
-                request.span.start,
-                format!(
-                    "{FIXED_DEFAULT_PRECISE_RECIPE_NAME} <- (\n  방식: #정밀\n).\n"
-                ),
-            ));
-        }
-    }
     for request in &ir.requests {
         let mut out = format!("{} <- (\n", request.binding_name);
         let mut pins = request
             .pins
             .iter()
-            .filter(|pin| !matches!(pin.name.as_str(), "실행계약" | "방법"))
+            .filter(|pin| !matches!(pin.name.as_str(), "실행계약" | "푸는법"))
             .map(|pin| (pin.name.as_str(), pin.value.canonical.clone()))
             .collect::<Vec<_>>();
         let contract_insert_at = pins
@@ -4227,12 +4217,12 @@ fn canonical_program(ir: &ModelIr) -> String {
         let method_value = request
             .pins
             .iter()
-            .find(|pin| pin.name == "방법")
+            .find(|pin| pin.name == "푸는법")
             .map_or_else(
-                || FIXED_DEFAULT_PRECISE_RECIPE_NAME.to_string(),
+                || PRECISE_SOLVER_VALUE_NAME.to_string(),
                 |pin| pin.value.canonical.clone(),
             );
-        pins.insert(contract_insert_at + 1, ("방법", method_value));
+        pins.insert(contract_insert_at + 1, ("푸는법", method_value));
         for (index, (name, value)) in pins.iter().enumerate() {
             if *name == "실행계약" {
                 out.push_str("  실행계약=(\n");
@@ -4342,7 +4332,7 @@ fn semantic_canon(ir: &ModelIr) -> String {
     if ir
         .requests
         .iter()
-        .any(|request| !request.method_provenance.is_authored())
+        .any(request_uses_fixed_precise_recipe)
         && !ir
             .recipes
             .iter()
@@ -4360,16 +4350,20 @@ fn semantic_canon(ir: &ModelIr) -> String {
             let mut pins: Vec<String> = request
                 .pins
                 .iter()
-                .filter(|pin| pin.name != "실행계약")
+                .filter(|pin| pin.name != "실행계약" && pin.name != "푸는법")
                 .map(|pin| format!("{}={}", pin.name, pin.value.canonical))
                 .collect();
             pins.push(format!(
                 "실행계약={}",
                 request.execution_contract.canonical_compact()
             ));
-            if !request.method_provenance.is_authored() {
-                pins.push(format!("방법={FIXED_DEFAULT_PRECISE_RECIPE_NAME}"));
-            }
+            // This private semantic role key is not an accepted source alias.
+            // Preserve established meaning/recipe hashes while public canon uses 푸는법.
+            let method=if request_uses_fixed_precise_recipe(request) {
+                FIXED_DEFAULT_PRECISE_RECIPE_NAME.to_string()
+            }else{request.pins.iter().find(|pin|pin.name=="푸는법")
+                .map(|pin|pin.value.canonical.clone()).unwrap_or_default()};
+            pins.push(format!("방법={method}"));
             pins.sort();
             format!("run:{}|{}", request.binding_name, pins.join(";"))
         })
@@ -4401,10 +4395,19 @@ fn validate_fixed_default_recipe_name(ir: &ModelIr) -> Result<(), ModelParseErro
     let Some(request) = ir
         .requests
         .iter()
-        .find(|request| !request.method_provenance.is_authored())
+        .find(|request| request_uses_fixed_precise_recipe(request))
     else {
         return Ok(());
     };
+    // A user record/model/result may not steal the builtin selector's owner.
+    let public_conflict=ir.definitions.iter().filter(|value|value.name==PRECISE_SOLVER_VALUE_NAME).map(|value|value.span)
+        .chain(ir.recipes.iter().filter(|value|value.name==PRECISE_SOLVER_VALUE_NAME).map(|value|value.span))
+        .chain(ir.instances.iter().filter(|value|value.binding_name==PRECISE_SOLVER_VALUE_NAME).map(|value|value.provenance))
+        .chain(ir.requests.iter().filter(|value|value.binding_name==PRECISE_SOLVER_VALUE_NAME).map(|value|value.span)).next();
+    if let Some(span)=public_conflict {
+        return Err(error("E_MODEL_FIXED_DEFAULT_NAME_CONFLICT_CANDIDATE",
+            "등록된 정밀풀이 값과 원문 이름이 충돌합니다",span.start,span.end));
+    }
     if let Some(definition) = ir
         .definitions
         .iter()
@@ -4846,6 +4849,12 @@ pub fn parse_model_recipe_library_with_source_file(
     Ok(parser.recipes)
 }
 
+/// Source admission validates collisions before this shared selection projection.
+pub fn request_uses_fixed_precise_recipe(request:&RunRequest)->bool {
+    !request.method_provenance.is_authored()
+        || request.recipe_binding.as_deref()==Some(PRECISE_SOLVER_VALUE_NAME)
+}
+
 pub fn fixed_default_precise_recipe(request: &RunRequest) -> SolveRecipe {
     let span = request.method_provenance.source_range();
     let expression_canon = "(방식:#정밀)";
@@ -4879,7 +4888,7 @@ pub fn fixed_default_precise_recipe(request: &RunRequest) -> SolveRecipe {
 }
 
 fn request_public_method_surface(ir: &ModelIr, request: &RunRequest) -> Option<String> {
-    if !request.method_provenance.is_authored() {
+    if request_uses_fixed_precise_recipe(request) {
         return Some("#정밀".to_string());
     }
     let binding = request.recipe_binding.as_deref()?;
@@ -5298,7 +5307,7 @@ mod tests {
     fn fixed_pins_and_open_fields_are_distinct() {
         let source = r#"
 방법1 <- (방식: #정밀, 허용오차: 0.000001).
-결과 <- (대상=공1, 들임=(힘: 0@N), 방법=방법1, 내줌=(위치, 속도), 끝=10@s) 풀기.
+결과 <- (대상=공1, 들임=(힘: 0@N), 푸는법=방법1, 내줌=(위치, 속도), 끝=10@s) 풀기.
 "#;
         let program = parse_model_program(source).expect("request parse");
         assert_eq!(program.ir.recipes.len(), 1);
@@ -5351,8 +5360,7 @@ mod tests {
 "#;
         let explicit = r#"
 계산=모형{입력:나눔수::(들임). 결과:나눔수::(그자리,내줌). 결과::구함. 결과 =:= 입력 + 1.}.
-정밀한방법 <- (방식: #정밀).
-실행결과 <- (대상=계산, 들임=(입력: 2), 방법=정밀한방법, 내줌=(결과)) 풀기.
+실행결과 <- (대상=계산, 들임=(입력: 2), 푸는법=정밀풀이, 내줌=(결과)) 풀기.
 "#;
         let omitted = parse_model_program_with_source_file(omitted, "entry.ddn")
             .expect("omitted method parse");
@@ -5657,7 +5665,7 @@ mod tests {
         let source = r#"
 계산=모형{입력:나눔수::(들임,내줌). 결과:나눔수::(그자리,내줌). 결과::구함. 입력 + 1 =:= 결과.}.
 정확한방법 <- (방식: "ddn.exact_acyclic_relation.v1").
-실행결과 <- (대상=계산, 들임=(입력: 2), 처음=(), 방법=정확한방법, 내줌=(결과, 입력)) 풀기.
+실행결과 <- (대상=계산, 들임=(입력: 2), 처음=(), 푸는법=정확한방법, 내줌=(결과, 입력)) 풀기.
 (계산값: 실행결과.결과, 입력값: 실행결과.입력) 내보임.
 "#;
         let program = parse_model_program(source).expect("typed run/view");
@@ -5668,6 +5676,12 @@ mod tests {
         assert_eq!(request.output_selection, ["결과", "입력"]);
         assert_eq!(program.ir.views[0].fields[0].name, "계산값");
         assert!(program.canonical_ddn.contains(") 내보임."));
+        let reopened = parse_model_program(&program.canonical_ddn).expect("canonical view reparse");
+        assert_eq!(reopened.ir.views[0].fields[0].name, "계산값");
+        assert_eq!(reopened.ir.requests[0].output_selection, ["결과", "입력"]);
+        let historical = parse_model_program(&source.replace(") 내보임.", ") 보임."))
+            .expect("existing result-table alias remains readable");
+        assert_eq!(historical.canonical_ddn, program.canonical_ddn);
     }
 
     #[test]
@@ -6021,7 +6035,7 @@ mod tests {
         let canon = &omitted.canonical_ddn;
         let input = canon.find("  들임=").expect("input pin");
         let contract = canon.find("  실행계약=(").expect("contract pin");
-        let method = canon.find("  방법=").expect("method pin");
+        let method = canon.find("  푸는법=").expect("method pin");
         assert!(input < contract && contract < method);
         let ordered_fields = [
             "    결과: #정본값동일",
@@ -6046,14 +6060,14 @@ mod tests {
     fn execution_contract_stays_after_initial_and_before_method() {
         let source = execution_contract_source(Some(STANDARD_EXECUTION_CONTRACT)).replace(
             "들임=(입력: 2), 실행계약=",
-            "방법=정밀한방법, 처음=(결과: 0), 들임=(입력: 2), 실행계약=",
+            "푸는법=정밀한방법, 처음=(결과: 0), 들임=(입력: 2), 실행계약=",
         );
         let program = parse_model_program(&source).expect("contract pin order canon");
         let canon = &program.canonical_ddn;
         let initial = canon.find("  처음=").expect("initial pin");
         let input = canon.find("  들임=").expect("input pin");
         let contract = canon.find("  실행계약=(").expect("contract pin");
-        let method = canon.find("  방법=").expect("method pin");
+        let method = canon.find("  푸는법=").expect("method pin");
         assert!(input < contract && initial < contract && contract < method);
     }
 

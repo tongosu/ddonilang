@@ -2,6 +2,30 @@
 use super::*;
 
 impl Parser {
+    pub(super) fn parse_anonymous_block(&mut self,params:&[String])->Result<Expr,ParseError>{
+        let start=self.current_span();self.expect(&TokenKind::LBrace,"{")?;
+        self.enter_scope();
+        if let Some(scope)=self.declared_scopes.last_mut(){scope.ordinary.extend(params.iter().cloned());}
+        self.body_depth+=1;
+        let parsed=(||{
+            let mut stmts=Vec::new();let mut result=None;
+            while !self.check(&TokenKind::RBrace){
+                let stmt=self.parse_stmt(true)?;
+                // A terminated expression statement never becomes a result.
+                if self.check(&TokenKind::RBrace)&&!matches!(self.tokens[self.pos.saturating_sub(1)].kind,TokenKind::Dot){
+                    if let Stmt::Expr{expr,..}=stmt{result=Some(expr);break;}
+                    return Err(self.error("E_FUNCTION_TAIL_REQUIRED: 익명 함수 블록의 마지막 결과 식이 필요합니다"));
+                }
+                stmts.push(stmt);
+            }
+            let result=result.ok_or_else(||self.error("E_FUNCTION_TAIL_REQUIRED: 익명 함수 블록의 마지막 결과 식이 필요합니다"))?;
+            self.expect(&TokenKind::RBrace,"}")?;let span=start.merge(&self.previous_span());
+            let statements=Body{id:self.next_id(),span,stmts};
+            Ok(Expr::new(self.next_id(),span,ExprKind::FunctionBlock{statements,result:Box::new(result)}))
+        })();
+        self.body_depth=self.body_depth.saturating_sub(1);self.exit_scope();parsed
+    }
+
     pub(super) fn parse_body(&mut self) -> Result<Body, ParseError> {
         self.body_depth+=1;
         let result=self.parse_body_inner();
@@ -1419,6 +1443,30 @@ impl Parser {
             kind: MetaBlockKind::BogeaMadang,
             entries: vec![raw],
         })
+    }
+
+    pub(super) fn is_profiled_structure_start(&self) -> bool {
+        let Some(end) = self.find_matching_rparen_after_current_lparen() else {
+            return false;
+        };
+        self.tokens
+            .get(self.pos + 1)
+            .is_some_and(|pin| matches!(pin.raw.as_str(), "차림새" | "설정"))
+            && self.peek_kind_n_is(2, |kind| matches!(kind, TokenKind::Equals))
+            && self.tokens.get(end + 1).is_some_and(|body| {
+                matches!(body.kind, TokenKind::JjaimBlock(_)) && body.raw.starts_with("짜임")
+            })
+    }
+
+    pub(super) fn parse_profiled_structure(&mut self) -> Result<Expr, ParseError> {
+        self.expect(&TokenKind::LParen, "(")?;
+        self.advance(); // Exact selector pin, checked in this grammar position.
+        self.expect(&TokenKind::Equals, "=")?;
+        let descriptor = self.parse_expr()?;
+        self.expect(&TokenKind::RParen, ")")?;
+        self.advance(); // Opaque balanced body. The selected provider owns its grammar.
+        self.consume_optional_terminator()?;
+        Ok(descriptor)
     }
 
     pub(super) fn parse_jjaim_block_stmt(&mut self) -> Result<Stmt, ParseError> {

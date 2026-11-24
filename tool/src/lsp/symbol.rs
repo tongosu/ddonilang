@@ -689,6 +689,7 @@ fn walk_expr(
             walk_expr(left, caller_identity, tokens, calls);
             walk_expr(right, caller_identity, tokens, calls);
         }
+        ExprKind::FunctionBlock{statements,result}=>{walk_body(statements,caller_identity,tokens,calls);walk_expr(result,caller_identity,tokens,calls);},
         ExprKind::Thunk(body) => walk_body(body, caller_identity, tokens, calls),
         ExprKind::Eval { thunk, .. } => walk_expr(thunk, caller_identity, tokens, calls),
         ExprKind::Pipe { stages } => {
@@ -851,6 +852,8 @@ fn seed_kind_surface(kind: &SeedKind) -> &str {
 
 pub(crate) fn type_surface(type_ref: &TypeRef) -> String {
     match type_ref {
+        TypeRef::CardCallEquality {left,right} => format!("{} =:= {}",left.source_text(),right.source_text()),
+        TypeRef::AlgebraNonzero {term} => format!("{} != 0",term.source_text()),
         TypeRef::AlgebraEquality {left,right} => format!("{} =:= {}",left.source_text(),right.source_text()),
         TypeRef::StructureLaw { structure, member } => format!("{structure}.{member}"),
         TypeRef::PropositionConjunction(items) => format!("({})", items.iter().map(type_surface).collect::<Vec<_>>().join(" 이고 ")),

@@ -2,7 +2,7 @@
 export function createProjectControls({ buildProjectControlModel, currentProject, els, emptyProjectControlModel, normalizeActionMap, renderExplorationPresets, runtimeBridge, state }) {
 function currentProjectDdnSources(project = currentProject()) {
   return (Array.isArray(project?.files) ? project.files : [])
-    .filter((file) => file?.role !== "meta" && String(file?.path ?? "").toLowerCase().endsWith(".ddn"))
+    .filter((file) => file?.role !== "meta" && /\.(?:ddn|또니)$/i.test(String(file?.path ?? "")))
     .map((file) => ({
       source_path: String(file.path),
       source_text: String(state.fileTexts.get(file.path) ?? file.fallback ?? ""),

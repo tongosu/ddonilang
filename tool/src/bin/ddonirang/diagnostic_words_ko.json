@@ -1,0 +1,332 @@
+[
+  {
+    "id": "02",
+    "codes": [
+      "E_PARSE"
+    ],
+    "contains": [
+      "파싱 실패: )"
+    ],
+    "category": "온전하지 않음",
+    "what": "닫는 괄호가 없습니다.",
+    "why": "",
+    "how": "괄호 안 식을 확인하고 ')'를 붙이세요."
+  },
+  {
+    "id": "03",
+    "codes": [
+      "E_PARSE"
+    ],
+    "contains": [
+      "문장 종결"
+    ],
+    "category": "온전하지 않음",
+    "what": "문장 끝에 마침표 '.'이 없습니다.",
+    "why": "이 문장에는 마침표가 필요합니다.",
+    "how": "앞 문장 끝에 '.'을 붙이세요."
+  },
+  {
+    "id": "04",
+    "codes": [
+      "E_PARSE"
+    ],
+    "contains": [
+      "파싱 실패: 표현식"
+    ],
+    "category": "온전하지 않음",
+    "what": "값이나 계산식이 필요합니다.",
+    "why": "",
+    "how": "표시된 자리와 앞 문장의 식을 확인하세요."
+  },
+  {
+    "id": "05",
+    "codes": [
+      "E_PARSE"
+    ],
+    "contains": [
+      "알 수 없는 문자"
+    ],
+    "category": "온전하지 않음",
+    "what": "이 자리의 기호를 읽을 수 없습니다.",
+    "why": "또니랑 문법에서 쓰지 않는 기호입니다.",
+    "how": "표시된 기호를 확인하세요."
+  },
+  {
+    "id": "06",
+    "codes": [
+      "E_PARSE"
+    ],
+    "contains": [
+      "문자열이 닫히지"
+    ],
+    "category": "온전하지 않음",
+    "what": "글을 끝내는 따옴표가 없습니다.",
+    "why": "글의 시작과 끝을 따옴표로 표시해야 합니다.",
+    "how": "글의 끝에 닫는 따옴표를 붙이세요."
+  },
+  {
+    "id": "07",
+    "codes": [
+      "E_CHECK_UNKNOWN_NAME",
+      "E_STATIC_VALIDATION"
+    ],
+    "contains": [
+      "정의되지 않은 이름입니다"
+    ],
+    "category": "모름",
+    "what": "사용한 이름을 찾지 못했습니다.",
+    "why": "",
+    "how": "이름의 철자와 앞선 정의를 확인하세요."
+  },
+  {
+    "id": "08",
+    "codes": [
+      "E_RUNTIME_EXECUTION"
+    ],
+    "contains": [
+      "0으로 나눌 수 없습니다"
+    ],
+    "category": "온전하지 않음",
+    "what": "0으로 나눌 수 없습니다.",
+    "why": "",
+    "how": "나누는 값이 0이 되는 조건을 확인하세요."
+  },
+  {
+    "id": "09",
+    "codes": [
+      "E_CHECK_TYPE_MISMATCH"
+    ],
+    "contains": [
+      "피연산자 형식이 맞지"
+    ],
+    "category": "온전하지 않음",
+    "what": "연산에 쓰인 값의 씨가 맞지 않습니다.",
+    "why": "",
+    "how": "연산에 맞는 씨의 값을 사용하세요."
+  },
+  {
+    "id": "10",
+    "codes": [
+      "E_PARSE"
+    ],
+    "contains": [
+      "같은 지역 범위에 같은 이름"
+    ],
+    "category": "온전하지 않음",
+    "what": "이름이 같은 범위에 두 번 정의되어 있습니다.",
+    "why": "",
+    "how": "겹친 정의를 확인하고 하나로 정리하세요."
+  },
+  {
+    "id": "11",
+    "codes": [
+      "E_PARSE"
+    ],
+    "contains": [
+      "E_FIXED64_LITERAL_RANGE"
+    ],
+    "category": "온전하지 않음",
+    "what": "이 수 표기를 읽거나 표현할 수 없습니다.",
+    "why": "허용 범위를 벗어났거나 10진 표기가 잘못됐습니다.",
+    "how": "수의 크기와 소수점 표기를 확인하세요."
+  },
+  {
+    "id": "15",
+    "codes": [
+      "E_CALL_REQUIRED_PIN_MISSING"
+    ],
+    "contains": [
+      "E_CALL_REQUIRED_PIN_MISSING"
+    ],
+    "category": "온전하지 않음",
+    "what": "필수 받는자리의 값이 빠졌습니다.",
+    "why": "호출한 정의는 필수 값을 모두 받아야 합니다.",
+    "how": "정의에 적힌 받는자리와 호출에서 빠진 값을 확인하세요."
+  },
+  {
+    "id": "16",
+    "codes": [
+      "E_PARSE"
+    ],
+    "contains": [
+      "해당하는 핀이 없습니다"
+    ],
+    "category": "모름",
+    "what": "이 조사에 맞는 받는자리가 없습니다.",
+    "why": "호출한 정의에서 이 조사에 대응하는 받는자리를 찾지 못했습니다.",
+    "how": "정의의 받는자리 이름과 조사를 확인하세요."
+  },
+  {
+    "id": "17",
+    "codes": [
+      "E_RUNTIME_TYPE_MISMATCH"
+    ],
+    "contains": [
+      "E_RUNTIME_TYPE_MISMATCH"
+    ],
+    "category": "온전하지 않음",
+    "what": "받는자리와 전달된 값의 씨가 다릅니다.",
+    "why": "",
+    "how": "받는자리에 맞는 씨의 값을 사용하세요."
+  },
+  {
+    "id": "21",
+    "codes": [
+      "E_PARSE"
+    ],
+    "contains": [
+      "을 찾을 수 없습니다",
+      "핀 '"
+    ],
+    "category": "모름",
+    "what": "정의에 없는 받는자리입니다.",
+    "why": "",
+    "how": "정의에 적힌 받는자리 이름을 확인하세요."
+  },
+  {
+    "id": "22",
+    "codes": [
+      "E_PARSE_CALL_PIN_DUPLICATE"
+    ],
+    "contains": [
+      "인자가 중복되었습니다"
+    ],
+    "category": "온전하지 않음",
+    "what": "같은 받는자리에 값이 두 번 있습니다.",
+    "why": "",
+    "how": "겹친 지정을 하나로 정리하세요."
+  },
+  {
+    "id": "24",
+    "codes": [
+      "E_PARSE"
+    ],
+    "contains": [
+      "E_SUM_MATCH_EXHAUSTIVE_REQUIRED"
+    ],
+    "category": "온전하지 않음",
+    "what": "갈래 선택을 끝까지 확인할 수 없습니다.",
+    "why": "'아니면'이 없으면 선언된 모든 갈래를 한 번씩 다뤄야 합니다.",
+    "how": "빠지거나 겹친 갈래를 확인하세요."
+  },
+  {
+    "id": "25",
+    "codes": [
+      "E_PARSE"
+    ],
+    "contains": [
+      "E_SUM_BRANCH_UNKNOWN"
+    ],
+    "category": "모름",
+    "what": "선언되지 않은 갈래입니다.",
+    "why": "이 고름씨에 그 갈래가 없습니다.",
+    "how": "고름씨에 적힌 갈래 이름을 확인하세요."
+  },
+  {
+    "id": "30",
+    "codes": [
+      "E_RUNTIME_EXECUTION"
+    ],
+    "contains": [
+      "E_ROOT_BINDING_TYPE_MISMATCH"
+    ],
+    "category": "온전하지 않음",
+    "what": "다시 넣을 값의 씨와 단위가 맞지 않습니다.",
+    "why": "",
+    "how": "기대하는 씨와 단위에 맞는 값을 사용하세요."
+  },
+  {
+    "id": "31",
+    "codes": [
+      "E_PARSE"
+    ],
+    "contains": [
+      "를 알 수 없습니다. 핀 고정"
+    ],
+    "category": "모름",
+    "what": "등록된 내용에서 단위를 찾지 못했습니다.",
+    "why": "이 단위 이름을 이 판에서 확인할 수 없습니다.",
+    "how": "단위 이름과 철자를 확인하세요."
+  },
+  {
+    "id": "37",
+    "codes": [
+      "E_MODEL_RUN_PIN_UNKNOWN_CANDIDATE",
+      "E_MODEL_FRONTDOOR"
+    ],
+    "contains": [
+      "알 수 없는 풀기 고정 핀: 푸는법"
+    ],
+    "category": "아직 지원하지 않음",
+    "what": "이 풀이 지정은 아직 쓸 수 없습니다.",
+    "why": "이 표기는 정해져 있지만 아직 만들지 않았습니다.",
+    "how": "지금은 이 예제의 실행을 보류하세요."
+  },
+  {
+    "id": "14",
+    "codes": [
+      "E_WORK_COST_REGISTRY_MISSING_CANDIDATE"
+    ],
+    "contains": [
+      "E_WORK_COST_REGISTRY_MISSING_CANDIDATE"
+    ],
+    "category": "",
+    "what": "이 호출을 실행할 준비 정보가 없습니다.",
+    "why": "",
+    "how": "호출한 셈씨 이름과 실행 안내를 확인하세요."
+  },
+  {
+    "id": "19",
+    "codes": [
+      "E_TYPE_MISMATCH"
+    ],
+    "contains": [
+      "선언씨"
+    ],
+    "category": "",
+    "what": "받는자리에 적힌 씨를 확인할 수 없습니다.",
+    "why": "",
+    "how": "정의에 적힌 씨 이름을 확인하세요."
+  },
+  {
+    "id": "33",
+    "codes": [
+      "E_PARSE",
+      "E_SELECTION_BOUNDS"
+    ],
+    "contains": [
+      "CHARIM_INDEX_OUT_OF_RANGE"
+    ],
+    "category": "",
+    "what": "자리 번호가 차림 범위를 벗어났습니다.",
+    "why": "",
+    "how": "차림의 크기와 자리 번호를 확인하세요."
+  },
+  {
+    "id": "34",
+    "codes": [
+      "E_CHECK_TYPE_MISMATCH",
+      "E_STATIC_VALIDATION"
+    ],
+    "contains": [
+      "차림 위치는 수여야 합니다"
+    ],
+    "category": "",
+    "what": "차림의 자리 번호는 수여야 합니다.",
+    "why": "",
+    "how": "자리 번호에 수를 사용하세요."
+  },
+  {
+    "id": "38",
+    "codes": [
+      "E_RUNTIME_EXECUTION"
+    ],
+    "contains": [
+      "FATAL:CHARIM_INDEX_OUT_OF_RANGE"
+    ],
+    "category": "",
+    "what": "자리 번호가 차림 범위를 벗어났습니다.",
+    "why": "",
+    "how": "차림의 크기와 자리 번호를 확인하세요."
+  }
+]

@@ -317,7 +317,13 @@ pub(crate) fn prepare_supported_source_for_execution_with_program(
             });
         }
     }
-    let admitted_source = program.has_root_program() || sealed_project.is_some();
+    if let Some(registered)=program.nominal_source_registration(){
+        if registered.source()!=source||registered.path()!=source_path {
+            return Err(ExecutionDiagnostic{code:"E_NOMINAL_SOURCE_EXECUTION_CONTEXT",message:"보관한 등록자료와 실행 원문·경로가 다릅니다".into(),
+                source_path:source_path.into(),span:None,phase:"source_admission",cause:None,offending_field:None,expected:None,actual:None});
+        }
+    }
+    let admitted_source = program.has_root_program() || sealed_project.is_some() || program.nominal_source_registration().is_some();
     let preprocessed = if admitted_source {
         meta.stripped.clone()
     } else {
@@ -398,6 +404,21 @@ fn supported_source_parse_diagnostic(
     }
     let stripped = split_file_meta(source).stripped;
     let error = ddonirang_lang::parse_v25_with_mode(&stripped, path, ParseMode::Strict).err()?;
+    if error.code() == ddonirang_lang::STRUCTURE_PROFILE_REGISTRY_UNAVAILABLE
+        && message.contains(error.code())
+    {
+        let removed = source.len() - stripped.len();
+        let start = error.span.start.checked_add(removed)?;
+        let end = error.span.end.checked_add(removed)?;
+        if source.get(start..end).is_none() {
+            return None;
+        }
+        let mut diagnostic = run_summary_diagnostic(
+            error.code(), error.message, path, "structure_profile_lookup",
+        );
+        diagnostic.span = Some((start, end));
+        return Some(diagnostic);
+    }
     if error.code() == "E_PARSE" && message.starts_with(&format!("파싱 실패: {}", error.message)) {
         // Metadata stripping preserves lines but removes header bytes. The parser
         // span must be translated back before exposing it to source consumers.
@@ -464,12 +485,19 @@ pub fn canonicalize_shared_source_with_supported_profile(
     let profile = resolve_supported_source_profile(source_profile_identity)
         .map_err(|error| format!("{}: {}", error.code, error.message))?;
     let meta = crate::file_meta::split_file_meta(source);
-    let program = DdnProgram::from_supported_source_profile_with_mode(
+    let program = DdnProgram::from_supported_source_profile_diagnostic(
         source,
         "<shared-canonical-supported-profile>",
         ParseMode::Strict,
         profile,
-    )?;
+        crate::ddn_runtime::default_age_target(),
+    ).map_err(|error| {
+        if error.code.starts_with("E_STRUCTURE_") {
+            error.to_json_value().to_string()
+        } else {
+            error.message
+        }
+    })?;
     let warnings = program
         .parse_warnings()
         .iter()
@@ -792,6 +820,25 @@ pub fn save_initial_authored_source_native(artifact:&str,revision:&[u8],storage_
     }
 }
 
+/// Existing B1 source-only codec under the unchanged protected Grant2 owner.
+/// This never begins first use, executes a world or edits a prior source.
+#[cfg(windows)]
+pub(crate) fn save_initial_prepared_logic_source_native(
+    source:&crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnlyRevision,
+    storage_root:&std::path::Path,
+)->Result<NativeSourceRevisionReadback,String>{
+    if !source.parent().is_empty() || source.owned().sources().logic_callable_context().is_none(){
+        return Err("E_LOGIC_STORAGE_CONTEXT_REQUIRED".into());
+    }
+    source.owned().registration().ok_or("E_LOGIC_STORAGE_CONTEXT_REQUIRED")?
+        .verify_production_logic_dependency(&source.owned().precanon_view())?;
+    let mut adapter=crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1::provision_source_revision(storage_root)
+        .map_err(|error|format!("E_SOURCE_SAVE_BEFORE_COMMIT: {error:?}"))?;
+    let grant=adapter.register_source_root_grant(source)
+        .map_err(|error|format!("E_SOURCE_GRANT_REGISTRATION: phase={} cause={:?}",error.phase,error.cause))?;
+    let mut result=source_readback_projection(source)?;result.grant_locator=Some(grant.locator());Ok(result)
+}
+
 /// A live Native owner, not bytes/JSON/receipt. Beginning this session durably
 /// consumes first use before any VM/world creation. Dropping it does not undo
 /// Started, even when no world has run. The VM/custody stage must take this
@@ -819,6 +866,37 @@ pub fn begin_first_authored_source_native(storage_root:&std::path::Path,project:
         .map_err(|error|format!("E_SOURCE_FIRST_USE_CONFIRM: phase={} cause={:?}",error.phase,error.cause))?;
     let permit=grant.consume_first_source_world(&adapter,project,expected_revision,expected_integrity)
         .map_err(|error|format!("E_SOURCE_FIRST_USE_CONSUME: phase={} cause={:?}",error.phase,error.cause))?;
+    Ok(NativeFirstSourceWorldSession{adapter,permit})
+}
+/// Read-only recovery facts from the exclusive protected owner. Kind2 selects
+/// this exact failed pre-world head; its JSON is never a permission to retry.
+#[cfg(windows)]
+pub(crate) fn read_failed_first_source_native(root:&std::path::Path,project:&[u8],locator:&str)
+    ->Result<(NativeSourceRevisionReadback,NativeAuthoringSelection,String),String>{
+    let mut adapter=crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1::open_source_revision(root)
+        .map_err(|cause|format!("E_SOURCE_RETRY_OPEN: {cause:?}"))?;
+    let grant=adapter.confirm_failed_first_source_grant(locator,project)
+        .map_err(|cause|format!("E_SOURCE_RETRY_CONFIRM: {cause:?}"))?;
+    let source=grant.failed_first_source(&adapter,project).map_err(|cause|format!("E_SOURCE_RETRY_SOURCE: {cause:?}"))?;
+    let selection=NativeAuthoringSelection{project:project.to_vec(),revision:source.revision().to_vec(),integrity:*source.integrity(),
+        key:grant.failed_first_selection_key().map_err(|cause|format!("E_SOURCE_RETRY_SELECTION: {cause:?}"))?,kind:2};
+    let mut readback=source_readback_projection(&source)?;readback.grant_locator=Some(grant.locator());
+    Ok((readback,selection,source.artifact()?))
+}
+/// Explicit same-source successor attempt. Full root/history/registration and
+/// selected protected epoch are rechecked now, independently of prior reads.
+#[cfg(windows)]
+pub(crate) fn begin_retry_first_source_native(root:&std::path::Path,project:&[u8],locator:&str,
+    artifact:&str,selection:&NativeAuthoringSelection)->Result<NativeFirstSourceWorldSession,String>{
+    if selection.kind!=2||selection.project!=project{return Err("E_SOURCE_RETRY_SELECTION".into());}
+    let mut adapter=crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1::open_source_revision(root)
+        .map_err(|cause|format!("E_SOURCE_RETRY_OPEN: {cause:?}"))?;
+    let grant=adapter.confirm_failed_first_source_grant(locator,project)
+        .map_err(|cause|format!("E_SOURCE_RETRY_CONFIRM: {cause:?}"))?;
+    let source=grant.failed_first_source(&adapter,project).map_err(|cause|format!("E_SOURCE_RETRY_SOURCE: {cause:?}"))?;
+    if source.owned().project().save()?!=artifact{return Err("E_SOURCE_RETRY_SOURCE_CHANGED".into());}
+    let permit=grant.retry_first_source_world(&adapter,project,&selection.revision,&selection.integrity,&selection.key)
+        .map_err(|cause|format!("E_SOURCE_RETRY_CONSUME: {cause:?}"))?;
     Ok(NativeFirstSourceWorldSession{adapter,permit})
 }
 #[cfg(windows)]
@@ -902,15 +980,44 @@ pub fn read_changed_authored_source_native(storage_root:&std::path::Path,project
     let base=adapter.admit_authoring_base(locator,&head,artifact).map_err(|e|format!("E_SOURCE_AUTHORING_ADMISSION: {e:?}"))?;
     let mut result=source_readback_projection(base.source())?;result.grant_locator=Some(locator.into());Ok(result)
 }
+/// Confirm an already committed initial source under its actual Unused
+/// protected owner. Host locator publication is separate; no source is saved.
+#[cfg(windows)]
+pub(crate) fn reconfirm_initial_authored_source_native(storage_root:&std::path::Path,project:&[u8],expected:&str)
+    ->Result<NativeSourceRevisionReadback,String>{
+    let mut adapter=crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1::open_source_revision(storage_root)
+        .map_err(|cause|format!("E_SOURCE_REVISION_OPEN: {cause:?}"))?;
+    let grant=adapter.confirm_unlocated_initial_source_root_grant(project)
+        .map_err(|error|format!("E_SOURCE_READ_CONFIRM: phase={} cause={:?}",error.phase,error.cause))?;
+    let source=grant.current_source(&adapter,project).map_err(|cause|format!("E_SOURCE_READ_CURRENT: {cause:?}"))?;
+    if source.owned().project().save()?!=expected{return Err("E_NATIVE_SOURCE_SOURCE_CHANGED".into());}
+    let mut result=source_readback_projection(&source)?;result.grant_locator=Some(grant.locator());Ok(result)
+}
 #[cfg(windows)]
 pub fn read_authored_source_native(storage_root:&std::path::Path,project:&[u8],locator:&str)
     ->Result<NativeSourceRevisionReadback,String>{
+    read_authored_source_native_recorded(storage_root,project,locator).map(|(readback,_)|readback)
+}
+// The protected owner's actual decoded source supplies data only, never a grant.
+#[cfg(windows)]
+pub(crate) fn read_authored_source_native_recorded(storage_root:&std::path::Path,project:&[u8],locator:&str)
+    ->Result<(NativeSourceRevisionReadback,Option<String>),String>{
+    let (source, locator) = read_verified_unused_authored_source(storage_root, project, locator)?;
+    let recorded=if source.owned().sources().logic_callable_context().is_some() {
+        Some(source.artifact()?)
+    }else{None};
+    let mut result=source_readback_projection(&source)?;result.grant_locator=Some(locator);Ok((result,recorded))
+}
+
+#[cfg(windows)]
+pub(crate) fn read_verified_unused_authored_source(storage_root:&std::path::Path,project:&[u8],locator:&str)
+    ->Result<(crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnlyRevision,String),String>{
     let mut adapter=crate::snapshot_v2_durable_transaction::native::SqliteAdapterV1::open_source_revision(storage_root)
         .map_err(|cause|format!("E_SOURCE_REVISION_OPEN: {cause:?}"))?;
     let grant=adapter.confirm_unused_source_root_grant(locator,project)
         .map_err(|error|format!("E_SOURCE_READ_CONFIRM: phase={} cause={:?}",error.phase,error.cause))?;
     let source=grant.current_source(&adapter,project).map_err(|cause|format!("E_SOURCE_READ_CURRENT: {cause:?}"))?;
-    let mut result=source_readback_projection(&source)?;result.grant_locator=Some(grant.locator());Ok(result)
+    Ok((source, grant.locator()))
 }
 #[cfg(not(target_arch="wasm32"))]
 pub fn read_initial_authored_source_native(storage_root:&std::path::Path,project:&[u8],revision:&[u8],integrity:&[u8;32])
@@ -1581,8 +1688,14 @@ fn resume_saved_project_artifact_with_general_result(
             source_path,&source_hash,&canonical_hash,public_observation_frames.as_array().unwrap())?;
         bogae_projection=output.bogae_projection.map(crate::unit_wire::SnapshotJsonOwner::from_value);
         if let Some(projection)=bogae_projection.as_mut(){
-            crate::bogae_time::resolve_result_tables(projection.value_mut(),public_observation_frames.as_array().unwrap(),
-                &format!("sha256:{source_hash}"),&format!("sha256:{canonical_hash}"))?;
+            if output.table_selections.is_empty() {
+                crate::bogae_time::resolve_result_tables(projection.value_mut(),public_observation_frames.as_array().unwrap(),
+                    &format!("sha256:{source_hash}"),&format!("sha256:{canonical_hash}"))?;
+            } else {
+                let selected=crate::bogae_time::resolve_typed_result_tables(projection,public_observation_frames.as_array().unwrap(),
+                    &format!("sha256:{source_hash}"),&format!("sha256:{canonical_hash}"),&output.table_selections)?;
+                *projection=crate::unit_wire::SnapshotJsonOwner::from_value(selected);
+            }
         }
         frames.push(json!({"madi":next_tick,"state_hash":current_state_hash(world.world()),"input_receipt":receipt}));
         actual_inputs.push(crate::unit_wire::resumable_complete_state::GeneralProcessedInputRow {input:frame,edges:None});
@@ -2055,9 +2168,10 @@ pub fn run_summary_with_authored_bogae(
     // A one-file authored Bogae has explicit presentation identity but no
     // runtime-storage root. Keep its existing execution path; only rooted
     // projects acquire the complete-state source owner. Saving stays strict.
+    let mut diagnostic=None;
     let owned = project.source_snapshot.root_path.as_ref().map(|_|
-        crate::project_revision_envelope_supply::admit_fresh_authored_project(artifact_json.as_bytes())
-    ).transpose()?;
+        crate::project_revision_envelope_supply::admit_fresh_authored_project_with_diagnostic(artifact_json.as_bytes(),Some(&mut diagnostic))
+    ).transpose().map_err(|message|diagnostic.map(|d|d.to_json_value().to_string()).unwrap_or(message))?;
     run_summary_with_general_input_supplier(
         source, file_path, requested_ticks, None, None, None, Some(profile),
         None, 0, project_start.as_deref().unwrap_or(DEFAULT_UPDATE_NAME), None,
@@ -2300,6 +2414,8 @@ pub(crate) fn run_authored_general_input_prefix(
 }
 mod general_execution;
 use general_execution::*;
+mod native_table_history;
+pub(crate) use native_table_history::{projection_may_need_table_history,rebuild_native_table_history};
 pub use general_execution::{run_summary_from_supported_source_profile, run_summary_from_supported_source_profile_with_host_resources, attach_host_resource_receipt, run_summary_from_supported_source_profile_with_seed, run_summary_from_supported_source_profile_with_project_assets_diagnostic, run_summary_from_source_with_project_assets_diagnostic, run_summary_from_source_with_input_tape, run_summary_from_source_with_seed_and_input_tape, run_summary_from_supported_source_profile_with_input_tape, run_summary_from_supported_source_profile_with_seed_and_input_tape};
 
 #[derive(Default)]

@@ -10,6 +10,7 @@ pub struct AlgebraEquality { pub left:QTerm, pub right:QTerm, pub left_span:Span
 pub enum AlgebraEvidenceRef { Assumption(usize), Step(usize) }
 #[derive(Clone,Debug)]
 pub enum AlgebraRule {
+    ApplyDefinition { definition:ResolvedAlgebraDefinition, values:Vec<QTerm>, evidence:Vec<AlgebraEvidenceRef> },
     SubtractSame { prior:AlgebraEvidenceRef, term:QTerm },
     RewriteSides { prior:AlgebraEvidenceRef, goal:AlgebraEquality },
     DivideSameNonzero { prior:AlgebraEvidenceRef, coefficient:QTerm, coefficient_span:Span },
@@ -18,7 +19,7 @@ pub enum AlgebraRule {
 pub struct AlgebraStep { pub rule:AlgebraRule, pub span:Span }
 #[derive(Debug)]
 struct SourceDefinition {
-    source:String, path:String, declaration:SeedDef,
+    source:String, path:String, declaration:SeedDef, owner:Arc<()>, call_depth:usize,
     parameters:Vec<ParamPin>, assumptions:Vec<AlgebraEquality>,
     goal:AlgebraEquality, steps:Vec<AlgebraStep>, result:AlgebraEvidenceRef, result_span:Span,
 }
@@ -26,6 +27,8 @@ struct SourceDefinition {
 #[derive(Clone,Debug)]
 pub struct ResolvedAlgebraDefinition(Arc<SourceDefinition>);
 impl ResolvedAlgebraDefinition {
+    pub fn same_source_owner(&self,other:&Self)->bool {Arc::ptr_eq(&self.0.owner,&other.0.owner)}
+    pub fn call_depth(&self)->usize {self.0.call_depth}
     pub fn same_owner(&self,other:&Self)->bool {Arc::ptr_eq(&self.0,&other.0)}
     pub fn source_matches(&self,source:&str,path:&str)->bool {self.0.source==source&&self.0.path==path}
     pub fn declaration(&self)->&SeedDef {&self.0.declaration}
@@ -49,6 +52,7 @@ fn lower(term:&AlgebraTermSyntax,parameters:&HashMap<String,usize>)->Result<QTer
         AlgebraTermKind::Subtract(a,b)=>QTerm::Subtract(Box::new(lower(a,parameters)?),Box::new(lower(b,parameters)?)),
         AlgebraTermKind::Multiply(a,b)=>QTerm::Multiply(Box::new(lower(a,parameters)?),Box::new(lower(b,parameters)?)),
         AlgebraTermKind::DivideByInteger(a,b)=>QTerm::DivideByInteger(Box::new(lower(a,parameters)?),*b),
+        AlgebraTermKind::RationalDivide(_,_)=>return Err(error(term.span,"E_PROOF_ALGEBRA_TERM","기존 대수와 B 입력의 분모에는 0이 아닌 정수 상수만 쓸 수 있습니다")),
     })
 }
 fn goal(t:&TypeRef,parameters:&HashMap<String,usize>,span:Span)->Result<AlgebraEquality,ParseError> {
@@ -97,6 +101,17 @@ fn stmt_span(stmt: &Stmt) -> Span {
 }
 
 pub(crate) fn resolve(program:&CanonProgram,source:&str,path:&str)->Result<Vec<ResolvedAlgebraDefinition>,ParseError> {
+    resolve_mode(program,source,path,false,false)
+}
+
+/// Select typed algebra declarations from an actual linked program, never a copied AST.
+pub(crate) fn resolve_project(program:&CanonProgram,source:&str,path:&str)->Result<Vec<ResolvedAlgebraDefinition>,ParseError> {
+    resolve_mode(program,source,path,true,false)
+}
+
+pub(crate) fn resolve_other_project(program:&CanonProgram,source:&str,path:&str)->Result<Vec<ResolvedAlgebraDefinition>,ParseError>{resolve_mode(program,source,path,true,true)}
+
+fn resolve_mode(program:&CanonProgram,source:&str,path:&str,project:bool,skip_conditional:bool)->Result<Vec<ResolvedAlgebraDefinition>,ParseError> {
     if !program.root_stmts.is_empty()||!program.origin.authored_jjaim_blocks.is_empty() {
         let span = program.root_stmts.iter().map(stmt_span)
             .chain(program.origin.authored_jjaim_blocks.iter().copied())
@@ -107,8 +122,11 @@ pub(crate) fn resolve(program:&CanonProgram,source:&str,path:&str)->Result<Vec<R
     if program.items.iter().any(|TopLevelItem::SeedDef(s)|s.canonical_name=="나눔수") {
         return Err(error(Span::new(0,source.len()),"E_PROOF_ALGEBRA_TYPE","기본 나눔수가 다른 선언에 가려졌습니다"));
     }
-    let mut resolved=Vec::new();
+    let mut resolved:Vec<ResolvedAlgebraDefinition>=Vec::new();
+    let owner=Arc::new(());
     for TopLevelItem::SeedDef(seed) in &program.items {
+        if skip_conditional && crate::conditional_algebra::is_definition(seed){continue;}
+        if project && !seed.result_type.as_ref().is_some_and(is_goal) {continue;}
         if seed.seed_kind!=SeedKind::Semssi||!seed.modifiers.is_empty()||!seed.type_params.is_empty()
             ||seed.proof_header.as_ref().is_some_and(|h|!h.propositions.is_empty()) {
             return Err(error(seed.span,"E_PROOF_DEFINITION","첫 대수 흐름은 명시된 필수 입력의 셈씨 정의만 지원합니다"));
@@ -152,32 +170,65 @@ pub(crate) fn resolve(program:&CanonProgram,source:&str,path:&str)->Result<Vec<R
             let reference=if let ExprKind::Var(name)=&value.kind {
                 *locals.get(name).ok_or_else(||error(value.span,"E_PROOF_ASSUMPTION","현재 정의의 가정이나 앞선 증명 단계가 아닙니다"))?
             } else {
-                let ExprKind::Call{args,..}=&value.kind else {return Err(error(value.span,"E_PROOF_RULE_UNSUPPORTED","성공값 대신 정적 증명 조작이 필요합니다"));};
-                let binding=program.origin.algebra_operation(value.id).filter(|b|b.definition==seed.id)
-                    .ok_or_else(||error(value.span,"E_PROOF_CALL_UNRESOLVED","이 정의에 결속된 정적 증명 조작이 아닙니다"))?;
+                let ExprKind::Call{func,args}=&value.kind else {return Err(error(value.span,"E_PROOF_RULE_UNSUPPORTED","성공값 대신 정적 증명 조작이 필요합니다"));};
+                let binding=program.origin.algebra_operation(value.id).filter(|b|b.definition==seed.id);
+                let rule=if let Some(binding)=binding {
                 let field=|name:&str|args.iter().find(|a|a.resolved_pin.as_deref()==Some(name)).map(|a|&a.expr)
                     .ok_or_else(||error(value.span,"E_PROOF_ALGEBRA_PIN","필수 받는자리가 없습니다"));
                 let prior=field("근거")?;
                 let ExprKind::Var(name)=&prior.kind else {return Err(error(prior.span,"E_PROOF_ASSUMPTION","명시된 가정 또는 앞선 단계 이름이 필요합니다"));};
                 let prior=*locals.get(name).ok_or_else(||error(prior.span,"E_PROOF_ASSUMPTION","다른 문맥이나 뒤의 단계를 근거로 사용할 수 없습니다"))?;
-                let rule=match binding.operation {
+                match binding.operation {
                     StaticAlgebraOperation::SubtractSame=>AlgebraRule::SubtractSame{prior,term:lower(&crate::algebra_syntax::term(field("항")?)?,&names)?},
                     StaticAlgebraOperation::DivideSameNonzero=>{
                         let coefficient=field("계수")?;
                         AlgebraRule::DivideSameNonzero{prior,coefficient:lower(&crate::algebra_syntax::term(coefficient)?,&names)?,coefficient_span:coefficient.span}
                     }
                     StaticAlgebraOperation::RewriteSides=>{
-                        let left=field("왼")?;let right=field("오른")?;
-                        AlgebraRule::RewriteSides{prior,goal:AlgebraEquality{left:lower(&crate::algebra_syntax::term(left)?,&names)?,right:lower(&crate::algebra_syntax::term(right)?,&names)?,left_span:left.span,right_span:right.span}}
+                        let left=crate::algebra_syntax::term(field("왼")?)?;
+                        let right=crate::algebra_syntax::term(field("오른")?)?;
+                        AlgebraRule::RewriteSides{prior,goal:AlgebraEquality{left:lower(&left,&names)?,right:lower(&right,&names)?,left_span:left.span,right_span:right.span}}
                     }
+                }
+                } else {
+                    if all_names.contains(func) {return Err(error(value.span,"E_PROOF_CALL_SHADOWED","지역 선언에 가려진 보임 호출은 사용할 수 없습니다"));}
+                    let candidates=program.origin.authored_call_candidates.get(&value.id)
+                        .ok_or_else(||error(value.span,"E_PROOF_CALL_UNRESOLVED","실제 호출 정의가 해소되지 않았습니다"))?;
+                    let [id]=candidates.as_slice() else {return Err(error(value.span,"E_PROOF_CALL_AMBIGUOUS","보임 호출의 실제 정의가 하나여야 합니다"));};
+                    let definition=resolved.iter().find(|d|d.declaration().id==*id).cloned()
+                        .ok_or_else(||error(value.span,"E_PROOF_CALL_UNSUPPORTED","앞서 작성한 비재귀 대수 보임 정의만 호출할 수 있습니다"))?;
+                    if definition.declaration().callable_surface_names().iter().any(|name|all_names.contains(name)) {
+                        return Err(error(value.span,"E_PROOF_CALL_SHADOWED","지역 선언에 가려진 보임 호출은 사용할 수 없습니다"));
+                    }
+                    if definition.call_depth()>=64 {return Err(error(value.span,"E_PROOF_BUDGET","보임 호출 깊이 한도를 넘었습니다"));}
+                    let pins=&definition.declaration().params;
+                    if args.len()!=pins.len(){return Err(error(value.span,"E_PROOF_ARGUMENT_COUNT","필수 값과 증거 인수를 모두 공급해야 합니다"));}
+                    let mut seen=std::collections::HashSet::new();
+                    for arg in args {
+                        let pin=arg.resolved_pin.as_deref().ok_or_else(||error(arg.span,"E_PROOF_ARGUMENT_BINDING","공통 해소자의 받는자리 결속이 필요합니다"))?;
+                        if !pins.iter().any(|p|p.pin_name==pin)||!seen.insert(pin){return Err(error(arg.span,"E_PROOF_ARGUMENT_BINDING","받는자리 결속이 중복되거나 다른 정의에 속합니다"));}
+                    }
+                    let mut values=Vec::new();let mut evidence=Vec::new();
+                    for pin in pins {
+                        let arg=args.iter().find(|a|a.resolved_pin.as_deref()==Some(pin.pin_name.as_str())).ok_or_else(||error(value.span,"E_PROOF_ARGUMENT_BINDING","필수 받는자리 결속이 없습니다"))?;
+                        if pin.type_ref==TypeRef::Named("나눔수".into()) {
+                            values.push(lower(&crate::algebra_syntax::term(&arg.expr)?,&names)?);
+                        } else {
+                            let ExprKind::Var(name)=&arg.expr.kind else{return Err(error(arg.expr.span,"E_PROOF_ASSUMPTION","같은 정의의 명시 가정이나 앞선 증거가 필요합니다"));};
+                            evidence.push(*locals.get(name).ok_or_else(||error(arg.expr.span,"E_PROOF_ASSUMPTION","같은 정의의 앞선 증거가 아닙니다"))?);
+                        }
+                    }
+                    AlgebraRule::ApplyDefinition{definition,values,evidence}
                 };
                 let reference=AlgebraEvidenceRef::Step(steps.len());steps.push(AlgebraStep{rule,span:value.span});reference
             };
             if let Some(name)=local {locals.insert(name.clone(),reference);}else{result=Some((reference,value.span));}
         }
         let (result,result_span)=result.ok_or_else(||error(body.span,"E_PROOF_RESULT","최종 결과가 없습니다"))?;
-        resolved.push(ResolvedAlgebraDefinition(Arc::new(SourceDefinition{source:source.into(),path:path.into(),declaration:seed.clone(),parameters,assumptions,goal:expected,steps,result,result_span})));
+        let call_depth=steps.iter().filter_map(|s|match &s.rule{AlgebraRule::ApplyDefinition{definition,..}=>Some(definition.call_depth()+1),_=>None}).max().unwrap_or(0);
+        resolved.push(ResolvedAlgebraDefinition(Arc::new(SourceDefinition{source:source.into(),path:path.into(),declaration:seed.clone(),owner:owner.clone(),call_depth,parameters,assumptions,goal:expected,steps,result,result_span})));
     }
+    if resolved.is_empty() && !skip_conditional{return Err(error(Span::new(0,source.len()),"E_PROOF_DEFINITION","검사할 대수 정의가 없습니다"));}
     Ok(resolved)
 }
 

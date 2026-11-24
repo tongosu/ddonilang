@@ -1,7 +1,8 @@
 // Existing run, step, stop and branch controller; original state transitions and atomic failure bodies retained.
-export function createLogicalPresentationPanel({ installLogicalInputPanel, activeSourceText, workbenchAuthoredPanelAccess, nativeSourceAvailable, nativeSourceRequest, renderExecutionControls, els, workbenchLogicalPresentationState, state, renderViewPolicy, currentProject, drawPreview, renderSemanticObservations, createNativeProject }) {
+export function createLogicalPresentationPanel({ installLogicalInputPanel, activeSourceText, workbenchAuthoredPanelAccess, nativeSourceAvailable, nativeSourceRequest, renderExecutionControls, els, workbenchLogicalPresentationState, state, renderViewPolicy, currentProject, drawPreview, renderSemanticObservations, createNativeProject, prepareLogicalEditorSource = null, logicalEditorSourceKey = null }) {
 return installLogicalInputPanel({ parent: document.querySelector('[data-testid="logical-record-content"]'), readSource: () => activeSourceText(),
   readAuthoredProject: () => workbenchAuthoredPanelAccess.current.getRunProjectArtifact() || null,
+  prepareEditorSource: prepareLogicalEditorSource, readEditorSourceKey: logicalEditorSourceKey,
   onNativeCheckpoint:selection=>workbenchAuthoredPanelAccess.current.rememberNativeSelection(selection),
   prepareNativeNewRecord:async(artifact,binding)=>{
     if(!workbenchAuthoredPanelAccess.current.hasNativeSourceContext()||!await nativeSourceAvailable())throw new Error('E_NATIVE_SOURCE_HOST_REQUIRED');
@@ -31,7 +32,7 @@ return installLogicalInputPanel({ parent: document.querySelector('[data-testid="
   valueControlsParent: document.querySelector('[data-testid="logical-manipulation-controls"]'),
   onStateChange: renderExecutionControls,
   inputRegion: els.canvas,
-  viewControls: [els.bogaeStage,document.querySelector('[data-testid="project-save"]'),document.querySelector('[data-testid="authored-view-controls"]'),document.querySelector('[data-testid="logical-record-drawer"]'),document.querySelector('[data-testid="logical-record-open"]'),document.querySelector('[data-testid="project-more-menu"]'),document.querySelector('[data-testid="authored-project-drawer"]')],
+  viewControls: [els.bogaeStage,...["mode-ddn-main","mode-bogae-main","mode-bogae-full"].map(id=>document.querySelector(`[data-testid="${id}"]`)),document.querySelector('[data-testid="project-save"]'),document.querySelector('[data-testid="authored-view-controls"]'),document.querySelector('[data-testid="logical-record-drawer"]'),document.querySelector('[data-testid="logical-record-open"]'),document.querySelector('[data-testid="project-more-menu"]'),document.querySelector('[data-testid="authored-project-drawer"]')],
   onPresentation: (value,generation) => {
     workbenchLogicalPresentationState.logicalPresentation = value ? {value,generation,projectId:state.projectId} : null;
     renderViewPolicy(currentProject()); drawPreview(); renderSemanticObservations(currentProject());
@@ -43,7 +44,7 @@ return installLogicalInputPanel({ parent: document.querySelector('[data-testid="
   openExample: sourceText => createNativeProject('테트리스 입력 작업', 'single', sourceText) });
 }
 
-export function createExecutionController({ activeFrame, activeRun, activeRuntimeSourceText, activeSourceText, alpha2HostPacing, appendFrame, applyExecutionEvent, applyRunRecipeToWasm, assertExecutionGeneration, beginCommittedLiveStep, buildCurrentProjectRunEvidence, buildFrame, buildRunId, cancelLivePump, clearDiagnostics, createServerRunArchive, currentProject, currentVirtualProjectSource, els, EXECUTION_EVENTS, EXECUTION_STATES, executionControlPolicy, executionGenerationIsCurrent, executionLifecycleContext, finalizeActiveRun, finalizeFailedRunArchive, finalizeRunRecord, inputSnapshotRequestBinding, livePumpToken, livePumpTokenIsCurrent, localProjectEntryPath, logicalInputRequired, makeSnapshot, markCurrentProjectExecutionStale, openProgressiveDialog, persistRunCheckpoint, prepareCurrentProjectLink, projectDiagnosticFromError, projectExecutionPlanFromPrepared, pushDiagnostic, queuedInputBindingValid, readStateHash, recipeHash, recordVerifiedProjectLockTrust, refreshAuthoritativeSourceReadiness, refreshGeneratedProjectLockForRun, renderAll, requireParsedExecutionModeDecision, resetLivePumpMetricsForRun, runReachedDone, runtimeBridge, scheduleLivePump, sha256HexUtf8, sharedRunSummaryBindingValid, SOURCE_READINESS_DIAGNOSTIC_CODE, sourceReadinessRunOutcome, stableHash, state, stepWithHostStop, virtualProjectSourceHash, workbenchAuthoredPanelAccess, workbenchHostExecutionState, workbenchSourceProfile }) {
+export function createExecutionController({ activeFrame, activeRun, activeRuntimeSourceText, activeSourceText, alpha2HostPacing, appendFrame, applyExecutionEvent, applyRunRecipeToWasm, assertExecutionGeneration, beginCommittedLiveStep, buildCurrentProjectRunEvidence, buildFrame, buildRunId, cancelLivePump, clearDiagnostics, createServerRunArchive, currentProject, currentVirtualProjectSource, els, EXECUTION_EVENTS, EXECUTION_STATES, executionControlPolicy, executionGenerationIsCurrent, executionLifecycleContext, finalizeActiveRun, finalizeFailedRunArchive, finalizeRunRecord, inputSnapshotRequestBinding, livePumpToken, livePumpTokenIsCurrent, localProjectEntryPath, logicalInputRequired, makeSnapshot, markCurrentProjectExecutionStale, openProgressiveDialog, persistRunCheckpoint, prepareCurrentProjectLink, projectDiagnosticFromError, projectExecutionPlanFromPrepared, pushDiagnostic, queuedInputBindingValid, readStateHash, recipeHash, recordVerifiedProjectLockTrust, refreshAuthoritativeSourceReadiness, refreshGeneratedProjectLockForRun, renderAll, requireParsedExecutionModeDecision, resetLivePumpMetricsForRun, runReachedDone, runtimeBridge, scheduleLivePump, sha256HexUtf8, sharedRunSummaryBindingValid, SOURCE_READINESS_DIAGNOSTIC_CODE, sourceReadinessRunOutcome, stableHash, state, stepWithHostStop, virtualProjectSourceHash, workbenchAuthoredPanelAccess, workbenchHostExecutionState, workbenchSourceProfile, blocksReadOnlyFirstFrame = () => false }) {
 function clearFailedExecutionOutput(reason) {
   cancelLivePump(reason);
   state.activeRunId = "";
@@ -53,7 +54,7 @@ function clearFailedExecutionOutput(reason) {
 }
 
 async function startRun({ branchFrom = null } = {}) {
-  if (state.projectLoadError || state.runtimeBusy || state.sourceAnalysisInFlight) return false;
+  if (state.projectLoadError || state.runtimeBusy || state.sourceAnalysisInFlight || blocksReadOnlyFirstFrame()) return false;
   const previousDisplay = {projectId: state.projectId, run: activeRun(), frame: activeFrame(),
     activeRunId: state.activeRunId, cursorIndex: state.cursorIndex,
     viewWorkspace: structuredClone(state.viewWorkspace),
@@ -89,7 +90,7 @@ async function startRun({ branchFrom = null } = {}) {
       "error",
     );
     renderAll();
-    if (!logicalInputRequired(diagnostic?.code, diagnostic?.message)) openProgressiveDialog(els.projectVerificationDrawer);
+    if (!document.querySelector('[data-ui-cleanup="r1"]') && !logicalInputRequired(diagnostic?.code, diagnostic?.message)) openProgressiveDialog(els.projectVerificationDrawer);
     return false;
   }
   state.sourceReadinessRunBlocked = false;
@@ -130,6 +131,10 @@ async function startRun({ branchFrom = null } = {}) {
       state.projectExecution.failure = null;
       const prepared = await prepareCurrentProjectLink(projectSource);
       assertExecutionGeneration(executionGeneration, projectIdAtStart);
+      const requirement=prepared.diagnostics?.find(row=>row.code==='E_PROJECT_REGISTERED_NOMINAL_OWNER_REQUIRED');
+      if(requirement&&(!workbenchAuthoredPanelAccess.current.hasNativeSourceContext()||!workbenchAuthoredPanelAccess.current.getRunProjectArtifact())){
+        throw new Error(requirement.code+': '+requirement.message);
+      }
       projectExecutionPlan = projectExecutionPlanFromPrepared(prepared, projectSourceHash);
       recordVerifiedProjectLockTrust(projectSourceHash, projectExecutionPlan);
     }
@@ -452,7 +457,7 @@ async function startRun({ branchFrom = null } = {}) {
       await finalizeFailedRunArchive(run, diagnostic);
     }
     pushDiagnostic(diagnostic.code, diagnostic.message, "error");
-    if (!logicalInputRequired(diagnostic.code, diagnostic.message)) openProgressiveDialog(els.projectVerificationDrawer);
+    if (!document.querySelector('[data-ui-cleanup="r1"]') && !logicalInputRequired(diagnostic.code, diagnostic.message)) openProgressiveDialog(els.projectVerificationDrawer);
     return false;
   } finally {
     if (workbenchHostExecutionState.pendingBogaeDisplay === previousDisplay) workbenchHostExecutionState.pendingBogaeDisplay = null;
@@ -572,7 +577,7 @@ async function commitNextLiveStep({ origin = "auto", token = livePumpToken() } =
     await finalizeFailedRunArchive(run, run.failure);
     pushDiagnostic(run.failure.code, run.failure.message, "error");
     renderAll();
-    openProgressiveDialog(els.projectVerificationDrawer);
+    if(!document.querySelector('[data-ui-cleanup="r1"]')) openProgressiveDialog(els.projectVerificationDrawer);
     return false;
   }
 }

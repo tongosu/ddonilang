@@ -1,42 +1,30 @@
 {
   "schema": "ddn.public.development_source_snapshot.v1",
-  "scope": "Development source proposal, not a new runtime release",
-  "upstream_asset_source_identity": "23814012da2f7abe6b30319a8c0b9f714b3a208d",
-  "upstream_runtime_compile_identity": "e17ea633a6933ea01d4165db92e87b24d6827a25",
-  "V5_authored_source_identity": "63be553a076721062a1d067f5ee06b3288ad8258",
-  "V5_runtime_compile_identity": "8868e5eb3fffa66281d01d2aadd14f7fef257d16",
-  "upstream_identity_is_not_a_public_commit_link": true,
-  "public_parent": "a2690f4b71d2ce259acd5530c78c8f269ea355cc",
-  "publication_kind": "Development source snapshot only; no new runtime/tag/Release",
-  "current_public_SPEC": "v0.9.0 in this proposed source tree; remote GitHub publication pending",
-  "internal_current": "v25.153.0 / RD711",
-  "SPEC_candidate": "Locally promoted v0.9.0 / internal v25.151 RD709; example14, public-copy and promotion-copy limited reviews reused; not full internal153 or product support",
-  "binary_ZIP_tag_Release_change": false,
+  "scope": "Prepared development source projection; not a runtime release",
+  "upstream_runtime_compile_identity": "868ddd0d612696b67dd588a7af495723341b62ce",
+  "upstream_runtime_tree": "35aaa6dd4b32e5bb2d758ca5f2fa932158a017fe",
+  "frontend_package_SHA256": "8357713b4b948420d34a91a28b2991d186da3c43266f1610a9d6e0ebd169aaad",
+  "WASM_source_in_original_package": "54f8ca1f4bd3ff05938a5d3d129219749d84b123",
+  "generated_WASM_included": false,
+  "public_parent": "04145aed2367ff05f46c66a1e9a6d48d3473e44a",
   "projection_adaptations": [
     {
-      "path": ".cargo/config.toml",
-      "reason": "Public-only relative build target; original Windows stack flags preserved",
-      "upstream_sha256": "2293540a0f662237d990f97149b52258a466a902915e965c68f32d75faaf180c",
-      "projected_sha256": "e8c3b262a208b9e026fd782dabe1791f772331f5194f4f0ca8110be7fa2d22d9"
+      "path": "tool/src/local_project/tests.rs",
+      "before": "c6f0ba85656603a42eccf182550cadc95ed63dae2abdcdb370e8ec15d7e0450c",
+      "after": "2b83cacf527c33d5b601962c05a009f46922564162b467872dc2363fd9cf3d24",
+      "reason": "Private compile-time fixtures become explicit test-only inputs; assertions preserved, no fake fixtures or implicit pass"
     },
     {
       "path": "tool/src/workbench_host/native_source/logical.rs",
-      "reason": "Ignored test private fixture constants become explicit environment inputs; size/hash/operation/explicit observation guards retained; production code unchanged",
-      "upstream_sha256": "88fc511a1b9d44f711414945b14322e2fe1a7bffb5f680310d05fd1f06bd03a8",
-      "projected_sha256": "95f6617bc24a820b621f0286b0c9b5502e37fe55633741bc7ff6e194780041d5"
-    },
-    {
-      "path": "solutions/seamgrim_ui_mvp/first_steps_v5/delivery_robot/시작안내.md",
-      "reason": "Public-only source guide replaces private ZIP location/instructions; no new binary availability or inherited runtime PASS claimed",
-      "upstream_sha256": "93e70ebbeeb547a521394ebd19a2b6541e8b229afe05b1388188d03e1bb5f89b",
-      "projected_sha256": "9ac540dd4c22624b1f892048d1541bf5770337d5dd8d819cf5c79db3d878034b"
+      "before": "c1d2283dd0711073d941268d75534ca884851dff47f3e321b1f4a4b3f0c385a6",
+      "after": "136e7c8a1895ca7bdde3c8fa18f51fd0985104363cbe09d5e8b7efecfad14860",
+      "reason": "Retain already published explicit Ready-fixture environment binding; no production guard changes"
     }
   ],
-  "rights_pending_files_not_newly_cleared": true,
-  "local_document_CURRENT": "v0.9.0",
-  "SPEC_exact_inputs": {
-    "publish/spec/CURRENT.md": "4e95fc0c8887f85344b2394c71804b3ff878edae5277fff0be6f780f8e483ffe",
-    "publish/spec/v0.9.0/SPEC_MANIFEST_v0.9.0.md": "039ecc25dc27f8323097d0f2c9b44c83663b235a74869d703f627911320f3678",
-    "publish/spec/v0.9.0/SPEC_SEAL_v0.9.0.json": "33de501a7ded2f215fb9d4b1ba582c8afbbb95b8ce0f90782e32589cf0221f87"
-  }
+  "production_cargo_check": "PASS_OFFLINE_LOCKED",
+  "public_projection_independent_review": "NOT_RUN",
+  "browser_and_full_regression": "NOT_RUN",
+  "Human": "NOT_RUN",
+  "Release_tag_binary_publication": false,
+  "SOURCE_is_not_a_public_commit_link": true
 }

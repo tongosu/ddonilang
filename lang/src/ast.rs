@@ -117,7 +117,13 @@ pub(crate) const COORDINATE_GOAL_MEMBERS: [&str; 8] = [
 
 #[derive(Debug, Clone)]
 pub struct OriginMap {
+    pub(crate) registered_public_sites: Vec<RegisteredPublicCallSite>,
     pub(crate) authored_call_name_spans: HashMap<NodeId,Span>,
+    /// Compilation-local ArgBinding identities before canonical pin reordering.
+    pub(crate) authored_argument_order: HashMap<NodeId,Vec<NodeId>>,
+    /// Exact explicit label token per authored ArgBinding; source location only.
+    /// Rebuilt by the common parser, never a saved identity or binding authority.
+    pub(crate) authored_pin_label_spans: HashMap<NodeId,Span>,
     pub(crate) lexical_names: Option<crate::name_resolution::NameResolutionFacts>,
     /// RD706 source facts only; no mathematical owner, admission or proof.
     pub piecewise_definitions: HashMap<NodeId, PiecewiseDefinition>,
@@ -126,6 +132,9 @@ pub struct OriginMap {
     /// Parsed top-level opaque Jjaim blocks, retained for consumer admission.
     /// These locations do not resolve mathematical structure or issue identity.
     pub authored_jjaim_blocks: Vec<Span>,
+    /// Canonical presentation of a checked RD-512 island, separate from
+    /// the executable observation statements it lowers to.
+    pub(crate) checked_structure_source: Option<String>,
     pub node_spans: HashMap<NodeId, Span>,
     /// Compiler-local cache rebuilt from verified registration rows. NodeId
     /// locates a binder; it never issues the registered ParamPinIdentity.
@@ -139,8 +148,13 @@ pub struct OriginMap {
     pub authored_call_candidates: HashMap<NodeId, Vec<NodeId>>,
     pub(crate) static_structure_calls: HashMap<NodeId, StaticStructureBinding>,
     pub(crate) static_algebra_calls: HashMap<NodeId, StaticAlgebraBinding>,
+    /// Private compilation provenance rebuilt from the explicit builtin DDL
+    /// context. Not a saved wire, Bool proof or execution admission.
+    pub(crate) logic_callable_calls:HashMap<NodeId,crate::parser::logic_callable::LogicCallBinding>,
     /// Compilation-local exact RD-656 conversion binding; not a saved wire.
     pub bytes_calls: HashMap<NodeId, crate::bytes::BytesConversion>,
+    /// Private source-owned VC17 named-call admission, not a saved identity.
+    pub vc17_named_calls: HashMap<NodeId, crate::stdlib::vc17::Definition>,
     /// Source occurrences owned by actual atom-value AST nodes. A lexer hash
     /// token used as a tag/type/profile/selector is not automatically a value.
     /// Compilation provenance only; this is not registration admission.
@@ -191,7 +205,7 @@ pub struct AtomValueOccurrence {
 /// Compilation provenance only. Standard policy roles are supplied after
 /// resolving the actual standard callable and its owned parameter position.
 #[derive(Debug,Clone,PartialEq,Eq)]
-pub enum AtomValueRole {LocalValue,StandardBogaeSide{selector:&'static str}}
+pub enum AtomValueRole {LocalValue,StandardBogaeSide{selector:&'static str},StandardSpaceProjectionR1}
 
 #[derive(Debug, Clone)]
 pub enum TopLevelItem {
@@ -246,6 +260,30 @@ pub struct ProofEvidenceBinding {
 }
 
 impl SeedDef {
+    /// RD714 first Korean convention: a source-owned finite expansion, not
+    /// a guessed suffix lookup or a newly issued definition identity.
+    /// Explicit full-form sets keep their fixed predecessor convention.
+    pub fn rd714_first_call_forms(&self) -> Vec<String> {
+        if !self.alternate_forms.is_empty()
+            || !matches!(self.seed_kind, SeedKind::Semssi | SeedKind::Umjikssi) {
+            return Vec::new();
+        }
+        let mut bases = vec![self.canonical_name.as_str()];
+        if let Some(base) = self.canonical_name.strip_suffix('다').filter(|base| !base.is_empty()) {
+            bases.push(base);
+        }
+        let mut forms = Vec::new();
+        // The exact first convention has E_first={기}; other endings remain
+        // under their existing contracts rather than being inferred here.
+        for base in bases {
+            for joining in ["", "하"] {
+                let form = format!("{base}{joining}기");
+                if !forms.contains(&form) { forms.push(form); }
+            }
+        }
+        forms
+    }
+
     /// Authored top-level setup relocated by the parser into the tick seed.
     /// Ordinary callable-local declarations retain their own scope.
     pub fn is_relocated_top_level_setup(&self, statement: &Stmt) -> bool {
@@ -273,6 +311,9 @@ impl SeedDef {
         let mut surfaces = vec![self.canonical_name.clone()];
         if self.alternate_forms.is_empty() {
             surfaces.extend(CALL_TAILS.map(|tail| format!("{}{}", self.canonical_name, tail)));
+            for form in self.rd714_first_call_forms() {
+                if !surfaces.contains(&form) { surfaces.push(form); }
+            }
         } else {
             surfaces.extend(self.alternate_forms.iter().cloned());
         }
@@ -316,6 +357,9 @@ pub struct ParamPin {
     pub id: NodeId,
     pub span: Span,
     pub pin_name: String,
+    /// Authored ordinary public-pin/local-binder pair. Distinct local names
+    /// require consumer support and are rejected at the parser boundary.
+    pub explicit_local_name: Option<String>,
     pub type_ref: TypeRef,
     pub default_value: Option<Expr>,
     pub optional: bool,
@@ -324,8 +368,12 @@ pub struct ParamPin {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeRef {
+    /// Unresolved result goal for the closed two-branch card surface.
+    CardCallEquality { left: ExplicitGoalCall, right: ExplicitGoalCall },
     /// Unresolved static Q equality syntax. Not a runtime Bool or evidence.
     AlgebraEquality { left: AlgebraTermSyntax, right: AlgebraTermSyntax },
+    /// Explicit source-owned nonzero assumption; never a runtime Bool.
+    AlgebraNonzero { term: AlgebraTermSyntax },
     /// Owner-adopted R3 proof goal syntax. These spellings are unresolved;
     /// only the structure resolver can supply the owned law identity.
     StructureLaw { structure: String, member: String },
@@ -348,6 +396,22 @@ pub enum TypeRef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExplicitGoalCall {
+    pub name: String,
+    pub pin: String,
+    pub argument: String,
+    pub span: Span,
+    pub pin_span: Span,
+    pub argument_span: Span,
+}
+
+impl ExplicitGoalCall {
+    pub fn source_text(&self) -> String {
+        format!("(({}={}) {})", self.pin, self.argument, self.name)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlgebraTermSyntax {
     pub span: Span,
     pub kind: AlgebraTermKind,
@@ -361,6 +425,7 @@ pub enum AlgebraTermKind {
     Subtract(Box<AlgebraTermSyntax>, Box<AlgebraTermSyntax>),
     Multiply(Box<AlgebraTermSyntax>, Box<AlgebraTermSyntax>),
     DivideByInteger(Box<AlgebraTermSyntax>, i64),
+    RationalDivide(Box<AlgebraTermSyntax>, Box<AlgebraTermSyntax>),
 }
 
 impl AlgebraTermSyntax {
@@ -372,6 +437,7 @@ impl AlgebraTermSyntax {
             AlgebraTermKind::Subtract(a,b) => format!("({} - {})",a.source_text(),b.source_text()),
             AlgebraTermKind::Multiply(a,b) => format!("({} * {})",a.source_text(),b.source_text()),
             AlgebraTermKind::DivideByInteger(a,b) => format!("({} / {b})",a.source_text()),
+            AlgebraTermKind::RationalDivide(a,b) => format!("({} / {})",a.source_text(),b.source_text()),
         }
     }
 }
@@ -722,6 +788,9 @@ pub struct Expr {
     /// In particular `1` and `1.0` must not be distinguished by Fixed64 bits.
     pub numeric_literal_source: Option<NumericLiteralSource>,
     pub(crate) source_unary_minus: bool,
+    /// Original grouping delimiters for source presentation only. Runtime and
+    /// diagnostic node spans keep their established bounds. Not serialized.
+    pub(crate) source_group_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -761,6 +830,9 @@ pub enum ExprKind {
         /// `A.B`에서 마지막 `B`의 정확한 UTF-8 byte 범위.
         field_span: Span,
     },
+    /// RD-377: only the current anonymous-function RHS produces this node.
+    /// The final result expression is distinct from ordinary Body statements.
+    FunctionBlock { statements: Body, result: Box<Expr> },
     SeedLiteral {
         param: String,
         body: Box<Expr>,
@@ -1060,7 +1132,7 @@ pub struct Modifier {
 
 impl Expr {
     pub fn new(id: NodeId, span: Span, kind: ExprKind) -> Self {
-        Self { id, span, kind, numeric_literal_source: None, source_unary_minus: false }
+        Self { id, span, kind, numeric_literal_source: None, source_unary_minus: false, source_group_span: None }
     }
 
     /// Parser-owned negation evidence; synthetic zero is not a source literal.
@@ -1078,7 +1150,42 @@ impl Expr {
 pub enum StaticAlgebraOperation { SubtractSame, RewriteSides, DivideSameNonzero }
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
 pub struct StaticAlgebraBinding { pub definition:NodeId, pub operation:StaticAlgebraOperation }
+/// Parser-owned location for a checked DDL callable or explicit pin label.
+#[derive(Debug, Clone)]
+pub struct RegisteredPublicCallSite {
+    pub(crate) span: Span,
+    pub(crate) definition: String,
+    pub(crate) pin: Option<String>,
+}
+
+impl RegisteredPublicCallSite {
+    pub fn span(&self) -> Span { self.span }
+    pub fn definition(&self) -> &str { &self.definition }
+    pub fn pin(&self) -> Option<&str> { self.pin.as_deref() }
+}
+
 impl OriginMap {
+    pub fn registered_public_sites(&self) -> &[RegisteredPublicCallSite] {
+        &self.registered_public_sites
+    }
+
+    /// Explicit complete arguments keep source evaluation order. Defaults and
+    /// injected flow retain their existing elaborated order; no span sorting.
+    pub fn argument_evaluation_order(&self,call:NodeId,args:&[ArgBinding])->Result<Vec<usize>,String>{
+        Self::argument_order_indices(self.authored_argument_order.get(&call).map(Vec::as_slice),args)
+    }
+    pub(crate) fn argument_order_indices(order:Option<&[NodeId]>,args:&[ArgBinding])->Result<Vec<usize>,String>{
+        let Some(order)=order else{return Ok((0..args.len()).collect())};
+        if order.len()!=args.len(){return Ok((0..args.len()).collect());}
+        let mut seen=std::collections::HashSet::new();
+        order.iter().map(|id|{
+            let index=args.iter().position(|arg|arg.id==*id)
+                .ok_or_else(||"E_CALL_ARGUMENT_SOURCE: 원문 인자 노드가 일치하지 않습니다".to_string())?;
+            if !seen.insert(index){return Err("E_CALL_ARGUMENT_SOURCE: 원문 인자 노드가 중복됩니다".into());}
+            Ok(index)
+        }).collect()
+    }
+
     pub fn name_resolution(&self) -> Option<&crate::name_resolution::NameResolutionFacts> { self.lexical_names.as_ref() }
     pub fn algebra_operation(&self,node:NodeId)->Option<&StaticAlgebraBinding> {self.static_algebra_calls.get(&node)}
 }

@@ -460,12 +460,33 @@ impl CheckpointedLogicalRunV1 {
     }
 
     pub(crate) fn export_saved_artifact(&self,parent:&[u8],revision:&[u8])->Result<String,Failure> {
+        self.export_saved_artifact_with(parent, revision, |failure| failure, |_| Failure::InvalidInput)
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn export_saved_artifact_native(
+        &self, parent: &[u8], revision: &[u8], reject: impl Fn(Failure) -> String,
+    ) -> Result<String, String> {
+        self.export_saved_artifact_with(parent, revision, &reject, |cause| {
+            if cause == crate::bogae_time::SPACE3_DURABILITY_UNSUPPORTED {
+                cause
+            } else {
+                reject(Failure::InvalidInput)
+            }
+        })
+    }
+
+    fn export_saved_artifact_with<E>(
+        &self, parent: &[u8], revision: &[u8],
+        map_failure: impl Fn(Failure) -> E, map_attachment: impl Fn(String) -> E,
+    ) -> Result<String, E> {
         // Validate the complete world before allocating its JSON projection;
         // unsupported channels never disappear into an empty saved carrier.
-        self.encode_world_frame()?;
-        let (runtime,resources)=self.session.saved_runtime_carrier().map_err(|_|Failure::InvalidInput)?;
+        self.encode_world_frame().map_err(&map_failure)?;
+        let (runtime,resources)=self.session.saved_runtime_carrier()
+            .map_err(&map_attachment)?;
         super::project_runtime_attachment::encode_saved_runtime_artifact(
-            &self.provenance.source_owner,&runtime,&resources,parent,revision).map_err(|_|Failure::InvalidInput)
+            &self.provenance.source_owner,&runtime,&resources,parent,revision).map_err(map_attachment)
     }
 
     pub(crate) fn encode_checkpoint_request(
@@ -1081,15 +1102,20 @@ pub(crate) fn encode_execution_contract_supply(
     let root_path = &sources.saved().manifest().root_path;
     let root = sources.captures().iter().find(|(path, _)| path == root_path)
         .ok_or(Failure::InvalidInput)?;
-    let directive = ddonirang_lang::work_root::parse_work_root(root.1.text())
-        .map_err(|_| Failure::InvalidInput)?;
+    let syntax=sources.saved().j1_profile();
+    let directive = match syntax {
+        Some(profile)=>ddonirang_lang::work_root::parse_work_root_with_j1_profile(root.1.text(),profile),
+        None=>ddonirang_lang::work_root::parse_work_root(root.1.text()),
+    }.map_err(|_| Failure::InvalidInput)?;
     if directive.field(ddonirang_lang::work_root::RootField::ExecutionContract).is_some() {
         return Err(Failure::InvalidInput);
     }
     // The actual project linker validates the ordinary, non-model context and
     // rejects unsupported explicit contracts, rather than ignoring their text.
-    crate::local_project::build_project_graph(sources.saved().source().clone())
-        .map_err(|_| Failure::InvalidInput)?;
+    match syntax {
+        Some(profile)=>crate::local_project::build_project_graph_with_j1_profile(sources.saved().source().clone(),profile),
+        None=>crate::local_project::build_project_graph(sources.saved().source().clone()),
+    }.map_err(|_| Failure::InvalidInput)?;
     let receipt = runner.work_cost_receipt();
     if receipt.limits != StandardResourceLimitsV1::CANDIDATE || receipt.rd206_resource_capability {
         return Err(Failure::InvalidInput);

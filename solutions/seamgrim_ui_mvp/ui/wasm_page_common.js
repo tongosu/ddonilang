@@ -2965,7 +2965,8 @@ function normalizeStatusLines(lines) {
 }
 
 function canRequireWasmArtifactManifest() {
-  return typeof window !== "undefined" && typeof fetch === "function" && Boolean(globalThis.crypto?.subtle);
+  return (typeof window !== "undefined" || typeof WorkerGlobalScope !== "undefined")
+    && typeof fetch === "function" && Boolean(globalThis.crypto?.subtle);
 }
 
 function urlWithCacheBust(url, cacheBust) {
@@ -3179,9 +3180,13 @@ export function createWasmLoader({
 
   function wasmBinaryUrlForModule(path) {
     const moduleUrl = new URL(String(path), import.meta.url);
-    moduleUrl.pathname = moduleUrl.pathname.replace(/\.js$/, "_bg.wasm");
-    moduleUrl.searchParams.set("v", String(cacheBust));
-    return moduleUrl.href;
+    // Initialize exactly the binary that the actual manifest verification read.
+    // Generated bindings may retain a different sibling name after packaging.
+    const binaryUrl = lastArtifactManifest?.js_wasm_reference
+      ? new URL(String(lastArtifactManifest.js_wasm_reference),moduleUrl) : new URL(moduleUrl);
+    if(!lastArtifactManifest?.js_wasm_reference)binaryUrl.pathname=binaryUrl.pathname.replace(/\.js$/, "_bg.wasm");
+    binaryUrl.searchParams.set("v", String(cacheBust));
+    return binaryUrl.href;
   }
 
   function reset() {
@@ -3229,7 +3234,10 @@ export function createWasmLoader({
         lastArtifactFingerprint = "";
         lastArtifactDiag = diag;
         lastInitDiag = diag;
-        throw new Error(`${diag.message}${diag.detail ? ` ${diag.detail}` : ""}`);
+          const failure=new Error(`${diag.message}${diag.detail ? ` ${diag.detail}` : ""}`);
+          failure.code=diag.code;
+          failure.detail=diag.detail;
+          throw failure;
       }
     }
     try {

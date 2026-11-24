@@ -1,4 +1,9 @@
+import {chooseSideDock,WORKBENCH_UI} from './cleanup/policy.mjs';
+import {placeOutsideTarget} from './cleanup/following_panel.mjs';
 // Presentation only. Identity, digest and candidate admission come from Rust.
+// Works whose keys are action inputs (games) turn keyboard zoom/pan off (WO17 R1.2 A.8);
+// wheel, middle drag and the reset button stay.
+const actionKeyWork=()=>{const root=globalThis.document?.querySelector?.('[data-testid="approved-workbench-root"]');return Number(root?.dataset.projectActionCount||0)>0||root?.dataset.executionOwner==="logical_input";};
 // No world/resource fallback and no selection by label or candidate order.
 function targetText(target) {
   if (target?.kind === "fixed64") {
@@ -50,11 +55,22 @@ function renderPlane(ctx,width,height,view,style = null) {
   const xspan=Number(xmax-xmin), yspan=Number(ymax-ymin);
   // Equal raw lengths have equal pixel lengths. Letterboxing preserves the
   // authored bounds; it is not fitting bounds to observed elements.
+  // The current producer attaches a typed table to generated XY scenes only.
+  // Keep ordinary authored scene text at its supplied coordinates.
+  const xyText = style?.compactXY && view.table_projection?.schema === "ddn.public_observation_table_projection.v2"
+    ? view.elements.filter(element => element.kind === "text") : [];
+  const top = xyText.filter(element => BigInt(element.position[1]) >= 0n).reverse();
+  const bottom = xyText.filter(element => BigInt(element.position[1]) < 0n);
+  const rowHeight = 17;
+  const topSpace = top.length * rowHeight + 5, bottomSpace = bottom.length * rowHeight + 5;
+  const separateText = xyText.length > 0 && height - topSpace - bottomSpace >= 24;
+  const plotTop = separateText ? topSpace : 18;
+  const plotHeight = separateText ? height - topSpace - bottomSpace : height - 36;
   const zoom=style?.camera?.zoom ?? 1;
-  const scale=Math.min((width-36)/xspan,(height-36)/yspan)*zoom;
+  const scale=Math.min((width-36)/xspan,plotHeight/yspan)*zoom;
   const x = value => (width-xspan*scale)/2 + Number(BigInt(value)-xmin)*scale+(style?.camera?.x ?? 0);
-  const y = value => (height+yspan*scale)/2-Number(BigInt(value)-ymin)*scale+(style?.camera?.y ?? 0);
-  ctx.save(); ctx.beginPath(); ctx.rect(18,18,width-36,height-36); ctx.clip();
+  const y = value => plotTop+(plotHeight+yspan*scale)/2-Number(BigInt(value)-ymin)*scale+(style?.camera?.y ?? 0);
+  ctx.save(); ctx.beginPath(); ctx.rect(18,plotTop,width-36,plotHeight); ctx.clip();
   ctx.strokeStyle=style?.color ?? "#215b8b"; ctx.fillStyle=style?.color ?? "#132018";
   ctx.lineWidth=style?.color ? 2 : 1.5;
   for (const element of view.elements) {
@@ -69,11 +85,27 @@ function renderPlane(ctx,width,height,view,style = null) {
         else ctx.lineTo(x(point[0]),y(point[1]));
       });
       ctx.closePath(); ctx.stroke();
-    } else if (element.kind === "text") {
+    } else if (element.kind === "text" && !separateText) {
+      // Text keeps its supplied position and paint order. Its glyphs rise above
+      // the baseline, so the plot-inset clip cut text near the upper bound;
+      // draw it with only the canvas bound, then restore the plot clip.
+      ctx.restore(); ctx.save();
+      ctx.fillStyle=style?.color ?? "#132018";
       ctx.fillText(element.content,x(element.position[0]),y(element.position[1]));
+      ctx.restore();
+      ctx.save(); ctx.beginPath(); ctx.rect(18,plotTop,width-36,plotHeight); ctx.clip();
+      ctx.strokeStyle=style?.color ?? "#215b8b"; ctx.fillStyle=style?.color ?? "#132018";
+      ctx.lineWidth=style?.color ? 2 : 1.5;
     }
   }
   ctx.restore();
+  if (separateText) {
+    ctx.save();
+    ctx.fillStyle = "#132018";
+    top.forEach((element,index)=>ctx.fillText(element.content,18,14+index*rowHeight,width-36));
+    bottom.forEach((element,index)=>ctx.fillText(element.content,18,height-bottomSpace+14+index*rowHeight,width-36));
+    ctx.restore();
+  }
 }
 
 // Current observation is a local presentation filter. Keep every authored row
@@ -104,6 +136,16 @@ export function observationCellDisplay(cell, column) {
   return `${match[1] && rounded ? "-" : ""}${rounded/1000000n}${digits ? `.${digits}` : ""}`;
 }
 
+// Side canvases follow their displayed box (CSS px x devicePixelRatio) so the
+// bitmap is never stretched; renderPlane letterboxes and leaves spare room empty.
+function fitCanvasToDisplay(canvas, fallbackWidth, fallbackHeight) {
+  const width = canvas.clientWidth || fallbackWidth, height = canvas.clientHeight || fallbackHeight;
+  const scale = globalThis.devicePixelRatio || 1;
+  const bitmapWidth = Math.max(1, Math.round(width * scale)), bitmapHeight = Math.max(1, Math.round(height * scale));
+  if (canvas.width !== bitmapWidth || canvas.height !== bitmapHeight) { canvas.width = bitmapWidth; canvas.height = bitmapHeight; }
+  return {width, height, scale};
+}
+
 export function renderAuthoredBogae(ctx, width, height, wasmState, local = null) {
   const projection = wasmState?.bogae_projection;
   if (!projection) return null;
@@ -132,7 +174,7 @@ export function renderAuthoredBogae(ctx, width, height, wasmState, local = null)
   if (isPlane) {
     model.family = "scene"; model.spatial_profile="plane2";
     model.element_count=view.elements.length;
-    renderPlane(ctx,width,height,view,{...local?.overlayStyle,camera:local?.camera});
+    renderPlane(ctx,width,height,view,{...local?.overlayStyle,camera:local?.camera,compactXY:local?.compactXY});
     const overlays=(model.relations ?? []).filter(r=>r.kind==="overlay"&&!local?.hidden?.has(r.relation_id)).sort((a,b)=>a.order-b.order);
     model.active_overlay_ids=overlays.map(r=>r.relation_id);
     for (const overlay of overlays) {
@@ -213,13 +255,13 @@ export function createAuthoredCompositionHost(onChange) {
   let sidePanels = new Map();
   let magnifierPanels = new Map();
   let docks = new Map();
-  let layoutStage = null;
+  let layoutStage = null,resizeObserver=null,autoDock="right",observedSize="";
   const edgeHandles = new Map();
   let pickCanvas=null, pickHandler=null;
   let cameraCleanup=null;
   let camera={zoom:1,x:0,y:0}, cameraControls=null;
   function reset() {
-    cameraCleanup?.(); cameraCleanup=null;
+    cameraCleanup?.(); cameraCleanup=null;resizeObserver?.disconnect();resizeObserver=null;autoDock="right";observedSize="";
     if (pickCanvas && pickHandler) pickCanvas.removeEventListener("click",pickHandler);
     pickCanvas=null;pickHandler=null;
     controls?.remove(); controls = null;
@@ -234,6 +276,7 @@ export function createAuthoredCompositionHost(onChange) {
     if (layoutStage) {
       delete layoutStage.dataset.authoredLayout;
       delete layoutStage.dataset.authoredPrimaryKind;
+      delete layoutStage.dataset.authoredAutoDock;
       layoutStage.style.removeProperty("--authored-left");
       layoutStage.style.removeProperty("--authored-right");
       layoutStage = null;
@@ -248,10 +291,16 @@ export function createAuthoredCompositionHost(onChange) {
       onChange();
       return true;
     },
+    toggleSides() {
+      if(!scope||!sidePanels.size)return false;
+      const open=[...sidePanels.keys()].every(id=>hidden.has(id));
+      for(const id of sidePanels.keys()){if(open)hidden.delete(id);else hidden.add(id);}
+      onChange();return true;
+    },
     get hidden() { return hidden; },
     get camera() { return camera; },
     get selectedRelationIds() { return new Set(magnifierPanels.keys()); },
-    render({projectId, wasmState, list, stage, toolbar, canvas:primaryCanvas}) {
+    render({projectId, wasmState, list, stage, toolbar, canvas:primaryCanvas, showSide}) {
       const projection = wasmState?.bogae_projection;
       if (projection?.status !== "ready" || projection.candidates?.length !== 1) { reset(); return null; }
       const candidate = projection.candidates[0];
@@ -261,54 +310,87 @@ export function createAuthoredCompositionHost(onChange) {
       if (scope !== nextScope) {
         reset(); scope = nextScope;
         layoutStage = stage;
+        if(typeof ResizeObserver==='function'){
+          const observedScope=scope;
+          resizeObserver=new ResizeObserver(()=>{
+            if(scope!==observedScope||layoutStage!==stage)return;
+            const r=stage.getBoundingClientRect(),size=`${r.width}:${r.height}`;
+            if(size!==observedSize){observedSize=size;onChange();}
+          });resizeObserver.observe(stage);
+        }
         stage.dataset.authoredLayout = "true";
         controls = document.createElement("div");
         controls.dataset.authoredRelationControls = "true";
         controls.tabIndex=-1;
         // Reopen controls must remain reachable when the side pane is hidden.
         toolbar.append(controls);
-        cameraControls=document.createElement('details');
-        cameraControls.dataset.authoredCameraControls='true';
-        const cameraSummary=document.createElement('summary');cameraSummary.textContent='화면';cameraControls.append(cameraSummary);
-        const cameraActions=document.createElement('div');cameraActions.className='authored-camera-actions';cameraControls.append(cameraActions);
-        const operations=[['＋','확대',()=>camera.zoom=Math.min(8,camera.zoom*1.25)],['−','축소',()=>camera.zoom=Math.max(0.25,camera.zoom/1.25)],
-          ['전체','원문 범위로 돌아가기',()=>camera={zoom:1,x:0,y:0}],
-          ['←','왼쪽으로 보기 이동',()=>camera.x-=40],['→','오른쪽으로 보기 이동',()=>camera.x+=40],
-          ['↑','위로 보기 이동',()=>camera.y-=40],['↓','아래로 보기 이동',()=>camera.y+=40]];
-        for(const [label,title,change] of operations){const button=document.createElement('button');button.type='button';button.textContent=label;
-          button.title=title;button.setAttribute('aria-label',title);button.addEventListener('click',()=>{change();onChange();});cameraActions.append(button);}
+        cameraControls=document.createElement('button');cameraControls.type='button';
+        cameraControls.dataset.authoredCameraControls='true';cameraControls.textContent='⟲ 처음 보기로';
+        cameraControls.addEventListener('click',()=>{camera={zoom:1,x:0,y:0};onChange();pickCanvas?.focus?.();});
         toolbar.append(cameraControls);
         list.replaceChildren();
       }
       // Reconcile Rust-supplied relation identities on every committed frame.
       stage.dataset.authoredPrimaryKind=candidate.artifact?.view?.kind ?? "";
-      cameraControls.hidden=candidate.artifact?.view?.kind!=='scene';
+      const primaryPlane=candidate.artifact?.view?.kind==='scene'&&candidate.artifact.view.spatial_profile!=='space3';
+      cameraControls.hidden=!primaryPlane||(camera.zoom===1&&camera.x===0&&camera.y===0);
       // Preserve local state only for identities that still exist in this scope.
-      const relations = candidate.artifact.relations ?? [];
+      const suppliedRelations = candidate.artifact.relations ?? [];
+      const relations = showSide ? suppliedRelations.filter(relation =>
+        relation.kind !== "side" || showSide(relation)) : suppliedRelations;
+      const bounds=stage.getBoundingClientRect();
+      let ratio=4/3;
+      if(primaryPlane){
+        const [x0,x1]=candidate.artifact.view.horizontal.map(BigInt),[y0,y1]=candidate.artifact.view.vertical.map(BigInt);
+        const dx=Number(x1-x0),dy=Number(y1-y0);if(dx>0&&dy>0&&Number.isFinite(dx)&&Number.isFinite(dy))ratio=dx/dy;
+      }
+      autoDock=chooseSideDock(bounds.width,bounds.height,ratio,autoDock);
+      stage.dataset.authoredAutoDock=autoDock;
+
       const relationById = new Map(relations.map(relation => [relation.relation_id, relation]));
       if (primaryCanvas && pickCanvas!==primaryCanvas) {
         if (pickCanvas && pickHandler) pickCanvas.removeEventListener("click",pickHandler);
         cameraCleanup?.();
         pickCanvas=primaryCanvas;
         const canvas=primaryCanvas;
-        let drag=null;
+        let drag=null,space=false,suppressClick=false;
         const down=event=>{
-          if(event.button!==1 || layoutStage?.dataset.authoredPrimaryKind!=='scene')return;
-          event.preventDefault();drag={pointer:event.pointerId,x:event.clientX,y:event.clientY};
+          if(!(event.button===1||(event.button===0&&space)) || layoutStage?.dataset.authoredPrimaryKind!=='scene')return;
+          event.preventDefault();canvas.focus();drag={pointer:event.pointerId,x:event.clientX,y:event.clientY,moved:false};
           canvas.setPointerCapture(event.pointerId);
         };
         const move=event=>{
           if(drag?.pointer!==event.pointerId)return;
           const rect=canvas.getBoundingClientRect();
+          if(rect.width<=0||rect.height<=0)return;
+          drag.moved=drag.moved||Math.abs(event.clientX-drag.x)+Math.abs(event.clientY-drag.y)>2;
           camera.x+=(event.clientX-drag.x)*canvas.width/rect.width;
           camera.y+=(event.clientY-drag.y)*canvas.height/rect.height;
           drag.x=event.clientX;drag.y=event.clientY;onChange();
         };
-        const end=event=>{if(drag?.pointer===event.pointerId){drag=null;if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);}};
+        const end=event=>{if(drag?.pointer===event.pointerId){suppressClick=drag.moved;drag=null;if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);}};
         const wheel=event=>{
           if(layoutStage?.dataset.authoredPrimaryKind!=='scene')return;
           event.preventDefault();camera.zoom=Math.max(0.25,Math.min(8,camera.zoom*Math.exp(-event.deltaY*0.001)));onChange();
         };
+        const key=event=>{
+          if(event.isComposing||event.ctrlKey||event.metaKey||layoutStage?.dataset.authoredPrimaryKind!=='scene'||actionKeyWork())return;
+          if(event.code==='Space'){space=true;event.preventDefault();return;}
+          const pan=event.altKey&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key);
+          if(!pan&&!['+','=','-','Home'].includes(event.key))return;
+          event.preventDefault();
+          if(event.key==='Home')camera={zoom:1,x:0,y:0};
+          else if(event.key==='+'||event.key==='=')camera.zoom=Math.min(8,camera.zoom*1.25);
+          else if(event.key==='-')camera.zoom=Math.max(0.25,camera.zoom/1.25);
+          else if(event.key==='ArrowLeft')camera.x-=40;
+          else if(event.key==='ArrowRight')camera.x+=40;
+          else if(event.key==='ArrowUp')camera.y-=40;
+          else if(event.key==='ArrowDown')camera.y+=40;
+          onChange();
+        };
+        const keyup=event=>{if(event.code==='Space')space=false;};
+        const blur=()=>{space=false;if(drag&&canvas.hasPointerCapture(drag.pointer))canvas.releasePointerCapture(drag.pointer);drag=null;};
+        canvas.addEventListener('keydown',key);canvas.addEventListener('keyup',keyup);canvas.addEventListener('blur',blur);
         const aux=event=>{if(event.button===1)event.preventDefault();};
         canvas.addEventListener('pointerdown',down);canvas.addEventListener('pointermove',move);
         canvas.addEventListener('pointerup',end);canvas.addEventListener('pointercancel',end);
@@ -319,8 +401,9 @@ export function createAuthoredCompositionHost(onChange) {
           canvas.removeEventListener('pointerdown',down);canvas.removeEventListener('pointermove',move);
           canvas.removeEventListener('pointerup',end);canvas.removeEventListener('pointercancel',end);
           canvas.removeEventListener('wheel',wheel);canvas.removeEventListener('auxclick',aux);
+          canvas.removeEventListener('keydown',key);canvas.removeEventListener('keyup',keyup);canvas.removeEventListener('blur',blur);
         };
-        pickHandler=event=>pickCanvas.selectAuthoredTarget(event);
+        pickHandler=event=>{if(suppressClick){suppressClick=false;return;}pickCanvas.selectAuthoredTarget(event);};
         pickCanvas.addEventListener("click",pickHandler);
       }
       if (pickCanvas) {
@@ -385,7 +468,7 @@ export function createAuthoredCompositionHost(onChange) {
               panel.dataset.authoredMagnifierId=relation.relation_id;
               panel.dataset.targetDigest=relation.target_digest;
               const title=document.createElement("strong"); title.textContent="돋보기 · 선택한 대상";
-              const close=document.createElement("button"); close.type="button"; close.textContent="닫기";
+              const close=document.createElement("button"); close.type="button"; close.textContent="✕";close.setAttribute("aria-label","돋보기 닫기");
               close.dataset.authoredMagnifierClose=relation.relation_id;
               close.addEventListener("click",()=>{
                 // Removing a focused close button must not move focus outside
@@ -434,18 +517,19 @@ export function createAuthoredCompositionHost(onChange) {
           }
           button.textContent = `${relation.kind === "side" ? "곁" : "겹"} · ${relation.authored_name ?? (relation.placement ?? relation.order)}`;
           if (relation.kind !== "side") continue;
+          button.hidden=true;
           let panel = sidePanels.get(relation.relation_id);
           if (!panel) {
           panel = document.createElement("section");
           panel.className = "side-view-instance"; panel.dataset.authoredRelationId = relation.relation_id;
           panel.dataset.placement = relation.placement;
           const title = document.createElement("strong"); title.textContent = `곁보기 · ${relation.placement}`;
-          const close = document.createElement("button"); close.type="button"; close.textContent="닫기";
+          const close = document.createElement("button"); close.type="button"; close.textContent="✕";close.setAttribute("aria-label",`곁 닫기 · ${relation.authored_name ?? relation.placement}`);close.title=close.getAttribute("aria-label");
           close.dataset.authoredSideClose=relation.relation_id;
           close.addEventListener("click",()=>{
             hidden.add(relation.relation_id);
             panel.hidden=true;
-            button.focus();
+            (toolbar.querySelector('[data-authored-side-chip]')??document.querySelector('[data-testid="authored-side-chip"]')??button).focus();
             onChange();
           });
           const canvas = document.createElement("canvas"); canvas.width=360; canvas.height=220;
@@ -466,7 +550,10 @@ export function createAuthoredCompositionHost(onChange) {
           panel.querySelector("strong").textContent = `곁 · ${relation.authored_name ?? relation.placement}`;
           // RD-134 owns authored position hints; pixel sizes and the Auto choice
           // are local layout. Auto currently uses the right dock, not a new role.
-          const dockPosition = {"왼쪽":"left","오른쪽":"right","위":"top","아래":"bottom","자동":"right"}[relation.placement];
+          const dockPosition = relation.placement==="자동"?autoDock:{"왼쪽":"left","오른쪽":"right","위":"top","아래":"bottom"}[relation.placement];
+          panel.dataset.automaticPlacement=String(relation.placement==="자동");
+          panel.style.maxHeight=relation.placement==="자동"&&autoDock==="bottom"?`${Math.max(0,bounds.height*WORKBENCH_UI.bottomFraction)}px`:"";
+          panel.style.overflow=relation.placement==="자동"?"auto":"";
           let dock = docks.get(dockPosition);
           if (!dock) {
             dock = document.createElement("div");
@@ -530,7 +617,11 @@ export function createAuthoredCompositionHost(onChange) {
         }
         const sideState = {...wasmState,bogae_projection:{...projection,candidates:[{...candidate,
           artifact:{...candidate.artifact,view:sideRelation.view,relations:[]}}]}};
-        renderAuthoredBogae(ctx,canvas.width,canvas.height,sideState);
+        const fit=fitCanvasToDisplay(canvas,360,220);
+        ctx.setTransform(fit.scale,0,0,fit.scale,0,0);
+        ctx.fillStyle="#f8fbf7"; ctx.fillRect(0,0,fit.width,fit.height);
+        renderAuthoredBogae(ctx,fit.width,fit.height,sideState,{compactXY:fit.height<240});
+        ctx.setTransform(1,0,0,1,0,0);
         canvas.dataset.committedStateHash = wasmState.state_hash ?? "";
       }
       for (const button of controls.querySelectorAll("button")) {
@@ -545,9 +636,13 @@ export function createAuthoredCompositionHost(onChange) {
         panel.querySelector("pre").textContent=JSON.stringify(relation.target,null,2);
         panel.querySelector("p").textContent=`현재 값: ${targetText(relation.target)}`;
         const canvas=panel.querySelector("canvas"),ctx=canvas.getContext("2d");
-        ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#f8fbf7";ctx.fillRect(0,0,canvas.width,canvas.height);
-        renderAuthoredBogae(ctx,canvas.width,canvas.height,{...wasmState,bogae_projection:{...projection,
+        // The popover box keeps the 11:6 drawing ratio (CSS); the bitmap follows it at devicePixelRatio.
+        const fit=fitCanvasToDisplay(canvas,220,120);
+        ctx.setTransform(fit.scale,0,0,fit.scale,0,0);
+        ctx.clearRect(0,0,fit.width,fit.height);ctx.fillStyle="#f8fbf7";ctx.fillRect(0,0,fit.width,fit.height);
+        renderAuthoredBogae(ctx,fit.width,fit.height,{...wasmState,bogae_projection:{...projection,
           candidates:[{...candidate,artifact:{...candidate.artifact,view:relation.view,relations:[]}}]}});
+        ctx.setTransform(1,0,0,1,0,0);
         canvas.dataset.committedStateHash=wasmState.state_hash??"";
         if (pickCanvas && relation.selection?.element_indices?.length) {
           const view=candidate.artifact.view, circle=view.elements[relation.selection.element_indices[0]];
@@ -556,13 +651,30 @@ export function createAuthoredCompositionHost(onChange) {
           const rect=pickCanvas.getBoundingClientRect(),parent=pickCanvas.parentElement?.getBoundingClientRect?.() ?? rect;
           const x=(pickCanvas.width-sx*s)/2+Number(BigInt(circle.center[0])-xmin)*s+camera.x;
           const y=(pickCanvas.height+sy*s)/2-Number(BigInt(circle.center[1])-ymin)*s+camera.y;
-          panel.style.left=`${rect.left-parent.left+Math.max(4,Math.min(rect.width-240,x*rect.width/pickCanvas.width+12))}px`;
-          panel.style.top=`${rect.top-parent.top+Math.max(4,Math.min(rect.height-210,y*rect.height/pickCanvas.height-60))}px`;
+          const availableWidth=Math.max(0,Math.min(rect.width,globalThis.innerWidth-rect.left));
+          const availableHeight=Math.max(0,Math.min(rect.height,globalThis.innerHeight-rect.top));
+          panel.hidden=availableWidth<32||availableHeight<32;
+          if(panel.hidden)continue;
+          panel.style.maxWidth=`${Math.max(0,availableWidth-8)}px`;
+          panel.style.maxHeight=`${Math.max(0,availableHeight-8)}px`;
+          const panelBox=panel.getBoundingClientRect();
+          // Same half size as the drawn selection ring (radius + 4, plus half of the 3px stroke).
+          const ring=circle?.kind==="circle"?Math.max(6,Number(circle.radius)*s)+4+1.5:NaN;
+          const kx=rect.width/pickCanvas.width,ky=rect.height/pickCanvas.height;
+          const position=placeOutsideTarget({box:{left:(x-ring)*kx,top:(y-ring)*ky,right:(x+ring)*kx,bottom:(y+ring)*ky},
+            width:panelBox.width,height:panelBox.height,availableWidth,availableHeight});
+          panel.dataset.placement=position.side;
+          panel.style.left=`${rect.left-parent.left+position.left}px`;
+          panel.style.top=`${rect.top-parent.top+position.top}px`;
+
         }
       }
       for (const [position,dock] of docks) {
         dock.hidden = [...dock.children].every(panel => panel.hidden);
         const sides=[...dock.children].filter(panel=>panel.dataset.authoredRelationId);
+        const automaticOnly=sides.length>0&&sides.every(panel=>panel.dataset.automaticPlacement==="true");
+        dock.style.maxHeight=automaticOnly?`${Math.max(0,bounds.height*(position==="bottom"?WORKBENCH_UI.bottomFraction:1))}px`:"";
+        dock.style.overflow=automaticOnly?"auto":"";
         let handle=edgeHandles.get(position);
         if(sides.length && !handle) {
           handle=document.createElement('button');handle.type='button';
@@ -589,14 +701,15 @@ export function createAuthoredCompositionHost(onChange) {
           handle.setAttribute('aria-label',`${names} ${dock.hidden?'열기':'닫기'}`);
         }
         if (position === "left" || position === "right") {
-          stage.style.setProperty(`--authored-${position}`,dock.hidden ? "0px" : "minmax(140px, 0.5fr)");
+          const autoOnly=sides.length>0&&sides.every(panel=>panel.dataset.automaticPlacement==="true");
+          stage.style.setProperty(`--authored-${position}`,dock.hidden ? "0px" : autoOnly?`minmax(0, ${WORKBENCH_UI.rightWidth}px)`:"minmax(140px, 0.5fr)");
         }
       }
       stage.dataset.sideOpen = sideCount ? "true" : "false";
       stage.dataset.sideInstanceCount = String(sideCount);
       stage.dataset.overlayInstanceCount = String((candidate.artifact.relations ?? []).filter(r=>r.kind==="overlay"&&!hidden.has(r.relation_id)).length);
       stage.dataset.magnifierInstanceCount=String(magnifierPanels.size);
-      return {sideCount, relationCount:(candidate.artifact.relations ?? []).length};
+      return {sideCount, sideTotal:sidePanels.size, relationCount:(candidate.artifact.relations ?? []).length};
     },
   };
 }

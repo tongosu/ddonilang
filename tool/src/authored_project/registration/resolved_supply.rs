@@ -9,6 +9,17 @@ use ddonirang_lang::{CanonProgram,Expr,ExprKind,SeedDef,Span,Stmt,TopLevelItem,T
 mod source;
 pub(super) use source::Source;
 mod typeproof;
+mod logic_source;
+pub(crate) use logic_source::CheckedLogicSourceScope;
+pub(super) fn prepare_logic_source_scope(
+    owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,
+    nominals:&super::RegistrationDraft,site:Span,
+)->Result<CheckedLogicSourceScope,String>{logic_source::prepare(owned,nominals,site)}
+pub(super) fn prepare_logic_source_scopes(
+    owned:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,
+    nominals:&super::RegistrationDraft,sites:&[(ddonirang_lang::NodeId,Span)],
+)->Result<BTreeMap<ddonirang_lang::NodeId,CheckedLogicSourceScope>,String>{logic_source::prepare_batch(owned,nominals,sites)}
+
 mod math_callable;
 pub(super) fn analyze_math_callable_source(
     source: &Source,
@@ -22,7 +33,7 @@ pub(super) use catalog::{ResolvedCatalog,ROLE as RESOLVED_ROLE,PATH as RESOLVED_
 pub(super) fn requires_resolved_program(program:&CanonProgram)->bool {
     let (declarations,matches)=scoped_sum_syntax(program);!declarations.is_empty()||!matches.is_empty()
 }
-pub(super) fn builtin_manifest_bytes()->Result<Vec<u8>,String> {
+pub(crate) fn builtin_manifest_bytes()->Result<Vec<u8>,String> {
     Ok(builtin_result_ids()?.into_iter().chain(builtin_reference_failure_ids()?).flatten().collect())
 }
 
@@ -148,7 +159,18 @@ fn scoped_sum_syntax(program:&CanonProgram)->(Vec<(&Stmt,Span,Option<&SeedDef>)>
     matches.sort_by_key(|(stmt,_)|match stmt {Stmt::SumMatch{span,..}=>(span.start,span.end),_=>unreachable!()});
     (declarations,matches)
 }
-fn scan_sum_syntax(mut jobs:Vec<SyntaxJob<'_>>)->(Vec<(&Stmt,Span)>,Vec<&Stmt>) {
+fn scan_sum_syntax(jobs:Vec<SyntaxJob<'_>>)->(Vec<(&Stmt,Span)>,Vec<&Stmt>) {
+    scan_sum_syntax_with_visit(jobs,|_|{})
+}
+fn actual_expression_sites(program:&CanonProgram)->Vec<(ddonirang_lang::NodeId,Span)> {
+    let mut jobs=vec![SyntaxJob::Body(&program.root_stmts,Span::new(0,program.origin.source.len()))];
+    for TopLevelItem::SeedDef(seed) in &program.items {
+        if let Some(body)=&seed.body{jobs.push(SyntaxJob::Body(&body.stmts,body.span));}
+        for pin in &seed.params{if let Some(value)=&pin.default_value{jobs.push(SyntaxJob::Expr(value,seed.span));}}
+    }
+    let mut sites=Vec::new();scan_sum_syntax_with_visit(jobs,|expr|sites.push((expr.id,expr.span)));sites
+}
+fn scan_sum_syntax_with_visit<'a>(mut jobs:Vec<SyntaxJob<'a>>,mut visit:impl FnMut(&'a Expr))->(Vec<(&'a Stmt,Span)>,Vec<&'a Stmt>) {
     use SyntaxJob as Job;
     let mut found=Vec::new();let mut matches=Vec::new();
     while let Some(job)=jobs.pop() {match job {
@@ -195,7 +217,7 @@ fn scan_sum_syntax(mut jobs:Vec<SyntaxJob<'_>>)->(Vec<(&Stmt,Span)>,Vec<&Stmt>) 
             },
             Stmt::MetaBlock{..}|Stmt::Pragma{..}|Stmt::Break{..}|Stmt::ContinueLoop{..}=>{},
         },
-        Job::Expr(expr,scope)=>match &expr.kind {
+        Job::Expr(expr,scope)=>{visit(expr);match &expr.kind {
             ExprKind::Tensor(tensor)=>jobs.push(Job::Expr(tensor.input(),scope)),
             ExprKind::MultiAxisSelection(selection)=>jobs.extend(selection.children().map(|expr|Job::Expr(expr,scope))),
             ExprKind::FieldAccess{target,..}=>jobs.push(Job::Expr(target,scope)),
@@ -206,12 +228,13 @@ fn scan_sum_syntax(mut jobs:Vec<SyntaxJob<'_>>)->(Vec<(&Stmt,Span)>,Vec<&Stmt>) 
             ExprKind::SelectionPlace{target,index}=>jobs.extend([Job::Expr(target,scope),Job::Expr(index,scope)]),
             ExprKind::Infix{left,right,..}=>jobs.extend([Job::Expr(left,scope),Job::Expr(right,scope)]),
             ExprKind::Suffix{value,..}=>jobs.push(Job::Expr(value,scope)),
+            ExprKind::FunctionBlock{statements,result}=>{jobs.push(Job::Expr(result,statements.span));jobs.push(Job::Body(&statements.stmts,statements.span));},
             ExprKind::Thunk(body)=>jobs.push(Job::Body(&body.stmts,body.span)),
             ExprKind::Eval{thunk,..}=>jobs.push(Job::Expr(thunk,scope)),
             ExprKind::Pack{fields}|ExprKind::TemplateRender{inject:fields,..}|ExprKind::FormulaEval{inject:fields,..}=>jobs.extend(fields.iter().map(|(_,expr)|Job::Expr(expr,scope))),
             ExprKind::Nuance{expr,..}=>jobs.push(Job::Expr(expr,scope)),
             ExprKind::Literal(_)|ExprKind::Var(_)|ExprKind::FlowValue|ExprKind::Assertion(_)|ExprKind::StateMachine(_)|ExprKind::Formula(_)|ExprKind::Template(_)=>{},
-        },
+        }},
     }}
     found.sort_by_key(|(stmt,_)|match stmt {Stmt::SumDefinition{span,..}=>(span.start,span.end),_=>unreachable!()});
     matches.sort_by_key(|stmt|match stmt {Stmt::SumMatch{span,..}=>(span.start,span.end),_=>unreachable!()});
@@ -225,7 +248,7 @@ fn plan(source:&Source,nominals:&super::RegistrationDraft)->Result<Vec<PlannedTe
     let mut programs=Vec::new();
     for (path,capture) in source.captures() {
         let Some(module)=module_raw(source,path)? else {continue};
-        let program=ddonirang_lang::parse_v25_with_mode(capture.text(),path,ddonirang_lang::ParseMode::Strict)
+        let program=source.parse_capture(capture.text(),path)
             .map_err(|error|fail(&error.to_string()))?;
         programs.push((module,capture,program));
     }
@@ -386,7 +409,7 @@ fn context_for(source:&Source,seed:Option<&SeedDef>,span:Span,
             // spelling used only by the compiler's import lookup.
             let capture=source.captures().iter().find(|(_,capture)|capture.identity()==&site.capture)
                 .ok_or_else(||fail("선언 문맥의 원 봉인이 없습니다"))?;
-            let original=ddonirang_lang::parse_v25_with_mode(capture.1.text(),&capture.0,ddonirang_lang::ParseMode::Strict)
+            let original=source.parse_capture(capture.1.text(),&capture.0)
                 .map_err(|error|fail(&error.to_string()))?;
             let mut declarations=original.items.iter().filter_map(|TopLevelItem::SeedDef(seed)|
                 (seed.span.start as u64==site.start&&seed.span.end as u64==site.end).then_some(seed));
@@ -407,7 +430,7 @@ fn context_for(source:&Source,seed:Option<&SeedDef>,span:Span,
 
 fn plan_user_patterns(source:&Source,nominals:&super::RegistrationDraft,templates:&SumRoleCandidates,typed:bool)->Result<Vec<PlannedPattern>,String> {
     let preparation=source.preparation();
-    let program=ddonirang_lang::parse_v25_with_mode(&preparation.source,&preparation.target_path,ddonirang_lang::ParseMode::Strict)
+    let program=source.parse_prepared()
         .map_err(|error|fail(&error.to_string()))?;
     // Names select declarations in the actual linked resolver output. IDs
     // still come from matching the declaration's module/capture/source site.
@@ -469,16 +492,22 @@ impl UserPatternCandidates {
     /// Checked compiler projection from this exact source's selected pins.
     /// It is not a persisted catalog or a runtime admission. NodeId is only
     /// a newly rebuilt lookup cache; no stored identity is derived from it.
-    fn checked_canon(&self,source:&Source,nominals:&super::RegistrationDraft,templates:&SumRoleCandidates)->Result<String,String> {
+    fn checked_canon(&self,source:&Source,nominals:&super::RegistrationDraft,templates:&SumRoleCandidates,legacy_ddl_start:bool)->Result<String,String> {
         self.verify(source,nominals,templates)?;
         let preparation=source.preparation();
-        let mut program=ddonirang_lang::parse_v25_with_mode(&preparation.source,&preparation.target_path,ddonirang_lang::ParseMode::Strict)
+        let mut program=source.parse_prepared()
             .map_err(|error|fail(&error.to_string()))?;
         let order=self.pin_order(source,&program)?;
         program.origin.registered_sum_pin_order=Some(order.clone());
         ddonirang_lang::canonicalize(&mut program).map_err(|error|fail(&error.to_string()))?;
-        ddonirang_lang::normalizer::normalize_with_registered_sum_pin_order(
-            &program,ddonirang_lang::NormalizationLevel::N1,&order)
+        // Only an exact, source-checked legacy catalog may request this
+        // projection. The caller uses the text for the saved Start digest.
+        if legacy_ddl_start {
+            ddonirang_lang::normalizer::normalize_legacy_saved_ddl_root(&program,&order)
+        } else {
+            ddonirang_lang::normalizer::normalize_with_registered_sum_pin_order(
+                &program,ddonirang_lang::NormalizationLevel::N1,&order)
+        }
     }
     fn pin_order(&self,source:&Source,program:&CanonProgram)->Result<BTreeMap<ddonirang_lang::NodeId,[u8;32]>,String> {
         if program.origin.source!=source.preparation().source {return Err(fail("등록 정본화와 실제 실행 원문이 다릅니다"));}
@@ -739,17 +768,17 @@ mod tests {
         assert_eq!(at,4);
         let patterns=UserPatternCandidates::issue(&source,&nominal,&templates,&mut |raw|getrandom::fill(raw).map_err(|_|fail("난수 실패"))).unwrap();
         let captured=source.saved_owner().sources().recorded_capture_catalog_json().unwrap();
-        let canon=patterns.checked_canon(&source,&nominal,&templates).unwrap();
+        let canon=patterns.checked_canon(&source,&nominal,&templates,false).unwrap();
         assert!(canon.contains("선택.$쌍(세로, 가로)이면"),"{canon}");
         assert!(canon.contains("선택.$쌍(세로=4, 가로=3)"),"construction evaluation order must not change: {canon}");
-        assert_eq!(patterns.checked_canon(&source,&nominal,&templates).unwrap(),canon);
+        assert_eq!(patterns.checked_canon(&source,&nominal,&templates,false).unwrap(),canon);
         assert_eq!(source.saved_owner().sources().recorded_capture_catalog_json().unwrap(),captured);
     }
     #[test]
     fn r3_checked_formatter_missing_duplicate_and_unused_cache_entries_return_no_candidate_string() {
         let source=make_source_with_body("선택:고름씨 := { $쌍(가로:바른수,세로:바른수). }. 실행:움직씨 := { 자료 <- 선택.$쌍(세로=4,가로=3). 자료에 따라 { 선택.$쌍(가로,세로)이면 { 가로 보여주기. }. }. }.");
         let preparation=source.preparation();
-        let program=ddonirang_lang::parse_v25_with_mode(&preparation.source,&preparation.target_path,ddonirang_lang::ParseMode::Strict).unwrap();
+        let program=source.parse_prepared().unwrap();
         let raw=|order:&BTreeMap<_,_>|ddonirang_lang::normalizer::normalize_with_registered_sum_pin_order(&program,ddonirang_lang::NormalizationLevel::N1,order);
         assert!(raw(&BTreeMap::new()).unwrap_err().starts_with("E_SUM_PIN_IDENTITY_REQUIRED"));
         let binders=scoped_sum_syntax(&program).1.into_iter().flat_map(|(stmt,_)|match stmt {Stmt::SumMatch{arms,..}=>arms.iter().flat_map(|arm|arm.binder.iter()).collect::<Vec<_>>(),_=>unreachable!()}).collect::<Vec<_>>();

@@ -7,6 +7,160 @@ use ddonirang_lang::{CanonProgram, Expr, ExprKind, Literal, NodeId, SeedDef, Stm
 mod generic_application;
 pub(crate) use generic_application::source_diagnostic as generic_source_diagnostic;
 
+// Internal candidate only. D1 definition/pin admission must precede any
+// public dispatch. No Deserialize, public TypeRef, or saved identity is issued.
+pub(crate) struct TableSelectionCandidate {
+    pub(crate) source: String,
+    pub(crate) fields: Vec<TableSelectionField>,
+}
+pub(crate) struct TableSelectionField {
+    pub(crate) declaration: NodeId,
+    pub(crate) observation: NodeId,
+    pub(crate) name: String,
+    pub(crate) source_ref: String,
+    pub(crate) kind: TableColumnKind,
+}
+#[derive(Clone, Debug)]
+pub(crate) enum TableColumnKind { Existing(TypeRef), Unit(ddonirang_core::UnitDim) }
+
+impl TableSelectionCandidate {
+    /// Internal transport only: calling this does not admit a source callable.
+    /// D1 callable/pin admission must be checked before any public evaluation.
+    pub(crate) fn into_typed(self, registration:&ddonirang_lang::stdlib::CheckedResultTableDescriptor)
+        ->Result<ddonirang_lang::runtime::ResultTableSelection,String> {
+        use ddonirang_lang::runtime::{ResultTableColumn,ResultTableColumnType,ResultTableSelection};
+        let columns=self.fields.into_iter().map(|field|ResultTableColumn {
+            declaration:field.declaration,observation:field.observation,name:field.name,source_ref:field.source_ref,
+            kind:match field.kind {TableColumnKind::Existing(ty)=>ResultTableColumnType::Existing(ty),
+                TableColumnKind::Unit(unit)=>ResultTableColumnType::Unit(unit)},
+        }).collect();
+        ResultTableSelection::from_resolved_source(registration,self.source,columns)
+    }
+}
+
+/// Resolve direct selectors against actual root public declarations. Nested /
+/// imported scopes require their existing owner supplier; never guess by name.
+pub(crate) fn table_selection_candidate(program: &CanonProgram, selection: &Expr)
+    -> Result<TableSelectionCandidate, String> {
+    let fail = |message: &str| format!("E_AUTHORED_BOGAE: {message}");
+    let ExprKind::CollectionConstructor { elements } = &selection.kind else {
+        return Err(fail("열 선택 후보는 직접 관찰 참조의 차림이어야 합니다"));
+    };
+    if elements.is_empty() { return Err(fail("열 선택 후보는 비어 있을 수 없습니다")); }
+    // This helper deliberately supports only the root scope. A local binding
+    // named 관찰 must not silently fall back to the builtin namespace.
+    if program.root_stmts.iter().any(|stmt| match stmt {
+        Stmt::Definition { name, .. } => name == "관찰",
+        Stmt::DeclBlock { items, .. } => items.iter().any(|item| item.name == "관찰"),
+        Stmt::Mutate { target, .. } => matches!(&target.kind, ExprKind::Var(name) if name == "관찰"),
+        _ => false,
+    }) || program.items.iter().any(|item| matches!(item, TopLevelItem::SeedDef(seed) if seed.canonical_name == "관찰")) {
+        return Err(fail("가려진 관찰 이름은 공개 관측 참조가 아닙니다"));
+    }
+    // Reuse the source admission's actual top-level declaration ownership.
+    // A selector over a declared world value must receive that same static
+    // initializer/type supply; runtime Value shapes are not a substitute.
+    let world_decls=crate::ddn_runtime::authored_top_level_decl_names(program,&program.origin.source);
+    let plan = NumericConstraintPlan::compile(program, &world_decls)?;
+    let declarations: Vec<_> = program.root_stmts.iter().filter_map(|stmt| {
+        if let Stmt::PublicObservation { fields, .. } = stmt { Some(fields) } else { None }
+    }).flatten().collect();
+    let mut seen = BTreeSet::new();
+    let mut fields = Vec::with_capacity(elements.len());
+    for expression in elements {
+        let ExprKind::FieldAccess { target, field, .. } = &expression.kind else {
+            return Err(fail("직접 관찰 필드 외의 열 선택은 지원하지 않습니다"));
+        };
+        if !matches!(&target.kind, ExprKind::Var(name) if name == "관찰") {
+            return Err(fail("열 선택의 공개 관측 소유자가 해소되지 않았습니다"));
+        }
+        let matching: Vec<_> = declarations.iter().filter(|item| item.name == *field).collect();
+        if matching.len() != 1 { return Err(fail("공개 관측 선언이 없거나 모호합니다")); }
+        let declaration = matching[0];
+        if !seen.insert(declaration.id) { return Err(fail("같은 공개 관측을 중복 선택했습니다")); }
+        let kind = plan.expressions.get(&declaration.value.id).cloned().map(TableColumnKind::Existing)
+            .or_else(|| plan.table_unit_dimensions.get(&declaration.value.id).copied().map(TableColumnKind::Unit))
+            .ok_or_else(|| fail("공개 관측의 정적 타입 공급이 없습니다"))?;
+        let observation = program.root_stmts.iter().find_map(|stmt| match stmt {
+            Stmt::PublicObservation { id, fields, .. } if fields.iter().any(|item| item.id==declaration.id) => Some(*id),
+            _=>None,
+        }).ok_or_else(||fail("공개 관측의 선언 소유를 해소하지 못했습니다"))?;
+        fields.push(TableSelectionField { declaration:declaration.id, observation, name: field.clone(), kind,
+            source_ref: format!("{}#bytes={}:{}", program.origin.file_path,
+                declaration.name_span.start, declaration.name_span.end) });
+    }
+    Ok(TableSelectionCandidate {
+        source: format!("sha256:{}", crate::runtime_surface::sha256_hex(program.origin.source.as_bytes())),
+        fields,
+    })
+}
+
+/// Checked physical material + one source-local call. This is not a public
+/// admission switch; the reviewed registration must be enabled separately.
+pub(crate) struct ResolvedResultTableCall {
+    registration:ddonirang_lang::stdlib::CheckedResultTableDescriptor,
+    source:String,
+    file:String,
+    call:NodeId,
+    span:(usize,usize),
+    time_argument:Option<usize>,
+    selection:Option<ddonirang_lang::runtime::ResultTableSelection>,
+}
+impl ResolvedResultTableCall {
+    pub(crate) fn into_parts(self,program:&CanonProgram,call:&Expr)
+        ->Result<(Option<usize>,Option<ddonirang_lang::runtime::ResultTableSelection>),String> {
+        // NodeId is only a coordinate inside this exact source, never a
+        // DefinitionIdentity/PinIdentity or a saved capability.
+        let source=format!("sha256:{}",crate::runtime_surface::sha256_hex(program.origin.source.as_bytes()));
+        if source!=self.source || program.origin.file_path!=self.file || call.id!=self.call
+            || (call.span.start,call.span.end)!=self.span {
+            return Err("E_AUTHORED_BOGAE: 결과표 호출의 원문 소유나 판본이 다릅니다".into());
+        }
+        use ddonirang_lang::stdlib::ResultTablePinRole as R;
+        if !self.registration.check_owned_pin(self.registration.definition(),self.registration.pin(R::Columns),R::Columns) {
+            return Err("E_AUTHORED_BOGAE: 결과표 받는자리의 등록 소유가 다릅니다".into());
+        }
+        Ok((self.time_argument,self.selection))
+    }
+}
+
+pub(crate) fn resolve_registered_result_table_call(program:&CanonProgram,call:&Expr,
+    registration:&ddonirang_lang::stdlib::CheckedResultTableDescriptor,shadowed:bool)
+    ->Result<Option<ResolvedResultTableCall>,String> {
+    use ddonirang_lang::stdlib::ResultTablePinRole as R;
+    let ExprKind::Call {func,args}=&call.kind else {return Ok(None)};
+    if func!="표준보기.결과표" {return Ok(None);}
+    let shadow_name=|name:&str|name==func || name=="표준보기";
+    if shadowed || program.items.iter().any(|TopLevelItem::SeedDef(seed)|
+        seed.callable_surface_names().iter().any(|name|shadow_name(name)))
+        || program.root_stmts.iter().any(|stmt|match stmt {
+            Stmt::Definition{name,..}=>shadow_name(name),
+            Stmt::DeclBlock{items,..}=>items.iter().any(|item|shadow_name(&item.name)),
+            Stmt::Mutate{target,..}=>matches!(&target.kind,ExprKind::Var(name) if shadow_name(name)),
+            _=>false,
+        }) {return Ok(None);}
+    // The name selects an entry in the checked immutable descriptor. Neither
+    // FunctionSig nor a spelling-derived ID supplies the registration owner.
+    if args.len()>2 {return Err("E_CALL_ARGUMENT_COUNT: 결과표 인자가 너무 많습니다".into());}
+    let mut roles=Vec::with_capacity(args.len());
+    for arg in args {
+        let role=match arg.resolved_pin.as_deref() {
+            Some("열들")=>R::Columns,
+            Some("시간")|None=>R::Time, // preserve the existing sole positional time
+            Some(name)=>return Err(format!("E_CALL_PIN_UNKNOWN: 결과표에 `{name}` 받는자리가 없습니다")),
+        };
+        if roles.contains(&role) {return Err("E_CALL_PIN_DUPLICATE: 결과표의 같은 받는자리가 겹칩니다".into());}
+        roles.push(role);
+    }
+    let slots=registration.argument_slots(&roles)?;
+    let selection=slots[1].map(|index|table_selection_candidate(program,&args[index].expr)
+        .and_then(|candidate|candidate.into_typed(registration))).transpose()?;
+    Ok(Some(ResolvedResultTableCall {registration:registration.clone(),
+        source:format!("sha256:{}",crate::runtime_surface::sha256_hex(program.origin.source.as_bytes())),
+        file:program.origin.file_path.clone(),call:call.id,span:(call.span.start,call.span.end),
+        time_argument:slots[0],selection}))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum NumericKind { Integer, Approximate, Rational, BigInteger, Factor }
 
@@ -117,32 +271,41 @@ type Scope = BTreeMap<String, (BindingOwner, Shape)>;
 pub(crate) struct ResolvedSourceBuiltinRoles {
     pub(crate) arg_for_role:BTreeMap<&'static str,usize>,
     pub(crate) canonical_order:Vec<usize>,
+    pub(crate) appended_value_role:Option<&'static str>,
 }
 
 /// Shared source admission and execution binding for the six R1.2 builtins.
 /// This is the actual role producer, not a numeric consumer's ordinal guess.
-pub(crate) fn resolve_source_builtin_roles(program:&CanonProgram,func:&str,args:&[ddonirang_lang::ArgBinding],shadowed:bool)->Result<Option<ResolvedSourceBuiltinRoles>,String> {
+pub(crate) fn resolve_source_builtin_roles(program:&CanonProgram,call_node:NodeId,func:&str,args:&[ddonirang_lang::ArgBinding],shadowed:bool)->Result<Option<ResolvedSourceBuiltinRoles>,String> {
     let canonical=ddonirang_lang::stdlib::canonicalize_stdlib_alias(func);
-    if shadowed || !matches!(canonical,"추가"|"토막내기"|"표준장면.원"|"표준장면.다각형"|"표준장면.글"|"표준장면.평면")
+    if shadowed || !matches!(canonical,"추가"|"토막내기"|"표준장면.원"|"표준장면.다각형"|"표준장면.글"|"표준장면.평면"|"표준장면.그림"|"표준장면.면"|"표준장면.카메라"|"표준장면.입체")
         || program.items.iter().any(|TopLevelItem::SeedDef(seed)|seed.callable_surface_names().iter().any(|name|name==func || name==canonical))
         || !crate::work_cost::builtin_work_cost_rule(canonical).is_ok_and(|rule|rule.is_some()) {return Ok(None);}
     let signature=ddonirang_lang::stdlib::minimal_stdlib_sigs().into_iter().find(|signature|signature.name==canonical)
         .ok_or_else(||format!("E_CALL_SIGNATURE_REQUIRED: {canonical}의 기존 서명이 없습니다"))?;
-    let mut slots=vec![None;signature.params.len()];
+    let typed_owner=program.origin.vc17_named_calls.get(&call_node).copied();
+    let params=if let Some(definition)=typed_owner {
+        let export=ddonirang_lang::stdlib::vc17::EXPORTS.iter().find(|row|row.definition==definition)
+            .ok_or_else(||"E_VC17_ADMISSION: actual definition is not registered".to_string())?;
+        if export.surface!=canonical {return Err("E_VC17_ADMISSION: source callable owner differs".into());}
+        export.pins.iter().map(|pin|pin.name).collect::<Vec<_>>()
+    }else{signature.params.to_vec()};
+    let appended_value_role=(canonical=="추가").then_some(if typed_owner==Some(ddonirang_lang::stdlib::vc17::Definition::Chuga){"값"}else{"요소"});
+    let mut slots=vec![None;params.len()];
     for (input,arg) in args.iter().enumerate() {
         let slot=if let Some(role)=arg.resolved_pin.as_deref() {
             // Existing parser normalization emits 처음 for the accepted 시작
             // source role (also preserved by lang's fixed-pin regression).
             // This does not add a source alias or rename the VC17 START pin.
             let role=if canonical=="토막내기" && role=="처음" {"시작"}else{role};
-            signature.params.iter().position(|name|*name==role).ok_or_else(||format!("E_CALL_PIN_UNKNOWN: {canonical}의 `{role}` 받는자리가 없습니다"))?
+            params.iter().position(|name|*name==role).ok_or_else(||format!("E_CALL_PIN_UNKNOWN: {canonical}의 `{role}` 받는자리가 없습니다"))?
         }else{slots.iter().position(Option::is_none).ok_or_else(||format!("E_CALL_ARGUMENT_COUNT: {canonical}의 인자가 너무 많습니다"))?};
-        if slots[slot].replace(input).is_some() {return Err(format!("E_CALL_PIN_DUPLICATE: {canonical}의 {} 받는자리가 겹칩니다",signature.params[slot]));}
+        if slots[slot].replace(input).is_some() {return Err(format!("E_CALL_PIN_DUPLICATE: {canonical}의 {} 받는자리가 겹칩니다",params[slot]));}
     }
     if slots.iter().any(Option::is_none) {return Err(format!("E_CALL_REQUIRED_PIN_MISSING: {canonical}의 받는자리가 부족합니다"));}
     // F5-GA[ROLE-SLOTS]: both position searches are within params.len(); the preceding missing-slot guard excludes None before unwrap.
     let canonical_order=slots.into_iter().map(Option::unwrap).collect::<Vec<_>>();
-    Ok(Some(ResolvedSourceBuiltinRoles{arg_for_role:signature.params.iter().copied().zip(canonical_order.iter().copied()).collect(),canonical_order}))
+    Ok(Some(ResolvedSourceBuiltinRoles{arg_for_role:params.iter().copied().zip(canonical_order.iter().copied()).collect(),canonical_order,appended_value_role}))
 }
 
 fn admitted_collection_signature_kind(kind:&TypeRef)->bool {
@@ -210,6 +373,7 @@ fn precollectable_initializer(root:&Expr,scope:&Scope,callables:&BTreeMap<String
         ExprKind::Literal(_)=>{},
         ExprKind::Var(name) if scope.contains_key(name) || matches!(name.as_str(),"참"|"거짓"|"없음")=>{},
         ExprKind::TupleConstructor{elements}|ExprKind::CollectionConstructor{elements}=>pending.extend(elements),
+        ExprKind::Pack{fields}=>pending.extend(fields.iter().map(|(_,value)|value)),
         ExprKind::Infix{left,right,..}=>{pending.push(left);pending.push(right);},
         ExprKind::Suffix{value,at:ddonirang_lang::AtSuffix::Unit(_)}=>pending.push(value),
         ExprKind::SelectionPlace{target,index}=>{pending.push(target);pending.push(index);},
@@ -257,11 +421,22 @@ pub(crate) fn literal_arithmetic_tree(expression: &Expr) -> bool {
 /// NodeIds nor the private BindingOwner may escape into saved TypeIdentity.
 #[derive(Default, Debug)]
 pub(crate) struct NumericConstraintPlan {
+    // Read-only table candidate sidecar from existing solved Unit shapes.
+    // Does not create a public TypeRef or change any numeric constraints.
+    table_unit_dimensions: BTreeMap<NodeId, ddonirang_core::UnitDim>,
     // Compilation-local result owners for the actual piecewise declarations.
     // These node keys select facts in this plan; they are not saved identities.
     pub(crate) piecewise_results: BTreeMap<NodeId, TypeRef>,
     pub(crate) exact_formula_calls: BTreeMap<NodeId, BTreeSet<String>>,
     pub(crate) generic_calls: BTreeMap<NodeId, SeedDef>,
+    pub(crate) source_calls:BTreeMap<NodeId,crate::function_call_graph::SourceCall>,
+    pub(crate) source_capture_bindings:BTreeMap<NodeId,crate::function_call_graph::SourceCaptureBinding>,
+    pub(crate) root_capture_writes:BTreeMap<NodeId,NodeId>,
+    pub(crate) source_capture_reads:BTreeMap<NodeId,Option<(NodeId,NodeId)>>,
+    pub(crate) source_call_rejections:BTreeMap<NodeId,String>,
+    pub(crate) function_roots:BTreeMap<NodeId,crate::function_call_graph::FunctionRoot>,
+    pub(crate) named_function_roots:BTreeMap<NodeId,SeedDef>,
+    pub(crate) function_graphs:crate::function_call_graph::FunctionGraphs,
     pub(crate) subject_reference_targets:BTreeMap<NodeId,NodeId>,
     pub(crate) expressions: BTreeMap<NodeId, TypeRef>,
     pub(crate) literals: BTreeMap<NodeId, NumericKind>,
@@ -271,10 +446,17 @@ pub(crate) struct NumericConstraintPlan {
 }
 
 struct Projection<'a> {
+    function_failures:Option<&'a std::cell::RefCell<BTreeMap<String,crate::preprocess::ExecutionDiagnostic>>>,
     equation_result_calls: BTreeSet<NodeId>,
     formula_calls: BTreeMap<NodeId, (Variable, BTreeSet<String>)>,
     formula_flow: Vec<Shape>,
     generic_calls: BTreeMap<NodeId, SeedDef>,
+    source_calls:BTreeMap<NodeId,crate::function_call_graph::SourceCall>,
+    root_capture_writes:BTreeMap<NodeId,NodeId>,
+    source_capture_reads:BTreeMap<NodeId,Option<(NodeId,NodeId)>>,
+    source_call_rejections:BTreeMap<NodeId,String>,
+    function_roots:BTreeMap<NodeId,crate::function_call_graph::FunctionRoot>,
+    named_function_roots:BTreeMap<NodeId,SeedDef>,
     program: &'a CanonProgram,
     output_atoms:Option<&'a crate::authored_project::registration::ResolvedRegisteredAtomResultTypeV1>,
     graph: NumericConstraints,
@@ -293,6 +475,7 @@ struct Projection<'a> {
     callable_globals: Scope,
     analyzed_callables: BTreeSet<NodeId>,
     active_callables: BTreeSet<NodeId>,
+    active_result_owners: BTreeSet<NodeId>,
     callable_returns: BTreeMap<NodeId, Shape>,
     source_sites:BTreeMap<NodeId,ddonirang_lang::Span>,
     lexical_locals:BTreeSet<BindingOwner>,
@@ -311,25 +494,38 @@ impl NumericConstraintPlan {
     }
 
     pub(crate) fn compile_with_host(program:&CanonProgram,world_decls:&HashSet<String>,host:Option<&crate::runtime_surface::BogaeHostNumericSupply>)->Result<Self,String> {
-        Self::compile_projection(program,world_decls,host,None)
+        Self::compile_projection(program,world_decls,host,None,None)
     }
     pub(crate) fn compile_output_with_atoms(program:&CanonProgram,world_decls:&HashSet<String>,host:Option<&crate::runtime_surface::BogaeHostNumericSupply>,
         atoms:&crate::authored_project::registration::ResolvedRegisteredAtomResultTypeV1)->Result<Self,String>{
         if !atoms.matches_program(program){return Err("E_UNSUPPORTED_RESULT_EVIDENCE: 원자 출력 원문 증거가 다릅니다".into());}
-        Self::compile_projection(program,world_decls,host,Some(atoms))
+        Self::compile_projection(program,world_decls,host,Some(atoms),None)
+    }
+    /// Preserve the exact failed expected-function check, not a second source
+    /// analysis or a location reconstructed from its human-readable message.
+    pub(crate) fn compile_with_host_diagnostic(program:&CanonProgram,world_decls:&HashSet<String>,host:Option<&crate::runtime_surface::BogaeHostNumericSupply>,
+        diagnostic:&mut Option<crate::preprocess::ExecutionDiagnostic>)->Result<Self,String>{
+        *diagnostic=None;
+        let failures=std::cell::RefCell::new(BTreeMap::new());
+        let result=Self::compile_projection(program,world_decls,host,None,Some(&failures));
+        // Failed speculative contexts cannot become the final diagnosis. Only
+        // the actual returned failure from this attempt can consume its site.
+        if let Err(message)=&result{*diagnostic=failures.borrow_mut().remove(message);}
+        result
     }
     fn compile_projection<'a>(program:&'a CanonProgram,world_decls:&HashSet<String>,host:Option<&crate::runtime_surface::BogaeHostNumericSupply>,
-        output_atoms:Option<&'a crate::authored_project::registration::ResolvedRegisteredAtomResultTypeV1>)->Result<Self,String>{
+        output_atoms:Option<&'a crate::authored_project::registration::ResolvedRegisteredAtomResultTypeV1>,
+        function_failures:Option<&'a std::cell::RefCell<BTreeMap<String,crate::preprocess::ExecutionDiagnostic>>>)->Result<Self,String>{
         let mut projection = Projection {
             equation_result_calls:BTreeSet::new(),
-            formula_calls: BTreeMap::new(), formula_flow:Vec::new(), generic_calls: BTreeMap::new(),
-            program, output_atoms, graph: NumericConstraints::default(), bags:BagConstraints::default(), shapes: BTreeMap::new(),
+            formula_calls: BTreeMap::new(), formula_flow:Vec::new(), generic_calls: BTreeMap::new(),source_calls:BTreeMap::new(),root_capture_writes:BTreeMap::new(),source_capture_reads:BTreeMap::new(),source_call_rejections:BTreeMap::new(),function_roots:BTreeMap::new(),named_function_roots:BTreeMap::new(),
+            program, output_atoms, function_failures, graph: NumericConstraints::default(), bags:BagConstraints::default(), shapes: BTreeMap::new(),
             literal_sites: BTreeMap::new(), exact_integer_literals:BTreeMap::new(), bindings: BTreeMap::new(), callables: BTreeMap::new(),
             literal_trees: BTreeSet::new(), records: BTreeMap::new(), payload_fields:BTreeMap::new(),nominal_fields:BTreeMap::new(),
             sums:program.root_stmts.iter().filter_map(|stmt|match stmt {
                 Stmt::SumDefinition{name,branches,..}=>Some((name.clone(),branches.clone())),_=>None,
             }).collect(),builtin_results:BTreeMap::new(),
-            callable_globals:Scope::new(),analyzed_callables:BTreeSet::new(),active_callables:BTreeSet::new(),callable_returns:BTreeMap::new(),
+            callable_globals:Scope::new(),analyzed_callables:BTreeSet::new(),active_callables:BTreeSet::new(),active_result_owners:BTreeSet::new(),callable_returns:BTreeMap::new(),
             source_sites:BTreeMap::new(),
             lexical_locals:BTreeSet::new(),pattern_binding_types:BTreeMap::new(),inferred_absences:BTreeSet::new(),issued_numeric_variables:BTreeSet::new(),
             consumed_conditionals:Vec::new(),selection_equalities:Vec::new(),scene_proofs:Vec::new(),root_world_hook:false,
@@ -597,8 +793,12 @@ impl NumericConstraintPlan {
             }
         }
         result.generic_calls = projection.generic_calls.clone();
+        result.source_calls=projection.source_calls.clone();result.root_capture_writes=projection.root_capture_writes.clone();result.source_capture_reads=projection.source_capture_reads.clone();
+        result.source_call_rejections=projection.source_call_rejections.clone();
+        result.function_roots=projection.function_roots.clone();result.named_function_roots=projection.named_function_roots.clone();
         result.equation_results.extend(projection.equation_result_calls.iter().copied());
         for (site, shape) in &projection.shapes {
+            if let Shape::Unit(dim) = shape { result.table_unit_dimensions.insert(*site, *dim); }
             if matches!(shape, Shape::EquationSolution) { result.equation_results.insert(*site); }
             if let Some(kind) = projection.finish_shape(shape) { result.expressions.insert(*site, kind); }
             if let Some(kind) = projection.finish_descriptor(shape) { result.position_types.insert(*site, kind); }
@@ -627,11 +827,87 @@ impl NumericConstraintPlan {
                 if let Some(kind)=projection.finish_shape(shape) {result.piecewise_results.insert(*id,kind);}
             }
         }
+        // Exact root declarations are data owners; persistent/world declarations
+        // and source names without a resolved TypeRef are not implicit captures.
+        for stmt in &program.root_stmts{
+            if let Stmt::Definition{id,name,reaction:None,..}=stmt{
+                if world_decls.contains(name){continue;}
+                if let Some(kind)=result.source_binding_type(program.id,*id).filter(|kind|!matches!(kind,TypeRef::Infer)).cloned(){
+                    result.source_capture_bindings.insert(*id,crate::function_call_graph::SourceCaptureBinding{scope:program.id,declaration:*id,name:name.clone(),kind});
+                }
+            }
+        }
+        result.function_graphs=crate::function_call_graph::FunctionGraphs::compile(program,&result)?;
+        let captures=result.function_graphs.source_capture_owners();
+        result.source_capture_bindings.retain(|id,_|captures.contains(id));
+        result.root_capture_writes.retain(|_,owner|captures.contains(owner));
         Ok(result)
     }
+    pub(crate) fn source_binding_type(&self,scope:NodeId,declaration:NodeId)->Option<&TypeRef>{self.bindings.get(&BindingOwner{scope,declaration})}
 }
 
 impl Projection<'_> {
+    fn expression_expected(&mut self,scope_id:NodeId,scope:&mut Scope,value:&Expr,kind:&TypeRef)->Result<Shape,String>{
+        let TypeRef::Function{params,result}=kind else{return self.expression(scope_id,scope,value)};
+        let shape=match &value.kind{
+            ExprKind::SeedLiteral{param,body}=>{
+                if self.program.source_epoch==ddonirang_lang::SourceEpoch::V25{
+                    let bound=param.split(',').map(str::trim).filter(|n|!n.is_empty()).map(str::to_owned).collect();
+                    crate::source_analysis::anonymous_capture_free_names(body,&bound,&mut std::collections::HashSet::new())
+                        .map_err(|message|self.failure(body.id,&message))?;
+                }
+                let names:Vec<_>=param.split(',').map(str::trim).filter(|n|!n.is_empty()).collect();
+                if names.len()!=params.len(){return Err(self.failure(value.id,"함수씨와 받는자리 수가 다릅니다"));}
+                if self.function_roots.get(&body.id).is_some_and(|root|root.function_type!=*kind){
+                    return Err(self.failure(value.id,"E_FUNCTION_CALL_CONTEXT: 같은 함수 원문의 기대씨가 문맥마다 다릅니다"));
+                }
+                let mut nested=scope.clone();
+                for (name,kind) in names.iter().zip(params){
+                    let owner=BindingOwner{scope:value.id,declaration:value.id};
+                    nested.insert((*name).into(),(owner,self.declared(kind,value.id)?));
+                }
+                self.function_roots.insert(body.id,crate::function_call_graph::FunctionRoot{
+                    body:(**body).clone(),parameter_names:names.iter().map(|name|(*name).to_owned()).collect(),function_type:kind.clone(),
+                });
+                let actual=self.expression(value.id,&mut nested,body)?;
+                let expected=self.declared(result,value.id)?;
+                if matches!((&expected,&actual),(Shape::Numeric(_),Shape::Declared(kind)) if NumericKind::from_type(kind).is_none())
+                    || matches!((&expected,&actual),(Shape::Declared(kind),Shape::Numeric(_)) if NumericKind::from_type(kind).is_none()){
+                    let site=if let ExprKind::FunctionBlock{result,..}=&body.kind{result.id}else{body.id};
+                    return Err(self.failure(site,"E_CHECK_FUNCTION_RESULT_TYPE: 함수 결과씨가 다릅니다"));
+                }
+                self.same_shape(&expected,&actual,body.id)?;
+                Shape::Declared(kind.clone())
+            },
+            ExprKind::Var(target) if !scope.contains_key(target)=>{
+                let definition=ddonirang_lang::runtime::resolve_source_function_definition(self.program,target,kind)
+                    .map_err(|message|self.failure(value.id,&message))?;
+                if definition.body.is_some(){self.named_function_roots.insert(definition.id,definition.clone());}
+                Shape::Declared(kind.clone())
+            },
+            _=>{
+                let actual=self.expression(scope_id,scope,value)?;
+                if !matches!(&actual,Shape::Declared(actual_kind @ TypeRef::Function{..}) if actual_kind==kind){
+                    return Err(self.expected_function_failure(value.id,"E_CHECK_FUNCTION_SOURCE: 실제 함수의 입력·결과씨가 받는자리 기대씨와 다릅니다"));
+                }
+                let expected=self.declared(kind,value.id)?;self.same_shape(&expected,&actual,value.id)?;actual
+            },
+        };
+        self.shapes.insert(value.id,shape.clone());Ok(shape)
+    }
+
+    fn record_root_capture_write(&mut self,id:NodeId,target:&Expr,scope:&Scope,callable:Option<&SeedDef>){
+        if callable.is_some()||self.root_world_hook{return;}
+        let mut root=target;
+        loop{match &root.kind{
+            ExprKind::SelectionPlace{target,..}=>root=target,
+            ExprKind::MultiAxisSelection(selection)=>root=&selection.target,
+            ExprKind::Call{func,args} if func=="차림.값"&&args.len()==2=>root=&args[0].expr,
+            ExprKind::Var(name)=>{if let Some((owner,_))=scope.get(name).filter(|(owner,_)|owner.scope==self.program.id){self.root_capture_writes.insert(id,owner.declaration);}break;},
+            _=>break,
+        }}
+    }
+
     fn admitted_input_event(&self, shape: &Shape) -> bool {
         match shape {
             Shape::InputEvent => true,
@@ -1037,6 +1313,7 @@ impl Projection<'_> {
             scope.insert(pin.pin_name.clone(),(owner,shape));
         }
         if !self.analyzed_callables.contains(&seed.id) && self.active_callables.insert(seed.id) {
+            self.active_result_owners.insert(seed.id);
             if let Some(body)=&seed.body {
                 let old=self.sums.clone();let result=self.statements(seed.id,&mut scope,&body.stmts,Some(seed));
                 self.sums=old;result?;
@@ -1051,6 +1328,7 @@ impl Projection<'_> {
                     self.callable_return(seed,&actual,row.value.id)?;
                 }
             }
+            self.active_result_owners.remove(&seed.id);
             self.active_callables.remove(&seed.id);
             self.analyzed_callables.insert(seed.id);
         }
@@ -1058,7 +1336,7 @@ impl Projection<'_> {
         // supplier (for example a legacy collection operation) must not erase
         // it at the call site. The body still passes callable_return checks
         // and the existing runtime result gate; no runtime shape issues a type.
-        if let Some(kind)=seed.result_type.as_ref().filter(|kind|has_concrete_numeric_element_owner(kind)) {
+        if let Some(kind)=seed.result_type.as_ref().filter(|kind|has_concrete_numeric_element_owner(kind)||matches!(kind,TypeRef::Function{..})) {
             return self.declared(kind,seed.id);
         }
         if let Some(shape)=self.callable_returns.get(&seed.id) {return Ok(shape.clone());}
@@ -1113,12 +1391,47 @@ impl Projection<'_> {
         self.bindings.insert(owner,shape.clone());scope.insert(item.name.clone(),(owner,shape));
         Ok(())
     }
+    fn expected_function_failure(&self,site:NodeId,reason:&str)->String{
+        let message=self.failure(site,reason);
+        if let Some(failures)=self.function_failures{
+            let span=self.source_sites.get(&site).or_else(||self.program.origin.node_spans.get(&site)).copied();
+            failures.borrow_mut().insert(message.clone(),crate::preprocess::ExecutionDiagnostic{
+                code:"E_TYPE_MISMATCH",message:message.clone(),source_path:self.program.origin.file_path.clone(),
+                span:span.map(|span|(span.start,span.end)),phase:"source_type_check",cause:None,
+                offending_field:None,expected:None,actual:None,
+            });
+        }
+        message
+    }
     fn failure(&self, site: NodeId, reason: &str) -> String {
         let span = self.source_sites.get(&site).or_else(||self.program.origin.node_spans.get(&site)).copied()
             .or_else(||self.program.items.iter().find_map(|TopLevelItem::SeedDef(seed)|(seed.id==site).then_some(seed.span)));
         let source=span.and_then(|span|self.program.origin.source.get(span.start..span.end)).unwrap_or("");
         format!("E_TYPE_MISMATCH: 수 종류의 정적 공급을 확정할 수 없습니다: {reason} ({}:{:?}; 노드={site}; 원문={source:?})",
             self.program.origin.file_path, span)
+    }
+
+    fn contains_function_shape(&self, root:&Shape)->bool {
+        let mut pending=vec![root.clone()];let mut flows=BTreeSet::new();
+        while let Some(shape)=pending.pop() {
+            // Inspect authored function kinds directly; do not finish or
+            // repeatedly reconstruct a deep numeric/container type here.
+            if let Shape::Declared(kind)=&shape {
+                let mut kinds=vec![kind];
+                while let Some(kind)=kinds.pop() {match kind {
+                    TypeRef::Function{..}=>return true,
+                    TypeRef::Tuple(items)|TypeRef::Applied{args:items,..}=>kinds.extend(items),
+                    TypeRef::Tensor{element,..}=>kinds.push(element),_=>{},
+                }}
+            }
+            match &shape {
+                Shape::Tuple(items)|Shape::Collection(items)|Shape::CollectionSlice(items)|Shape::SelectionCandidates(items)=>pending.extend(items.iter().cloned()),
+                Shape::CollectionFlow(owner)|Shape::BagPreview(owner) if flows.insert(owner.0)=>{
+                    if let Some(items)=self.source_selections(&shape,None,&mut BTreeSet::new()){pending.extend(items);}
+                },_=>{},
+            }
+        }
+        false
     }
 
     fn source_shape_label(&self,shape:&Shape)->String {
@@ -1439,15 +1752,21 @@ impl Projection<'_> {
             // inference reports an unrelated missing operand owner. The
             // actual active SeedDef, not a matching global spelling, owns it.
             ExprKind::Var(name) if self.program.items.iter().any(|TopLevelItem::SeedDef(seed)|
-                self.active_callables.contains(&seed.id) && seed.canonical_name==*name
+                self.active_result_owners.contains(&seed.id) && seed.canonical_name==*name
                 && (seed.result_type.is_some() || matches!(seed.seed_kind,ddonirang_lang::SeedKind::ValueFunc))) => {
                 return Err(format!("E_RESULTPLACE_READ_FORBIDDEN: '{}' 결과 자리는 쓰기 전용입니다",name));
             }
-            ExprKind::Var(name) => scope.get(name).or_else(||self.callable_globals.get(name)).map(|(_, shape)| shape.clone()).unwrap_or_else(|| match name.as_str() {
-                "참" | "거짓" => Shape::Declared(TypeRef::Named("참거짓".into())),
-                "없음" => Shape::Declared(TypeRef::Named("없음".into())),
-                _ => Shape::Unknown(expression.id),
-            }),
+            ExprKind::Var(name) => {
+                if let Some((owner,shape))=scope.get(name).or_else(||self.callable_globals.get(name)).cloned(){
+                    let resolved=(owner.scope,owner.declaration);
+                    self.source_capture_reads.entry(expression.id).and_modify(|previous|{if *previous!=Some(resolved){*previous=None;}}).or_insert(Some(resolved));
+                    shape
+                }else{match name.as_str(){
+                    "참"|"거짓"=>Shape::Declared(TypeRef::Named("참거짓".into())),
+                    "없음"=>Shape::Declared(TypeRef::Named("없음".into())),
+                    _=>Shape::Unknown(expression.id),
+                }}
+            },
             ExprKind::Infix { left, op, right } => {
                 let child_ids = (left.id, right.id);
                 let left = self.expression(scope_id, scope, left)?;
@@ -1669,7 +1988,13 @@ impl Projection<'_> {
             ExprKind::Call { args, func } => {
                 match projection_call_frame(|| {
                     let shape = {
-                let actuals = args.iter().map(|arg| self.expression(scope_id, scope, &arg.expr)).collect::<Result<Vec<_>, _>>()?;
+                let expected_call=crate::function_call_graph::SourceCall::expected_arguments(self.program,expression,scope.contains_key(func))
+                    .map_err(|message|self.failure(expression.id,&message))?;
+                let actuals=if let Some(binding)=&expected_call{
+                    let mut actuals=Vec::with_capacity(args.len());
+                    for (arg,kind) in args.iter().zip(binding.authored_types()?){actuals.push(self.expression_expected(scope_id,scope,&arg.expr,kind)?);}
+                    actuals
+                }else{args.iter().map(|arg|self.expression(scope_id,scope,&arg.expr)).collect::<Result<Vec<_>,_>>()?};
                 if let Some(binding)=self.program.origin.manipulation_phase_calls.get(&expression.id){
                     if binding.definition!="B1.DEF.INPUT_PHASE.R1"||binding.ordinal_pin!="B1.PIN.INPUT_PHASE.ORDINAL.R1"
                         ||scope.contains_key(func)||actuals.len()!=1 {
@@ -1699,6 +2024,31 @@ impl Projection<'_> {
                 }
                 for arg in args {self.source_sites.insert(arg.id,arg.expr.span);}
                 let canonical = ddonirang_lang::stdlib::canonicalize_stdlib_alias(func);
+                // RD086: a function target is not data equality/order/key authority.
+                let key_indices:Vec<usize>=match canonical {
+                    "모음"=>(0..actuals.len()).collect(),
+                    "짝맞춤"=>(0..actuals.len()).step_by(2).collect(),
+                    "짝맞춤.값"|"짝맞춤.바꾼값"=>vec![1],
+                    "정렬"=>vec![0],_=>vec![],
+                };
+                if key_indices.into_iter().any(|index|actuals.get(index).is_some_and(|shape|self.contains_function_shape(shape))) {
+                    return Err(self.failure(expression.id,"함수값은 모음 원소·짝맞춤 열쇠·일반 정렬 대상이 아닙니다"));
+                }
+                if canonical=="바꾸기" && !scope.contains_key(func) && !self.callables.contains_key(func) {
+                    if let [source,Shape::Declared(TypeRef::Function{params,result})]=actuals.as_slice() {
+                        if params.len()!=1 {return Err(self.failure(expression.id,"차림 변환은 실제 입력 받는자리 하나가 필요합니다"));}
+                        let input=self.declared(&params[0],expression.id)?;
+                        if let Some(items)=self.source_selections(source,None,&mut BTreeSet::new()) {
+                            for item in &items {self.same_shape(&input,item,expression.id)?;}
+                        }else if let Shape::Declared(TypeRef::Applied{name,args})=source {
+                            if name!="차림" || args.len()!=1 {return Err(self.failure(expression.id,"함수 변환의 실제 차림 원소씨가 필요합니다"));}
+                            let item=self.declared(&args[0],expression.id)?;
+                            self.same_shape(&input,&item,expression.id)?;
+                        }else{return Err(self.failure(expression.id,"함수 변환의 원소 owner를 해소할 수 없습니다"));}
+                        let shape=Shape::Declared(TypeRef::Applied{name:"차림".into(),args:vec![*result.clone()]});
+                        self.shapes.insert(expression.id,shape.clone());return Ok(std::ops::ControlFlow::Break(shape));
+                    }
+                }
                 if !scope.contains_key(func) && !self.callables.contains_key(func)
                     && crate::work_cost::builtin_work_cost_rule(canonical).is_ok_and(|rule|rule.is_some()) {
                     // 반환 저장 씨는 실제 sealed 생산자에 결속한다. 입력 관계의
@@ -1760,8 +2110,25 @@ impl Projection<'_> {
                                     // Preserve the established argument-type diagnostic identity.
                                     // Parser field checks already use this code before execution;
                                     // a static rejection must not become a different teaching error.
-                                    return Err(format!("E_RUNTIME_TYPE_MISMATCH: 핀={} 기대={:?} 실제={actual_type:?}; 실행 전 원문 {}:{}..{}",
-                                        pin.pin_name,pin.type_ref,self.program.origin.file_path,arg.expr.span.start,arg.expr.span.end));
+                                    let summary = format!("E_RUNTIME_TYPE_MISMATCH: 핀={} 기대={:?} 실제={actual_type:?}",
+                                        pin.pin_name, pin.type_ref);
+                                    let span = arg.expr.span;
+                                    let path = &self.program.origin.file_path;
+                                    let message = format!("{summary}; 실행 전 원문 {path}:{}..{}", span.start, span.end);
+                                    if let Some(failures) = self.function_failures {
+                                        failures.borrow_mut().insert(message.clone(), crate::preprocess::ExecutionDiagnostic {
+                                            code: "E_RUNTIME_TYPE_MISMATCH",
+                                            message: summary,
+                                            source_path: path.clone(),
+                                            span: Some((span.start, span.end)),
+                                            phase: "source_type_check",
+                                            cause: None,
+                                            offending_field: Some(pin.pin_name.clone()),
+                                            expected: Some(format!("{:?}", pin.type_ref)),
+                                            actual: Some(format!("{actual_type:?}")),
+                                        });
+                                    }
+                                    return Err(message);
                                 }
                                 self.same_shape(&expected, actual, arg.id)?;
                             }
@@ -1770,6 +2137,14 @@ impl Projection<'_> {
                     let ordered=seed.params.iter().map(|pin|supplied.get(&pin.id).cloned()
                         .unwrap_or((pin.id,Shape::Unknown(pin.id)))).collect::<Vec<_>>();
                     if seed.type_params.is_empty() {
+                        match crate::function_call_graph::SourceCall::bind(self.program,expression,seed.id){
+                            Ok(binding)=>{
+                                if self.source_calls.get(&expression.id).is_some_and(|old|!old.same_binding(&binding)){
+                                    self.source_call_rejections.insert(expression.id,"E_FUNCTION_CALL_CONTEXT: 원문 호출의 정의·핀 결속이 문맥마다 다릅니다".into());
+                                }else{self.source_calls.insert(expression.id,binding);}
+                            },
+                            Err(reason)=>{self.source_call_rejections.insert(expression.id,reason);},
+                        }
                         self.analyze_callable(seed,Some(&ordered))?
                     } else {
                         // Resolve required inputs independently of the result
@@ -1795,17 +2170,40 @@ impl Projection<'_> {
                         result
                     }
                 } else if !scope.contains_key(func) && !self.callables.contains_key(func) && !self.callables.contains_key(canonical)
-                    && matches!(canonical,"표준장면.원"|"표준장면.다각형"|"표준장면.글"|"표준장면.평면")
+                    && matches!(canonical,"표준장면.원"|"표준장면.다각형"|"표준장면.글"|"표준장면.평면"|"표준장면.그림"|"표준장면.면"|"표준장면.카메라"|"표준장면.입체")
                     && crate::work_cost::builtin_work_cost_rule(canonical).is_ok_and(|rule|rule.is_some()) {
-                    let owner=resolve_source_builtin_roles(self.program,func,args,false)?.ok_or_else(||self.failure(expression.id,"장면 builtin의 실제 source 역할 owner가 없습니다"))?;
+                    let owner=resolve_source_builtin_roles(self.program,expression.id,func,args,false)?.ok_or_else(||self.failure(expression.id,"장면 builtin의 실제 source 역할 owner가 없습니다"))?;
                     let roles=owner.arg_for_role.iter().map(|(role,index)|(*role,&actuals[*index])).collect::<BTreeMap<_,_>>();
                     match canonical {
+                        "표준장면.면"|"표준장면.카메라"|"표준장면.입체"=>{
+                            if canonical!="표준장면.입체" {
+                                for arg in args {
+                                    let role=arg.resolved_pin.as_deref().ok_or_else(||self.failure(expression.id,"공간 R1의 명시 받는자리가 필요합니다"))?;
+                                    if role=="투영" && !matches!(&arg.expr.kind,ExprKind::Literal(Literal::Atom(atom)) if atom=="원근") {return Err(self.failure(arg.expr.id,"E_SPACE3_PROJECTION_UNSUPPORTED: 명시 #원근만 지원합니다"));}
+                                    if matches!(role,"위"|"시야각") {
+                                        let value=roles.get(role).ok_or_else(||self.failure(expression.id,"공간 숫자 역할 owner가 없습니다"))?;
+                                        if role=="시야각" {self.scene_scalar(value,expression.id)?;} else {
+                                            let Shape::Collection(items)=value else{return Err(self.failure(expression.id,"E_SPACE3_SOURCE_PROFILE: 위 벡터는 직접 무단위 차림이어야 합니다"))};
+                                            if items.len()!=3{return Err(self.failure(expression.id,"E_SPACE3_COORDINATE: 위 벡터는 성분3개입니다"))}
+                                            for item in items.iter(){self.scene_scalar(item,expression.id)?;}
+                                        }
+                                    }
+                                    if matches!(role,"자리"|"바라봄"|"꼭짓점들") {
+                                        fn point(expr:&Expr)->bool {
+                                            matches!(&expr.kind,ExprKind::CollectionConstructor{elements} if elements.len()==3 && elements.iter().all(|e|matches!(&e.kind,ExprKind::Suffix{at:ddonirang_lang::AtSuffix::Unit(unit),..} if unit=="m")))
+                                        }
+                                        let ok=if role=="꼭짓점들" {matches!(&arg.expr.kind,ExprKind::CollectionConstructor{elements} if elements.iter().all(point))}else{point(&arg.expr)};
+                                        if !ok {return Err(self.failure(arg.expr.id,"E_SPACE3_SOURCE_PROFILE: 첫 공간 R1은 명시 @m 성분3개의 직접 차림 원문을 받습니다"));}
+                                    }
+                                }
+                            }
+                        },
                         "표준장면.원"=>{
                             if let Some(center)=roles.get("중심") {self.scene_pair(center,expression.id)?;}
                             if let Some(radius)=roles.get("반지름") {self.scene_scalar(radius,expression.id)?;}
                         },
                         "표준장면.글"=>if let Some(position)=roles.get("자리") {self.scene_pair(position,expression.id)?;},
-                        "표준장면.평면"=>for role in ["가로범위","세로범위"] {if let Some(bounds)=roles.get(role) {self.scene_pair(bounds,expression.id)?;}},
+                        "표준장면.평면"|"표준장면.그림"=>for role in ["가로범위","세로범위"] {if let Some(bounds)=roles.get(role) {self.scene_pair(bounds,expression.id)?;}},
                         "표준장면.다각형"=>if let Some(vertices)=roles.get("꼭짓점들") {match vertices {
                             Shape::Collection(items)|Shape::CollectionSlice(items)=>for pair in items.iter() {self.scene_pair(pair,expression.id)?;},
                             Shape::CollectionFlow(_)|Shape::DeferredSelection{..}=>{
@@ -1817,16 +2215,17 @@ impl Projection<'_> {
                         }},
                         _=>unreachable!(),
                     }
-                    self.declared(&TypeRef::Named(if canonical=="표준장면.평면" {"장면값"}else{"장면요소값"}.into()),expression.id)?
+                    self.declared(&TypeRef::Named(if matches!(canonical,"표준장면.평면"|"표준장면.입체") {"장면값"}else{"장면요소값"}.into()),expression.id)?
                 } else if !scope.contains_key(func) && !self.callables.contains_key(func) && !self.callables.contains_key(canonical)
                     && matches!(canonical,"토막내기"|"추가")
                     && crate::work_cost::builtin_work_cost_rule(canonical).is_ok_and(|rule|rule.is_some()) {
                     // R1.2 §5's explicit private bridge. The parser's actual
                     // admitted role mapping is required; never infer a role
                     // from ordinal or re-resolve a user callable by spelling.
-                    let owner=resolve_source_builtin_roles(self.program,func,args,false)?.ok_or_else(||self.failure(expression.id,"collection builtin의 실제 source 역할 owner가 없습니다"))?;
+                    let owner=resolve_source_builtin_roles(self.program,expression.id,func,args,false)?.ok_or_else(||self.failure(expression.id,"collection builtin의 실제 source 역할 owner가 없습니다"))?;
+                    let appended_value_role=owner.appended_value_role.unwrap_or("요소");
                     let roles=owner.arg_for_role.iter().map(|(role,index)|(*role,&actuals[*index])).collect::<BTreeMap<_,_>>();
-                    let expected=if canonical=="토막내기" {&["차림","시작","끝"][..]}else{&["차림","요소"][..]};
+                    let expected=if canonical=="토막내기" {&["차림","시작","끝"][..]}else{&["차림",appended_value_role][..]};
                     if roles.len()!=args.len() || args.len()!=expected.len() || expected.iter().any(|role|!roles.contains_key(role)) {Shape::Unknown(expression.id)}
                     else {
                         if canonical=="토막내기" {for role in ["시작","끝"] {
@@ -1847,7 +2246,7 @@ impl Projection<'_> {
                             original=>self.bags.variable(Some(original.clone())),
                         };
                         let root=self.bags.root(owner);self.bags.nodes[root].collection_signature=true;
-                        if canonical=="추가" {self.bags.nodes[root].seeds.push(Shape::Collection(vec![roles["요소"].clone()].into()));}
+                        if canonical=="추가" {self.bags.nodes[root].seeds.push(Shape::Collection(vec![roles[appended_value_role].clone()].into()));}
                         // The original source T survives a zero-length slice;
                         // no runtime element or length grants that T.
                         Shape::BagPreview(owner)
@@ -1897,6 +2296,16 @@ impl Projection<'_> {
                     std::ops::ControlFlow::Continue(shape) => shape,
                 }
             }
+            ExprKind::FunctionBlock{statements,result}=>{
+                // A function owns a new result context, not the caller's named
+                // ResultPlace. Keep call-graph recursion tracking independent.
+                let caller_results=std::mem::take(&mut self.active_result_owners);
+                let checked=(||{
+                    let mut nested=scope.clone();self.statements(statements.id,&mut nested,&statements.stmts,None)?;
+                    self.expression(statements.id,&mut nested,result)
+                })();
+                self.active_result_owners=caller_results;checked?
+            }
             ExprKind::Thunk(body) => {
                 self.statements(body.id, &mut scope.clone(), &body.stmts, None)?;
                 Shape::Unknown(expression.id)
@@ -1933,6 +2342,14 @@ impl Projection<'_> {
                 }
                 if let Shape::BagDraw(owner)=target {
                     let shape=match field.as_str() {"값"=>Shape::BagElement(owner),"가방"=>Shape::Bag(owner),_=>Shape::Unknown(expression.id)};
+                    self.shapes.insert(expression.id,shape.clone());return Ok(shape);
+                }
+                // A source Pack already carries independently analyzed field
+                // expressions (also used by formula injection). Project only
+                // from that actual receiver fact, never a runtime map or a
+                // global name that happens to spell the same field.
+                if let Shape::FormulaInjection(fields)=&target {
+                    let shape=fields.get(field).cloned().unwrap_or(Shape::Unknown(expression.id));
                     self.shapes.insert(expression.id,shape.clone());return Ok(shape);
                 }
                 // The field's declaration supplies its type. Neither the
@@ -1982,6 +2399,9 @@ impl Projection<'_> {
                 }
                 Stmt::SumDefinition{name,branches,..}=>{self.sums.insert(name.clone(),branches.clone());}
                 Stmt::Definition { id, name, type_ref, value, reaction, .. } => {
+                    if self.program.source_epoch==ddonirang_lang::SourceEpoch::V25 && matches!(type_ref,TypeRef::Infer) && matches!(value.kind,ExprKind::SeedLiteral{..}) {
+                        return Err(self.failure(value.id,"E_CHECK_FUNCTION_TYPE_REQUIRED: 보관할 함수값의 함수씨를 명시하세요"));
+                    }
                     let actual = if let (Some(registration),ExprKind::Thunk(body))=(reaction,&value.kind) {
                         // A registered provider has its own declared payload
                         // pin. Analyze its body under that source scope, not
@@ -1994,7 +2414,7 @@ impl Projection<'_> {
                         nested.insert(pin.pin_name.clone(),(owner,shape));
                         self.statements(body.id,&mut nested,&body.stmts,None)?;
                         Shape::Unknown(value.id)
-                    }else{self.expression(scope_id, scope, value)?};
+                    }else{self.expression_expected(scope_id,scope,value,type_ref)?};
                     // Bare 차림 validates the collection category; it must
                     // not erase the element owners supplied by authored AST.
                     // Use the same source-binding path as inferred lists and
@@ -2034,7 +2454,13 @@ impl Projection<'_> {
                     }
                 },
                 Stmt::Mutate { id, target, value, .. } => {
-                    let actual = self.expression(scope_id, scope, value)?;
+                    self.record_root_capture_write(*id,target,scope,callable);
+                    let expected_function=if let ExprKind::Var(name)=&target.kind{
+                        callable.filter(|seed|seed.canonical_name==*name).and_then(|seed|seed.result_type.as_ref())
+                            .filter(|kind|matches!(kind,TypeRef::Function{..})).cloned()
+                            .or_else(||scope.get(name).and_then(|(_,shape)|match shape{Shape::Declared(kind @ TypeRef::Function{..})=>Some(kind.clone()),_=>None}))
+                    }else{None};
+                    let actual=if let Some(kind)=&expected_function{self.expression_expected(scope_id,scope,value,kind)?}else{self.expression(scope_id,scope,value)?};
                     if let ExprKind::Var(name) = &target.kind {
                         if let Some(seed) = callable.filter(|seed| seed.canonical_name == *name) {
                             self.callable_return(seed,&actual,*id)?;
@@ -2086,6 +2512,7 @@ impl Projection<'_> {
                     if let Some(seed)=callable {self.callable_return(seed,&actual,value.id)?;}
                 }
                 Stmt::ResultFlow { id, producer, destination, .. } => {
+                    self.record_root_capture_write(*id,destination,scope,callable);
                     let actual=self.expression(scope_id,scope,producer)?;
                     let expected=self.expression(scope_id,scope,destination)?;
                     self.same_shape(&expected,&actual,*id)?;

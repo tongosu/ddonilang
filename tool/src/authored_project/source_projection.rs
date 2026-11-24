@@ -3,9 +3,31 @@
 use crate::local_project::{VirtualProjectFileSource, VirtualProjectSource, VIRTUAL_PROJECT_SOURCE_SCHEMA};
 
 pub(super) fn project(text: &str) -> Result<String, String> {
+    // The adopted standalone model custody kind has no Root/Start. Project
+    // only the exact checked file; this projection is not linker authority.
+    if let Some(code)=crate::unit_wire::project_runtime_attachment::code_source::checked_project(text)?{
+        let snapshot=&code.source_snapshot;
+        let source=VirtualProjectSource{schema:VIRTUAL_PROJECT_SOURCE_SCHEMA.into(),
+            kind:Some("seamgrim.code_source_only.v1".into()),package_hash:None,
+            root_path:String::new(),entry_path:snapshot.entry_path.clone(),
+            files:snapshot.files.iter().map(|f|VirtualProjectFileSource{path:f.path.clone(),role:"ddn_source".into(),utf8_text:f.text.clone()}).collect()};
+        return serde_json::to_string(&source).map_err(|_|"E_CODE_SOURCE_PROJECTION".into());
+    }
+    if let Some(model)=crate::unit_wire::project_runtime_attachment::model_source::checked_project(text)?{
+        let snapshot=&model.source_snapshot;
+        let source=VirtualProjectSource{schema:VIRTUAL_PROJECT_SOURCE_SCHEMA.into(),
+            kind:Some("seamgrim.model_source_only.v1".into()),package_hash:None,
+            root_path:String::new(),entry_path:snapshot.entry_path.clone(),
+            files:snapshot.files.iter().map(|f|VirtualProjectFileSource{path:f.path.clone(),role:"ddn_source".into(),utf8_text:f.text.clone()}).collect()};
+        return serde_json::to_string(&source).map_err(|_|"E_MODEL_SOURCE_PROJECTION".into());
+    }
     let artifact = super::open(text.as_bytes())?;
     let snapshot = &artifact.source_snapshot;
-    let roles = crate::project_revision_envelope_supply::saved_authored_source_roles(snapshot)?;
+    let j1 = if artifact.source_profile == ddonirang_lang::ddl::J1_SOURCE_PROFILE {
+        Some(ddonirang_lang::ddl::CheckedJ1Profile::resolve(&artifact.source_profile)
+            .map_err(|error| error.to_string())?)
+    } else { None };
+    let roles = crate::project_revision_envelope_supply::saved_authored_source_roles_selected(snapshot, j1)?;
     let root_path = snapshot.root_path.as_ref()
         .ok_or("E_PROJECT_RUNTIME_ROOT_REQUIRED: 명시 얽음 뿌리가 필요합니다")?;
     let files = snapshot.files.iter().map(|file| {
@@ -29,6 +51,16 @@ pub(super) fn project(text: &str) -> Result<String, String> {
 mod tests {
     use super::*;
     const FIXTURE: &str = include_str!("../../tests/fixtures/v2_helper_source.json");
+    #[test]
+    fn model_source_projection_preserves_raw_file_without_fabricating_root_or_link_permission(){
+        use crate::unit_wire::project_runtime_attachment::model_source::tests::{artifact,SOURCE};
+        let raw=artifact(SOURCE);let projected:VirtualProjectSource=serde_json::from_str(&project(&raw).unwrap()).unwrap();
+        assert_eq!(projected.kind.as_deref(),Some("seamgrim.model_source_only.v1"));assert!(projected.root_path.is_empty());
+        assert_eq!(projected.files.len(),1);assert_eq!(projected.files[0].role,"ddn_source");assert_eq!(projected.files[0].utf8_text,SOURCE);
+        assert_eq!(projected.files[0].path,projected.entry_path);assert!(crate::local_project::build_project_prepare_link(projected,"",true,true).is_err());
+        assert_eq!(crate::authored_project::open(raw.as_bytes()).unwrap().save().unwrap(),raw);
+    }
+
 
     #[test]
     fn preserves_all_raw_files_and_explicit_metadata_roles() {

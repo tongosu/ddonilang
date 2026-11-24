@@ -1,6 +1,7 @@
+import { selectedSample } from './sample_selection.mjs';
 // View-only state. The producer and its explicit projection own all math,
 // quantity labels and numerical samples; this module evaluates no DDN.
-export function createNotebookModel({ readSource, inspect, project, changed = () => {} }) {
+export function createNotebookModel({ readSource, inspect, project, compare = null, changed = () => {} }) {
   let generation = 0, busy = false, current = null, error = '', disposed = false;
   let comparisons = [];
   const snapshot = () => structuredClone({ busy, current, comparisons, error });
@@ -36,7 +37,7 @@ export function createNotebookModel({ readSource, inspect, project, changed = ()
         if (disposed || generation !== ticket || readSource() !== source) {
           throw new Error('원문이 바뀌어 이전 계산 결과를 적용하지 않았습니다.');
         }
-        current = { source, view: structuredClone(view) };
+        current = { source, view: structuredClone(view), selectedIndex: null };
         return snapshot();
       } catch (cause) {
         if (!disposed && generation === ticket) { current = null; error = String(cause.message ?? cause); }
@@ -45,16 +46,36 @@ export function createNotebookModel({ readSource, inspect, project, changed = ()
         if (!disposed && generation === ticket) { busy = false; notify(); }
       }
     },
+    selectSample(index) {
+      live();
+      if (!current || readSource() !== current.source) throw new Error('현재 원문으로 계산한 결과가 필요합니다.');
+      selectedSample(current.view, index);
+      current.selectedIndex = index; notify();
+    },
+    selectComparisonSample(index) {
+      live();
+      if (!comparisons.length) throw new Error('비교할 실제 관측이 없습니다.');
+      for (const item of comparisons) selectedSample(item.view, index);
+      for (const item of comparisons) item.selectedIndex = index;
+      notify();
+    },
     pin() {
       live();
       if (!current || readSource() !== current.source) throw new Error('현재 원문으로 계산한 결과가 필요합니다.');
       if (comparisons.length === 2) throw new Error('비교할 두 실험이 이미 있습니다. 비교를 비운 뒤 다시 선택하세요.');
-      if (comparisons[0]?.view.comparisonKey) {
+      if (comparisons.length && typeof compare === 'function') {
+        // Draft host policy consumes admitted views; it grants no producer authority.
+        const support = compare([comparisons[0].view, current.view],
+          [comparisons[0].source, current.source]);
+        if (support?.supported !== true) {
+          throw new Error(support?.reason || '두 관측의 비교 대응을 확인할 수 없습니다.');
+        }
+      } else if (comparisons[0]?.view.comparisonKey) {
         if (JSON.stringify(comparisons[0].view.comparisonKey) !== JSON.stringify(current.view.comparisonKey)) {
-          throw new Error('속도 외의 입력도 달라졌습니다. 같은 조건의 실험을 선택하세요.');
+          throw new Error('속도 또는 유량 외의 입력도 달라졌습니다. 같은 모형과 조건의 실험을 선택하세요.');
         }
         if (JSON.stringify(comparisons[0].view.comparedInput) === JSON.stringify(current.view.comparedInput)) {
-          throw new Error('속도를 바꾼 별도 실험을 선택하세요.');
+          throw new Error('속도 또는 유량을 바꾼 별도 실험을 선택하세요.');
         }
       }
       comparisons.push(structuredClone(current)); notify();
@@ -130,12 +151,14 @@ export async function validateEquationObservation(report, source, path) {
 
 export function createEquationAuthoringModel({ readContext, applySource, inspect, changed = () => {} }) {
   let context = null, draft = '', valid = false, disposed = false, report = null, busy = false, epoch = 0, error = '';
+  let targets = [], selectedTargetIndex = null, reportMode = 'general';
   const snapshot = () => ({ context: context && { ...context }, draft, valid,
     dirty: Boolean(context && draft !== context.sourceText), busy, error,
-    report: report && structuredClone(report), resultStatus: report ? 'PRODUCED' : 'NOT_PRODUCED' });
+    report: report && structuredClone(report), targets: structuredClone(targets), selectedTargetIndex, reportMode,
+    resultStatus: report ? 'PRODUCED' : 'NOT_PRODUCED' });
   function live() { if (disposed) throw new Error('닫힌 풀이 원문입니다.'); }
   const notify = () => changed(snapshot());
-  function clearReport() { epoch++; report = null; busy = false; error = ''; }
+  function clearReport() { epoch++; report = null; busy = false; error = ''; targets = []; selectedTargetIndex = null; }
   return {
     snapshot,
     load() {
@@ -165,15 +188,46 @@ export function createEquationAuthoringModel({ readContext, applySource, inspect
       }
       context = { ...applied }; valid = true; notify(); return snapshot();
     },
-    async check() {
+    async readTargets() {
       live();
       if (busy) throw new Error('검사 중입니다.');
+      if (!valid || draft !== context?.sourceText || !sameEquationContext(context, readContext?.())) throw new Error('현재 원문을 편집기에 적용한 뒤 대상을 읽으세요.');
+      clearReport(); const expected = { ...context }, ticket = epoch;
+      busy = true; notify();
+      try {
+        const observed = await inspect(expected.sourceText, expected.path, { mode: 'linear-targets' });
+        if (disposed || ticket !== epoch || !sameEquationContext(expected, readContext?.())) throw new Error('대상을 읽는 동안 원문 판본이 바뀌었습니다.');
+        await validateEquationObservation(observed, expected.sourceText, expected.path);
+        if (disposed || ticket !== epoch || !sameEquationContext(expected, readContext?.())) throw new Error('대상을 읽는 동안 원문 판본이 바뀌었습니다.');
+        targets = observed.definitions.flatMap(definition => (definition.assumptions ?? []).map((a, index) => ({
+          label: `${definition.name} · 가정 ${index + 1}: ${equationSourceSlice(expected.sourceText,a.left_span)} = ${equationSourceSlice(expected.sourceText,a.right_span)}`,
+          request: { source_sha256: observed.source_sha256, source_path: expected.path,
+            definition_span: definition.span, left_span: a.left_span, right_span: a.right_span },
+        })));
+        if (!targets.length) error = observed.diagnostic?.formatted || observed.diagnostic?.message || '선택할 초기 가정 등식이 없습니다.';
+        return snapshot();
+      } catch (cause) {
+        if (!disposed && ticket === epoch) { targets = []; error = String(cause.message ?? cause); }
+        throw cause;
+      } finally { if (!disposed && ticket === epoch) { busy = false; notify(); } }
+    },
+    selectTarget(index) {
+      live();
+      if (index !== null && (!Number.isSafeInteger(index) || !targets[index])) throw new Error('초기 가정 대상을 다시 읽고 선택하세요.');
+      epoch++; report = null; busy = false; error = ''; selectedTargetIndex = index; notify();
+    },
+    async check(mode = 'general') {
+      live();
+      if (busy) throw new Error('검사 중입니다.');
+      if (!['general','linear'].includes(mode)) throw new Error('검사 모드를 확인하세요.');
       if (!valid || draft !== context?.sourceText || !sameEquationContext(context, readContext?.())) throw new Error('현재 원문을 편집기에 적용한 뒤 검사하세요.');
       if (typeof inspect !== 'function') throw new Error('고정 단계 관찰 공급이 필요합니다.');
+      if (mode === 'linear' && (selectedTargetIndex === null || !targets[selectedTargetIndex])) throw new Error('정의의 초기 가정 등식을 명시적으로 선택하세요.');
+      const options = mode === 'linear' ? { mode:'linear', target:structuredClone(targets[selectedTargetIndex].request) } : { includeSteps:true };
       const expected = { ...context }, ticket = ++epoch;
-      busy = true; report = null; error = ''; notify();
+      busy = true; report = null; error = ''; reportMode = mode; notify();
       try {
-        const observed = await inspect(expected.sourceText, expected.path, { includeSteps: true });
+        const observed = await inspect(expected.sourceText, expected.path, options);
         if (disposed || ticket !== epoch || !sameEquationContext(expected, readContext?.())) throw new Error('원문 판본이 바뀌어 이전 검사를 적용하지 않았습니다.');
         await validateEquationObservation(observed, expected.sourceText, expected.path);
         if (disposed || ticket !== epoch || !sameEquationContext(expected, readContext?.())) throw new Error('원문 판본이 바뀌어 이전 검사를 적용하지 않았습니다.');
@@ -184,7 +238,7 @@ export function createEquationAuthoringModel({ readContext, applySource, inspect
       } finally { if (!disposed && ticket === epoch) { busy = false; notify(); } }
     },
     invalidate() { if (!disposed) { clearReport(); valid = false; notify(); } },
-    dispose() { disposed = true; epoch++; report = null; valid = false; },
+    dispose() { disposed = true; epoch++; report = null; targets = []; selectedTargetIndex = null; valid = false; },
   };
 }
 

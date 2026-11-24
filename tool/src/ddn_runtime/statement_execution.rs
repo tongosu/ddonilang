@@ -117,6 +117,16 @@ impl<'a> EvalContext<'a> {
                 };
             }
             let mut locals = HashMap::new();
+            if let Some(graph)=&self.active_function_graph{
+                let bindings=graph.callee_globals(seed.id).ok_or_else(||EvalError::from("E_FUNCTION_CALL_OWNER: 봉인한 함수 정의의 갈무리 문맥이 없습니다".to_string()))?;
+                let values=self.active_function_sources.as_ref().ok_or_else(||EvalError::from("E_FUNCTION_CALLEE_CAPTURE_SOURCE_REQUIRED: 실제 갈무리 값 공급이 없습니다".to_string()))?;
+                for binding in bindings{
+                    let value=values.get(&binding.declaration).ok_or_else(||EvalError::from("E_FUNCTION_CALLEE_CAPTURE_SOURCE_REQUIRED: 실제 선언의 갈무리 값이 없습니다".to_string()))?;
+                    ddonirang_lang::runtime::check_value_type(value,&binding.kind).map_err(|_|EvalError::from("E_FUNCTION_CALLEE_CAPTURE_SOURCE_REQUIRED: 갈무리 입력씨가 다릅니다".to_string()))?;
+                    locals.insert(binding.name.clone(),value.clone());
+                }
+            }
+
             if seed.params.len() != args.len() {
                 return Err(format!(
                     "함수 '{}' 인자 수 불일치: 기대 {}, 실제 {}",
@@ -242,7 +252,7 @@ impl<'a> EvalContext<'a> {
                 )
             })?;
         if let Some(result_type) = &frame.result_type {
-            if let Err(detail) = check_value_type(&value, result_type) {
+            if let Err(detail) = self.program.check_value_type(&value, result_type) {
                 return Err(type_mismatch_error(
                     &format!("{} 결과", frame.canonical_name),
                     &detail.expected,
@@ -327,6 +337,25 @@ impl<'a> EvalContext<'a> {
         let scope = self.local_body_scopes.pop().expect("active local body scope");
         for (name,previous) in scope.previous { restore_local_binding(locals,&name,previous); }
         if !callable { self.exit_const_scope(); }
+        outcome
+    }
+
+    pub(super) fn eval_anonymous_block(&mut self,locals:&mut HashMap<String,Value>,body:&Body,result:&Expr)->Result<Value,EvalError>{
+        // Anonymous result slots never borrow the caller's named ResultPlace,
+        // owner, type frame or pattern bindings. Restore each on every outcome.
+        let seed=self.current_seed_name.take();let callable=self.active_callable_name.take();
+        let owner=self.current_owner_identity.take();let result_places=std::mem::take(&mut self.result_place_frames);
+        let patterns=std::mem::take(&mut self.sum_pattern_bindings);
+        self.enter_const_scope();
+        let outcome=self.with_local_body_scope(locals,true,|context,locals|{
+            if !matches!(context.eval_body_unscoped(locals,body)?,FlowControl::Continue){
+                return Err("E_FUNCTION_EARLY_FLOW: 익명 함수 결과는 마지막 식으로 지정하세요".to_string().into());
+            }
+            if context.aborted{return Err("E_FUNCTION_ABORTED: 중단한 익명 함수는 결과를 만들지 않습니다".to_string().into());}
+            context.eval_expr(locals,result)
+        });
+        self.exit_const_scope();self.current_seed_name=seed;self.active_callable_name=callable;
+        self.current_owner_identity=owner;self.result_place_frames=result_places;self.sum_pattern_bindings=patterns;
         outcome
     }
 
@@ -726,7 +755,23 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-    pub(super) fn eval_stmt(
+    pub(super) fn eval_stmt(&mut self,locals:&mut HashMap<String,Value>,stmt:&Stmt)->Result<FlowControl,EvalError>{
+        let result=self.eval_stmt_inner(locals,stmt);
+        if result.is_ok()&&!self.aborted&&!self.guard_rejected{
+            if let Some(plan)=&self.program.numeric_constraint_plan{
+                let owner=match stmt{
+                    Stmt::Definition{id,..}=>Some(*id),
+                    Stmt::Mutate{id,..}|Stmt::ResultFlow{id,..}=>plan.root_capture_writes.get(id).copied(),
+                    _=>None,
+                };
+                if let Some(binding)=owner.and_then(|id|plan.source_capture_bindings.get(&id)){
+                    if let Some(value)=locals.get(&binding.name){self.source_root_values.borrow_mut().insert(binding.declaration,value.clone());}
+                }
+            }
+        }
+        result
+    }
+    fn eval_stmt_inner(
         &mut self,
         locals: &mut HashMap<String, Value>,
         stmt: &Stmt,

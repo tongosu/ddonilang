@@ -11,6 +11,7 @@ pub mod age_gate;
 pub mod ast;
 mod algebra_syntax;
 pub mod algebra_authoring;
+pub mod conditional_algebra;
 pub mod proof_authoring;
 pub mod bytes;
 pub mod canonicalizer;
@@ -33,6 +34,7 @@ pub mod runtime;
 pub mod source_coordinate;
 pub mod stdlib;
 pub mod sum_owner;
+pub mod structure_grid;
 pub mod surface;
 pub mod term_map;
 mod vc04_semantics;
@@ -161,6 +163,8 @@ pub fn parse_with_mode(
     parser.parse_program(source.to_string(), file_path.to_string())
 }
 
+pub use parser::STRUCTURE_PROFILE_REGISTRY_UNAVAILABLE;
+
 /// v25 source epoch: Definition `:=` and Binding/Rebinding `<-` are distinct.
 pub fn parse_v25(source: &str, file_path: &str) -> Result<CanonProgram, ParseError> {
     parse_v25_with_mode(source, file_path, ParseMode::Strict)
@@ -171,8 +175,8 @@ pub fn parse_v25_with_mode(
     file_path: &str,
     mode: ParseMode,
 ) -> Result<CanonProgram, ParseError> {
-    let tokens = Lexer::new(source)
-        .tokenize()
+    let tokens = Lexer::with_korean_source_header(source)
+        .and_then(|(mut lexer, _)| lexer.tokenize())
         .map_err(|error| lex_error_to_parse_error(source, error))?;
     let mut parser = Parser::new_v25_with_mode(tokens, mode);
     parser.parse_program(source.to_string(), file_path.to_string())
@@ -3606,5 +3610,27 @@ Test:셈씨 = {
             body.stmts.first(),
             Some(Stmt::ContinueLoop { .. })
         ));
+    }
+}
+
+#[cfg(test)]
+mod r20_v25_registered_header_caller_tests {
+    use super::*;
+
+    #[test]
+    fn r20_v25_registered_korean_header_preserves_original_epoch_and_spans() {
+        // Exact source of the actual E_PROJECT_START_PARSE reproduction.
+        let source = "#!한국어\n실행:움직씨 := { 0 보여주기. }.\n";
+        // Raw-source SHA-256 is bound in PARSE_V25_CALLER_CANDIDATE.json.
+        let program = parse_v25_with_mode(source, "main.ddn", ParseMode::Strict).unwrap();
+        assert_eq!(program.source_epoch, SourceEpoch::V25);
+        assert_eq!(program.origin.source, source);
+        assert!(program.root_stmts.is_empty());
+        assert_eq!(program.items.len(), 1);
+        let TopLevelItem::SeedDef(seed) = &program.items[0];
+        assert_eq!(seed.canonical_name, "실행");
+        assert!(seed.params.is_empty());
+        assert!(seed.span.start >= "#!한국어\n".len());
+        assert!(source.get(seed.span.start..seed.span.end).unwrap().contains("실행"));
     }
 }

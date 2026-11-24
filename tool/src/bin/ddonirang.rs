@@ -12,15 +12,22 @@ mod display_language;
 fn usage() -> &'static str {
     "또니랑 V1 명령줄 (정본 실행파일: ddonilang, 또니랑; 호환 별칭: ddonirang)\n\
 표시 말씨: 명령 앞 --표시말씨 ko|ja (또는 --display-language), 기본 설정 DDN_DISPLAY_LANGUAGE.\n\
+표시 말씨는 도움말·보조 안내를 바꿉니다. 원문 말씨·실행 결과·저장 자료는 그대로 사용합니다.\n\
+일본어 J1 단일 원문: 첫 줄 #!日本語와 명시 글판 v1-core-v25-ja-base-r1을 함께 사용합니다.\n\
+  ddonilang 검사 日本語.ddn --글판 v1-core-v25-ja-base-r1\n\
+  ddonilang 실행 日本語.ddn --글판 v1-core-v25-ja-base-r1\n\
+J1 이름은 현행 구문팩의 허용 범위를 따릅니다. 여러 파일 작품은 준비된 작품 자료의 글판으로 실행합니다.\n\
+  ddonilang 작품자료 실행 <준비된_작품.json> --마디수 1\n\
 일반 실행: 등록 파일 없이 실행마다 임시 정체를 새로 만듭니다.\n\
   이름씨·원자·임자를 쓰면 같은 원문·입력도 실행 간 state_hash가 다를 수 있습니다.\n\
   결정론: 같은 초기 정체·입력·난수 상태 등 필요한 문맥을 담은 기록 재생 → 같은 결과.\n\
   입력 기록 하나만으로 모든 재생 문맥이 보존되지는 않습니다.\n\
   저장한 작품은 보존된 정체를 그대로 사용합니다. 임시 정체를 저장·내보내는 권한은 생기지 않습니다.\n\
 사용법:\n\
+  ddonilang 일차문제 <원문.ddn> <선택.json|--대상목록>\n\
   ddonilang 수학노트 <원문.ddn> --글판 v1-core-v25 | 수학노트 --작품자료 <작품.json>\n\
   ddonilang 실행 <파일.ddn> --글판 <프로필> [--마디수 <N>] [--구조출력] [--요약파일 <요약.detjson>] [--외부접근 거부|기록|재생 --외부기록 <기록.json> --외부자원 <목록.json>]\n\
-  ddonilang 검사 <파일.ddn> --글판 <프로필>\n\
+  ddonilang 검사 <파일.ddn> --글판 <프로필> [--조건부대수]\n\
   ddonilang 짓기 <파일.ddn> --글판 <프로필>\n\
   ddonilang 개발 정본 <파일.ddn> --글판 <프로필>  (직접 명령: 정본)\n\
   ddonilang 다듬기 <파일.ddn> --글판 <프로필> [--수정제안] [--출력 <수정안.json>]\n\
@@ -43,7 +50,8 @@ fn usage() -> &'static str {
   ddonilang 논리입력재생 <파일.ddn> <기록파일> <입력계약.json> [--부분재생]\n\
   ddonilang 조작입력재생 <파일.ddn> <기록파일> <입력계약.json> [--부분재생]\n\
   조작입력재생도 --부분재생을 지원합니다. 중단된 기록의 실제 끝까지만 재생하며 완전한 기록으로 바꾸지 않습니다. 실패 기록은 거부합니다.\n\
-  ddonilang 작품자료 <만들기|열기|복제|갱신|보개등록|이름변경|경로변경> <파일.json>\n\
+  ddonilang 작품자료 <만들기|열기|복제|갱신|보개등록|이름변경|경로변경|source_probe|source_prepare|source_open> <파일.json>\n\
+  ddonilang 작품자료 linked_callable_source_run <요청.json>: 검증된 사용자 DDL과 B1을 한 작품에서 명시 실행 (비공개 검증용, 저장 없음)\n\
   ddonilang 작품자료 실행 <파일.json> [--마디수 N]: 저장된 보개 정체로 실행\n\
   Native 원문 저장: 작품자료 원문저장 <작품.json> --판 <정체hex> --저장소 <새폴더>\n\
   Native 첫 실행: 작품자료 첫실행 <원문저장보고.json> --판 <새정체hex> --저장소 <폴더> --마디수 N [--저장파일 <새파일>]\n\
@@ -75,11 +83,13 @@ fn usage() -> &'static str {
 
 #[derive(Debug, PartialEq, Eq)]
 enum Command {
-    MathNotebook { input: PathBuf, authored: bool },
+    LinearProblem { input:PathBuf, target:Option<PathBuf> },
+    MathNotebook { input: PathBuf, authored: bool, model: Option<String> },
     Help,
     Version,
     Run(SourceCommand),
     Check(SourceCommand),
+    ConditionalAlgebraCheck { source:SourceCommand, authored:bool },
     Build(SourceCommand),
     Canon(SourceCommand),
     Lint(LintCommand),
@@ -294,6 +304,7 @@ struct ExecutionError {
     message: String,
     exit_code: i32,
     analysis: Option<Box<ddonirang_tool::source_analysis::SourceAnalysisSnapshot>>,
+    diagnostic: Option<Box<ddonirang_tool::preprocess::ExecutionDiagnostic>>,
 }
 impl PartialEq for ExecutionError {
     fn eq(&self, other: &Self) -> bool { self.message == other.message && self.exit_code == other.exit_code }
@@ -312,6 +323,7 @@ impl ExecutionError {
             message: message.into(),
             exit_code: 1,
             analysis: None,
+            diagnostic: None,
         }
     }
 
@@ -320,6 +332,7 @@ impl ExecutionError {
             message: message.into(),
             exit_code: 2,
             analysis: None,
+            diagnostic: None,
         }
     }
 }
@@ -332,6 +345,7 @@ impl From<ddonirang_tool::source_frontdoor_workflow::SourceFrontdoorError>
             message: error.message().to_string(),
             exit_code: error.exit_code(),
             analysis: error.analysis().cloned().map(Box::new),
+            diagnostic: None,
         }
     }
 }
@@ -1241,15 +1255,23 @@ fn parse_args(args: Vec<String>) -> Result<Command, String> {
         return Ok(Command::Help);
     }
     match command.as_str() {
+        "일차문제" | "linear-problem" => {
+            if rest.len()!=2 {return Err("일차문제 <원문.ddn> <선택.json|--대상목록>".into());}
+            Ok(Command::LinearProblem{input:PathBuf::from(&rest[0]),
+                target:if rest[1]=="--대상목록"{None}else{Some(PathBuf::from(&rest[1]))}})
+        },
         "수학노트" | "math-notebook" => {
+            if rest.len()==4 && rest[0]=="--authored" && rest[2]=="--모형" {
+                return Ok(Command::MathNotebook{input:PathBuf::from(&rest[1]),authored:true,model:Some(rest[3].clone())});
+            }
             if rest.len()==2 && rest[0]=="--authored" {
-                return Ok(Command::MathNotebook{input:PathBuf::from(&rest[1]),authored:true});
+                return Ok(Command::MathNotebook{input:PathBuf::from(&rest[1]),authored:true,model:None});
             }
             if rest.len()!=3 || rest[1]!=SOURCE_PROFILE_FLAG || rest[0].starts_with("--") {
                 return Err("수학노트 <원문.ddn> --글판 v1-core-v25 또는 수학노트 --작품자료 <작품.json>".into());
             }
             ddonirang_tool::ddn_runtime::resolve_supported_source_profile(Some(&rest[2])).map_err(|e|e.message)?;
-            Ok(Command::MathNotebook{input:PathBuf::from(&rest[0]),authored:false})
+            Ok(Command::MathNotebook{input:PathBuf::from(&rest[0]),authored:false,model:None})
         },
         "작품자료" | "authored-project" => {
             if rest.first().map(String::as_str)==Some("원문전이"){
@@ -1410,7 +1432,7 @@ fn parse_args(args: Vec<String>) -> Result<Command, String> {
                 }else{None};
                 return Ok(Command::AuthoredRun { input: PathBuf::from(&rest[1]), madi, native });
             }
-            if rest.len() != 2 { return Err("작품자료 <만들기|열기|복제|갱신|보개등록|이름변경|경로변경> <파일.json>".into()); }
+            if rest.len() != 2 { return Err("작품자료 <만들기|열기|복제|갱신|보개등록|이름변경|경로변경|source_probe|source_prepare|source_open> <파일.json>".into()); }
             let operation = match rest[0].as_str() {
                 "만들기" | "create" => "create",
                 "열기" | "open" => "open",
@@ -1419,7 +1441,21 @@ fn parse_args(args: Vec<String>) -> Result<Command, String> {
                 "보개등록" | "register_bogae" => "register_bogae",
                 "이름변경" | "rename" => "rename",
                 "경로변경" | "relocate" => "relocate",
+                "verified_dependency_tool" => "verified_dependency_tool",
+                "observe_native_source" => "observe_native_source",
+                "public_callable_original_source_prepare" => "public_callable_original_source_prepare",
+                "public_callable_source_prepare" => "public_callable_source_prepare",
+                "public_callable_source_run" => "public_callable_source_run",
+                "linked_callable_source_run" => "linked_callable_source_run",
+                "public_callable_source_save_native" => "public_callable_source_save_native",
+                "public_callable_source_reopen_native" => "public_callable_source_reopen_native",
+                "public_callable_edition_update_native" => "public_callable_edition_update_native",
+                "public_callable_edition_reopen_native" => "public_callable_edition_reopen_native",
+                "public_callable_edition_run_native" => "public_callable_edition_run_native",
+                "first_callable_original_source_prepare" => "first_callable_original_source_prepare",
                 "first_callable_source_prepare" => "first_callable_source_prepare",
+                "source_probe" => "source_probe",
+                "source_prepare" => "source_prepare",
                 "source_open" => "source_open",
                 "first_callable_source_run" => "first_callable_source_run",
                 "first_callable_source_save_native" => "first_callable_source_save_native",
@@ -1485,7 +1521,13 @@ fn parse_args(args: Vec<String>) -> Result<Command, String> {
         }
         "run" | "실행" => parse_source_command("run", rest.to_vec(), true).map(Command::Run),
         "check" | "검사" => {
-            parse_source_command("check", rest.to_vec(), false).map(Command::Check)
+            if rest.iter().any(|arg|arg=="--조건부대수") {
+                if rest.iter().filter(|arg|arg.as_str()=="--조건부대수").count()!=1{return Err("E_CLI_OPTION_DUPLICATE: --조건부대수".into());}
+                let authored=rest.iter().any(|arg|matches!(arg.as_str(),"--작품자료"|"--authored"));
+                if rest.iter().filter(|arg|matches!(arg.as_str(),"--작품자료"|"--authored")).count()>1{return Err("E_CLI_OPTION_DUPLICATE: --작품자료".into());}
+                let args=rest.iter().filter(|arg|!matches!(arg.as_str(),"--조건부대수"|"--작품자료"|"--authored")).cloned().collect();
+                parse_source_command("check",args,false).map(|source|Command::ConditionalAlgebraCheck{source,authored})
+            }else{parse_source_command("check", rest.to_vec(), false).map(Command::Check)}
         }
         "build" | "짓기" => {
             parse_source_command("build", rest.to_vec(), false).map(Command::Build)
@@ -1665,9 +1707,25 @@ fn execute_control_input(command: &SourceCommand, source: &str) -> Result<(Strin
 
 fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
     match command {
-        Command::MathNotebook{input,authored}=>{
+        Command::LinearProblem{input,target}=>{
+            if fs::metadata(&input).map_err(|e|ExecutionError::input(e.to_string()))?.len()>1_000_000
+                || target.as_ref().map(|p|fs::metadata(p).map(|m|m.len()>16384)).transpose()
+                    .map_err(|e|ExecutionError::input(e.to_string()))?.unwrap_or(false) {
+                return Err(ExecutionError::input("E_PROOF_BUDGET: B 입력 자원 한도를 넘었습니다"));
+            }
+            let source=read_utf8_input(&input,"E_B_LINEAR_INPUT")?;
+            let path=input.to_string_lossy();
+            let report=if let Some(target)=target {
+                let request=read_utf8_input(&target,"E_B_LINEAR_TARGET")?;
+                ddonirang_tool::linear_problem::observe(&source,&path,&request)
+            }else{ddonirang_tool::linear_problem::targets(&source,&path)};
+            let exit=if report["status"]=="accepted"{0}else{2};
+            Ok((format!("{report}\n"),exit))
+        },
+        Command::MathNotebook{input,authored,model}=>{
             let source=read_utf8_input(&input,"E_NOTEBOOK_INPUT")?;
-            let result=if authored {ddonirang_tool::math_notebook::observe_uniform_motion_project(&source)}
+            let result=if let Some(kind)=model {ddonirang_tool::math_notebook::observe_project_model(&source,&kind)}
+                else if authored {ddonirang_tool::math_notebook::observe_uniform_motion_project(&source)}
                 else {ddonirang_tool::math_notebook::observe_uniform_motion(&source,&input.to_string_lossy())};
             Ok((result.map_err(ExecutionError::runtime)?+"\n",0))
         },
@@ -1912,9 +1970,11 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
                 .map_err(|_| ExecutionError::input("E_SOURCE_UTF8_INVALID: 작품자료가 UTF-8이 아닙니다"))?;
             let result = if operation=="first_callable_source_prepare" {
                 ddonirang_tool::authored_project::prepare_first_callable_source_with_analysis(&text).map_err(|error|ExecutionError{
-                    message:error.message().into(),exit_code:2,analysis:error.analysis().cloned().map(Box::new),
+                    message:error.message().into(),exit_code:2,analysis:error.analysis().cloned().map(Box::new), diagnostic:None,
                 })?
-            }else{ddonirang_tool::authored_project::operate(&operation,&text).map_err(ExecutionError::input)?};
+            }else{ddonirang_tool::authored_project::operate_for_cli(&operation, &text).map_err(|(message, diagnostic)| ExecutionError {
+                    message, exit_code: 2, analysis: None, diagnostic: diagnostic.map(Box::new),
+                })?};
             Ok((result + "\n", 0))
         }
         Command::ManipulationRecord {source,request,output,v3} => {
@@ -2042,6 +2102,14 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
                     .map(|path| (path, summary_json.as_str())),
             )?;
             Ok((output, 0))
+        }
+        Command::ConditionalAlgebraCheck{source:command,authored}=>{
+            if command.source_profile!="v1-core-v25"{return Err(ExecutionError::input("E_PROOF_PROFILE_UNSUPPORTED: 조건부 대수는 v1-core-v25 원문을 사용하세요"));}
+            let source=read_source(&command)?;let path=command.path.display().to_string();
+            let report=if authored {ddonirang_tool::proof_workflow::observe_algebra_project(&source)}
+                else {ddonirang_tool::proof_workflow::observe_algebra_source(&source,&path)};
+            let code=if report["status"]=="accepted"{0}else{2};
+            Ok((report.to_string()+"\n",code))
         }
         Command::Check(command) | Command::Build(command) => {
             ddonirang_tool::source_frontdoor_workflow::run_check_or_build_supported_profile(
@@ -2384,8 +2452,41 @@ fn execute_with_display(command: Command, language: display_language::Language) 
 
 fn display_execution_error(language: display_language::Language, error: &ExecutionError) {
     use std::io::IsTerminal;
-    eprintln!("{}", display_language::error_text_with_analysis(language, io::stderr().is_terminal(),
-        display_language::ErrorPhase::Operation, &error.message, error.analysis.as_deref()));
+    let terminal = io::stderr().is_terminal();
+    let shown = if let Some(diagnostic) = error.diagnostic.as_deref() {
+        if let Some(words) = (terminal && language == display_language::Language::Ko)
+            .then(|| display_language::korean_diagnostic(diagnostic)).flatten() {
+            words
+        } else if let Some((start,end)) = diagnostic.span.filter(|_| {
+            terminal && language == display_language::Language::Ko
+                && diagnostic.code == "E_DDL_PUBLIC_BODY_SCOPE"
+        })
+        {
+            format!("{} · UTF-8 바이트 {start}..{end}\n{}", diagnostic.source_path, error.message)
+        } else if matches!(diagnostic.code,"E_LOGIC_CALL_ARITY" | "E_MULTILANG_CALL_UNREGISTERED"
+            | "E_MULTILANG_PIN_UNREGISTERED" | "E_LOGIC_CALL_PIN_OWNER"
+            | "E_J1_UNREGISTERED_SURFACE" | "E_J1_ROLE_AMBIGUOUS" | "E_RUNTIME_TYPE_MISMATCH"
+            | "E_CALL_REQUIRED_PIN_MISSING" | "E_PARSE_CALL_PIN_DUPLICATE")
+            && diagnostic.span.is_some()
+        {
+            let original = diagnostic.to_json_value().to_string();
+            display_language::error_text_with_diagnostic(language, terminal, &original, diagnostic)
+        } else if matches!(diagnostic.code,
+            "E_ALIAS_UNKNOWN" | "E_SYMBOL_NOT_EXPORTED" | "E_EXPORT_DUPLICATE" | "E_CALL_PIN_UNKNOWN" | "E_CALL_POSITIONAL_ARGUMENT_EXCESS"
+                | "E_RUNTIME_EXECUTION" | "E_MODULE_MISSING" | "E_MULTILANG_LINKED_DEFINITION_COLLISION" | "E_BYTES_ARGUMENT_BINDING" | "E_BYTES_UTF8_INVALID"
+                | "E_DDL_ACTIVATION_PARSE" | "E_DDL_ACTIVATION_OWNER_OR_PROFILE" | "E_DDL_ORIGINAL_MODULE_MISMATCH" | "E_MULTILANG_SUCCESSOR_HEADER_SCOPE" | "E_LOGIC_DEPENDENCY"
+                | "E_MULTILANG_PUBLIC_CALLER_SCOPE")
+            && diagnostic.span.is_some()
+        {
+            diagnostic.to_json_value().to_string()
+        } else {
+            display_language::error_text_with_diagnostic(language, terminal, &error.message, diagnostic)
+        }
+    } else {
+        display_language::error_text_with_analysis(language, terminal,
+            display_language::ErrorPhase::Operation, &error.message, error.analysis.as_deref())
+    };
+    eprintln!("{shown}");
 }
 
 fn display_cli_error(language: display_language::Language, phase: display_language::ErrorPhase, original: &str) {
@@ -2396,7 +2497,8 @@ fn display_cli_error(language: display_language::Language, phase: display_langua
 fn main() {
     use display_language::ErrorPhase;
     let args = std::env::args().skip(1).collect::<Vec<_>>();
-    let selected = match display_language::select(args, std::env::var_os(display_language::PREFERENCE_ENV)) {
+    let executable = std::env::current_exe().ok();
+    let selected = match display_language::select_for_executable(args, std::env::var_os(display_language::PREFERENCE_ENV), executable.as_deref()) {
         Ok(selected) => selected,
         Err(error) => { eprintln!("{error}"); std::process::exit(2); }
     };

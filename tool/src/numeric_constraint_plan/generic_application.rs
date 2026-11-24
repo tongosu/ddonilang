@@ -12,7 +12,11 @@ pub(crate) struct GenericSourceDiagnostic {
 
 pub(crate) fn source_diagnostic(source: &str, message: &str) -> Option<GenericSourceDiagnostic> {
     let code = ["E_GENERIC_BODY_UNSUPPORTED", "E_GENERIC_RESULT_TYPE",
-        "E_GENERIC_REQUIRED_INPUT", "E_GENERIC_INPUT_UNRESOLVED", "E_GENERIC_UNIFY_CONFLICT"]
+        "E_GENERIC_REQUIRED_INPUT", "E_GENERIC_INPUT_UNRESOLVED", "E_GENERIC_UNIFY_CONFLICT",
+        "E_FUNCTION_BODY_EFFECT", "E_FUNCTION_CALLEE_CAPTURE_SOURCE_REQUIRED",
+        "E_FUNCTION_CALL_GRAPH_UNSUPPORTED", "E_FUNCTION_CALL_CONTEXT", "E_FUNCTION_CALL_SOURCE",
+        "E_FUNCTION_CALL_OWNER", "E_FUNCTION_CALL_PIN_OWNER", "E_FUNCTION_CALL_PIN_DUPLICATE", "E_FUNCTION_CALL_REQUIRED_PIN",
+        "E_FUNCTION_CAPTURE_EXPRESSION_UNSUPPORTED", "E_FUNCTION_CAPTURE_MUTATION"]
         .into_iter().find(|code|message.strip_prefix(code).is_some_and(|rest|rest.starts_with(':')))?;
     let (_, locations) = message.rsplit_once("; 원문 ")?;
     let mut spans = Vec::new();

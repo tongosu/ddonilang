@@ -493,6 +493,228 @@ pub fn resolve_first_callable_profile_name(name:&str,version:&str)->Result<Check
  Ok(profile)
 }
 
+/// Explicit successor lexical registry. A profile is not an exported-module,
+/// Definition/Pin or PURE capability: those remain with the source owner.
+/// The owner freezes finite content and allocates an opaque identity once.
+/// No Deserialize, restore-from-JSON or implicit first-profile upgrade exists.
+mod logic_profile;
+#[derive(Debug,Clone,Copy,PartialEq,Eq)]
+enum SuccessorProfileKind { RationalPublic, LogicBuiltin }
+#[derive(Debug,Clone,PartialEq,Eq)]
+pub struct SuccessorPinSurface {
+    pub identity:String, pub surface:String, pub particle:String,
+}
+#[derive(Debug,Clone,PartialEq,Eq)]
+pub struct SuccessorCallableSurface {
+    pub identity:String, pub surface:String, pub pins:Vec<SuccessorPinSurface>,
+}
+#[derive(Debug,Clone)]
+pub struct RegisteredSuccessorProfile {
+    identity:String, content:Vec<u8>, sha256:String,
+    surfaces:Vec<SuccessorCallableSurface>,
+    kind:SuccessorProfileKind,
+    version:String,
+    revision:u32,
+}
+impl RegisteredSuccessorProfile {
+    pub fn identity(&self)->&str {&self.identity}
+    pub fn version(&self)->&str {&self.version}
+    pub fn is_logic_builtin(&self)->bool{self.kind==SuccessorProfileKind::LogicBuiltin}
+    pub fn registration_revision(&self)->u32 {self.revision}
+    pub fn canonical_name(&self)->&str {"日本語"}
+    pub fn canonical_header(&self)->&str {"#!日本語"}
+    pub fn content(&self)->&[u8] {&self.content}
+    pub fn content_sha256(&self)->&str {&self.sha256}
+    pub fn surfaces(&self)->&[SuccessorCallableSurface] {&self.surfaces}
+}
+#[derive(Default,Debug)]
+pub struct SuccessorRegistryOwner { profiles:Vec<RegisteredSuccessorProfile> }
+fn successor_error(message:&str)->DdlError {error("E_DDL_SUCCESSOR_REGISTRY",Span::new(0,0),message)}
+fn successor_id(text:&str)->bool {
+    text.len()==64 && text.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b))
+        && text.bytes().any(|b|b!=b'0')
+}
+fn successor_surface(text:&str)->bool {
+    if matches!(text,"合計する"|"合計"|"倍"|"金額"|"税額") {return true;}
+    let mut chars=text.bytes();
+    matches!(chars.next(),Some(b) if b.is_ascii_alphabetic()||b==b'_')
+        && chars.all(|b|b.is_ascii_alphanumeric()||b==b'_') && text.len()<=128
+}
+fn checked_successor_content(mut surfaces:Vec<SuccessorCallableSurface>,revision:u32)->Result<(Vec<SuccessorCallableSurface>,Vec<u8>,String),DdlError>{
+        use std::collections::BTreeSet;
+        if surfaces.is_empty()||surfaces.len()>128 {
+            return Err(successor_error("등록할 전체 공개 표면 개수 한도입니다"));
+        }
+        let mut ids=BTreeSet::new();let mut names=BTreeSet::new();let mut pin_count=0usize;
+        for row in &surfaces {
+            if !successor_id(&row.identity)||!ids.insert(row.identity.clone())||!successor_surface(&row.surface)
+                ||!names.insert(row.surface.clone())||row.pins.is_empty()||row.pins.len()>32 {
+                return Err(successor_error("정의 정체·유한 표면·핀 분모가 잘못되거나 중복됐습니다"));
+            }
+            let mut pins=BTreeSet::new();
+            for pin in &row.pins {
+                if !successor_id(&pin.identity)||!ids.insert(pin.identity.clone())||!successor_surface(&pin.surface)
+                    ||!pins.insert(pin.surface.clone())||!matches!(pin.particle.as_str(),"に"|"を") {
+                    return Err(successor_error("정의 소유 핀의 정체·표면·조사가 잘못됐습니다"));
+                }
+            }
+            pin_count+=row.pins.len();
+        }
+        if pin_count>4096 {return Err(successor_error("전체 핀 개수 한도입니다"));}
+        // Canonical output orders actual identities, never invents them.
+        surfaces.sort_by(|a,b|a.identity.cmp(&b.identity));
+        let rows=surfaces.iter().map(|row|serde_json::json!({"definition":row.identity,"surface":row.surface,
+            "pins":row.pins.iter().map(|pin|serde_json::json!({"identity":pin.identity,"surface":pin.surface,"particle":pin.particle})).collect::<Vec<_>>() })).collect::<Vec<_>>();
+        let content=serde_json::to_vec(&serde_json::json!({"registration_revision":revision,"canonical_name":"日本語",
+            "canonical_header":"#!日本語","explicit_aliases":[],"definitions":rows,"type":"有理数","kind":"関数",
+            "unicode":"UTF8-exact","syntax":"ASCII","fallback":false,"required_pins_only":true}))
+            .map_err(|_|successor_error("등록 내용을 고정할 수 없습니다"))?;
+        if content.len()>65536 {return Err(successor_error("등록 내용 바이트 한도입니다"));}
+        let digest=ddonirang_core::bytes::ByteSequence::new(content.clone()).content_sha256();
+        let sha256=digest.iter().map(|b|format!("{b:02x}")).collect::<String>();
+    Ok((surfaces,content,sha256))
+}
+fn same_successor_owners(a:&[SuccessorCallableSurface],b:&[SuccessorCallableSurface])->bool {
+    a.len()==b.len()&&a.iter().zip(b).all(|(left,right)|
+        left.identity==right.identity&&left.pins.iter().map(|pin|&pin.identity)
+            .eq(right.pins.iter().map(|pin|&pin.identity)))
+}
+impl SuccessorRegistryOwner {
+    /// Build the next explicit lexical edition. The tool must separately
+    /// restore and verify the same original owner before admitting the edition.
+    pub fn revise_public_surfaces(&mut self,previous:&RegisteredSuccessorProfile,
+        version:&str,surfaces:Vec<SuccessorCallableSurface>,
+    )->Result<RegisteredSuccessorProfile,DdlError>{
+        self.lookup(previous.identity(),previous.version(),previous.content_sha256(),previous.registration_revision())?;
+        let revision=previous.revision.checked_add(1).ok_or_else(||successor_error("등록 revision 한도입니다"))?;
+        if previous.is_logic_builtin()||revision.checked_add(1).map(|n|n.to_string()).as_deref()!=Some(version){
+            return Err(successor_error("명시적으로 바로 다음 공개 호출 판본을 지정해야 합니다"));
+        }
+        let (surfaces,content,digest)=checked_successor_content(surfaces,revision)?;
+        if !same_successor_owners(&previous.surfaces,&surfaces)||previous.surfaces==surfaces {
+            return Err(successor_error("같은 정의·핀 소유의 바뀐 호출 표기가 필요합니다"));
+        }
+        let text=std::str::from_utf8(&content).map_err(|_|successor_error("등록 내용 UTF-8이 다릅니다"))?;
+        self.restore_recorded_exact(previous.identity(),version,revision,text,&digest)
+    }
+
+    /// Registration of a finite lexical surface only. The tool's checked
+    /// public owner must separately match the entire module and all pins.
+    /// Entropy is supplied by the existing product identity producer, never
+    /// derived from a source path, spelling, hash or user-selected ID string.
+    pub fn issue(&mut self,mut surfaces:Vec<SuccessorCallableSurface>,
+        entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>,
+    )->Result<RegisteredSuccessorProfile,DdlError> {
+        if self.profiles.len()>=128{return Err(successor_error("등록할 전체 공개 표면 개수 한도입니다"));}
+        let (surfaces,content,sha256)=checked_successor_content(surfaces,1)?;
+        self.issue_frozen(surfaces,content,sha256,SuccessorProfileKind::RationalPublic,entropy)
+    }
+    fn issue_frozen(&mut self,surfaces:Vec<SuccessorCallableSurface>,content:Vec<u8>,sha256:String,
+        kind:SuccessorProfileKind,entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>,
+    )->Result<RegisteredSuccessorProfile,DdlError>{
+        if self.profiles.len()>=128{return Err(successor_error("등록할 전체 공개 표면 개수 한도입니다"));}
+        if let Some(profile)=self.profiles.iter().find(|profile|profile.content==content) {return Ok(profile.clone());}
+        for _ in 0..8 {
+            let mut raw=[0u8;32];entropy(&mut raw).map_err(|_|successor_error("등록 owner의 정체 발급이 실패했습니다"))?;
+            if raw[..16].iter().all(|b|*b==0) {continue;}
+            let identity=format!("language-profile:{}",raw[..16].iter().map(|b|format!("{b:02x}")).collect::<String>());
+            if identity==FIRST_ISSUED_PROFILE.identity||self.profiles.iter().any(|profile|profile.identity==identity) {continue;}
+            let version=match kind{SuccessorProfileKind::RationalPublic=>"2",SuccessorProfileKind::LogicBuiltin=>"1"};
+            let profile=RegisteredSuccessorProfile{identity,content,sha256,surfaces,kind,version:version.into(),revision:1};
+            self.profiles.push(profile.clone());return Ok(profile);
+        }
+        Err(successor_error("등록 owner의 중복 없는 정체를 얻지 못했습니다"))
+    }
+    /// Recorded lexical owner only; source/G1/full-public admission remains tool-owned.
+    /// Never invoke issue/entropy or synthesize an identity from content/path.
+    pub fn restore_recorded_exact(&mut self,identity:&str,version:&str,revision:u32,content:&str,sha256:&str)->Result<RegisteredSuccessorProfile,DdlError>{
+        let id=identity.strip_prefix("language-profile:").ok_or_else(||successor_error("기록 profile 정체가 다릅니다"))?;
+        if id.len()!=32||!id.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b))||id.bytes().all(|b|b==b'0')
+            ||identity==FIRST_ISSUED_PROFILE.identity||revision==0
+            ||revision.checked_add(1).map(|n|n.to_string()).as_deref()!=Some(version)||content.len()>65536{
+            return Err(successor_error("기록 profile 정체·판본·revision·한도가 다릅니다"));
+        }
+        let value:serde_json::Value=serde_json::from_str(content).map_err(|_|successor_error("기록 profile 본문이 다릅니다"))?;
+        let rows=value.get("definitions").and_then(serde_json::Value::as_array).ok_or_else(||successor_error("기록 공개 정의가 없습니다"))?;
+        if rows.is_empty()||rows.len()>128{return Err(successor_error("기록 공개 정의 한도입니다"));}
+        fn field(value:&serde_json::Value,key:&str)->Result<String,DdlError>{value.get(key).and_then(serde_json::Value::as_str).map(str::to_owned).ok_or_else(||successor_error("기록 profile 필드가 다릅니다"))}
+        let mut surfaces=Vec::new();
+        for row in rows {
+            if row.as_object().map(|row|row.len())!=Some(3){return Err(successor_error("기록 정의 필드가 다릅니다"));}
+            let pins=row.get("pins").and_then(serde_json::Value::as_array).ok_or_else(||successor_error("기록 핀이 없습니다"))?;
+            if pins.is_empty()||pins.len()>32{return Err(successor_error("기록 핀 한도입니다"));}
+            let pins=pins.iter().map(|pin|{
+                if pin.as_object().map(|row|row.len())!=Some(3){return Err(successor_error("기록 핀 필드가 다릅니다"));}
+                Ok(SuccessorPinSurface{identity:field(pin,"identity")?,surface:field(pin,"surface")?,particle:field(pin,"particle")?})
+            }).collect::<Result<Vec<_>,DdlError>>()?;
+            surfaces.push(SuccessorCallableSurface{identity:field(row,"definition")?,surface:field(row,"surface")?,pins});
+        }
+        let (surfaces,canonical,digest)=checked_successor_content(surfaces,revision)?;
+        // Re-encoding detects extra/duplicate keys, wrong constants and noncanonical order.
+        if canonical.as_slice()!=content.as_bytes()||digest!=sha256{return Err(successor_error("기록 profile 정본·hash가 다릅니다"));}
+        for old in &self.profiles {
+            if old.identity==identity {
+                if old.kind!=SuccessorProfileKind::RationalPublic||!same_successor_owners(&old.surfaces,&surfaces){
+                    return Err(successor_error("기록 profile의 정의·핀 소유가 기존 판본과 다릅니다"));
+                }
+                if old.revision==revision {
+                    if old.content==canonical{return Ok(old.clone());}
+                    return Err(successor_error("같은 profile 판본의 기록 내용이 다릅니다"));
+                }
+            } else if old.content==canonical {
+                return Err(successor_error("기록 profile 정체·내용이 기존 owner와 충돌합니다"));
+            }
+        }
+        if self.profiles.len()>=128{return Err(successor_error("기록 profile 개수 한도입니다"));}
+        let profile=RegisteredSuccessorProfile{identity:identity.into(),content:canonical,sha256:digest,surfaces,kind:SuccessorProfileKind::RationalPublic,version:version.into(),revision};
+        self.profiles.push(profile.clone());Ok(profile)
+    }
+    pub fn lookup(&self,identity:&str,version:&str,sha256:&str,revision:u32)->Result<RegisteredSuccessorProfile,DdlError> {
+        self.profiles.iter().find(|row|row.identity==identity&&row.version()==version&&row.sha256==sha256&&row.registration_revision()==revision)
+            .cloned().ok_or_else(||successor_error("등록 owner의 정확한 정체·판본·내용·revision이 필요합니다"))
+    }
+    /// Resolution is restricted to the explicitly exported profile set; a
+    /// global latest/default/source-header lookup cannot activate anything.
+    pub fn resolve_exported(&self,exported:&[RegisteredSuccessorProfile],name:&str,version:&str)->Result<RegisteredSuccessorProfile,DdlError> {
+        let rows=exported.iter().filter(|row|row.canonical_name()==name&&row.version()==version).collect::<Vec<_>>();
+        if rows.len()!=1 {return Err(successor_error("명시한 수출 프로필이 누락·중복됐습니다"));}
+        let row=rows[0];self.lookup(row.identity(),version,row.content_sha256(),row.registration_revision())
+    }
+}
+
+#[cfg(test)]
+mod r25_successor_registry_tests {
+    use super::*;
+    fn row(n:u8,name:&str,pin:&str)->SuccessorCallableSurface {
+        SuccessorCallableSurface{identity:format!("{n:064x}"),surface:name.into(),pins:vec![SuccessorPinSurface{identity:format!("{:064x}",n+20),surface:pin.into(),particle:"を".into()}]}
+    }
+    #[test]
+    fn r25_registry_exact_owner_lookup_and_first_record_unchanged() {
+        let first=issued_first_callable_profile().unwrap();let bytes=first.content().to_vec();
+        let mut owner=SuccessorRegistryOwner::default();let mut count=0;
+        let profile=owner.issue(vec![row(1,"F","金額"),row(2,"G","金額")],&mut |raw|{count+=1;raw.fill(count);Ok(())}).unwrap();
+        assert_eq!(count,1);assert_eq!(profile.version(),"2");assert_ne!(profile.identity(),first.identity());
+        assert_eq!(owner.lookup(profile.identity(),"2",profile.content_sha256(),1).unwrap().content(),profile.content());
+        assert!(owner.lookup(profile.identity(),"1",profile.content_sha256(),1).is_err());
+        assert!(owner.lookup(profile.identity(),"2",first.content_sha256(),1).is_err());
+        let again=owner.issue(vec![row(2,"G","金額"),row(1,"F","金額")],&mut |_|panic!("same frozen content must not reissue")).unwrap();
+        assert_eq!(again.identity(),profile.identity());
+        assert!(owner.resolve_exported(&[],"日本語","2").is_err());
+        assert!(owner.resolve_exported(&[profile.clone(),profile.clone()],"日本語","2").is_err());
+        assert_eq!(owner.resolve_exported(&[profile.clone()],"日本語","2").unwrap().identity(),profile.identity());
+        assert_eq!(issued_first_callable_profile().unwrap().content(),bytes);assert_eq!(first.version(),"1");
+    }
+    #[test]
+    fn r25_registry_rejects_invalid_finite_surface_before_entropy() {
+        let mut owner=SuccessorRegistryOwner::default();
+        for rows in [vec![],vec![row(1,"F","金額"),row(1,"G","税額")],vec![row(1,"F。","金額")],vec![row(1,"F","未知")]] {
+            assert!(owner.issue(rows,&mut |_|panic!("invalid manifest cannot allocate identity")).is_err());
+        }
+        let mut bad=row(1,"F","金額");bad.pins[0].identity=bad.identity.clone();
+        assert!(owner.issue(vec![bad],&mut |_|panic!("cross-role identity")).is_err());
+    }
+}
+
 /// A declaration binding into one actual common-parser result.
 ///
 /// The references retain that result's definition/pin/type ownership. No
@@ -723,5 +945,24 @@ mod first_callable_registration_tests {
         let TopLevelItem::SeedDef(definition) = &mut public.declaration_program.as_mut().unwrap().items[0];
         definition.body = None;
         assert_eq!(bind(&public).unwrap_err().code, "E_DDL_FIRST_CALLABLE_DECLARATION_MISMATCH");
+    }
+}
+
+
+/// Explicit source syntax selection, distinct from callable DDL activation.
+pub const J1_SOURCE_PROFILE: &str = "v1-core-v25-ja-base-r1";
+#[derive(Debug,Clone,Copy)]
+pub struct CheckedJ1Profile { sealed: () }
+impl CheckedJ1Profile {
+    pub fn resolve(identity:&str)->Result<Self,DdlError>{
+        if identity!=J1_SOURCE_PROFILE{return Err(error("E_J1_PROFILE_UNSUPPORTED",Span::new(0,0),"명시한 J1 source profile이 필요합니다"));}
+        Ok(Self{sealed:()})
+    }
+    pub fn identity(&self)->&'static str{J1_SOURCE_PROFILE}
+    /// First-work vocabulary only; this is not whole-Unicode identifier admission.
+    pub(crate) fn admits_word(&self,word:&str)->bool{
+        matches!(word,"構成"|"版"|"モジュール群"|"列"|"名前"|"見出し"|"原文"|"開始"|"モジュール"|"定義"
+            |"使用"|"公開"|"翻訳"|"対象言語"|"対象版"|"手続き"|"実行"|"関数"|"有理数"|"真偽"|"表示"|"真"|"偽"
+            |"に"|"を"|"アプリ"|"計算"|"合計"|"倍"|"内部"|"金額"|"税額"|"論理"|"かつ"|"または"|"否定する"|"否定である"|"左"|"右"|"値")
     }
 }

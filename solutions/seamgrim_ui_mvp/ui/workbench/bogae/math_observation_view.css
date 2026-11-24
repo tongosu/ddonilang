@@ -1,0 +1,18 @@
+.bogae-math-observation { min-width: 0; }
+.bogae-math-observation p, .bogae-math-observation pre { overflow-wrap: anywhere; white-space: pre-wrap; }
+.bogae-math-observation button, .bogae-math-observation summary { min-height: 32px; }
+.bogae-math-observation button:focus-visible, .bogae-math-observation summary:focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
+.bogae-math-observation .math-source-navigation { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 12px; }
+.bogae-math-observation .math-source-navigation button { max-width: 100%; overflow-wrap: anywhere; }
+.bogae-math-observation [data-math-source-text] { display: block; box-sizing: border-box; width: 100%; max-width: 100%; font: inherit; }
+.bogae-math-observation [data-math-source-text]:focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
+.bogae-math-inspector > button { min-height: 36px; max-width: 100%; }
+.bogae-math-inspector > button:focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
+.bogae-math-inspector > p { overflow-wrap: anywhere; }
+.bogae-math-inspector .bogae-math-observation > button { display: none; }
+
+/* The whole-project summary is shown once above the source groups.
+   Only the existing renderer's repeated top-level summary is hidden;
+   definition and step diagnostics remain visible. */
+.bogae-math-observation [data-math-source-group] > p,
+.bogae-math-observation [data-math-source-group] > pre { display: none; }

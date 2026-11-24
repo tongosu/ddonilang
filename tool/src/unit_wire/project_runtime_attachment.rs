@@ -10,6 +10,9 @@ use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fmt};
 
 pub(crate) mod source_only;
+pub(crate) mod model_source;
+pub(crate) mod code_source;
+pub(crate) mod nominal_source;
 
 pub(crate) const OUTER_MAX: usize = 2_000_000;
 const ENVELOPE_MAX: usize = 1_000_000;
@@ -78,7 +81,13 @@ pub(crate) fn check_runtime_resource_binding(runtime: &str, resources: &str) -> 
     check_runtime_resource_binding_with_catalog(runtime,resources,None)
 }
 pub(crate) fn check_runtime_resource_binding_with_catalog(runtime:&str,resources:&str,catalog:Option<&crate::authored_project::registration::SavedNominalCatalogV1>)->Result<(),String>{
+    check_runtime_resource_binding_for_artifact(runtime,resources,catalog,false)
+}
+
+fn check_runtime_resource_binding_for_artifact(runtime:&str,resources:&str,
+    catalog:Option<&crate::authored_project::registration::SavedNominalCatalogV1>,writing:bool)->Result<(),String>{
     let runtime = super::parse_snapshot_json_with_catalog(runtime,catalog)?;
+    if writing {crate::bogae_time::check_durable_scene_projections(&runtime)?;}
     let resources = super::parse_snapshot_json_with_catalog(resources,catalog)?;
     check_runtime_resource_projection(&runtime,&resources)?;
     super::resource_snapshot::check_resource_snapshot_structure_with_catalog(&resources,catalog)?;
@@ -103,12 +112,14 @@ fn check_runtime_resource_projection(runtime:&serde_json::Value,resources:&serde
 
 fn check_runtime_resource_binding_with_frame(runtime:&str,resources:&str,
     catalog:Option<&crate::authored_project::registration::SavedNominalCatalogV1>,frame:&super::CompleteStateFrameV1<'_>,
+    writing:bool,
 )->Result<(),String>{
     let invalid=|error|format!("E_VC04_COMPLETE_RESOURCE_BINDING: {error:?}");
     let contracts=super::complete_state_tables::decode_registered_atom_evidence(frame.atom_evidence).map_err(invalid)?;
     let custody=super::complete_state_tables::decode_saved_world_custody(frame.subject_custody,frame.pesi).map_err(invalid)?;
     let references=custody.as_ref().map(crate::subject_reference_owner::SubjectReferenceContextV1::new).transpose().map_err(invalid)?;
     let runtime=super::parse_snapshot_json_with_value_context(runtime,&contracts,references.as_ref(),catalog)?;
+    if writing {crate::bogae_time::check_durable_scene_projections(&runtime)?;}
     let resources=super::parse_snapshot_json_with_value_context(resources,&contracts,references.as_ref(),catalog)?;
     check_runtime_resource_projection(&runtime,&resources)?;
     super::resource_snapshot::check_resource_snapshot_complete_pair(&resources,frame,catalog)?;
@@ -125,7 +136,7 @@ pub(crate) fn check_saved_revision_context_with_frame<'a>(attachment:&'a ByteChe
     let source=check_saved_source_context(attachment,owned,parent,revision)?;
     if frame.pesi!=source.pesi.as_raw(){return Err("E_VC04_COMPLETE_RESOURCE_BINDING: 원문·binary PESI가 다릅니다".into());}
     let catalog=owned.registration().map(|registration|registration.saved_nominal_catalog(owned)).transpose()?;
-    check_runtime_resource_binding_with_frame(&attachment.runtime_state,&attachment.resource_snapshot,catalog.as_ref(),&frame)?;
+    check_runtime_resource_binding_with_frame(&attachment.runtime_state,&attachment.resource_snapshot,catalog.as_ref(),&frame,false)?;
     Ok(SourceBoundSavedRuntimeAttachment{owned,attachment,pesi:source.pesi,world_frame:Some(frame)})
 }
 
@@ -214,6 +225,35 @@ impl<'a> SourceEnvelopeBoundRuntimeAttachment<'a>{
     pub(crate) fn pesi(&self)->crate::project_snapshot_identity::Identity32{self.pesi}
 }
 
+// Distinct v4 DTO/reader. Never reinterpret the old three schema branches.
+#[derive(serde::Serialize,serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct SavedPublicCallablePayloadV4 {
+    pub(crate) schema:String,pub(crate) authored_project_json_utf8:String,
+    pub(crate) source_capture_catalog_json_utf8:String,
+}
+pub(crate) fn read_saved_public_callable_payload(raw:&str)->Result<(SavedPublicCallablePayloadV4,std::sync::Arc<crate::authored_project::PublicCallableProjectArtifactV4>),String>{
+    let record=read_public_callable_fields(raw)?;
+    let artifact=crate::authored_project::PublicCallableProjectArtifactV4::open(&record.authored_project_json_utf8)?;
+    Ok((record,artifact))
+}
+fn read_public_callable_fields(raw:&str)->Result<SavedPublicCallablePayloadV4,String>{
+    if raw.len()>OUTER_MAX{return Err("E_PROJECT_RUNTIME_PAYLOAD_LIMIT".into());}
+    let value=super::parse_snapshot_json(raw)?;
+    let record:SavedPublicCallablePayloadV4=serde::Deserialize::deserialize(&*value).map_err(|_|"E_PROJECT_RUNTIME_PAYLOAD_FIELDS")?;
+    if record.schema!="ddn.saved_runtime_project.v4"||serde_json::to_string(&record).map_err(|_|"E_PROJECT_RUNTIME_PAYLOAD_ENCODING")?!=raw
+        ||record.source_capture_catalog_json_utf8.len()>1_000_000{return Err("E_PROJECT_RUNTIME_PAYLOAD_CANONICAL".into());}
+    Ok(record)
+}
+pub(crate) fn saved_public_callable_payload_json(owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1)->Result<String,String>{
+    let artifact=owned.sources().public_callable_artifact().ok_or("E_DDL_V4_RECORDED_CONTEXT_REQUIRED")?;
+    if owned.project()!=&artifact.owner_view()?{return Err("E_PROJECT_RUNTIME_PAYLOAD_OWNER".into());}
+    artifact.restore_context()?;
+    serde_json::to_string(&SavedPublicCallablePayloadV4{schema:"ddn.saved_runtime_project.v4".into(),
+        authored_project_json_utf8:artifact.save()?,source_capture_catalog_json_utf8:owned.sources().recorded_capture_catalog_json()?})
+        .map_err(|_|"E_PROJECT_RUNTIME_PAYLOAD_ENCODING".into())
+}
+
 // A3-P11: product-owned payload inside RD-686's project_snapshot slot. This
 // does not add keys to the closed revision envelope or to its attachment.
 #[derive(serde::Serialize,serde::Deserialize)]
@@ -231,6 +271,8 @@ struct SavedRuntimeProjectPayloadV1 {
 pub(crate) fn saved_runtime_project_payload_json(
     owned: &crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
 ) -> Result<String,String> {
+    if owned.sources().logic_callable_context().is_some(){return Err("E_LOGIC_PHYSICAL_REVIEW_REQUIRED: 공개 B1 저장 연결의 물리검토가 필요합니다".into());}
+    if owned.sources().public_callable_artifact().is_some(){return saved_public_callable_payload_json(owned);}
     saved_runtime_project_payload_json_selected(owned,None)
 }
 
@@ -243,6 +285,9 @@ fn saved_runtime_project_payload_json_selected(
     owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,
     first:Option<&crate::authored_project::FirstCallableAuthoredContext>,
 )->Result<String,String>{
+    if owned.sources().has_linked_public_seeds() {
+        return Err("E_MULTILANG_JOINT_STORAGE_FORMAT_REQUIRED".into());
+    }
     let original=if owned.project().schema==crate::authored_project::SCHEMA_V3 {
         Some(first.ok_or("E_DDL_V3_RECORDED_CONTEXT_REQUIRED")?.registration_record_for_consumer(owned.project())?)
     }else{None};
@@ -340,8 +385,8 @@ pub(crate) fn encode_saved_runtime_artifact_with_frame(owned:&crate::project_rev
     if let Some(frame)=world_frame{
         let issued=crate::project_snapshot_identity::current::issue_saved_project(owned)?;
         if frame.pesi!=issued.pesi().as_raw(){return Err("E_VC04_COMPLETE_RESOURCE_BINDING: 원문·binary PESI가 다릅니다".into());}
-        check_runtime_resource_binding_with_frame(runtime,resources,catalog.as_ref(),&frame)?;
-    }else{check_runtime_resource_binding_with_catalog(runtime,resources,catalog.as_ref())?;}
+        check_runtime_resource_binding_with_frame(runtime,resources,catalog.as_ref(),&frame,true)?;
+    }else{check_runtime_resource_binding_for_artifact(runtime,resources,catalog.as_ref(),true)?;}
     let (issued,revision_bytes)=issue_saved_source_envelope(owned,parent,revision)?;
     let project:Node=serde_json::from_str(&saved_runtime_project_payload_json(owned)?)
         .map_err(|_|"E_PROJECT_RUNTIME_PAYLOAD_ENCODING")?;
@@ -358,6 +403,12 @@ pub(crate) fn encode_saved_runtime_artifact_with_frame(owned:&crate::project_rev
         Node::Text(String::from_utf8(canonical.clone()).map_err(|_|"E_PROJECT_RUNTIME_ARTIFACT_UTF8")?),
         Node::Text(digest(&canonical)),Node::UInt(canonical.len() as u64),
     ]).map(|(key,value)|((*key).into(),value)).collect()))?;
+    // Diagnose the producer's own bytes without parsing an oversized import or
+    // changing the existing reader limit, wire, integrity or admission gates.
+    if result.len()>OUTER_MAX {
+        return Err(format!("E_PROJECT_RUNTIME_ARTIFACT_TOO_LARGE: bytes={} limit={} runtime_bytes={} resource_bytes={} revision_bytes={} canonical_bytes={}",
+            result.len(),OUTER_MAX,runtime.len(),resources.len(),revision_bytes.len(),canonical.len()));
+    }
     let checked=check_bytes(&result)?;
     if let Some(frame)=world_frame{check_saved_revision_context_with_frame(&checked,owned,parent,revision,frame)?;}
     else{check_saved_revision_context(&checked,owned,parent,revision)?;}
@@ -376,6 +427,7 @@ pub(crate) fn restore_saved_runtime_payload(
 fn restore_recorded_project_payload(
     project_snapshot_json:&str, revision_envelope:&[u8],
 ) -> Result<crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,String> {
+    if public_callable_payload_selected(project_snapshot_json)? {return restore_recorded_public_callable_payload(project_snapshot_json,revision_envelope);}
     restore_recorded_project_payload_selected(project_snapshot_json,revision_envelope,None)
 }
 
@@ -415,7 +467,10 @@ fn restore_recorded_project_payload_selected(
     // issuer below independently resolves it; revision admission compares both.
     let carrier=verify_rd631_identity_projection(IdentityFamily::Definition,declaration)
         .map_err(|_|"E_PROJECT_RUNTIME_REVISION_DEFINITION: 시작 정의 표기가 다릅니다")?;
-    let roles=crate::project_revision_envelope_supply::saved_authored_source_roles(snapshot)?;
+    let j1=if project.source_profile==ddonirang_lang::ddl::J1_SOURCE_PROFILE {
+        Some(ddonirang_lang::ddl::CheckedJ1Profile::resolve(&project.source_profile).map_err(|error|error.to_string())?)
+    }else{None};
+    let roles=crate::project_revision_envelope_supply::saved_authored_source_roles_selected(snapshot,j1)?;
     let blobs=snapshot.files.iter().map(|file|Ok(SavedSourceBlobV1 {
         path:&file.path,role:roles.get(&file.path)
             .ok_or("E_PROJECT_RUNTIME_PAYLOAD_SOURCE: 저장 원자료의 역할이 없습니다")?.as_str(),
@@ -425,7 +480,10 @@ fn restore_recorded_project_payload_selected(
         .map_err(|_|"E_PROJECT_RUNTIME_PAYLOAD_SOURCE: 저장 원문 공급이 다릅니다")?;
     let sources=std::sync::Arc::new(match &restored_first {
         Some(first)=>crate::project_revision_envelope_supply::restore_saved_v25_sources_with_first_callable(saved,&payload.source_capture_catalog_json_utf8,first.clone())?,
-        None=>restore_saved_v25_sources(saved,&payload.source_capture_catalog_json_utf8)?,
+        None=>match j1 {
+            Some(profile)=>crate::project_revision_envelope_supply::restore_saved_v25_sources_with_j1_profile(saved,&payload.source_capture_catalog_json_utf8,profile)?,
+            None=>restore_saved_v25_sources(saved,&payload.source_capture_catalog_json_utf8)?,
+        },
     });
     if let Some(resources)=payload.registration_resources {
         let source=admit_precanon_authored_source(sources,payload.authored_project_json_utf8.as_bytes())?;
@@ -460,12 +518,21 @@ pub(crate) fn check_saved_source_context<'a>(attachment:&'a ByteCheckedAttachmen
     expected_parent:&[u8],new_revision:&[u8],
 )->Result<SourceEnvelopeBoundRuntimeAttachment<'a>,String>{
     use crate::project_revision_envelope_supply::{verify_rd631_identity_projection,IdentityFamily};
-    let payload=read_saved_runtime_payload(&attachment.project_snapshot_json)?;
-    if payload.authored_project_json_utf8!=owned.project().save()?
-        || payload.source_capture_catalog_json_utf8!=owned.sources().recorded_capture_catalog_json()? {
-        return Err("E_PROJECT_RUNTIME_PAYLOAD_OWNER: 저장 작품과 검증된 원문 소유자가 다릅니다".into());
-    }
-    let recorded=payload.registration_resources.as_ref().map(serde_json::to_vec).transpose().map_err(|_|"E_PROJECT_REGISTRATION_ENCODING")?;
+    let recorded=if let Some(artifact)=owned.sources().public_callable_artifact(){
+        let (payload,read_artifact)=read_saved_public_callable_payload(&attachment.project_snapshot_json)?;
+        if payload.authored_project_json_utf8!=artifact.save()?||read_artifact.save()?!=artifact.save()?
+            ||payload.source_capture_catalog_json_utf8!=owned.sources().recorded_capture_catalog_json()?{
+            return Err("E_PROJECT_RUNTIME_PAYLOAD_OWNER".into());
+        }
+        None
+    }else{
+        let payload=read_saved_runtime_payload(&attachment.project_snapshot_json)?;
+        if payload.authored_project_json_utf8!=owned.project().save()?
+            ||payload.source_capture_catalog_json_utf8!=owned.sources().recorded_capture_catalog_json()?{
+            return Err("E_PROJECT_RUNTIME_PAYLOAD_OWNER: 저장 작품과 검증된 원문 소유자가 다릅니다".into());
+        }
+        payload.registration_resources.as_ref().map(serde_json::to_vec).transpose().map_err(|_|"E_PROJECT_REGISTRATION_ENCODING")?
+    };
     let expected=owned.registration().map(|draft|serde_json::to_vec(&draft.recorded_blobs())).transpose().map_err(|_|"E_PROJECT_REGISTRATION_ENCODING")?;
     if recorded!=expected{return Err("E_PROJECT_REGISTRATION_OWNER: 등록 자료가 소유자와 다릅니다".into());}
     let issued=crate::project_snapshot_identity::current::issue_saved_project(owned)?;
@@ -1257,4 +1324,62 @@ pub(crate) mod tests {
         assert!(check_bytes(&vec![b' ';OUTER_MAX+1]).unwrap_err().contains("TOO_LARGE"));
         for invalid in ["e31", "e30=", "e30/", "A", ""] { assert!(decode_envelope(invalid).is_err()); }
     }
+}
+
+fn public_callable_payload_selected(raw:&str)->Result<bool,String>{
+    if raw.len()>OUTER_MAX{return Err("E_PROJECT_RUNTIME_PAYLOAD_LIMIT".into());}
+    let value=super::parse_snapshot_json(raw)?;
+    Ok(value.get("schema").and_then(serde_json::Value::as_str)==Some("ddn.saved_runtime_project.v4"))
+}
+fn restore_recorded_public_callable_payload(raw:&str,envelope:&[u8])->Result<crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,String>{
+    let (record,artifact)=read_saved_public_callable_payload(raw)?;
+    restore_public_callable_payload_checked(record,artifact,envelope)
+}
+fn restore_public_callable_payload_successor(raw:&str,envelope:&[u8],
+    parent:&crate::authored_project::PublicCallableProjectArtifactV4,
+)->Result<crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,String>{
+    let record=read_public_callable_fields(raw)?;
+    let artifact=crate::authored_project::PublicCallableProjectArtifactV4::open_spelling_successor(
+        parent,&record.authored_project_json_utf8)?;
+    restore_public_callable_payload_checked(record,artifact,envelope)
+}
+fn restore_public_callable_payload_checked(record:SavedPublicCallablePayloadV4,
+    artifact:std::sync::Arc<crate::authored_project::PublicCallableProjectArtifactV4>,envelope:&[u8],
+)->Result<crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,String>{
+    use crate::project_revision_envelope_supply as supply;
+    let snapshot=&artifact.source_snapshot;let root=snapshot.root_path.as_deref().ok_or("E_PROJECT_RUNTIME_ROOT_REQUIRED")?;
+    let envelope_text=std::str::from_utf8(envelope).map_err(|_|"E_PROJECT_RUNTIME_REVISION_UTF8")?;
+    let value=super::parse_snapshot_json(envelope_text)?;
+    let definition=value["official_entry_definition_identity"].as_str().ok_or("E_PROJECT_RUNTIME_REVISION_DEFINITION")?;
+    let carrier=supply::verify_rd631_identity_projection(supply::IdentityFamily::Definition,definition).map_err(|_|"E_PROJECT_RUNTIME_REVISION_DEFINITION")?;
+    let syntax=if artifact.source_profile==ddonirang_lang::ddl::J1_SOURCE_PROFILE {
+        Some(ddonirang_lang::ddl::CheckedJ1Profile::resolve(&artifact.source_profile).map_err(|error|error.to_string())?)
+    }else{None};
+    let roles=supply::saved_authored_source_roles_selected(snapshot,syntax)?;
+    let blobs=snapshot.files.iter().map(|file|Ok(supply::SavedSourceBlobV1{path:&file.path,role:roles.get(&file.path).ok_or("E_PROJECT_RUNTIME_PAYLOAD_SOURCE")?,bytes:file.text.as_bytes()})).collect::<Result<Vec<_>,String>>()?;
+    let saved=supply::collect_saved_source_supply(root,&snapshot.entry_path,&carrier,&blobs).map_err(|_|"E_PROJECT_RUNTIME_PAYLOAD_SOURCE")?;
+    let sources=supply::restore_saved_v25_sources_with_public_callable(saved,&record.source_capture_catalog_json_utf8,artifact.clone())?;
+    supply::admit_saved_public_callable_project(std::sync::Arc::new(sources),artifact)
+}
+
+/// Adopted v2 carrier integration, private until the exact B1 physical gate.
+/// Uses the normal closed three-field+registration payload, not a new schema.
+pub(crate) fn saved_logic_payload_private(owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1)->Result<String,String>{
+    if owned.sources().logic_callable_context().is_none(){return Err("E_LOGIC_STORAGE_CONTEXT_REQUIRED".into());}
+    owned.registration().ok_or("E_LOGIC_STORAGE_CONTEXT_REQUIRED")?.verify_logic_dependency(&owned.precanon_view())?;
+    saved_runtime_project_payload_json_selected(owned,None)
+}
+pub(crate) fn restore_logic_payload_private(raw:&str)->Result<crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1,String>{
+    use crate::authored_project::registration::logic_dependency::{CheckedLogicDependency,ROLE};
+    let payload=read_saved_runtime_payload(raw)?;
+    if payload.schema!="ddn.saved_runtime_project.v2"||payload.first_callable_original_registration.is_some(){return Err("E_LOGIC_DEPENDENCY_PAYLOAD_SCHEMA".into());}
+    let project=crate::authored_project::open(payload.authored_project_json_utf8.as_bytes())?;
+    let resources=payload.registration_resources.ok_or("E_LOGIC_STORAGE_CONTEXT_REQUIRED")?;
+    let rows=resources.iter().filter(|row|row.role_name()==Some(ROLE)).collect::<Vec<_>>();
+    if rows.len()!=1{return Err("E_LOGIC_STORAGE_CONTEXT_REQUIRED".into());}
+    let context=CheckedLogicDependency::from_blob(rows[0])?.restore_context(&project,&[])?;
+    let source=crate::project_revision_envelope_supply::restore_precanon_authored_source_with_logic(
+        payload.authored_project_json_utf8.as_bytes(),&payload.source_capture_catalog_json_utf8,context)?;
+    let draft=crate::authored_project::registration::restore_precanon_recorded_candidate(&source,resources)?;
+    crate::project_revision_envelope_supply::finalize_registered_authored_source(source,draft)
 }

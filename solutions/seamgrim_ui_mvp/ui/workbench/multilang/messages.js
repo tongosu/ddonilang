@@ -1,5 +1,27 @@
+import {diagnosticWordsText} from '../diagnostic_words_ko.mjs';
 // 표시 전용. 원진단의 코드·심각도·원문 위치와 실행 의미는 변경하지 않는다.
 const hints = Object.freeze({
+  E_MULTILANG_FULLWIDTH_SYNTAX: Object.freeze({
+    ko: '원진단 위치의 전각 영문자·숫자·문법 기호를 대응하는 ASCII 문자로 직접 고친 뒤 다시 검사하세요. 원문은 자동 변환하지 않습니다.',
+    ja: '元の診断の位置にある全角の英字・数字・構文記号を、対応するASCII文字に手動で直し、再検査してください。ソースは自動変換しません。'}),
+  E_J1_UNREGISTERED_SURFACE: Object.freeze({
+
+    ko: '원문 위치의 단어를 현재 원문 프로필에서 허용하는 표기와 대조하세요. 같은 모양이라도 문자 구성이 다를 수 있습니다. 표기를 고친 뒤 다시 검사하세요.',
+
+    ja: 'ソース位置の語を、現在のソースプロファイルで使える表記と照合してください。同じ見た目でも、文字の組み合わせが異なる場合があります。表記を直してから再検査してください。'}),
+
+  E_DDL_PUBLIC_COVERAGE: Object.freeze({
+    ko: '원본에서 확인한 공개 함수 목록과 DDL을 대조하세요. 공개 함수마다 대응 표기를 하나씩 작성하고, 빠졌거나 중복된 표기를 고친 뒤 다시 검사하세요.',
+    ja: '原本で確認した公開関数の一覧とDDLを照合してください。公開関数ごとに対応する表記を一つずつ用意し、抜けや重複を直してから再検査してください。'}),
+  E_DDL_PUBLIC_PIN_OWNER: Object.freeze({
+    ko: '각 함수의 원본 인수와 DDL의 인수를 대조하세요. 같은 함수 안에서 인수 순서·표기·조사·타입을 확인하고 다시 검사하세요.',
+    ja: '関数ごとに、原本の引数とDDLの引数を照合してください。同じ関数の中で引数の順序・表記・助詞・型を確認してから再検査してください。'}),
+  E_RUNTIME_TYPE_MISMATCH: Object.freeze({
+    ko: '값의 타입이 맞지 않습니다. 원진단의 기대 타입과 실제 타입을 확인하고, 표시된 값을 고쳐 다시 검사하세요.',
+    ja: '値の型が一致しません。元の診断で期待される型と実際の型を確認し、示された値を修正してから再検査してください。'}),
+  E_CHECK_TYPE_MISMATCH: Object.freeze({
+    ko: '원진단의 기대 타입과 실제 타입을 대조하고, 인수·연산·반환값의 타입을 고친 뒤 다시 검사하세요.',
+    ja: '元の診断の期待される型と実際の型を照合し、引数・演算・戻り値の型を直して再検査してください。'}),
   E_PARSE: Object.freeze({ko: '괄호·연산자·문장 끝을 원진단 위치에서 확인하세요.',
     ja: '元の診断の位置で、括弧・演算子・文末を確認してください。'}),
   E_SOURCE_PROFILE_REQUIRED: Object.freeze({ko: '원문 프로필 공급이 필요합니다. 표시 언어와 별개입니다.',
@@ -8,21 +30,48 @@ const hints = Object.freeze({
     ja: 'このソースのプロファイルには対応していません。'}),
 });
 
-export function diagnosticPresentation(diagnostic, locale = 'ko') {
+export function diagnosticPresentation(diagnostic, locale = 'ko', context) {
   if (!['ko', 'ja'].includes(locale)) throw new TypeError('표시 언어는 ko/ja만 지원합니다.');
   return Object.freeze({
+    humanized: locale === 'ko' && diagnosticWordsText(diagnostic,context) !== null,
     code: diagnostic.code, severity: diagnostic.severity,
     original: diagnostic.message, path: diagnostic.path,
     span: diagnostic.span == null ? null : Object.freeze({...diagnostic.span}),
-    guidance: hints[diagnostic.code]?.[locale] ?? (locale === 'ja'
+    guidance: (locale === 'ko' ? diagnosticWordsText(diagnostic,context) : null) ?? hints[diagnostic.code]?.[locale] ?? (locale === 'ja'
       ? '[ko] この診断の説明は未翻訳です。元の診断を確認してください。'
       : '이 코드의 보조 설명은 없습니다. 원진단을 확인하세요.'),
     translated: Boolean(hints[diagnostic.code]),
   });
 }
 
+export const hostLabels = Object.freeze({
+  ko: Object.freeze({
+    load: '현재 작품 원문 가져오기',
+    example: '제한 함수 예제 열기',
+    loadedJ1: '일본어 J1 작품 원문을 가져왔습니다. 전체 작품의 공통 준비·명시 실행을 사용합니다. 원래 편집기·세계는 변경하지 않습니다.',
+    loadedKorean: '전체 작품에서 선택 원문을 가져왔습니다. 원래 편집기와 세계는 변경하지 않습니다. 일본어 등록·함수 연결은 미지원입니다.',
+    loadedExample: '독립 한 함수 예제입니다. 원본 등록 → 일본어 호출 검사 → 한 번 계산 순서로 사용하세요. 원래 편집기·세계·저장본은 바꾸지 않습니다.',
+  }),
+  ja: Object.freeze({
+    load: '現在の作品のソースを取り込む',
+    example: '限定関数の例を開く',
+    loadedJ1: '日本語 J1 作品のソースを取り込みました。作品全体を準備し、実行は明示的に行います。元のエディターや世界は変更しません。',
+    loadedKorean: '作品全体から選択したソースを取り込みました。元のエディターや世界は変更しません。この操作では日本語の登録や関数の連携には対応していません。',
+    loadedExample: '独立した一関数の例です。原本登録、呼び出しの検査、一回計算の順に操作してください。元のエディター、世界、保存内容は変更しません。',
+  }),
+});
+
 export const labels = Object.freeze({
-  ko: Object.freeze({title:'다국어 소비 패널', analyze:'검사', run:'한 번 계산',
+  ko: Object.freeze({
+    ddlStoredSourceChanged:'이 작품 ID에 다른 봉인이 이미 저장되어 있습니다. 기존 저장본을 확인하려면 Native 저장 목록에서 작품을 열고, 변경한 후보를 보관하려면 작성 도구에서 별도 작품으로 봉인해 저장하세요.',
+    ddlUnreadableUpload:'저장 자료를 읽을 수 없습니다. DDL 원문이라면 작성 도구에서 검사하고 seal로 봉인한 뒤 봉인 파일을 여세요.',
+    title:'다국어 소비 패널', analyze:'검사', run:'한 번 계산',
+    limitedNotice:'제한 지원: 총액합하다 → 合計する 한 함수입니다. 한국어 실행 틀의 일본어 호출이며 일반 DDL·일본어 기본 문법·브라우저 저장 지원이 아닙니다.',
+    registerOriginal:'원본 등록',checkConsumer:'일본어 호출 검사',prepared:'제품 원문 검사 수용 · 실행 전',
+    original_registered:'실제 원본 등록 확인',original_required:'한국어 원본을 먼저 등록하세요.',
+    requiredPinHint:'필수 인수를 모두 지정한 뒤 다시 검사하세요.',
+    runtimeSourceGuidance:'오류 위치의 원문을 고친 뒤 검사하세요. 검사에 통과하면 한 번 계산을 누르세요.',
+    nativeSelectionRequired:'이 저장본은 제자리에서 수정 저장할 수 없습니다. 교정한 원문을 보관하려면 별도 작품으로 열어 첫 저장을 하세요. 기존 저장본은 그대로입니다.',
     draftNotice:'원문 확인용 소비 패널입니다. DDL 작성 도구와 별개이며 일본어 문구는 원어민 검토 전입니다.',
     matchesSaved:'현재 원문은 마지막 저장본과 같습니다. 분석 유효성은 별도입니다.',
     differsSaved:'저장본 이후 수정되었습니다. 저장본으로 돌아갈 수 있습니다.', noSaved:'재열기 가능한 저장본이 없습니다.',
@@ -34,7 +83,16 @@ export const labels = Object.freeze({
     running:'계산 중', completed:'계산 결과 수신', saving:'원문 저장 중', saved:'원문 저장 응답 수신',
     reopening:'저장본 여는 중', stale:'이전 원문의 결과 폐기', failed:'작업 실패',
     idle:'원문 대기', unverified:'공통 의미 비교는 아직 연결되지 않았습니다.'}),
-  ja: Object.freeze({title:'多言語ソース確認パネル', analyze:'検査', run:'一回計算',
+  ja: Object.freeze({
+    ddlStoredSourceChanged:'この作品IDには別の封印データが保存されています。保存済みの作品はNative保存一覧から開けます。変更した候補を保存するには、作成ツールで別作品として封印してから保存してください。',
+    ddlUnreadableUpload:'保存データを読み込めません。DDLソースの場合は、作成ツールで検査し、sealで封印してから、封印ファイルを開いてください。',
+    title:'多言語ソース確認パネル', analyze:'検査', run:'一回計算',
+    limitedNotice:'限定対応：総額加算の一関数です。韓国語の実行枠から日本語で呼び出します。一般DDL・日本語基本構文・ブラウザー保存は未対応です。',
+    registerOriginal:'元の関数を登録',checkConsumer:'日本語の呼び出しを検査',prepared:'製品のソース検査を受理・実行前',
+    original_registered:'元の関数の登録を確認',original_required:'先に韓国語の元の関数を登録してください。',
+    requiredPinHint:'必須引数をすべて指定して、もう一度検査してください。',
+    runtimeSourceGuidance:'エラーの位置でソースを修正し、検査してください。検査に通ったら「一回計算」を押してください。',
+    nativeSelectionRequired:'この保存データは同じ作品に上書き保存できません。修正したソースを残すには、別の作品として開き、初回保存を行ってください。元の保存データは保持されています。',
     draftNotice:'ソース確認用パネルです。DDL作成ツールとは別です。日本語の文言は母語話者による確認前です。',
     matchesSaved:'現在のソースは最後の保存内容と同じです。解析の有効性は別途確認します。',
     differsSaved:'保存後に変更されています。保存したソースに戻せます。', noSaved:'開き直せる保存内容はありません。',
@@ -46,4 +104,234 @@ export const labels = Object.freeze({
     running:'計算中', completed:'計算結果を受信', saving:'ソースを保存中', saved:'保存の応答を受信',
     reopening:'保存したソースを開いています', stale:'古いソースの結果を破棄', failed:'操作失敗',
     idle:'ソース待ち', unverified:'共通の意味を比較する接続はまだありません。'}),
+});
+
+
+// Labels for the saved DDL authoring section. Source text and diagnostics
+// always originate from the existing Native request, independently of these labels.
+export const ddlEditionLabels = Object.freeze({
+  ko: Object.freeze({
+    section:'저장된 DDL 등록 작품', file:'DDL 등록 작품 저장 자료',
+    stagedInvalidated:'작성 자료가 바뀌어 준비한 DDL 등록 작품을 닫았습니다. 변경한 자료로 다시 검사하세요.',
+    chooseFile:'DDL 등록 작품의 전체 저장 자료를 선택하세요.',
+    run:'DDL 등록 작품 한 번 계산', save:'DDL 등록 작품 Native 저장',
+    refresh:'Native 저장 목록 확인', projects:'Native에 저장된 DDL 등록 작품',
+    reopen:'Native 저장 DDL 등록 작품 열기', exportSaved:'검토용 봉인 자료 내보내기',
+    workflow:'DDL 후보는 작성 도구에서 검사하고 봉인하세요. 여기에서 봉인을 열거나 Native에 저장하고, 기존 작품에서 호출 표기를 갱신할 수 있습니다.',
+    title:'DDL 판본',
+    initialTitle:'처음 DDL을 작성할 원본 확인', initialFolder:'DDL 작성 원본 폴더 선택',
+    initialSelectedFolder:(folder,count)=>`현재 작성에 선택한 원본: ${folder} (${count}개 파일)`,
+    initialHint:'UTF-8 원본 폴더를 고른 뒤 원문 프로필·뿌리·시작 파일·등록할 모듈의 원본 파일을 지정하세요. 여기서 새 등록을 준비하며, 열어 둔 저장 판본은 그대로입니다.',
+    initialProfile:'원문 프로필', initialRoot:'뿌리 파일', initialEntry:'시작 파일', initialModule:'등록 모듈 원본 파일',
+    initialChoose:'파일 선택', initialInspect:'공개 함수와 인수 확인',
+    initialFound:(module,count)=>`${module} 모듈의 공개 함수 후보 ${count}개. DDL 표기는 작성 후 검사해야 합니다.`,
+    initialError:'원본을 확인하지 못했습니다.',
+    initialScopeJump:'등록할 원본 위치 보기', initialScopeSource:'검사한 등록 원본 (읽기 전용)',
+    initialBodyScopeGuidance:'등록할 공개 함수는 필수 나눔수 인수를 받아야 합니다. 그 인수·덧셈·곱셈·정확한 나눔수 상수로 나눔수 하나를 돌려주는 원본을 골라 다시 확인하세요. 상수의 분자와 분모에는 표현 범위 안의 정수를 적으세요. 분모가 0이면 0이 아닌 정수로 고친 뒤 원본 폴더를 다시 선택하세요.',
+    mappingTitle:'처음 등록할 DDL 표기', mappingHint:'각 공개 함수와 인수의 표기를 입력하고 같은 표기를 DDL 원문에 작성하세요.',
+    initialDdlPath:'DDL 상대 경로', initialDdlText:'최초 DDL 원문',
+    initialParticle:(name,pin)=>`${name} · ${pin} 조사`,
+    initialPrepare:'DDL 검사 및 등록 준비',
+    initialPrepared:'DDL 검사를 통과했습니다. 원본 등록 자료를 준비했으며 작품을 저장하거나 실행하지 않았습니다.',
+    initialPreparationStale:'표기가 바뀌었습니다. DDL을 다시 검사하세요.',
+    initialPrepareError:'DDL 등록 자료를 준비하지 못했습니다.',
+    initialDiagnosticJump:'DDL 원문 오류 위치로 이동',
+    editionConsumerGuidance:'표시된 소비 원문에서 호출, 인수 또는 DDL 활성화 선언을 고친 뒤 다시 검사하세요.',
+    editionDdlSurfaceGuidance:'함수·인수 표기와 조사를 DDL 원문의 대응 선언과 맞춘 뒤 다시 검토하세요.',
+    initialUnregisteredSurfaceGuidance:'입력한 함수·인수 표기와 조사에 DDL 원문의 대응 선언이 있는지 확인하세요. 두 곳의 표기를 맞춘 뒤 DDL 검사 및 등록 준비를 다시 누르세요.',
+    consumerSetupTitle:'소비 작품의 DDL 활성화 검사', consumerSetupFolder:'DDL 소비 작품 폴더 선택',
+    consumerSetupHint:'원문에 등록 말씨와 판본을 명시하세요. 사용자 DDL만 쓰는 작품은 검사 후 Native에 저장할 수 있습니다. 논리 라이브러리와 함께 쓰는 작품은 한 번 실행할 수 있으며 공동 저장은 아직 지원하지 않습니다.',
+    consumerSetupProfile:'소비 원문 프로필', consumerSetupRoot:'소비 작품 뿌리 파일',
+    consumerSetupEntry:'소비 작품 시작 파일', consumerSetupPath:'DDL을 활성화할 원문 파일',
+    consumerSetupCheck:'소비 작품의 DDL 활성화 검사',
+    consumerSetupLogicPath:'논리 기본 라이브러리를 활성화할 원문 파일 (함께 실행할 때)',
+    consumerSetupLogicSelection:'함께 실행에 선택한 논리 소비 파일',
+
+    consumerSetupLogicGuidance:'함께 실행에 선택한 파일에서 논리 라이브러리의 使用·翻訳 선언과 등록된 판본을 확인하세요. 원문 폴더를 다시 선택한 뒤 실행하세요.',
+    consumerSetupJointRun:'사용자 DDL과 논리 라이브러리 함께 한 번 실행',
+    consumerSetupJointDone:'선택한 두 등록을 확인하고 한 번 실행했습니다. 저장하지 않았습니다.',
+    consumerSetupRejected:'소비 작품을 준비하지 못했습니다.',
+    consumerSetupExecutionRejected:'소비 작품 실행 중 오류가 발생했습니다.',
+    runtimeSourceGuidance:'오류 위치에서 원문을 확인하세요. 작성 원문에서 원인을 고친 뒤 DDL 사용 작품을 다시 검사하고 실행하세요.',
+    consumerSetupJump:'소비 원문 위치로 이동', consumerSetupDiagnosticSource:'검사한 소비 원문 (읽기 전용)',
+    consumerDiagnosticGuidance:Object.freeze({
+      E_BYTES_ARGUMENT_BINDING:'UTF8바이트열로에는 글=을, UTF8NFC글로에는 바이트열=을 사용해 인수를 하나만 지정하세요. 원문을 고친 뒤 폴더를 다시 선택해 실행하세요.',
+
+      E_BYTES_UTF8_INVALID:'UTF8NFC글로에 전달한 바이트열 전체가 올바른 UTF-8이어야 합니다. 원본의 누락되거나 잘못된 바이트를 고친 뒤 폴더를 다시 선택해 실행하세요.',
+
+      E_MULTILANG_PIN_UNREGISTERED:'호출한 함수의 등록 표기에서 인수 이름을 확인하세요. 다른 함수에 등록된 이름도 이 함수에서는 사용할 수 없을 수 있습니다.',
+      E_DDL_ACTIVATION_REQUIRED:'소비 원문의 쓰임 또는 使用에 등록한 대상 말씨와 정확한 판본을 명시하세요. 원문 폴더를 다시 선택해 검사하세요.',
+
+      E_DDL_ACTIVATION_PARSE:'오류 위치를 확인하세요. 활성화 선언이면 대상 말씨와 정확한 판본을, 함수 호출이면 해당 판본에 공개된 함수와 인수 표기를 확인하세요. 원문을 고친 뒤 폴더를 다시 선택해 검사하세요.',
+      E_DDL_ACTIVATION_OWNER_OR_PROFILE:'소비 원문의 활성화 선언에서 원본 모듈, 대상 말씨와 판본을 등록 자료와 대조하세요. 일치하도록 고친 뒤 원문 폴더를 다시 선택해 검사하세요.',
+      E_MULTILANG_CALL_UNREGISTERED:'옮김 선언의 모듈 별칭과 해당 판본에 등록된 함수 표기를 확인하세요.',
+      E_MULTILANG_PUBLIC_CALLER_SCOPE:'사용자 DDL을 활성화한 모듈에는 인수 없는 호출 함수 하나만 두세요. 보조 함수가 필요하면 별도 모듈로 옮기고, 외부에서 부를 이름을 공개하세요.',
+      E_CALL_REQUIRED_PIN_MISSING:'빠진 필수 인수를 추가한 뒤 원문 폴더를 다시 선택해 검사하세요.',
+      E_PARSE_CALL_PIN_DUPLICATE:'중복된 인수 지정을 하나로 줄인 뒤 원문 폴더를 다시 선택해 검사하세요.',
+      E_CALL_POSITIONAL_ARGUMENT_EXCESS:'호출의 위치 인수 개수를 확인하고 여분을 지운 뒤 다시 검사하세요.',
+    }),
+    consumerSetupPrepared:'명시한 DDL 활성화를 확인했습니다. 소비 작품을 열었으며 저장하거나 실행하지 않았습니다.',
+    storedComparison:'저장된 이전·현재 판본 비교', storedPrevious:'저장된 이전 판본', storedCurrent:'저장된 현재 판본',
+
+    originalCompare:'저장 당시 원본과 폴더 비교', originalFolder:'비교할 원본 폴더 선택',
+    originalNote:'열린 판본의 원본 파일을 이 화면에서만 읽어 비교합니다. 호출 표기를 갱신해도 저장된 원본은 그대로입니다.',
+    originalNewDraft:'새 원본 등록 준비로 이동',
+    originalDifferenceGuidance:'선택한 폴더가 맞는지 확인하세요. 바뀐 원본을 사용하려면 원본 선택부터 다시 등록하세요.',
+    originalSummary:(same,changed,missing,added)=>`같음 ${same}개 · 변경 ${changed}개 · 누락 ${missing}개 · 추가 ${added}개`,
+    originalSame:'같음', originalChanged:'변경', originalMissing:'누락', originalAdded:'추가',
+    originalError:'폴더를 읽을 수 없습니다. 원본 폴더 하나를 다시 선택하세요.',
+    selection:'DDL 판본 선택', open:'선택 판본 열기',
+    update:'호출 표기 갱신', current:'현재 판본', previous:'이전 판본',
+    opened:edition=>`DDL 판본 ${edition} 열기 완료. 실행하지 않았습니다.`,
+    newEdition:'새 판본', ddl:'DDL 원문', consumer:'소비 원문',
+    callable:name=>`함수 ${name} 표기`, pin:(name,pin)=>`${name} · ${pin} 표기`,
+    review:'저장 전 비교하고 검사', commit:'검사한 판본 저장',
+    comparison:'기존 판본과 후보 비교', before:'기존 판본', candidate:'검사한 후보',
+    reviewChanges:'검사한 변경 사항',
+
+    reviewVersion:(before,after)=>`판본 ${before} → ${after}`,
+
+    reviewCallable:(name,before,after)=>`함수 ${name} 표기: ${before} → ${after}`,
+
+    reviewPin:(name,pin,before,after)=>`${name} · ${pin} 표기: ${before} → ${after}`,
+
+    reviewDdlText:'DDL 원문 변경', reviewConsumerText:'소비 원문 변경',
+
+    reviewed:'검사에 통과했습니다. 기존 판본과 후보를 비교한 뒤 저장하세요.',
+    reviewRequired:'후보가 바뀌었습니다. 저장하기 전에 다시 검사하세요.',
+    selectionPending:'선택한 판본을 열어 주세요.',
+    projectSelectionPending:'선택한 저장 작품을 열어 주세요.',
+    imported:'DDL 등록 원문을 열었습니다. 실행하지 않았습니다.',
+    projectPlaceholder:'저장 작품 선택', checking:'저장 원문과 등록 자료를 확인하고 있습니다.',
+    listed:'Native 저장 목록을 확인했습니다. 작품을 선택한 뒤 여세요.',
+    saved:'Native에 DDL 등록 작품을 저장하고 다시 확인했습니다.',
+    result:'DDL 등록 작품의 계산 결과입니다.',
+    errors:Object.freeze({
+      E_DDL_EDITION_CONSUMER_MEANING_CHANGED:'계산값과 프로그램 동작을 되돌린 뒤 호출 표기만 바꿔 다시 저장하세요.',
+      E_DDL_EDITION_PARENT_MISMATCH:'저장 작품을 다시 열어 현재 판본을 확인하세요.',
+      E_SOURCE_REVISION_OPEN:'저장 작품을 열 수 없습니다. 다른 작업대나 명령줄에서 이 작품을 저장 중이라면 끝날 때까지 기다린 뒤 저장 작품을 다시 여세요.',
+      E_DDL_EDITION_SAVE:'다시 저장하기 전에 저장 작품을 다시 열어 현재 판본과 호출 표기를 확인하세요.',
+      E_DDL_EDITION_REVIEW_CHANGED:'저장 요청이 검사한 후보와 다릅니다. 다시 검사하세요.',
+      E_DDL_EDITION_REVISION_SELECTION:'실행할 판본을 선택하고 먼저 여세요.',
+      E_DDL_EDITION_READBACK:'저장된 DDL 판본을 확인하지 못했습니다. 현재 저장본을 보존하고, 검증된 백업 사본을 별도 저장 위치에서 연 뒤 판본을 확인하세요.',
+      E_MULTILANG_NATIVE_REQUIRED:'Native 작업대에서 사용하세요.',
+      E_DDL_V4_SOURCE_ARTIFACT_REQUIRED:'v4 DDL 등록 자료가 포함된 전체 원문 저장본을 선택하세요.',
+      E_SOURCE_ARTIFACT_LIMIT:'저장 자료는 8 MB까지 열 수 있습니다.',
+      E_NATIVE_SOURCE_SOURCE_CHANGED:labels.ko.ddlStoredSourceChanged,
+      E_DDL_ARTIFACT_UNREADABLE:labels.ko.ddlUnreadableUpload,
+      E_SOURCE_ARTIFACT_CANONICAL:'CLI에서 처음 출력한 파일이나 작업대에서 내보낸 봉인 파일을 다시 선택하세요. 저장 파일의 내용은 직접 고치지 마세요.',
+    }),
+  }),
+  ja: Object.freeze({
+    section:'保存済みのDDL登録作品', file:'DDL登録作品の保存ファイル',
+    stagedInvalidated:'作成中の資料が変わったため、準備したDDL登録作品を閉じました。変更後の資料でもう一度検査してください。',
+    chooseFile:'DDL登録作品の保存ファイル一式を選んでください。',
+    run:'DDL登録作品を一度計算', save:'DDL登録作品をNativeに保存',
+    refresh:'Nativeの保存一覧を確認', projects:'Nativeに保存されたDDL登録作品',
+    reopen:'Nativeに保存されたDDL登録作品を開く', exportSaved:'確認用の封印ファイルを書き出す',
+    workflow:'DDLの候補は作成ツールで検査し、封印してください。ここでは封印ファイルを開いたりNativeに保存したりできます。既存の作品では呼び出し表記を更新できます。',
+    title:'DDLの版',
+    initialTitle:'DDLを初めて作成するための原本確認', initialFolder:'DDL作成の原本フォルダーを選択',
+    initialSelectedFolder:(folder,count)=>`現在の作成用に選んだ原本: ${folder}（${count}ファイル）`,
+    initialHint:'UTF-8の原本フォルダーを選び、ソースのプロファイル、ルート、開始ファイル、登録するモジュールの原本ファイルを指定してください。ここでは新しい登録を準備し、開いている保存済みの版はそのままです。',
+    initialProfile:'ソースのプロファイル', initialRoot:'ルートファイル', initialEntry:'開始ファイル', initialModule:'登録モジュールの原本ファイル',
+    initialChoose:'ファイルを選択', initialInspect:'公開関数と引数を確認',
+    initialFound:(module,count)=>`${module} モジュールの公開関数候補 ${count}件。DDLの表記は作成後に検査してください。`,
+    initialError:'原本を確認できませんでした。',
+    initialScopeJump:'登録する原本の位置を表示', initialScopeSource:'検査した登録原本（読み取り専用）',
+    initialBodyScopeGuidance:'登録する公開関数には必須の有理数引数が必要です。その引数・加算・乗算・正確な有理数定数で有理数を一つ返す原本を選び直して確認してください。 定数の分子・分母には表現範囲内の整数を指定してください。分母が0の場合は0以外の整数に修正してから、原本フォルダーを選び直してください。',
+    mappingTitle:'初めて登録するDDLの表記', mappingHint:'公開関数と引数の表記を入力し、DDLソースにも同じ表記を書いてください。',
+    initialDdlPath:'DDLの相対パス', initialDdlText:'初回のDDLソース',
+    initialParticle:(name,pin)=>`${name} · ${pin} の助詞`,
+    initialPrepare:'DDLを検査して登録を準備',
+    initialPrepared:'DDLの検査に通り、原本の登録データを準備しました。作品の保存や実行はしていません。',
+    initialPreparationStale:'表記が変わりました。DDLをもう一度検査してください。',
+    initialPrepareError:'DDLの登録データを準備できませんでした。',
+    initialDiagnosticJump:'DDLソースのエラー位置へ移動',
+    editionConsumerGuidance:'示された呼び出し側のソースで、呼び出し・引数・DDLの有効化宣言を修正し、もう一度検査してください。',
+    editionDdlSurfaceGuidance:'関数名・引数名・助詞をDDLソースの対応する宣言とそろえてから、もう一度確認してください。',
+    initialUnregisteredSurfaceGuidance:'入力した関数名・引数名・助詞がDDLソース内の対応する宣言と一致しているか確認してください。表記をそろえてから「DDLを検査して登録を準備」を押してください。',
+    consumerSetupTitle:'呼び出し側のDDL有効化を検査', consumerSetupFolder:'DDLを利用する作品のフォルダーを選択',
+    consumerSetupHint:'有効化の宣言に登録言語と版を明記してください。ユーザーDDLだけを使う作品は、検査後にNativeへ保存できます。論理ライブラリも使う作品は一度実行できますが、両方を使う作品の保存にはまだ対応していません。',
+    consumerSetupProfile:'呼び出し側のソースプロファイル', consumerSetupRoot:'呼び出し側のルートファイル',
+    consumerSetupEntry:'呼び出し側の開始ファイル', consumerSetupPath:'DDLを有効にするソースファイル',
+    consumerSetupCheck:'呼び出し側のDDL有効化を検査',
+    consumerSetupLogicPath:'論理ライブラリを有効にするソースファイル（同時に実行する場合）',
+    consumerSetupLogicSelection:'同時実行で選択した論理ライブラリの利用元ファイル',
+
+    consumerSetupLogicGuidance:'同時実行で選択したファイルで、論理ライブラリの使用・翻訳宣言と登録済みの版を確認してください。ソースのフォルダーを選び直してから実行してください。',
+    consumerSetupJointRun:'ユーザーDDLと論理ライブラリを一度だけ実行',
+    consumerSetupJointDone:'選択した二つの登録を確認し、一度だけ実行しました。保存していません。',
+    consumerSetupRejected:'呼び出し側の作品を準備できませんでした。',
+    consumerSetupExecutionRejected:'呼び出し側の作品の実行中にエラーが発生しました。',
+    runtimeSourceGuidance:'エラーの位置でソースを確認してください。元のソースで原因を修正し、DDLを使う作品を再検査してから実行してください。',
+    consumerSetupJump:'呼び出し側のソース位置へ移動', consumerSetupDiagnosticSource:'検査した呼び出し側のソース（読み取り専用）',
+    consumerDiagnosticGuidance:Object.freeze({
+      E_BYTES_ARGUMENT_BINDING:'UTF8바이트열로 には 글=、UTF8NFC글로 には 바이트열= を使い、引数を一つだけ指定してください。ソースを修正したらフォルダーを選び直して実行してください。',
+
+      E_BYTES_UTF8_INVALID:'UTF8NFC글로 に渡すバイト列は、全体が正しいUTF-8である必要があります。欠落したバイトや不正なバイトを修正し、フォルダーを選び直して実行してください。',
+
+      E_MULTILANG_PIN_UNREGISTERED:'呼び出した関数の登録内容で引数名を確認してください。別の関数で使える名前が、この関数でも使えるとは限りません。',
+      E_DDL_ACTIVATION_REQUIRED:'呼び出し側の使用（쓰임）に、登録した対象言語と正確な版を明記してください。ソースのフォルダーを選び直して再検査してください。',
+
+      E_DDL_ACTIVATION_PARSE:'エラー箇所を確認してください。有効化宣言なら対象言語と正確な版を、関数呼び出しならその版で公開されている関数名と引数の表記を確認してください。ソースを修正したら、フォルダーを選び直して再検査してください。',
+      E_DDL_ACTIVATION_OWNER_OR_PROFILE:'呼び出し側の有効化宣言にある原本モジュール・対象言語・版を登録内容と照合してください。修正後、ソースのフォルダーを選び直して再検査してください。',
+      E_MULTILANG_CALL_UNREGISTERED:'翻訳宣言のモジュール別名と、その版に登録された関数名を確認してください。',
+      E_MULTILANG_PUBLIC_CALLER_SCOPE:'ユーザーDDLを有効にしたモジュールには、引数を取らない呼び出し用の関数を一つだけ置いてください。補助関数が必要なら別のモジュールに移し、外から呼び出す名前を公開してください。',
+      E_CALL_REQUIRED_PIN_MISSING:'不足している必須引数を追加し、ソースのフォルダーを選び直して再検査してください。',
+      E_PARSE_CALL_PIN_DUPLICATE:'重複している引数指定を一つにまとめ、ソースのフォルダーを選び直して再検査してください。',
+      E_CALL_POSITIONAL_ARGUMENT_EXCESS:'呼び出しの位置引数の数を確認し、余分な引数を削除して再検査してください。',
+    }),
+    consumerSetupPrepared:'明示されたDDLの有効化を確認しました。作品を開きましたが、保存や実行はしていません。',
+    storedComparison:'保存済みの旧版と現行版を比較', storedPrevious:'保存済みの旧版', storedCurrent:'保存済みの現行版',
+
+    originalCompare:'保存時の原本とフォルダーを比較', originalFolder:'比較する原本フォルダーを選択',
+    originalNote:'開いている版の原本ファイルをこの画面内だけで読み取って比較します。呼び出し表記を更新しても、保存済みの原本は変わりません。',
+    originalNewDraft:'新しい原本の登録準備へ移動',
+    originalDifferenceGuidance:'選択したフォルダーが正しいか確認してください。変更した原本を使う場合は、原本の選択から登録し直してください。',
+    originalSummary:(same,changed,missing,added)=>`一致 ${same}件・変更 ${changed}件・不足 ${missing}件・追加 ${added}件`,
+    originalSame:'一致', originalChanged:'変更', originalMissing:'不足', originalAdded:'追加',
+    originalError:'フォルダーを読み取れません。原本フォルダーを一つ選び直してください。',
+    selection:'DDLの版を選択', open:'選択した版を開く',
+    update:'呼び出し表記を更新', current:'現在の版', previous:'前の版',
+    opened:edition=>`DDLの版 ${edition} を開きました。実行はしていません。`,
+    newEdition:'新しい版', ddl:'DDLソース', consumer:'呼び出し側のソース',
+    callable:name=>`関数 ${name} の表記`, pin:(name,pin)=>`${name} · ${pin} の表記`,
+    review:'保存前に比較・検査', commit:'検査済みの版を保存',
+    comparison:'既存の版と候補の比較', before:'既存の版', candidate:'検査済みの候補',
+    reviewChanges:'検査済みの変更点',
+
+    reviewVersion:(before,after)=>`版 ${before} → ${after}`,
+
+    reviewCallable:(name,before,after)=>`関数 ${name} の表記: ${before} → ${after}`,
+
+    reviewPin:(name,pin,before,after)=>`${name} · ${pin} の表記: ${before} → ${after}`,
+
+    reviewDdlText:'DDLソースの変更', reviewConsumerText:'呼び出し側ソースの変更',
+
+    reviewed:'検査に通りました。既存の版と候補を比較してから保存してください。',
+    reviewRequired:'候補が変更されました。保存する前にもう一度検査してください。',
+    selectionPending:'選択した版を開いてください。',
+    projectSelectionPending:'選択した保存済みの作品を開いてください。',
+    imported:'DDL登録済みのソースを開きました。実行はしていません。',
+    projectPlaceholder:'保存済みの作品を選択', checking:'保存されたソースと登録内容を確認しています。',
+    listed:'Nativeの保存一覧を確認しました。作品を選んで開いてください。',
+    saved:'DDL登録作品をNativeに保存し、保存内容を確認しました。',
+    result:'DDL登録作品の計算結果です。',
+    errors:Object.freeze({
+      E_DDL_EDITION_CONSUMER_MEANING_CHANGED:'計算値やプログラムの動作を元に戻し、呼び出し表記だけを変更して保存し直してください。',
+      E_DDL_EDITION_PARENT_MISMATCH:'保存済みの作品を開き直し、現在の版を確認してください。',
+      E_SOURCE_REVISION_OPEN:'保存済みの作品を開けません。別の作業台やコマンドラインでこの作品を保存中なら、完了を待ってから開き直してください。',
+      E_DDL_EDITION_SAVE:'保存し直す前に、保存済みの作品を開き直し、現在の版と呼び出し表記を確認してください。',
+      E_DDL_EDITION_REVIEW_CHANGED:'保存する候補が検査した内容と異なります。もう一度検査してください。',
+      E_DDL_EDITION_REVISION_SELECTION:'実行する版を選び、先に開いてください。',
+      E_DDL_EDITION_READBACK:'保存済みのDDLの版を確認できませんでした。現在の保存データを保全し、確認済みのバックアップのコピーを別の保存先で開いて版を確認してください。',
+      E_MULTILANG_NATIVE_REQUIRED:'Native作業台で操作してください。',
+      E_DDL_V4_SOURCE_ARTIFACT_REQUIRED:'v4のDDL登録情報を含むソース保存ファイル一式を選んでください。',
+      E_SOURCE_ARTIFACT_LIMIT:'開ける保存ファイルの上限は8 MBです。',
+      E_NATIVE_SOURCE_SOURCE_CHANGED:labels.ja.ddlStoredSourceChanged,
+      E_DDL_ARTIFACT_UNREADABLE:labels.ja.ddlUnreadableUpload,
+      E_SOURCE_ARTIFACT_CANONICAL:'CLIが最初に出力したファイルか、作業台から書き出した封印ファイルを選び直してください。保存ファイルの内容は直接編集しないでください。',
+    }),
+  }),
 });

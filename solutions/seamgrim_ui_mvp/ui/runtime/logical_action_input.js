@@ -107,6 +107,25 @@ export class LogicalActionInput {
     return true;
   }
 
+  // A button activation is one completed tap of an already admitted Control.
+  // Check both edges before enqueueing; never invent a key event or release a
+  // channel still held by another input device.
+  activateControl(channel) {
+    if (this.stopped || this.stopping || this.finishUncertain) throw new Error('E_INPUT_RECORDING_STOPPED: 기록이 끝났거나 종료 확인이 필요합니다.');
+    if (this.failure) throw this.failure;
+    if (!Object.hasOwn(this.held, channel)) throw new Error('E_LOGICAL_INPUT_CHANNEL: 선언된 조작만 사용할 수 있습니다.');
+    if (this.held[channel]) throw new Error('E_LOGICAL_INPUT_HELD: 누르고 있는 키를 먼저 놓으세요.');
+    if (this.events.length + 2 > this.maxEvents) {
+      this.loseInput('사건 용량을 넘었습니다.');
+      throw this.failure;
+    }
+    for (const kind of ['Press', 'Release']) {
+      this.events.push({ ordinal: this.events.length, channel, event: {kind} });
+      this.producedEvents++;
+    }
+    return true;
+  }
+
   // Provisional typed host intake. Exact raw strings are produced/validated by
   // Rust. Never hide a coordinate in an action name or write world resources.
   receiveValue(channel, payload) {

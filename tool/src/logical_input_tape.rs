@@ -714,12 +714,17 @@ impl LogicalInputSession {
         self.world.world()
     }
 
+    pub(crate) fn check_durable_view_history(&self) -> Result<(), &'static str> {
+        self.runner.bogae_history_for_resume().check_durable_projections(self.last_bogae_projection.as_ref())
+    }
+
     /// The same existing runtime/resource carrier used by ordinary product
     /// exports. Continuation authority still comes from the complete-state
     /// prefix/checkpoint gates, not this display/JSON projection.
     pub(crate) fn saved_runtime_carrier(&self)->Result<(String,String),String> {
         let start=self.runner.configured_saved_start().ok_or("E_RESUME_EXECUTION_STATE_UNSUPPORTED")?;
         let next=self.resume_boundary_next_tick(start)?;
+        self.check_durable_view_history()?;
         let frames=self.observation_frames.iter().map(|row|
             crate::unit_wire::SnapshotJsonOwner::clone_from_value(row).into_parent_value()).collect();
         let mut snapshot=crate::runtime_surface::runtime_state_snapshot(&self.world,frames,next);

@@ -379,6 +379,7 @@ fn collect_expr(expression: &Expr, candidates: &mut Vec<ByteRange>) {
             collect_expr(left, candidates);
             collect_expr(right, candidates);
         }
+        ExprKind::FunctionBlock{statements,result}=>{collect_body(statements,candidates);collect_expr(result,candidates);},
         ExprKind::Thunk(body) => collect_body(body, candidates),
         ExprKind::Pipe { stages } => {
             for stage in stages {

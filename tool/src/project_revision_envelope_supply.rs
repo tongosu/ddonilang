@@ -23,6 +23,7 @@ pub(crate) struct SavedSourceBlobV1<'a> {
 /// dependency, semantic DefinitionIdentity, or durable-commit admission proof.
 #[derive(Debug)]
 pub(crate) struct VerifiedSavedSourceV1 {
+    j1_profile:Option<ddonirang_lang::ddl::CheckedJ1Profile>,
     source: VirtualProjectSource,
     manifest: NormalizedProjectManifest,
     official_entry_definition: Option<CanonicalIdentityBytesV1>,
@@ -39,6 +40,10 @@ pub(crate) struct VerifiedSavedV25Sources {
     entry_declaration: SavedEntryDeclaration,
     atom_value_occurrences: Vec<ResolvedSavedAtomOccurrence>,
     first_callable:Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>,
+    logic_callable:Option<std::sync::Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>>,
+    linked_logic: Option<(String,ddonirang_lang::CanonProgram)>,
+    linked_public_seeds: std::collections::BTreeSet<ddonirang_lang::NodeId>,
+    public_callable:Option<(std::sync::Arc<crate::authored_project::PublicCallableProjectArtifactV4>,std::sync::Arc<crate::authored_project::PublicCallableAuthoredContext>)>,
 }
 #[derive(Debug)]
 pub(crate) struct ResolvedSavedAtomOccurrence {
@@ -57,9 +62,33 @@ impl SavedEntryDeclaration {
     pub(crate) fn span(&self) -> ddonirang_lang::Span { self.span }
 }
 impl VerifiedSavedV25Sources {
+    pub(crate) fn logic_callable_context(&self)->Option<&std::sync::Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>>{self.logic_callable.as_ref()}
+    pub(crate) fn public_callable_context(&self)->Option<&std::sync::Arc<crate::authored_project::PublicCallableAuthoredContext>>{self.public_callable.as_ref().map(|row|&row.1)}
+    pub(crate) fn public_callable_artifact(&self)->Option<&std::sync::Arc<crate::authored_project::PublicCallableProjectArtifactV4>>{self.public_callable.as_ref().map(|row|&row.0)}
     pub(crate) fn first_callable_context(&self)->Option<&std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>{self.first_callable.as_ref()}
+    pub(crate) fn linked_public_seed(&self, id: ddonirang_lang::NodeId) -> bool {
+        self.linked_public_seeds.contains(&id)
+    }
+    pub(crate) fn has_linked_public_seeds(&self) -> bool {
+        !self.linked_public_seeds.is_empty()
+    }
+    pub(crate) fn linked_logic_program(&self)->Option<&ddonirang_lang::CanonProgram>{
+        self.linked_logic.as_ref().map(|(_,program)|program)
+    }
+    pub(crate) fn linked_logic_path(&self)->Option<&str>{
+        self.linked_logic.as_ref().map(|(path,_)|path.as_str())
+    }
     pub(crate) fn parse_prepared_program(&self)->Result<ddonirang_lang::CanonProgram,String>{
+        if let Some(program)=self.linked_logic_program(){return Ok(program.clone());}
         let p=self.preparation();
+        if let Some(context)=self.logic_callable_context(){
+            let syntax=self.saved.j1_profile.ok_or("E_LOGIC_SOURCE_PROFILE_REQUIRED")?;
+            return ddonirang_lang::Parser::parse_with_logic_callable_context(&p.source,&p.target_path,syntax,context.clone()).map_err(|e|e.to_string());
+        }
+        if let Some(public)=self.public_callable_context(){
+            return ddonirang_lang::parser::Parser::parse_with_public_callable_context(&p.source,&p.target_path,public.compiler_context().clone()).map_err(|e|e.to_string());
+        }
+        if let Some(profile)=self.saved.j1_profile{return ddonirang_lang::Parser::parse_j1_v25_with_mode(&p.source,&p.target_path,profile,ddonirang_lang::ParseMode::Strict).map_err(|e|e.to_string());}
         match &self.first_callable {
             Some(first)=>first.parse_consumer_owned_program(&p.source,&p.target_path),
             None=>ddonirang_lang::parse_v25_with_mode(&p.source,&p.target_path,ddonirang_lang::ParseMode::Strict).map_err(|e|e.to_string()),
@@ -135,10 +164,24 @@ impl VerifiedSavedAuthoredProjectV1 {
         draft.verify_source_binding(&self)?;
         self.registration=Some(std::sync::Arc::new(draft));Ok(self)
     }
+    /// Candidate for exact readback only, after the original catalog matched
+    /// its historical rendering. The storage reader still checks the full seal.
+    pub(crate) fn with_legacy_ddl_consumer_start(&self)->Result<Option<Self>,String>{
+        if self.registration.is_some()||self.sources.saved().j1_profile().is_some()
+            ||!(self.sources.first_callable_context().is_some_and(|first|first.has_legacy_ddl_original())
+                ||self.sources.public_callable_context().is_some_and(|public|public.has_legacy_ddl_original())) {
+            return Ok(None);
+        }
+        let mut candidate=self.clone();
+        candidate.definition_identity=crate::saved_definition_identity::derive_legacy_ddl_consumer_start(
+            &self.sources,&self.project,self.entry_module_index,
+        )?;
+        Ok(Some(candidate))
+    }
     pub(crate) fn resolved_revision_supply(&self) -> VerifiedSavedSourceV1 {
         let saved=self.sources.saved();
         VerifiedSavedSourceV1 {
-            source:saved.source.clone(), manifest:saved.manifest.clone(),
+            source:saved.source.clone(), manifest:saved.manifest.clone(),j1_profile:saved.j1_profile,
             official_entry_definition:Some(CanonicalIdentityBytesV1(self.definition_identity.as_bytes().to_vec())),
         }
     }
@@ -167,6 +210,10 @@ pub(crate) fn admit_precanon_authored_source(
     sources:std::sync::Arc<VerifiedSavedV25Sources>,artifact_bytes:&[u8],
 )->Result<PreCanonAuthoredSourceV1,String> {
     let project=crate::authored_project::open(artifact_bytes)?;
+    admit_precanon_project_view(sources,project)
+}
+fn admit_precanon_project_view(sources:std::sync::Arc<VerifiedSavedV25Sources>,project:crate::authored_project::ProjectArtifact)->Result<PreCanonAuthoredSourceV1,String>{
+    if (project.source_profile==ddonirang_lang::ddl::J1_SOURCE_PROFILE)!=sources.saved().j1_profile.is_some(){return Err("E_PROJECT_SOURCE_PROFILE_CONFLICT".into());}
     let snapshot=&project.source_snapshot;
     let manifest=sources.saved().manifest();
     if snapshot.root_path.as_deref()!=Some(manifest.root_path.as_str())
@@ -211,8 +258,14 @@ pub(crate) fn finalize_first_callable_consumer_source(source:PreCanonAuthoredSou
     finalize_legacy_authored_source(source)
 }
 fn finalize_legacy_authored_source(source:PreCanonAuthoredSourceV1)->Result<VerifiedSavedAuthoredProjectV1,String> {
-    let definition_identity=crate::saved_definition_identity::issue_saved_start(
-        &source.sources,&source.project,source.entry_module_index,
+    finalize_legacy_authored_source_diagnostic(source,None)
+}
+fn finalize_legacy_authored_source_diagnostic(
+    source:PreCanonAuthoredSourceV1,diagnostic:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+)->Result<VerifiedSavedAuthoredProjectV1,String>{
+    if source.sources.logic_callable_context().is_some(){return Err("E_LOGIC_STORAGE_CONTEXT_REQUIRED: 아직 기록되지 않은 builtin 공급을 기존 저장으로 숨기지 않습니다".into());}
+    let definition_identity=crate::saved_definition_identity::issue_saved_start_diagnostic(
+        &source.sources,&source.project,source.entry_module_index,diagnostic,
     )?;
     Ok(VerifiedSavedAuthoredProjectV1 {sources:source.sources,project:source.project,
         entry_module_index:source.entry_module_index,definition_identity,registration:None})
@@ -225,6 +278,17 @@ pub(crate) fn finalize_registered_authored_source(
     source:PreCanonAuthoredSourceV1,
     draft:crate::authored_project::registration::RegistrationDraft,
 )->Result<VerifiedSavedAuthoredProjectV1,String> {
+    if source.sources.has_linked_public_seeds() {
+        return Err("E_MULTILANG_JOINT_STORAGE_FORMAT_REQUIRED".into());
+    }
+    if source.sources.logic_callable_context().is_some(){
+        draft.verify_logic_dependency(&source)?;
+        // Fulfill actual Bool/source/call-site bindings before final Start.
+        // Program preparation is not an explicit run and evaluates no args.
+        let mut checked=crate::ddn_runtime::DdnProgram::from_saved_v25_project_with_mode(
+            source.sources().clone(),ddonirang_lang::ParseMode::Strict,crate::ddn_runtime::default_age_target())?;
+        crate::authored_project::registration::bind_recorded_logic_source_program(&source,&mut checked,&draft)?;
+    }
     draft.verify_precanon_binding(&source)?;
     let definition_identity=crate::saved_definition_identity::issue_registered_saved_start(&source,&draft,source.entry_module_index)?;
     VerifiedSavedAuthoredProjectV1{sources:source.sources,project:source.project,entry_module_index:source.entry_module_index,
@@ -253,10 +317,51 @@ pub(crate) fn restore_saved_v25_sources(
 ) -> Result<VerifiedSavedV25Sources,String> {
     restore_saved_v25_sources_selected(saved,catalog_json,None)
 }
+pub(crate) fn restore_saved_v25_sources_with_j1_profile(mut saved:VerifiedSavedSourceV1,catalog:&str,profile:ddonirang_lang::ddl::CheckedJ1Profile)->Result<VerifiedSavedV25Sources,String>{
+    saved.j1_profile=Some(profile);restore_saved_v25_sources(saved,catalog)
+}
 pub(crate) fn restore_saved_v25_sources_with_first_callable(saved:VerifiedSavedSourceV1,catalog_json:&str,first:std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>)->Result<VerifiedSavedV25Sources,String>{
     restore_saved_v25_sources_selected(saved,catalog_json,Some(first))
 }
 fn restore_saved_v25_sources_selected(saved:VerifiedSavedSourceV1,catalog_json:&str,first:Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>)->Result<VerifiedSavedV25Sources,String>{
+    restore_saved_v25_sources_contexts(saved,catalog_json,first,None)
+}
+pub(crate) fn restore_saved_v25_sources_with_public_callable(mut saved:VerifiedSavedSourceV1,catalog_json:&str,artifact:std::sync::Arc<crate::authored_project::PublicCallableProjectArtifactV4>)->Result<VerifiedSavedV25Sources,String>{
+    if artifact.source_profile==ddonirang_lang::ddl::J1_SOURCE_PROFILE {
+        saved.j1_profile=Some(ddonirang_lang::ddl::CheckedJ1Profile::resolve(&artifact.source_profile).map_err(|error|error.to_string())?);
+    }
+    restore_saved_v25_sources_contexts(saved,catalog_json,None,Some(artifact))
+}
+fn restore_saved_v25_sources_contexts(saved:VerifiedSavedSourceV1,catalog_json:&str,first:Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>,
+    public:Option<std::sync::Arc<crate::authored_project::PublicCallableProjectArtifactV4>>)->Result<VerifiedSavedV25Sources,String>{
+    restore_saved_v25_sources_all_contexts(saved,catalog_json,first,public,None)
+}
+/// Private typed restoration only: replay recorded captures without a fresh
+/// source issuer. The caller supplies an already restored exact DDL context;
+/// this does not add a wire field or permit legacy finalization of that context.
+pub(crate) fn restore_saved_v25_sources_with_logic(
+    mut saved:VerifiedSavedSourceV1,catalog_json:&str,
+    profile:ddonirang_lang::ddl::CheckedJ1Profile,
+    context:std::sync::Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>,
+)->Result<VerifiedSavedV25Sources,String>{
+    saved.j1_profile=Some(profile);
+    restore_saved_v25_sources_all_contexts(saved,catalog_json,None,None,Some(context))
+}
+fn restore_saved_v25_sources_all_contexts(
+    saved:VerifiedSavedSourceV1,catalog_json:&str,
+    first:Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>,
+    public:Option<std::sync::Arc<crate::authored_project::PublicCallableProjectArtifactV4>>,
+    logic:Option<std::sync::Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>>,
+)->Result<VerifiedSavedV25Sources,String>{
+    restore_saved_v25_sources_all_contexts_diagnostic(saved,catalog_json,first,public,logic,None)
+}
+fn restore_saved_v25_sources_all_contexts_diagnostic(
+    saved:VerifiedSavedSourceV1,catalog_json:&str,
+    first:Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>,
+    public:Option<std::sync::Arc<crate::authored_project::PublicCallableProjectArtifactV4>>,
+    logic:Option<std::sync::Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>>,
+    diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+)->Result<VerifiedSavedV25Sources,String>{
     if catalog_json.len()>1_000_000 {
         return Err("E_PROJECT_SOURCE_CAPTURE_CATALOG_LIMIT: 저장 봉인 목록 한도를 넘었습니다".into());
     }
@@ -280,7 +385,7 @@ fn restore_saved_v25_sources_selected(saved:VerifiedSavedSourceV1,catalog_json:&
     if catalog.records.iter().zip(&source_members).any(|(record,file)|record.path!=file.path) {
         return Err("E_PROJECT_SOURCE_CAPTURE_CATALOG_PATH: 저장 봉인 목록의 원문 경로가 다릅니다".into());
     }
-    prepare_saved_v25_captures_selected(saved,first,|path,bytes| {
+    prepare_saved_v25_captures_contexts_diagnostic(saved,first,public,logic,None,diagnostic_out,|path,bytes| {
         let record=catalog.records.iter().find(|record|record.path==path)
             .ok_or("E_PROJECT_SOURCE_CAPTURE_CATALOG_MISSING: 저장 봉인이 없습니다")?;
         if record.snapshot_identity_hex.len()!=64
@@ -299,25 +404,94 @@ fn prepare_saved_v25_captures(
 )->Result<VerifiedSavedV25Sources,String>{prepare_saved_v25_captures_selected(saved,None,capture)}
 
 fn prepare_saved_v25_captures_selected(
+    saved:VerifiedSavedSourceV1,first_callable:Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>,
+    capture:impl FnMut(&str,&[u8])->Result<crate::source_snapshot_admission::SourceCapture,String>,
+)->Result<VerifiedSavedV25Sources,String>{prepare_saved_v25_captures_contexts(saved,first_callable,None,None,capture)}
+fn prepare_saved_v25_captures_contexts(
     saved: VerifiedSavedSourceV1,first_callable:Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>,
+    public_artifact:Option<std::sync::Arc<crate::authored_project::PublicCallableProjectArtifactV4>>,
+    logic_callable:Option<std::sync::Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>>,
+    capture:impl FnMut(&str,&[u8])->Result<crate::source_snapshot_admission::SourceCapture,String>,
+) -> Result<VerifiedSavedV25Sources,String> {
+    prepare_saved_v25_captures_contexts_diagnostic(saved,first_callable,public_artifact,logic_callable,None,None,capture)
+}
+fn prepare_saved_v25_captures_contexts_diagnostic(
+    saved: VerifiedSavedSourceV1,first_callable:Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>,
+    public_artifact:Option<std::sync::Arc<crate::authored_project::PublicCallableProjectArtifactV4>>,
+    logic_callable:Option<std::sync::Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>>,
+    linked_logic_path: Option<&str>,
+    mut diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
     mut capture:impl FnMut(&str,&[u8])->Result<crate::source_snapshot_admission::SourceCapture,String>,
 ) -> Result<VerifiedSavedV25Sources,String> {
+    if first_callable.is_some()&&public_artifact.is_some(){return Err("E_DDL_CONTEXT_DUPLICATE".into());}
+    let public_context=public_artifact.as_ref().map(|artifact|artifact.restore_context()).transpose()?;
     // Read the explicitly bound 글판 from the admitted root. An old root or
     // omitted profile must never silently become a v25 source epoch.
-    local_project::project_source_profile(saved.source(),None)
-        .map_err(|error|format!("{}: {}",error.code,error.message))?;
+    let j1=saved.j1_profile;
+    if logic_callable.is_some()&&(j1.is_none()||first_callable.is_some()||public_artifact.is_some()){return Err("E_LOGIC_SOURCE_CONTEXT_CONFLICT".into());}
+    if j1.is_none(){local_project::project_source_profile(saved.source(),None).map_err(|error|format!("{}: {}",error.code,error.message))?;}
+    if j1.is_some()&&first_callable.is_some(){return Err("E_J1_COMBINED_CONSUMER_CONTEXT_UNSUPPORTED".into());}
     // Reuse the product linker: exact-one local, no-argument 움직씨 and
     // declared module ownership, not a text search or the selected tab.
-    let preparation=match &first_callable {
+    let (preparation, linked_logic)=if let Some(path)=linked_logic_path {
+        let context=logic_callable.as_ref().ok_or("E_LOGIC_SOURCE_OWNER_REQUIRED")?;
+        local_project::link_checked_logic_module(saved.source.clone(),path,j1.ok_or("E_LOGIC_SOURCE_PROFILE_REQUIRED")?,context.clone())
+            .map(|(preparation,program)|(preparation,Some((path.to_owned(),program))))
+    }else if let Some(context)=&logic_callable {
+        local_project::prepare_logic_callable_authored_execution(saved.source.clone(),j1.ok_or("E_LOGIC_SOURCE_PROFILE_REQUIRED")?,context.clone())
+            .map(|preparation|(preparation,None))
+    }else if let Some(artifact)=&public_artifact {
+        local_project::prepare_public_callable_authored_execution(saved.source.clone(),artifact).map(|preparation|(preparation,None))
+    }else{match &first_callable {
         Some(first)=>local_project::prepare_authored_execution_with_first_callable(saved.source.clone(),first),
-        None=>local_project::prepare_authored_execution(saved.source.clone()),
-    }.map_err(|error|format!("{}: {}",error.code,error.message))?;
-    let name=preparation.start_definition.as_ref()
-        .ok_or("E_PROJECT_START_REQUIRED: 시작 없는 라이브러리는 실행 상태를 복원할 수 없습니다")?;
-    let linked=match &first_callable {
+        None=>match j1{Some(profile)=>local_project::prepare_authored_execution_with_j1_profile(saved.source.clone(),profile),None=>local_project::prepare_authored_execution(saved.source.clone())},
+    }.map(|preparation|(preparation,None))}.map_err(|error|{
+        let message=format!("{}: {}",error.code,error.message);
+        if let Some(out)=diagnostic_out.as_deref_mut(){*out=Some(error.into_execution_diagnostic());}
+        message
+    })?;
+    if preparation.start_definition.is_none() {
+        return Err("E_PROJECT_START_REQUIRED: 시작 없는 라이브러리는 실행 상태를 복원할 수 없습니다".into());
+    }
+    let linked=if let Some((_,program))=&linked_logic {
+        Ok(program.clone())
+    }else if let Some(context)=&logic_callable {
+        ddonirang_lang::Parser::parse_with_logic_callable_context(&preparation.source,&preparation.target_path,j1.ok_or("E_LOGIC_SOURCE_PROFILE_REQUIRED")?,context.clone()).map_err(|e|e.to_string())
+    }else if let Some(public)=&public_context {
+        ddonirang_lang::parser::Parser::parse_with_public_callable_context(&preparation.source,&preparation.target_path,public.compiler_context().clone()).map_err(|e|e.to_string())
+    }else{match &first_callable {
         Some(first)=>first.parse_consumer_owned_program(&preparation.source,&preparation.target_path),
-        None=>ddonirang_lang::parse_v25_with_mode(&preparation.source,&preparation.target_path,ddonirang_lang::ParseMode::Strict).map_err(|e|e.to_string()),
-    }.map_err(|error|format!("E_PROJECT_START_PARSE: {error}"))?;
+        None=>match j1{Some(profile)=>ddonirang_lang::Parser::parse_j1_v25_with_mode(&preparation.source,&preparation.target_path,profile,ddonirang_lang::ParseMode::Strict),None=>ddonirang_lang::parse_v25_with_mode(&preparation.source,&preparation.target_path,ddonirang_lang::ParseMode::Strict)}.map_err(|e|{
+            if let Some(out)=diagnostic_out.as_deref_mut(){if out.is_none(){
+                *out=preparation.mapped_parse_diagnostic(&e).map(|mut diagnostic|{
+                    diagnostic.code="E_PROJECT_START_PARSE";
+                    diagnostic.message=format!("E_PROJECT_START_PARSE: {e}");
+                    diagnostic.phase="project_start_parse";
+                    diagnostic
+                });
+            }}
+            e.to_string()
+        }),
+    }}.map_err(|error|format!("E_PROJECT_START_PARSE: {error}"))?;
+    seal_prepared_v25_sources(
+        saved, preparation, &linked, first_callable, logic_callable, linked_logic,
+        public_artifact.zip(public_context), capture,
+    )
+}
+
+fn seal_prepared_v25_sources(
+    saved: VerifiedSavedSourceV1,
+    preparation: local_project::AuthoredPreparation,
+    linked: &ddonirang_lang::CanonProgram,
+    first_callable: Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>,
+    logic_callable: Option<std::sync::Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>>,
+    linked_logic: Option<(String, ddonirang_lang::CanonProgram)>,
+    public_callable: Option<(std::sync::Arc<crate::authored_project::PublicCallableProjectArtifactV4>,
+                             std::sync::Arc<crate::authored_project::PublicCallableAuthoredContext>)>,
+    mut capture: impl FnMut(&str, &[u8]) -> Result<crate::source_snapshot_admission::SourceCapture, String>,
+) -> Result<VerifiedSavedV25Sources, String> {
+    let name = preparation.start_definition.as_ref()
+        .ok_or("E_PROJECT_START_REQUIRED: 시작 없는 라이브러리는 실행 상태를 복원할 수 없습니다")?;
     let definition=linked.items.iter().find_map(|item| {
         let ddonirang_lang::TopLevelItem::SeedDef(seed)=item;
         (seed.canonical_name==*name).then_some(seed)
@@ -361,10 +535,11 @@ fn prepare_saved_v25_captures_selected(
         && pair[0].occurrence.span.end > pair[1].occurrence.span.start) {
         return Err("E_PROJECT_ATOM_SOURCE: 원자 값의 원문 범위가 중복됩니다".into());
     }
-    Ok(VerifiedSavedV25Sources {saved,captures,preparation,entry_declaration,atom_value_occurrences,first_callable})
+    Ok(VerifiedSavedV25Sources {saved,captures,preparation,entry_declaration,atom_value_occurrences,first_callable,logic_callable,linked_logic,linked_public_seeds: Default::default(),public_callable})
 }
 
 impl VerifiedSavedSourceV1 {
+    pub(crate) fn j1_profile(&self)->Option<ddonirang_lang::ddl::CheckedJ1Profile>{self.j1_profile}
     pub(crate) fn source(&self) -> &VirtualProjectSource {
         &self.source
     }
@@ -523,6 +698,7 @@ fn collect_source_supply(
         return Err(Failure::CustodyConflict);
     }
     Ok(VerifiedSavedSourceV1 {
+        j1_profile:None,
         source,
         manifest,
         official_entry_definition: official_entry_definition.cloned(),
@@ -535,7 +711,14 @@ fn collect_source_supply(
 pub(crate) fn admit_fresh_authored_project(
     artifact_bytes:&[u8],
 ) -> Result<VerifiedSavedAuthoredProjectV1,String> {
-    finalize_legacy_authored_source(admit_fresh_precanon_authored_source(artifact_bytes)?)
+    admit_fresh_authored_project_with_diagnostic(artifact_bytes,None)
+}
+/// Same admission and finalizer, with the failed attempt's existing diagnostic.
+/// This optional sink grants no registration, Native or execution authority.
+pub(crate) fn admit_fresh_authored_project_with_diagnostic(
+    artifact_bytes:&[u8],diagnostic:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+)->Result<VerifiedSavedAuthoredProjectV1,String>{
+    finalize_legacy_authored_source(admit_fresh_precanon_authored_source_selected_diagnostic(artifact_bytes,None,None,diagnostic)?)
 }
 
 /// Reuse the module/package owner's existing canonical metadata roles.
@@ -543,12 +726,16 @@ pub(crate) fn admit_fresh_authored_project(
 pub(crate) fn saved_authored_source_roles(
     snapshot: &crate::authored_project::SourceSnapshot,
 ) -> Result<std::collections::BTreeMap<String,String>,String> {
+    saved_authored_source_roles_selected(snapshot,None)
+}
+pub(crate) fn saved_authored_source_roles_selected(snapshot:&crate::authored_project::SourceSnapshot,j1:Option<ddonirang_lang::ddl::CheckedJ1Profile>)->Result<std::collections::BTreeMap<String,String>,String>{
     let root = snapshot.root_path.as_deref()
         .ok_or("E_PROJECT_RUNTIME_ROOT_REQUIRED: 명시 얽음 뿌리가 필요합니다")?;
     let root_source = snapshot.files.iter().find(|file| file.path == root)
         .ok_or("E_PROJECT_RUNTIME_SOURCE_SUPPLY: 얽음 뿌리 원자료가 없습니다")?;
-    let metadata = local_project::v25_package_metadata_roles(&root_source.text)
-        .map_err(|error| format!("{}: {}",error.code,error.message))?;
+    let metadata=if let Some(profile)=j1{
+        ddonirang_lang::work_root::parse_work_root_with_j1_profile(&root_source.text,profile).map_err(|e|e.to_string())?;std::collections::BTreeMap::new()
+    }else{local_project::v25_package_metadata_roles(&root_source.text).map_err(|error|format!("{}: {}",error.code,error.message))?};
     Ok(snapshot.files.iter().map(|file| {
         let role = if file.path == root { "root".to_owned() }
             else { metadata.get(&file.path).cloned().unwrap_or_else(|| "ddn_source".to_owned()) };
@@ -559,26 +746,131 @@ pub(crate) fn saved_authored_source_roles(
 pub(crate) fn admit_fresh_precanon_authored_source(
     artifact_bytes:&[u8],
 )->Result<PreCanonAuthoredSourceV1,String> {
-    admit_fresh_precanon_authored_source_selected(artifact_bytes,None)
+    admit_fresh_precanon_authored_source_selected(artifact_bytes,None,None)
 }
 pub(crate) fn admit_fresh_precanon_authored_source_with_first_callable(artifact_bytes:&[u8],first:std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>)->Result<PreCanonAuthoredSourceV1,String>{
-    admit_fresh_precanon_authored_source_selected(artifact_bytes,Some(first))
+    admit_fresh_precanon_authored_source_selected(artifact_bytes,Some(first),None)
 }
-fn admit_fresh_precanon_authored_source_selected(artifact_bytes:&[u8],first:Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>)->Result<PreCanonAuthoredSourceV1,String>{
+/// Explicit private producer path. The context is not serialized or inferred
+/// from a header/locale, and cannot pass the legacy storage finalizers.
+pub(crate) fn admit_fresh_precanon_authored_source_with_logic(artifact_bytes:&[u8],context:std::sync::Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>)->Result<PreCanonAuthoredSourceV1,String>{
+    admit_fresh_precanon_authored_source_selected(artifact_bytes,None,Some(context))
+}
+/// Admit a linked B1 project for explicit in-memory execution. A verified
+/// dependency selects its actual module; no persisted payload is produced here.
+pub(crate) fn admit_linked_logic_project(
+    artifact_bytes:&[u8],
+    dependency:&crate::authored_project::registration::logic_dependency::CheckedLogicDependency,
+)->Result<PreCanonAuthoredSourceV1,String>{
     let project=crate::authored_project::open(artifact_bytes)?;
+    dependency.verify_production_profile()?;
+    let context=dependency.restore_context(&project,&[])?;
+    let saved=collect_precanon_project_sources(&project)?;
+    let sources=prepare_saved_v25_captures_contexts_diagnostic(saved,None,None,Some(context),
+        Some(dependency.consumer_source_path()),None,
+        |_,bytes|crate::source_snapshot_admission::capture_declared_v25(bytes))?;
+    admit_precanon_authored_source(std::sync::Arc::new(sources),artifact_bytes)
+}
+/// Admit one explicitly linked project for in-memory execution only.
+pub(crate) fn admit_linked_multilang_project(
+    artifact_bytes: &[u8],
+    public: &crate::authored_project::PublicCallableAuthoredContext,
+    logic: &crate::authored_project::registration::logic_dependency::CheckedLogicDependency,
+) -> Result<PreCanonAuthoredSourceV1, crate::preprocess::ExecutionDiagnostic> {
+    let unlocated = |message: String| crate::preprocess::ExecutionDiagnostic {
+        code: "E_PROJECT_SOURCE_ADMISSION", message, source_path: String::new(),
+        span: None, phase: "source_prepare", cause: None,
+        offending_field: None, expected: None, actual: None,
+    };
+    let mut diagnostic = None;
+    let project = crate::authored_project::open_with_diagnostic(artifact_bytes, Some(&mut diagnostic))
+        .map_err(|message| diagnostic.unwrap_or_else(|| unlocated(message)))?;
+    let linked = local_project::link_checked_multilang_modules(&project, public, logic)
+        .map_err(|error| error.into_execution_diagnostic())?;
+    let saved = collect_precanon_project_sources(&project).map_err(unlocated)?;
+    let mut sources = seal_prepared_v25_sources(
+        saved, linked.preparation, &linked.program, None, Some(linked.logic_context),
+        Some((logic.consumer_source_path().to_owned(), linked.program.clone())), None,
+        |_, bytes| crate::source_snapshot_admission::capture_declared_v25(bytes),
+    ).map_err(unlocated)?;
+    sources.linked_public_seeds = public.compiler_context().bindings().iter()
+        .map(|binding| binding.original.id).collect();
+    admit_precanon_authored_source(std::sync::Arc::new(sources), artifact_bytes).map_err(unlocated)
+}
+
+fn admit_fresh_precanon_authored_source_selected(artifact_bytes:&[u8],first:Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>,
+    logic:Option<std::sync::Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>>,
+)->Result<PreCanonAuthoredSourceV1,String>{
+    admit_fresh_precanon_authored_source_selected_diagnostic(artifact_bytes,first,logic,None)
+}
+/// Internal typed consumer of the exact same bootstrap attempt. Errors which
+/// precede a typed producer retain their raw message and no invented span.
+pub(crate) fn admit_fresh_precanon_authored_source_with_logic_diagnostic(
+    artifact_bytes:&[u8],context:std::sync::Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>,
+)->Result<PreCanonAuthoredSourceV1,crate::preprocess::ExecutionDiagnostic>{
+    let mut diagnostic=None;
+    admit_fresh_precanon_authored_source_selected_diagnostic(artifact_bytes,None,Some(context),Some(&mut diagnostic))
+        .map_err(|message|diagnostic.unwrap_or(crate::preprocess::ExecutionDiagnostic{
+            code:"E_PARSE",message,source_path:String::new(),span:None,phase:"source_preparation",
+            cause:None,offending_field:None,expected:None,actual:None}))
+}
+fn admit_fresh_precanon_authored_source_selected_diagnostic(artifact_bytes:&[u8],first:Option<std::sync::Arc<crate::authored_project::FirstCallableAuthoredContext>>,
+    logic:Option<std::sync::Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>>,
+    mut diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+)->Result<PreCanonAuthoredSourceV1,String>{
+    let project=crate::authored_project::open_with_diagnostic(artifact_bytes,diagnostic_out.as_deref_mut())?;
+    let saved=collect_precanon_project_sources(&project)?;
+    let sources=prepare_saved_v25_captures_contexts_diagnostic(saved,first,None,logic,None,diagnostic_out,
+        |_,bytes|crate::source_snapshot_admission::capture_declared_v25(bytes))?;
+    admit_precanon_authored_source(std::sync::Arc::new(sources),artifact_bytes)
+}
+
+/// Typed replay entry for a future admitted dependency carrier. No wire reader
+/// or public feature switch is introduced here; the exact context is mandatory.
+pub(crate) fn restore_precanon_authored_source_with_logic(
+    artifact_bytes:&[u8],catalog:&str,
+    context:std::sync::Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>,
+)->Result<PreCanonAuthoredSourceV1,String>{
+    restore_precanon_authored_source_with_logic_selected(artifact_bytes,catalog,context,None)
+}
+pub(crate) fn restore_precanon_authored_source_with_logic_diagnostic(
+    artifact_bytes:&[u8],catalog:&str,
+    context:std::sync::Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>,
+)->Result<PreCanonAuthoredSourceV1,crate::preprocess::ExecutionDiagnostic>{
+    let mut diagnostic=None;
+    restore_precanon_authored_source_with_logic_selected(artifact_bytes,catalog,context,Some(&mut diagnostic))
+        .map_err(|message|diagnostic.unwrap_or(crate::preprocess::ExecutionDiagnostic{
+            code:"E_PARSE",message,source_path:String::new(),span:None,phase:"source_restore",
+            cause:None,offending_field:None,expected:None,actual:None}))
+}
+fn restore_precanon_authored_source_with_logic_selected(
+    artifact_bytes:&[u8],catalog:&str,
+    context:std::sync::Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>,
+    mut diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+)->Result<PreCanonAuthoredSourceV1,String>{
+    let project=crate::authored_project::open_with_diagnostic(artifact_bytes,diagnostic_out.as_deref_mut())?;
+    let syntax=ddonirang_lang::ddl::CheckedJ1Profile::resolve(&project.source_profile).map_err(|e|e.to_string())?;
+    let saved=collect_precanon_project_sources(&project)?;
+    let mut saved=saved;saved.j1_profile=Some(syntax);
+    let sources=restore_saved_v25_sources_all_contexts_diagnostic(saved,catalog,None,None,Some(context),diagnostic_out)?;
+    admit_precanon_authored_source(std::sync::Arc::new(sources),artifact_bytes)
+}
+fn collect_precanon_project_sources(project:&crate::authored_project::ProjectArtifact)
+    ->Result<VerifiedSavedSourceV1,String>{
     let snapshot=&project.source_snapshot;
     let root=snapshot.root_path.as_deref()
         .ok_or("E_PROJECT_RUNTIME_ROOT_REQUIRED: 실행 저장에는 명시 얽음 뿌리가 필요합니다")?;
-    let roles=saved_authored_source_roles(snapshot)?;
+    let j1=if project.source_profile==ddonirang_lang::ddl::J1_SOURCE_PROFILE{Some(ddonirang_lang::ddl::CheckedJ1Profile::resolve(&project.source_profile).map_err(|e|e.to_string())?)}else{None};
+    let roles=saved_authored_source_roles_selected(snapshot,j1)?;
     let blobs=snapshot.files.iter().map(|file|Ok(SavedSourceBlobV1 {
         path:&file.path,role:roles.get(&file.path)
             .ok_or("E_PROJECT_RUNTIME_SOURCE_SUPPLY: 저장 원자료의 역할이 없습니다")?.as_str(),
         bytes:file.text.as_bytes(),
     })).collect::<Result<Vec<_>,String>>()?;
-    let saved=collect_source_supply(root,&snapshot.entry_path,None,&blobs)
+    let mut saved=collect_source_supply(root,&snapshot.entry_path,None,&blobs)
         .map_err(|_|"E_PROJECT_RUNTIME_SOURCE_SUPPLY: 명시 작품의 원문 공급이 다릅니다")?;
-    let sources=match first{Some(first)=>seal_saved_v25_sources_with_first_callable(saved,first)?,None=>seal_saved_v25_sources(saved)?};
-    admit_precanon_authored_source(std::sync::Arc::new(sources),artifact_bytes)
+    saved.j1_profile=j1;
+    Ok(saved)
 }
 
 fn verify_exact_project_path(path: &str) -> Result<(), Failure> {
@@ -1333,4 +1625,33 @@ mod tests {
             Err(Failure::LimitExceeded)
         );
     }
+}
+
+
+pub(crate) fn admit_saved_public_callable_project(sources:std::sync::Arc<VerifiedSavedV25Sources>,artifact:std::sync::Arc<crate::authored_project::PublicCallableProjectArtifactV4>)->Result<VerifiedSavedAuthoredProjectV1,String>{
+    let supplied=sources.public_callable_artifact().ok_or("E_DDL_V4_RECORDED_CONTEXT_REQUIRED")?;
+    if supplied.save()?!=artifact.save()?{return Err("E_DDL_CONSUMER_STALE".into());}
+    admit_saved_public_callable_project_diagnostic(sources,artifact,None)
+}
+fn admit_saved_public_callable_project_diagnostic(
+    sources:std::sync::Arc<VerifiedSavedV25Sources>,
+    artifact:std::sync::Arc<crate::authored_project::PublicCallableProjectArtifactV4>,
+    diagnostic:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+)->Result<VerifiedSavedAuthoredProjectV1,String>{
+    // The old structural view is never serialized as a legacy artifact.
+    // All durable publication below remains bound to the actual v4 bytes.
+    let mut source=admit_precanon_project_view(sources,artifact.source_view()?)?;
+    source.project=artifact.owner_view()?;
+    finalize_legacy_authored_source_diagnostic(source,diagnostic)
+}
+pub(crate) fn admit_fresh_public_callable_project(artifact:std::sync::Arc<crate::authored_project::PublicCallableProjectArtifactV4>)->Result<VerifiedSavedAuthoredProjectV1,String>{
+    admit_fresh_public_callable_project_diagnostic(artifact,None)
+}
+pub(crate) fn admit_fresh_public_callable_project_diagnostic(
+    artifact:std::sync::Arc<crate::authored_project::PublicCallableProjectArtifactV4>,
+    mut diagnostic:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+)->Result<VerifiedSavedAuthoredProjectV1,String>{
+    let saved=collect_precanon_project_sources(&artifact.source_view()?)?;
+    let sources=prepare_saved_v25_captures_contexts_diagnostic(saved,None,Some(artifact.clone()),None,None,diagnostic.as_deref_mut(),|_,bytes|crate::source_snapshot_admission::capture_declared_v25(bytes))?;
+    admit_saved_public_callable_project_diagnostic(std::sync::Arc::new(sources),artifact,diagnostic)
 }

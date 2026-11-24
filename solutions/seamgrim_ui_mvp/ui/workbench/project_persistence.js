@@ -1,5 +1,5 @@
 // Existing project save, reopen and feedback transitions; rollback, publication and recovery boundaries unchanged.
-export function createProjectPersistence({ activeRun, appendServerRevision, applyExecutionEvent, applySetupRecipe, authoredCompositionHost, backOneMadi, branchFromCursor, buildProjectSnapshot, buildServerProjectArtifact, cancelLivePump, closeAllSideViews, closeViewInstance, createServerProject, currentProject, describePersistenceStatus, editRecoveryGuard, els, EXECUTION_EVENTS, finalizeRunRecord, hydrateProductViewWorkspace, loadLocalFallbackSnapshot, openProjectFromServerSession, primaryExecutionCommand, pushDiagnostic, readWorkbenchCapabilitySession, recordServerConflict, refreshServerRevisions, rememberMyWorkProject, renderAll, renderPersistenceFeedback, renderServerProject, saveCurrentRuntimeProject, saveLocalFallbackSnapshot, selectProjectInputContract, setNextAction, sourceStorageErrorMessage, state, stepForward, stopRun, updateServerStateFromPayload, workbenchAuthoredPanelAccess, workbenchLogicalPresentationState }) {
+export function createProjectPersistence({ activeRun, appendServerRevision, applyExecutionEvent, applySetupRecipe, authoredCompositionHost, backOneMadi, branchFromCursor, buildProjectSnapshot, buildServerProjectArtifact, cancelLivePump, closeAllSideViews, closeViewInstance, createServerProject, currentProject, describePersistenceStatus, editRecoveryGuard, els, EXECUTION_EVENTS, finalizeRunRecord, hydrateProductViewWorkspace, isPortableJ1Tree = () => false, loadLocalFallbackSnapshot, nativeSourceAvailable, openProjectFromServerSession, primaryExecutionCommand, pushDiagnostic, readWorkbenchCapabilitySession, recordServerConflict, refreshServerRevisions, rememberMyWorkProject, renderAll, renderPersistenceFeedback, renderServerProject, saveCurrentRuntimeProject, saveLocalFallbackSnapshot, selectProjectInputContract, setNextAction, sourceStorageErrorMessage, state, stepForward, stopRun, updateServerStateFromPayload, workbenchAuthoredPanelAccess, workbenchLogicalPresentationState }) {
 function beginPersistenceOperation() {
   const generation = Number(state.persistenceOperation?.generation ?? 0) + 1;
   editRecoveryGuard.beginSave(generation);
@@ -26,7 +26,12 @@ function completePersistenceOperation(generation, phase, outcome, replacesLocalP
     // This is only a UI locator. Reopening always asks the protected Native
     // source owner; a catalogue entry is never a world/permission producer.
     try{
-      const nativeLocator=localStorage.getItem('ddn.authored_project.last.v1'),locator=JSON.parse(nativeLocator);
+      const panel=workbenchAuthoredPanelAccess.current;
+      const nativeLocator=panel.getNativeSourceLocator(),locator=JSON.parse(nativeLocator);
+      const owner=JSON.parse(panel.getArtifactText()).authored_identity.logical_dependency_id;
+      if(locator.native_source_project_id!==owner
+          ||currentProject().authoredArtifact?.authored_identity?.logical_dependency_id!==owner)
+        throw new Error('E_NATIVE_WORK_LOCATOR_MISMATCH');
       rememberMyWorkProject({projectId:locator.native_source_project_id,title:currentProject().title,source:'native_source',
         nativeLocator,replacesLocalProjectId:replacesLocalProjectId||currentProject().id,logicalInput:currentProject().logicalInput??null});
     }catch{pushDiagnostic('W_NATIVE_WORK_LIST_NOT_UPDATED','Native 저장은 완료했지만 내 작업 목록을 갱신하지 못했습니다. 작성 정체 자료에서 저장 자료를 다시 열 수 있습니다.','warning');}
@@ -45,8 +50,14 @@ async function saveProjectSnapshot() {
   const snapshot = buildProjectSnapshot();
   const sourceSession=state.capabilitySession??readWorkbenchCapabilitySession();
   if(!(state.serverProject.projectId&&sourceSession?.role!=="edit")) {
+    let saveMode='source_only';
     try {
-      if(currentProject().nativeSaveOnFirstUse&&!workbenchAuthoredPanelAccess.current.getRunProjectArtifact()) {
+      const requestedProject=currentProject();
+      const logical=workbenchLogicalPresentationState.logicalPanel?.logicalExecution;
+      if(logical?.status().temporary&&logical.status().started)await logical.command('pause');
+      const freshNativeSource=(requestedProject.nativeStandaloneSource||isPortableJ1Tree(requestedProject))&&await nativeSourceAvailable();
+      if(currentProject()!==requestedProject)throw new Error('E_NATIVE_SOURCE_SAVE_CONTEXT_CHANGED');
+      if((requestedProject.nativeSaveOnFirstUse||requestedProject.directDdnWork||freshNativeSource)&&!workbenchAuthoredPanelAccess.current.getRunProjectArtifact()) {
         if(state.runtimeBusy||state.livePump?.in_flight||state.runtimeStatus==='running')
           throw new Error('E_NATIVE_SOURCE_PAUSE_REQUIRED: 일시정지한 뒤 내 작업으로 저장하세요.');
         const project=currentProject();
@@ -67,7 +78,8 @@ async function saveProjectSnapshot() {
           completePersistenceOperation(persistenceGeneration,'saved','source_only');renderAll();return sourceSaved;
         }
       }
-      if(workbenchLogicalPresentationState.logicalPanel?.logicalExecution.status().started&&workbenchAuthoredPanelAccess.current.hasNativeSourceContext()){
+      if(workbenchLogicalPresentationState.logicalPanel?.logicalExecution.status().started&&!workbenchLogicalPresentationState.logicalPanel.logicalExecution.status().temporary&&workbenchAuthoredPanelAccess.current.hasNativeSourceContext()){
+        saveMode='native_world';
         const message=await saveCurrentRuntimeProject(workbenchAuthoredPanelAccess.current.getRunProjectArtifact());
         state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',mode:'native_world',server_saved:false,
           local_saved:true,user_label:message,snapshot};
@@ -77,6 +89,7 @@ async function saveProjectSnapshot() {
         if(state.runtimeBusy||state.livePump?.in_flight||state.runtimeStatus==='running')
           throw new Error('E_NATIVE_SOURCE_PAUSE_REQUIRED: 일시정지한 뒤 저장하세요.');
         const authored=workbenchAuthoredPanelAccess.current.getRunProjectArtifact();
+        saveMode='native_world';
         const saved=await state.wasm.saveNativeCheckpoint(authored);
         if(saved?.kind!=='native_world_saved')throw new Error('E_NATIVE_SOURCE_SAVE_READBACK');
         workbenchAuthoredPanelAccess.current.rememberNativeSelection(saved.authoring_selection);
@@ -93,10 +106,16 @@ async function saveProjectSnapshot() {
     }catch(error) {
       // Never turn a Rust/source/CAS failure into the old local fallback's
       // success. Existing source, VM, run records and saved head stay intact.
-      state.persistenceStatus={...(state.persistenceStatus??{}),last_error:`원문 저장 실패: ${sourceStorageErrorMessage(error)}`};
+      const worldSave=saveMode==='native_world';
+      const message=sourceStorageErrorMessage(error);
+      const label=worldSave?'실행 상태 저장 실패':'원문 저장 실패';
+      state.persistenceStatus={...(state.persistenceStatus??{}),last_error:`${label}: ${message}`};
       els.saveStatus.textContent=describePersistenceStatus(state.persistenceStatus);
-      pushDiagnostic('E_SOURCE_SAVE_FAILED',sourceStorageErrorMessage(error),'error');
-      completePersistenceOperation(persistenceGeneration,'error','source_only');throw error;
+      const readOnlySpace3=worldSave&&message.startsWith('E_PROJECT_RUNTIME_SPACE3_DURABILITY_UNSUPPORTED:');
+      const diagnosticCode=readOnlySpace3?'E_PROJECT_RUNTIME_SPACE3_DURABILITY_UNSUPPORTED'
+        :worldSave?'E_NATIVE_WORLD_SAVE_FAILED':'E_SOURCE_SAVE_FAILED';
+      pushDiagnostic(diagnosticCode,message,'error');
+      completePersistenceOperation(persistenceGeneration,'error',saveMode);throw error;
     }
   }
   let artifact = null;
@@ -258,7 +277,7 @@ document.querySelector("[data-testid='side-view-close']")?.addEventListener("cli
   state.viewWorkspace = closeAllSideViews(state.viewWorkspace);
   renderAll();
 });
-document.querySelector('[data-testid="authored-close-sides"]').addEventListener('click',()=>authoredCompositionHost.closeAllSides());
+document.querySelector('[data-testid="authored-close-sides"]')?.addEventListener('click',()=>authoredCompositionHost.closeAllSides());
 els.sideViewList?.addEventListener("click", (event) => {
   const button = event.target?.closest?.("[data-view-instance-close]");
   if (!button) return;

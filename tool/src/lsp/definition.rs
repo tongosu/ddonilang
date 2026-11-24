@@ -502,3 +502,91 @@ fn encode_uri_path(path: &str) -> String {
     }
     out
 }
+
+/// One explicitly selected, verified v4 project and its open document pair.
+pub(crate) struct SavedDdlNavigation {
+    consumer_text: String,
+    original_text: String,
+    pub(crate) profile: String,
+    sites: Vec<(ddonirang_lang::Span, SavedDdlDefinitionLocation)>,
+}
+
+#[derive(Debug)]
+pub(crate) struct SavedDdlDefinitionLocation {
+    pub(crate) range: ddonirang_lang::Span,
+    pub(crate) identity: String,
+}
+
+impl SavedDdlNavigation {
+    pub(crate) fn prepare(
+        saved: &crate::unit_wire::project_runtime_attachment::source_only::PreparedSourceOnlyRevision,
+        consumer_path: &str,
+        consumer_text: &str,
+        original_path: &str,
+        original_text: &str,
+    ) -> Result<Self, String> {
+        use ddonirang_lang::{ddl::CheckedJ1Profile, lexer::{Lexer, TokenKind}};
+
+        let context = saved.owned().sources().public_callable_context()
+            .ok_or("E_DDL_V4_RECORDED_CONTEXT_REQUIRED")?;
+        let program = context.parse_verified_consumer(consumer_text, consumer_path)?;
+        let profile = CheckedJ1Profile::resolve(context.original_source_profile())
+            .map_err(|_| "E_DDL_DEFINITION_ORIGINAL_PROFILE")?;
+        let tokens = Lexer::with_j1_profile(original_text, profile)
+            .and_then(|mut lexer| lexer.tokenize()).map_err(|error| error.message)?;
+        let mut sites = Vec::new();
+        for site in program.origin.registered_public_sites() {
+            let binding = context.compiler_context().bindings().iter()
+                .find(|row| row.definition == site.definition()).ok_or("E_DDL_PUBLIC_DEFINITION_OWNER")?;
+            if binding.source_path != original_path || binding.source_text != original_text {
+                return Err("E_DDL_DEFINITION_ORIGINAL_STALE".into());
+            }
+            let (name, start, end, identity) = if let Some(pin) = site.pin() {
+                let index = binding.pin_identities.iter().position(|id| id == pin).ok_or("E_DDL_PUBLIC_PIN_OWNER")?;
+                let param = binding.original.params.get(index).ok_or("E_DDL_PUBLIC_PIN_OWNER")?;
+                (param.pin_name.as_str(), param.span.start, param.span.end, pin)
+            } else {
+                let seed = &binding.original;
+                let start = seed.params.last().map_or(seed.span.start, |last| last.span.end);
+                let body = seed.body.as_ref().ok_or("E_DDL_PUBLIC_ORIGINAL_REQUIRED")?;
+                (seed.canonical_name.as_str(), start, body.span.start, site.definition())
+            };
+            let mut names = tokens.iter().filter(|token| {
+                matches!(&token.kind, TokenKind::Ident(id) if id == name)
+                    && start <= token.span.start && token.span.end <= end
+            });
+            let token = names.next().ok_or("E_DDL_DEFINITION_ORIGINAL_TOKEN")?;
+            if names.next().is_some() {
+                return Err("E_DDL_DEFINITION_ORIGINAL_TOKEN".into());
+            }
+            sites.push((site.span(), SavedDdlDefinitionLocation {
+                range: ddonirang_lang::Span::new(token.span.start, token.span.end),
+                identity: identity.to_owned(),
+            }));
+        }
+        sites.sort_by_key(|(span, _)| span.start);
+        if sites.windows(2).any(|pair| pair[0].0.end > pair[1].0.start) {
+            return Err("E_DDL_DEFINITION_SITE_AMBIGUOUS".into());
+        }
+        Ok(Self { consumer_text: consumer_text.to_owned(), original_text: original_text.to_owned(),
+            profile: saved.owned().project().source_profile.clone(), sites })
+    }
+
+    pub(crate) fn location(&self, consumer: &str, original: &str, offset: usize)
+        -> Result<Option<&SavedDdlDefinitionLocation>, &'static str>
+    {
+        if consumer != self.consumer_text {
+            return Err("E_DDL_CONSUMER_STALE");
+        }
+        if original != self.original_text {
+            return Err("E_DDL_DEFINITION_ORIGINAL_STALE");
+        }
+        if !consumer.is_char_boundary(offset) {
+            return Err("E_DDL_DEFINITION_POSITION");
+        }
+        let index = self.sites.partition_point(|(span, _)| span.end <= offset);
+        Ok(self.sites.get(index)
+            .filter(|(span, _)| span.start <= offset)
+            .map(|(_, location)| location))
+    }
+}

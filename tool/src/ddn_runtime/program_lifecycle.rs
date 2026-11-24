@@ -1,6 +1,19 @@
 //! Program source admission and lifecycle; implementations moved unchanged.
 use super::*;
 
+// Project coordinates from the actual metadata-stripped buffer into the
+// captured input. This uses the same preprocessing facts, never diagnostic text.
+fn captured_source_offset(source:&str,meta_lines:usize,offset:usize)->usize {
+    let mut original=0;let mut stripped=0;
+    for chunk in source.split_inclusive('\n').take(meta_lines) {
+        let newline=if chunk.ends_with("\r\n"){2}else if chunk.ends_with('\n'){1}else{0};
+        if offset<stripped+newline {return original+chunk.len()-newline+offset-stripped;}
+        original+=chunk.len();stripped+=newline;
+    }
+    original+offset-stripped
+}
+
+
 /// Saved definition owner still supplies permanent module/entry identities.
 /// Recheck the actual source; no cached signature, bool or partition is a saved capability.
 pub(crate) fn verify_piecewise_saved_definition(program:&CanonProgram,source:&str,path:&str)->Result<(),String>{
@@ -91,10 +104,15 @@ impl DdnProgram {
             .map(|schema|(name.clone(),(schema.category,schema.name_type)))).collect()
     }
     pub(crate) fn bind_registered_project_context(&mut self,owned:&crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1)->Result<(),String> {
+        // Parsing/retaining a source is not VM admission. Native source custody
+        // must still be able to reach its actual registration producer.
+        if owned.sources().preparation().requires_registered_nominal_owner && owned.registration().is_none() {
+            return Err("E_PROJECT_REGISTERED_NOMINAL_OWNER_REQUIRED: 동명 모듈 이름씨는 실제 등록자료를 Native에 명시 보관한 뒤 실행해 주세요".into());
+        }
         if self.first_callable_context.is_some() {
             return Err("E_MULTILANG_DURABLE_CONTEXT_REQUIRED: DDL·프로필을 보존하는 실제 저장 문맥이 필요합니다".into());
         }
-        if self.temporary_registration.is_some(){return Err("E_VC04_TEMPORARY_SAVED_ESCAPE: 임시 실행을 저장 작품 권한으로 바꿀 수 없습니다".into());}
+        if self.temporary_registration.is_some()||self.nominal_source_registration.is_some(){return Err("E_VC04_TEMPORARY_SAVED_ESCAPE: 임시 실행을 저장 작품 권한으로 바꿀 수 없습니다".into());}
         if !self.saved_project_sources.as_ref().is_some_and(|sources|Arc::ptr_eq(sources,owned.sources())) {
             return Err("E_SCHEMA_REGISTERED_CONTEXT_REQUIRED: 다른 원문 소유자의 등록 자료입니다".into());
         }
@@ -112,7 +130,7 @@ impl DdnProgram {
         Ok(())
     }
     pub(crate) fn prepare_temporary_source_execution(&mut self)->Result<(),String>{
-        if self.saved_project_sources.is_some()||self.temporary_registration.is_some(){return Ok(())}
+        if self.saved_project_sources.is_some()||self.temporary_registration.is_some()||self.nominal_source_registration.is_some(){return Ok(())}
         let Some(context)=crate::authored_project::registration::temporary::TemporaryRegisteredSource::prepare(self)? else{return Ok(())};
         context.bind_resolved_program(&mut self.program)?;
         self.refresh_registered_executable_copies()?;
@@ -127,6 +145,17 @@ impl DdnProgram {
         self.temporary_subject_bootstrap=stage;self.temporary_registration=Some(Arc::new(context));Ok(())
     }
     pub(crate) fn has_temporary_registration(&self)->bool{self.temporary_registration.is_some()}
+    pub(crate) fn from_nominal_source_context(context:Arc<crate::authored_project::registration::nominal_source::RegisteredNominalSource>)->Result<Self,String>{
+        let mut program=Self::from_rootless_nominal_capture(context.capture(),context.path())?;
+        context.bind_resolved_program(&mut program.program)?;program.refresh_registered_executable_copies()?;
+        let constructors=context.bind_constructors(&program.program)?;let (atoms,proof)=context.bind_atoms(&program.program)?.into_parts();
+        let catalog=context.catalog(&program.program)?;let contracts=context.contracts().to_vec();
+        program.nominal_constructors=constructors;program.registered_atom_literals=atoms;
+        program.result_output_type_plan=program.numeric_constraint_plan.as_deref().and_then(|original|
+            crate::registered_atom_contract::output_evidence::OutputTypePlanV1::compile(&program.program,&program.top_level_decl_names,program.host_numeric_supply.as_ref(),original,proof));
+        program.registered_nominal_catalog=Some(Arc::new(catalog));program.registered_atom_contracts=Arc::new(contracts);
+        program.nominal_source_registration=Some(context);Ok(program)
+    }
     pub(super) fn refresh_registered_executable_copies(&mut self)->Result<(),String> {
         #[cfg(test)]
         let _refresh_observation=saved_program_rebuild::RegisteredRefreshObservation::begin();
@@ -171,13 +200,28 @@ impl DdnProgram {
     /// Compilation-local registered entry. This reuses the common parser,
     /// type planner and evaluator; it does not register a source-profile
     /// version or provide a durable/CLI/WASM context transport.
+    pub fn from_public_callable_authored_source(source:&str,path:&str,owner:Arc<crate::authored_project::PublicCallableAuthoredContext>)->Result<Self,String>{
+        Self::from_public_callable_authored_source_diagnostic(source,path,owner,None)
+    }
+    pub(crate) fn from_public_callable_authored_source_diagnostic(
+        source:&str,path:&str,owner:Arc<crate::authored_project::PublicCallableAuthoredContext>,
+        diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+    )->Result<Self,String>{
+        owner.verify_runtime_activation(source,path)?;
+        let capture=crate::source_snapshot_admission::capture_declared_v25(source.as_bytes())?;
+        let mut program=Self::parse_captured_source_registered_with_diagnostic(source,path,ParseMode::Strict,true,default_age_target(),Some(capture),Some(crate::runtime_surface::bogae_host_numeric_supply()),None,Some(owner.compiler_context().clone()),None,diagnostic_out)?;
+        validate_v1_core_no_named_callable_recursion(&program.program)?;
+        program.public_callable_authored_owner=Some(owner);Ok(program)
+    }
+    pub fn public_callable_authored_owner(&self)->Option<&Arc<crate::authored_project::PublicCallableAuthoredContext>>{self.public_callable_authored_owner.as_ref()}
+
     pub fn from_first_callable_registered_source(
         source: &str, file_path: &str,
         context: Arc<ddonirang_lang::parser::RegisteredFirstCallableContext>,
     ) -> Result<Self, String> {
         let capture = crate::source_snapshot_admission::capture_declared_v25(source.as_bytes())?;
         let program = Self::parse_captured_source_registered(source, file_path, ParseMode::Strict, true,
-            default_age_target(), Some(capture), Some(crate::runtime_surface::bogae_host_numeric_supply()), Some(context))?;
+            default_age_target(), Some(capture), Some(crate::runtime_surface::bogae_host_numeric_supply()), Some(context),None,None)?;
         validate_v1_core_no_named_callable_recursion(&program.program)?;
         Ok(program)
     }
@@ -243,6 +287,13 @@ impl DdnProgram {
         age_target: AgeTarget,
     ) -> Result<Self, String> {
         match profile {
+            SupportedSourceProfile::V1CoreV25JaBaseR1=>{
+                let capture=crate::source_snapshot_admission::capture_declared_v25(source.as_bytes())?;
+                let program=Self::parse_captured_source_registered(source,file_path,mode,true,age_target,Some(capture),
+                    Some(crate::runtime_surface::bogae_host_numeric_supply()),None,None,
+                    Some(ddonirang_lang::ddl::CheckedJ1Profile::resolve(ddonirang_lang::ddl::J1_SOURCE_PROFILE).map_err(|e|e.to_string())?))?;
+                validate_v1_core_no_named_callable_recursion(&program.program)?;Ok(program)
+            },
             SupportedSourceProfile::V1CoreV25 => {
                 let program = Self::from_source_epoch_with_mode(
                     source, file_path, mode,true, age_target,Some(crate::runtime_surface::bogae_host_numeric_supply()),
@@ -251,6 +302,32 @@ impl DdnProgram {
                 Ok(program)
             }
         }
+    }
+
+    pub(crate) fn from_j1_source_with_mode_diagnostic(source:&str,path:&str,mode:ParseMode,age:AgeTarget)->Result<Self,crate::preprocess::ExecutionDiagnostic>{
+        Self::from_supported_source_profile_diagnostic(source,path,mode,SupportedSourceProfile::V1CoreV25JaBaseR1,age)
+    }
+
+    pub(crate) fn from_supported_source_profile_diagnostic(source:&str,path:&str,mode:ParseMode,profile:SupportedSourceProfile,age:AgeTarget)->Result<Self,crate::preprocess::ExecutionDiagnostic>{
+        Self::from_supported_source_profile_diagnostic_with_host(source,path,mode,profile,age,
+            Some(crate::runtime_surface::bogae_host_numeric_supply()))
+    }
+
+    pub(crate) fn from_supported_source_profile_diagnostic_with_host(source:&str,path:&str,mode:ParseMode,profile:SupportedSourceProfile,age:AgeTarget,
+        host:Option<crate::runtime_surface::BogaeHostNumericSupply>)->Result<Self,crate::preprocess::ExecutionDiagnostic>{
+        fn failure(message:String,path:&str,phase:&'static str)->crate::preprocess::ExecutionDiagnostic{
+            crate::preprocess::ExecutionDiagnostic{code:"E_PARSE",message,source_path:path.into(),span:None,phase,cause:None,offending_field:None,expected:None,actual:None}
+        }
+        if mode==ParseMode::HistoricalMigrationEvidence { return Err(failure("E_HISTORICAL_ASYNC_MIGRATION_EXECUTION_FORBIDDEN: migration evidence mode cannot enter product execution".into(),path,"source_capture")); }
+        let capture=crate::source_snapshot_admission::capture_declared_v25(source.as_bytes()).map_err(|message|failure(message,path,"source_capture"))?;
+        let syntax=match profile { SupportedSourceProfile::V1CoreV25=>None, SupportedSourceProfile::V1CoreV25JaBaseR1=>Some(ddonirang_lang::ddl::CheckedJ1Profile::resolve(ddonirang_lang::ddl::J1_SOURCE_PROFILE).map_err(|error|failure(error.to_string(),path,"source_profile"))?) };
+        let mut actual_failure=None;
+        let program=Self::parse_captured_source_registered_with_diagnostic(source,path,mode,true,age,Some(capture),
+            host,None,None,syntax,Some(&mut actual_failure))
+            .map_err(|message|actual_failure.unwrap_or_else(||failure(message,path,"execution_parse")))?;
+        validate_v1_core_no_named_callable_recursion(&program.program).map_err(|message|{
+            let mut error=failure(message,path,"execution_parse");error.code=E_V1_CORE_RECURSION_UNSUPPORTED;error
+        })?;Ok(program)
     }
 
     pub(super) fn from_source_epoch_with_mode(
@@ -310,6 +387,14 @@ impl DdnProgram {
         age_target: AgeTarget,
     ) -> Result<Self, String> {
         match profile {
+            SupportedSourceProfile::V1CoreV25JaBaseR1=>{
+                crate::source_snapshot_admission::replay(&crate::source_snapshot_admission::EpochSupply::for_declared_epoch(ddonirang_lang::SourceEpoch::V25),&source_capture)
+                    .map_err(|_|"E_SOURCE_ADMISSION_CUSTODY: 저장된 J1 원문 봉인이 맞지 않습니다".to_string())?;
+                let program=Self::parse_captured_source_registered("",file_path,mode,true,age_target,Some(source_capture),
+                    Some(crate::runtime_surface::bogae_host_numeric_supply()),None,None,
+                    Some(ddonirang_lang::ddl::CheckedJ1Profile::resolve(ddonirang_lang::ddl::J1_SOURCE_PROFILE).map_err(|e|e.to_string())?))?;
+                validate_v1_core_no_named_callable_recursion(&program.program)?;Ok(program)
+            },
             SupportedSourceProfile::V1CoreV25 => {
                 let program = Self::from_sealed_v25_source_with_host(
                     source_capture, file_path, mode, age_target,Some(crate::runtime_surface::bogae_host_numeric_supply()),
@@ -335,14 +420,65 @@ impl DdnProgram {
                 .map_err(|_|"E_SOURCE_ADMISSION_CUSTODY: 저장된 프로젝트 원문 봉인이 맞지 않습니다".to_string())?;
         }
         let preparation=saved.preparation();
-        let mut program=saved_program_rebuild::compile(
-            &preparation.source,&preparation.target_path,mode,age_target,
-        )?;
+        let mut program=if let Some(context)=saved.logic_callable_context(){
+            let profile=saved.saved().j1_profile().ok_or("E_LOGIC_SOURCE_PROFILE_REQUIRED")?;
+            Self::parse_captured_source_registered_contexts(&preparation.source,&preparation.target_path,mode,true,age_target,None,
+                Some(crate::runtime_surface::bogae_host_numeric_supply()),None,None,Some(profile),Some(context.clone()),saved.linked_logic_program(),None)?
+        }else if let Some(profile)=saved.saved().j1_profile(){
+            // Derived linked code reuses the admitted original captures above;
+            // it is neither a new source identity nor another entropy request.
+            Self::parse_captured_source_registered(&preparation.source,&preparation.target_path,mode,true,age_target,None,
+                Some(crate::runtime_surface::bogae_host_numeric_supply()),None,None,Some(profile))?
+        }else{saved_program_rebuild::compile(&preparation.source,&preparation.target_path,mode,age_target)?};
         validate_v1_core_no_named_callable_recursion(&program.program)?;
         program.saved_project_sources=Some(saved);
         Ok(program)
     }
 
+    /// Compile linked J1 source without starting a world. Both the editor's
+    /// preparation check and explicit execution use this original-byte mapping.
+    pub(crate) fn from_linked_j1_preparation(
+        preparation: &crate::local_project::AuthoredPreparation,
+        profile: ddonirang_lang::ddl::CheckedJ1Profile,
+        mode: ParseMode,
+        age_target: AgeTarget,
+        diagnostic_out: Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+    ) -> Result<Self, String> {
+    let mut linked = None;
+    Self::parse_captured_source_registered_with_diagnostic(&preparation.source,&preparation.target_path,mode,true,age_target,None,
+        Some(crate::runtime_surface::bogae_host_numeric_supply()),None,None,Some(profile),
+        diagnostic_out.as_ref().map(|_| &mut linked))
+        .map_err(|message| {
+            if let (Some(out), Some(mut diagnostic)) = (diagnostic_out, linked) {
+                if let Some((path, span)) = diagnostic.span.and_then(|(start,end)|
+                    preparation.original_span(ddonirang_lang::Span::new(start,end)).ok()
+                ) {
+                    diagnostic = diagnostic.remap_source(path, (span.start, span.end));
+                } else {
+                    diagnostic.span = None;
+                    diagnostic.source_path.clear();
+                    diagnostic.cause = None;
+                }
+                *out = Some(diagnostic);
+            }
+            message
+        })
+    }
+
+    pub(crate) fn bind_logic_source_scopes(&mut self,scopes:BTreeMap<ddonirang_lang::NodeId,crate::authored_project::registration::CheckedLogicSourceScope>)->Result<(),String>{
+        let sites=self.program.logic_call_sites();
+        if sites.len()!=scopes.len(){return Err("E_LOGIC_SOURCE_SCOPE_DENOMINATOR".into());}
+        for (node,span) in sites{
+            let scope=scopes.get(&node).ok_or("E_LOGIC_SOURCE_SCOPE_REQUIRED")?;
+            if scope.site()!=span{return Err("E_LOGIC_SOURCE_SITE_MISMATCH".into());}
+            scope.verify_source_generation(self)?;
+        }
+        self.logic_source_scopes=Some(Arc::new(scopes));Ok(())
+    }
+    pub(crate) fn from_rootless_nominal_capture(capture:crate::source_snapshot_admission::SourceCapture,path:&str)->Result<Self,String>{
+        let text=capture.text().to_owned();
+        Self::parse_captured_source(&text,path,ParseMode::Strict,true,default_age_target(),Some(capture),None)
+    }
     pub(super) fn parse_captured_source(
         source: &str,
         file_path: &str,
@@ -353,7 +489,7 @@ impl DdnProgram {
         host_numeric_supply:Option<crate::runtime_surface::BogaeHostNumericSupply>,
     ) -> Result<Self, String> {
         Self::parse_captured_source_registered(source, file_path, mode, v25, age_target,
-            source_capture, host_numeric_supply, None)
+            source_capture, host_numeric_supply, None,None,None)
     }
 
     fn parse_captured_source_registered(
@@ -361,12 +497,43 @@ impl DdnProgram {
         source_capture: Option<crate::source_snapshot_admission::SourceCapture>,
         host_numeric_supply: Option<crate::runtime_surface::BogaeHostNumericSupply>,
         first_callable_context: Option<Arc<ddonirang_lang::parser::RegisteredFirstCallableContext>>,
+        public_callable_context: Option<Arc<ddonirang_lang::parser::RegisteredPublicCallableContext>>,
+        j1_profile: Option<ddonirang_lang::ddl::CheckedJ1Profile>,
     ) -> Result<Self, String> {
+        Self::parse_captured_source_registered_with_diagnostic(source,file_path,mode,v25,age_target,source_capture,
+            host_numeric_supply,first_callable_context,public_callable_context,j1_profile,None)
+    }
+
+    fn parse_captured_source_registered_with_diagnostic(
+        source: &str, file_path: &str, mode: ParseMode, v25: bool, age_target: AgeTarget,
+        source_capture: Option<crate::source_snapshot_admission::SourceCapture>,
+        host_numeric_supply: Option<crate::runtime_surface::BogaeHostNumericSupply>,
+        first_callable_context: Option<Arc<ddonirang_lang::parser::RegisteredFirstCallableContext>>,
+        public_callable_context: Option<Arc<ddonirang_lang::parser::RegisteredPublicCallableContext>>,
+        j1_profile: Option<ddonirang_lang::ddl::CheckedJ1Profile>,
+        diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+    ) -> Result<Self, String> {
+        Self::parse_captured_source_registered_contexts(source,file_path,mode,v25,age_target,source_capture,host_numeric_supply,
+            first_callable_context,public_callable_context,j1_profile,None,None,diagnostic_out)
+    }
+    fn parse_captured_source_registered_contexts(
+        source:&str,file_path:&str,mode:ParseMode,v25:bool,age_target:AgeTarget,
+        source_capture:Option<crate::source_snapshot_admission::SourceCapture>,host_numeric_supply:Option<crate::runtime_surface::BogaeHostNumericSupply>,
+        first_callable_context:Option<Arc<ddonirang_lang::parser::RegisteredFirstCallableContext>>,
+        public_callable_context:Option<Arc<ddonirang_lang::parser::RegisteredPublicCallableContext>>,
+        j1_profile:Option<ddonirang_lang::ddl::CheckedJ1Profile>,
+        logic_context:Option<Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>>,
+        linked_logic:Option<&CanonProgram>,
+        mut diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+    )->Result<Self,String>{
+        if logic_context.is_some()&&(j1_profile.is_none()||first_callable_context.is_some()||public_callable_context.is_some()){
+            return Err("E_LOGIC_SOURCE_CONTEXT_CONFLICT".into());
+        }
         if mode == ParseMode::HistoricalMigrationEvidence {
             return Err("E_HISTORICAL_ASYNC_MIGRATION_EXECUTION_FORBIDDEN: migration evidence mode cannot enter product execution".to_string());
         }
         let source = source_capture.as_ref().map_or(source, |sealed| sealed.text());
-        if first_callable_context.is_none() {
+        if j1_profile.is_none() && first_callable_context.is_none() && public_callable_context.is_none() {
             if first_callable_header_requires_context(source) {
                 return Err("E_MULTILANG_CONTEXT_REQUIRED: 日本語の原本・DDL・登録文脈が必要です".into());
             }
@@ -386,25 +553,68 @@ impl DdnProgram {
         } else {
             ddonirang_lang::preprocess_frontdoor_source(&cleaned)
         };
-        let identity_prepared=if v25 && mode==ParseMode::Strict && first_callable_context.is_none() {
+        // Retain the actual parser/canonical failure before the legacy String
+        // boundary. Caller-owned storage cannot outlive or leak into a next run.
+        let mut parse_failure=|error:ddonirang_lang::ParseError|{
+            let registration_unavailable =
+                error.code() == ddonirang_lang::STRUCTURE_PROFILE_REGISTRY_UNAVAILABLE;
+            let message = if registration_unavailable {
+                error.message.clone()
+            } else {
+                format_parse_error(&prepared, &error)
+            };
+            if let Some(slot)=diagnostic_out.as_deref_mut(){
+                let code=if j1_profile.is_some(){error.j1_source_code()}else{error.code()};
+                let mut diagnostic=crate::preprocess::ExecutionDiagnostic::execution_mode_parse(error,file_path);
+                diagnostic.code=code;if let Some(cause)=diagnostic.cause.as_mut(){cause.code=code;}
+                // Metadata stripping retains lines but removes header bytes. Project
+                // actual parser coordinates back to the captured original without reparsing.
+                if v25 {
+                    if let Some((start,end))=diagnostic.span {
+                        diagnostic.span=Some((captured_source_offset(source,meta_parse.meta_lines,start),
+                            captured_source_offset(source,meta_parse.meta_lines,end)));
+                    }
+                    if let Some(cause)=diagnostic.cause.as_mut(){cause.span=diagnostic.span;}
+                }
+                diagnostic.message = message.clone();
+                if !registration_unavailable {
+                    diagnostic.phase = "execution_parse";
+                }
+                *slot = Some(diagnostic);
+            }
+            message
+        };
+        let identity_prepared=if v25 && mode==ParseMode::Strict && j1_profile.is_none() && first_callable_context.is_none() && public_callable_context.is_none() {
             Some(ddonirang_lang::proof_authoring::prepare_source(&prepared,file_path)
-                .map_err(|e|format_parse_error(&prepared,&e))?)
+                .map_err(&mut parse_failure)?)
         }else{None};
         let identity_calculations=Arc::new(if let Some(owner)=&identity_prepared {
-            super::structure_identity_calculation::IdentityCalculations::compile(owner,&prepared,file_path)?
+            super::structure_identity_calculation::IdentityCalculations::compile(owner,&prepared,file_path)
+                .map_err(&mut parse_failure)?
         }else{super::structure_identity_calculation::IdentityCalculations::default()});
-        let mut program = if let Some(owner)=identity_prepared { Ok(owner.into_program()) }
+        let mut program = if let Some(program)=linked_logic {
+            if program.origin.source != prepared || program.origin.file_path != file_path {
+                return Err("E_LOGIC_LINKED_SOURCE_SITE_MISMATCH".into());
+            }
+            Ok(program.clone())
+        }else if let Some(context)=logic_context {
+            ddonirang_lang::Parser::parse_with_logic_callable_context(&prepared,file_path,j1_profile.ok_or("E_LOGIC_SOURCE_PROFILE_REQUIRED")?,context)
+        }else if let Some(profile)=j1_profile {
+            ddonirang_lang::parser::Parser::parse_j1_v25_with_mode(&prepared,file_path,profile,mode)
+        }else if let Some(owner)=identity_prepared { Ok(owner.into_program()) }
         else if let Some(context) = &first_callable_context {
             ddonirang_lang::parser::Parser::parse_with_first_callable_context(&prepared, file_path, context.clone())
+        } else if let Some(context)=&public_callable_context {
+            ddonirang_lang::parser::Parser::parse_with_public_callable_context(&prepared,file_path,context.clone())
         } else if v25 {
             parse_v25_with_mode(&prepared, file_path, mode)
         } else {
             parse_with_mode(&prepared, file_path, mode)
         }
-        .map_err(|e| format_parse_error(&prepared, &e))?;
+        .map_err(&mut parse_failure)?;
         super::piecewise_calculation::verify_source_partitions(&program)
-            .map_err(|error| format_parse_error(&prepared, &error))?;
-        let report = canonicalize(&mut program).map_err(|e| format_parse_error(&prepared, &e))?;
+            .map_err(&mut parse_failure)?;
+        let report = canonicalize(&mut program).map_err(&mut parse_failure)?;
         if v25 { top_level_decl_names = authored_top_level_decl_names(&program, &prepared); }
         if v25 { validate_v25_known_infix_operand_types(&program)?; }
         let mut parse_warnings: Vec<DdnParseWarning> = report
@@ -423,7 +633,7 @@ impl DdnProgram {
         enforce_state_machine_age_gate(&program, age_target)?;
         enforce_quantifier_age_gate(&program, age_target)?;
         let ast_fields = collect_public_observation_fields(&program);
-        if first_callable_context.is_some() && !ast_fields.is_empty() {
+        if (first_callable_context.is_some()||public_callable_context.is_some()) && !ast_fields.is_empty() {
             return Err("E_MULTILANG_OBSERVATION_SCOPE_UNSUPPORTED: 첫 함수의 관찰 의존 공급 범위를 벗어났습니다".into());
         }
         let original_fields = if v25 {
@@ -479,8 +689,16 @@ impl DdnProgram {
         }
         let derived_plan=Arc::new(persistent_dependencies::DerivedPlan::compile(&program)?);
         let numeric_constraint_plan = if v25 {
-            Some(Arc::new(crate::numeric_constraint_plan::NumericConstraintPlan::compile_with_host(&program,&top_level_decl_names,host_numeric_supply.as_ref())
+            let mut numeric_failure=None;
+            Some(Arc::new(crate::numeric_constraint_plan::NumericConstraintPlan::compile_with_host_diagnostic(&program,&top_level_decl_names,host_numeric_supply.as_ref(),&mut numeric_failure)
                 .map_err(|error|{
+                    if let (Some(slot),Some(mut diagnostic))=(diagnostic_out.as_deref_mut(),numeric_failure){
+                        if let Some((start,end))=diagnostic.span{
+                            diagnostic.span=Some((captured_source_offset(source,meta_parse.meta_lines,start),
+                                captured_source_offset(source,meta_parse.meta_lines,end)));
+                        }
+                        let message=diagnostic.message.clone();*slot=Some(diagnostic);return message;
+                    }
                     if error.starts_with("E_TYPE_MISMATCH:")
                         || error.starts_with("E_TUPLE_STATIC_SELECTION:")
                         || error.starts_with("E_SELECTION_BOUNDS:") {
@@ -488,7 +706,15 @@ impl DdnProgram {
                         // selection span when that checker independently
                         // proves the same invalid source. Otherwise retain
                         // N1's fail-closed diagnostic; never turn it into Ok.
-                        crate::source_analysis::existing_static_rejection(&program).unwrap_or(error)
+                        if let Some(slot)=diagnostic_out.as_deref_mut() {
+                            if let Some(mut diagnostic)=crate::source_analysis::existing_static_rejection_diagnostic(&program,file_path) {
+                                if let Some((start,end))=diagnostic.span {
+                                    diagnostic.span=Some((captured_source_offset(source,meta_parse.meta_lines,start),
+                                        captured_source_offset(source,meta_parse.meta_lines,end)));
+                                }
+                                let message=diagnostic.message.clone();*slot=Some(diagnostic);message
+                            } else {error}
+                        } else {crate::source_analysis::existing_static_rejection(&program).unwrap_or(error)}
                     } else {error}
                 })?))
         } else { None };
@@ -499,17 +725,21 @@ impl DdnProgram {
         let first_callable_canonical_source = first_callable_context.as_ref().map(|context|
             ddonirang_lang::canonicalizer::canonicalize_first_callable_registered_source(&program, context)
                 .map_err(|e| format!("{}", e))).transpose()?;
+        let public_callable_canonical_source=public_callable_context.as_ref().map(|context|ddonirang_lang::canonicalizer::canonicalize_public_callable_registered_source(&program,context).map_err(|error|error.to_string())).transpose()?;
         Ok(Self {
+            public_callable_context,public_callable_authored_owner:None,public_callable_canonical_source,
             source_identity,
             source_capture,
             first_callable_context,
             first_callable_authored_owner: None,
             first_callable_canonical_source,
             saved_project_sources: None,
+            logic_source_scopes:None,
             nominal_constructors:BTreeMap::new(),
             registered_atom_literals:BTreeMap::new(),
             result_output_type_plan:None,
             temporary_registration:None,
+            nominal_source_registration:None,
             temporary_subject_bootstrap:None,
             registered_nominal_catalog:None,
             registered_atom_contracts:Arc::new(Vec::new()),
@@ -545,6 +775,10 @@ impl DdnProgram {
         self.saved_project_sources.as_deref()
     }
 
+    pub(crate) fn nominal_source_registration(&self)->Option<&crate::authored_project::registration::nominal_source::RegisteredNominalSource>{
+        self.nominal_source_registration.as_deref()
+    }
+
     pub fn ordinary_callable_admission_evidence(
         &self,
     ) -> &[ddonirang_lang::OrdinaryCallableAdmissionEvidence] {
@@ -564,6 +798,7 @@ impl DdnProgram {
     }
 
     pub fn canonical_ddn(&self) -> String {
+        if let Some(source)=&self.public_callable_canonical_source{return source.clone();}
         if let Some(source) = &self.first_callable_canonical_source { return source.clone(); }
         ddonirang_lang::normalize(&self.program, ddonirang_lang::NormalizationLevel::N1)
     }
@@ -679,3 +914,76 @@ mod multilang_first_runtime_tests {
     }
 }
 
+
+#[cfg(test)]
+mod r31_j1_runtime_tests{
+    use super::*;
+    fn input()->ddonirang_core::InputSnapshot{ddonirang_core::InputSnapshot{tick_id:0,dt:ddonirang_core::Fixed64::from_i64(1),keys_pressed:0,last_key_name:String::new(),pointer_x_i32:0,pointer_y_i32:0,ai_injections:vec![],net_events:vec![],frame_source:ddonirang_core::InputSource::Person,rng_seed:0}}
+    #[test]fn r31_j1_actual_common_runtime_and_explicit_profile(){
+        let raw="#!日本語\n(金額:有理数~に, 税額:有理数~を) 合計:有理数:関数 := { 合計 <- 金額 + 税額. }.\n実行:手続き := { ((税額=(3,1) 有理数, 金額=(12,1) 有理数) 合計) 表示. 真 表示. 偽 表示. }.";
+        let profile=resolve_supported_source_profile(Some(ddonirang_lang::ddl::J1_SOURCE_PROFILE)).unwrap();
+        let program=DdnProgram::from_supported_source_profile_with_mode(raw,"main.ddn",ParseMode::Strict,profile).unwrap();
+        let result=DdnRunner::new(program,"実行").run_update(&ddonirang_core::NuriWorld::new(),&input(),&std::collections::HashMap::new()).unwrap();
+        assert_eq!(result.display_outputs.iter().map(|r|r.text.as_str()).collect::<Vec<_>>(),vec!["15/1","참","거짓"]);
+        assert!(DdnProgram::from_supported_source_profile_with_mode(raw,"main.ddn",ParseMode::Strict,SupportedSourceProfile::V1CoreV25).is_err());
+        assert!(DdnProgram::from_supported_source_profile_with_mode("実行:手続き := {}.","main.ddn",ParseMode::Strict,profile).is_err());
+        assert!(resolve_supported_source_profile(Some(" v1-core-v25-ja-base-r1 ")).is_err());
+        assert!(resolve_supported_source_profile(Some(" v1-core-v25 ")).is_ok());
+    }
+}
+
+#[cfg(test)]
+mod r31_j1_same_attempt_diagnostic_tests{
+    use super::*;
+    #[test]fn r31_j1_actual_parse_error_keeps_code_span_path_and_cause(){
+        let raw="#!日本語\n((金額=(4,1) 有理数） 倍) 表示.\n";
+        let error=match DdnProgram::from_j1_source_with_mode_diagnostic(raw,"same-attempt.ddn",ParseMode::Strict,default_age_target()){
+            Ok(_)=>panic!("fullwidth accepted"),Err(error)=>error,
+        };
+        let start=raw.find('）').unwrap();assert_eq!(error.code,"E_MULTILANG_FULLWIDTH_SYNTAX");assert_eq!(error.span,Some((start,start+3)));
+        assert_eq!(error.source_path,"same-attempt.ddn");let cause=error.cause.unwrap();assert_eq!(cause.code,error.code);assert_eq!(cause.span,error.span);
+        assert!(DdnProgram::from_j1_source_with_mode_diagnostic("#!日本語\n実行:手続き := { 真 表示. }.","valid.ddn",ParseMode::Strict,default_age_target()).is_ok());
+    }
+}
+
+#[cfg(test)]
+mod r31_j1_static_diagnostic_tests {
+    use super::*;
+    #[test]
+    fn r31_j1_static_type_rejection_keeps_same_attempt_utf8_span() {
+        let raw="#!日本語\r\n実行:手続き := { (真 + 1) 表示. }.";
+        let typed=DdnProgram::from_j1_source_with_mode_diagnostic(raw,"edited.ddn",ParseMode::Strict,default_age_target()).err().expect("type mismatch");
+        let original=DdnProgram::from_supported_source_profile_with_mode(raw,"edited.ddn",ParseMode::Strict,SupportedSourceProfile::V1CoreV25JaBaseR1).err().expect("same rejection");
+        assert_eq!(typed.code,"E_CHECK_TYPE_MISMATCH");assert_eq!(typed.message,original);
+        let start=raw.find('真').unwrap();assert_eq!(typed.span,Some((start,start+"真 + 1".len())));
+        assert_eq!(typed.source_path,"edited.ddn");assert_eq!(typed.phase,"execution_parse");
+        let valid="#!日本語\r\n実行:手続き := { 真 表示. }.";
+        assert!(DdnProgram::from_j1_source_with_mode_diagnostic(valid,"valid.ddn",ParseMode::Strict,default_age_target()).is_ok());
+    }
+}
+
+#[cfg(test)]
+mod ko_same_attempt_diagnostic_tests {
+    use super::*;
+    #[test]
+    fn ko_admission_failure_is_not_fabricated_as_a_parser_span() {
+        let source="#설명: 금지된 과거 머리\n4 보여주기.";
+        let error=DdnProgram::from_supported_source_profile_diagnostic(source,"머리.또니",ParseMode::Strict,SupportedSourceProfile::V1CoreV25,default_age_target()).err().unwrap();
+        assert!(error.message.contains("E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN"));
+        assert_eq!(error.span,None);assert!(error.cause.is_none());
+    }
+    #[test]
+    fn ko_same_attempt_error_preserves_original_utf8_metadata_and_new_attempt() {
+        let raw="기준값 := 4.\n결과 := 기준값 * 2.\n계산 결과 보여주기.\n";
+        for prefix in ["", "#제목: 한글 머리\r\n", "#제목: 다른 판\n#메모: 두 머리\n"] {
+            let source=format!("{prefix}{raw}");
+            let error=DdnProgram::from_supported_source_profile_diagnostic(&source,"값과글.또니",ParseMode::Strict,SupportedSourceProfile::V1CoreV25,default_age_target()).err().expect("invalid sentence");
+            let plain=DdnProgram::from_supported_source_profile_with_mode(&source,"값과글.또니",ParseMode::Strict,SupportedSourceProfile::V1CoreV25).err().unwrap();
+            assert_eq!(error.message,plain);assert_eq!(error.code,"E_PARSE");
+            let start=source.find("결과 보여주기").unwrap();assert_eq!(error.span,Some((start,start+"결과".len())));
+            assert_eq!(error.source_path,"값과글.또니");assert_eq!(error.phase,"execution_parse");
+            let cause=error.cause.unwrap();assert_eq!(cause.span,error.span);assert_eq!(cause.code,error.code);
+        }
+        assert!(DdnProgram::from_supported_source_profile_diagnostic("4 보여주기.","정상.또니",ParseMode::Strict,SupportedSourceProfile::V1CoreV25,default_age_target()).is_ok());
+    }
+}

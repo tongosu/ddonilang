@@ -56,6 +56,16 @@ fn authored_object_identity(program: &CanonProgram, source: &str,
     None
 }
 
+/// Existing exact typed element-value matching, scoped to the displayed primary
+/// view. Indices are local display coordinates, never persistent object IDs.
+pub(crate) fn primary_scene_element_selection(view:&Json,target:&Json)->Option<Json> {
+    if target["kind"]!="scene_element" {return None;}
+    let indices:Vec<_>=view["elements"].as_array().into_iter().flatten().enumerate()
+        .filter(|(_,element)|**element==target["element"])
+        .map(|(index,_)|index).collect();
+    Some(json!({"kind":"primary_scene_element.v1","element_indices":indices}))
+}
+
 /// Activation, unlike pure value construction, must fail before world commit.
 pub fn admit_activation(projection: Option<&Json>) -> Result<(), String> {
     let Some(projection) = projection else { return Ok(()); };
@@ -73,7 +83,159 @@ pub fn resolve(
     resolve_selected(program, source_identity, resources, None)
 }
 
-pub fn resolve_selected(
+/// Private typed companion created from the same source/resources as the JSON
+/// projection. Assembly positions are temporary coordinates, never identities.
+#[derive(Debug,Clone,PartialEq,Eq)]
+enum ObservationViewSelection { Table(ddonirang_lang::runtime::ResultTableSelection), Xy(ddonirang_lang::runtime::XySelection) }
+pub(crate) struct TypedTableProjection {
+    projection: Option<Json>,
+    selections: Vec<(usize,Option<usize>,ObservationViewSelection)>,
+    source: String,
+}
+#[derive(Debug,Clone,Default,PartialEq,Eq)]
+pub(crate) struct BoundTableSelections {
+    source: String,
+    owners: Vec<(String,Option<String>)>,
+    rows: Vec<(String,Option<String>,ObservationViewSelection)>,
+}
+impl BoundTableSelections {
+    pub(crate) fn is_empty(&self)->bool { self.rows.is_empty() }
+    pub(crate) fn source(&self)->&str { &self.source }
+    pub(crate) fn empty_like(&self)->Self {Self {source:self.source.clone(),owners:Vec::new(),rows:Vec::new()}}
+    pub(crate) fn copy_owner_from(&mut self,other:&Self,composition:&Json,relation:Option<&Json>)->Result<(),String> {
+        if self.source!=other.source {return Err("E_AUTHORED_BOGAE: 서로 다른 원문의 표 선택 이력입니다".into());}
+        let key=(composition.to_string(),relation.map(Json::to_string));
+        if !other.owners.contains(&key) {return Err("E_AUTHORED_BOGAE: 해당 마디의 실제 보기 소유자가 아닙니다".into());}
+        if self.owners.contains(&key) {return Err("E_AUTHORED_BOGAE: 해소된 보기 소유자가 중복됐습니다".into());}
+        self.owners.push(key.clone());
+        if let Some((_,_,selection))=other.rows.iter().find(|(c,r,_)|c==&key.0 && r==&key.1) {
+            if self.rows.iter().any(|(c,r,_)|*c==key.0 && *r==key.1) {
+                return Err("E_AUTHORED_BOGAE: 해소된 보기 소유자가 중복됐습니다".into());
+            }
+            self.rows.push((key.0,key.1,selection.clone()));
+        }
+        Ok(())
+    }
+    pub(crate) fn checked_selection(&self,composition:&Json,relation:Option<&Json>)
+        ->Result<Option<&ddonirang_lang::runtime::ResultTableSelection>,String> {
+        let key=(composition.to_string(),relation.map(Json::to_string));
+        if !self.owners.contains(&key) {return Err("E_AUTHORED_BOGAE: 표 선택의 실제 보기 소유자가 없습니다".into());}
+        Ok(self.selection(composition,relation))
+    }
+    pub(crate) fn checked_xy_selection(&self,composition:&Json,relation:Option<&Json>)
+        ->Result<Option<&ddonirang_lang::runtime::XySelection>,String> {
+        let key=(composition.to_string(),relation.map(Json::to_string));
+        if !self.owners.contains(&key) {return Err("E_AUTHORED_BOGAE: XY의 실제 보기 소유자가 없습니다".into());}
+        Ok(self.rows.iter().find(|(c,r,_)|c==&key.0 && r==&key.1).and_then(|(_,_,s)|match s {ObservationViewSelection::Xy(s)=>Some(s),_=>None}))
+    }
+    pub(crate) fn selection(&self,composition:&Json,relation:Option<&Json>)
+        ->Option<&ddonirang_lang::runtime::ResultTableSelection> {
+        let composition=composition.to_string();let relation=relation.map(Json::to_string);
+        self.rows.iter().find(|(c,r,_)|*c==composition && *r==relation).and_then(|(_,_,s)|match s {ObservationViewSelection::Table(s)=>Some(s),_=>None})
+    }
+}
+impl TypedTableProjection {
+    pub(crate) fn has_projection(&self)->bool {self.projection.is_some()}
+    /// The existing activation, not a caller's identity string, supplies the
+    /// persistent owners. No raw JSON constructor or deserialize is exposed.
+    pub(crate) fn activate(self,activation:Option<&crate::authored_bogae::Activation>)
+        ->Result<(Option<Json>,BoundTableSelections),String> {
+        let projection=match activation {Some(a)=>a.apply(self.projection)?,None=>self.projection};
+        let mut bound=BoundTableSelections {source:self.source,owners:Vec::new(),rows:Vec::new()};
+        // Preserve positive ownership even for an unselected view: absence of
+        // a selected row must never stand in for a missing/mixed owner.
+        for candidate in projection.as_ref().and_then(|p|p["candidates"].as_array()).into_iter().flatten() {
+            let artifact=&candidate["artifact"];
+            let composition=artifact.get("identity").filter(|id|id.is_object())
+                .ok_or("E_AUTHORED_BOGAE: 실제 보기의 짜임 정체가 없습니다")?.to_string();
+            let mut keys=vec![(composition.clone(),None)];
+            for relation in artifact["relations"].as_array().into_iter().flatten() {
+                let identity=relation.get("identity").filter(|id|id.is_object())
+                    .ok_or("E_AUTHORED_BOGAE: 실제 보기의 관계 정체가 없습니다")?.to_string();
+                keys.push((composition.clone(),Some(identity)));
+            }
+            for key in keys {
+                if bound.owners.contains(&key) {return Err("E_AUTHORED_BOGAE: 실제 보기 소유자가 중복됐습니다".into());}
+                bound.owners.push(key);
+            }
+        }
+        for (candidate,relation,selection) in self.selections {
+            let artifact=projection.as_ref().and_then(|p|p["candidates"].get(candidate))
+                .and_then(|c|c.get("artifact")).ok_or("E_AUTHORED_BOGAE: 열 선택의 실제 보기 소유자가 없습니다")?;
+            let composition=artifact.get("identity").filter(|id|id.is_object())
+                .ok_or("E_AUTHORED_BOGAE: 열 선택의 짜임 정체가 없습니다")?.to_string();
+            let owner=match relation {Some(i)=>artifact["relations"].get(i)
+                .ok_or("E_AUTHORED_BOGAE: 열 선택의 실제 관계가 없습니다")?,None=>artifact};
+            let expected=match &selection {ObservationViewSelection::Table(_)=>"result_table",ObservationViewSelection::Xy(_)=>"scene"};
+            if owner["view"]["kind"]!=expected {return Err("E_AUTHORED_BOGAE: 선택과 보기 종류가 다릅니다".into());}
+            let relation=relation.map(|_|owner["identity"].to_string());
+            if bound.rows.iter().any(|(c,r,_)|*c==composition && *r==relation) {
+                return Err("E_AUTHORED_BOGAE: 같은 보기 소유자의 열 선택이 중복됐습니다".into());
+            }
+            bound.rows.push((composition,relation,selection));
+        }
+        Ok((projection,bound))
+    }
+}
+
+pub(crate) fn resolve_selected_with_tables(program:&CanonProgram,source_identity:&str,
+    resources:&HashMap<String,Value>,entry:Option<&str>)->Result<TypedTableProjection,String> {
+    let projection=resolve_selected_raw(program,source_identity,resources,entry);
+    let has_selected=resources.values().any(|value|match value {
+        Value::View(view)=>(view.table_selection().is_some()||view.xy_selection().is_some()),
+        Value::BogaeComposition(composition)=>composition.relations().iter().any(|r|r.view().table_selection().is_some()||r.view().xy_selection().is_some()),
+        _=>false,
+    });
+    if !has_selected {return Ok(TypedTableProjection {projection,selections:Vec::new(),source:source_identity.into()});}
+    let mut selections=Vec::new();
+    for (ci,candidate) in projection.as_ref().and_then(|p|p["candidates"].as_array()).into_iter().flatten().enumerate() {
+        let name=candidate["label"].as_str().ok_or("E_AUTHORED_BOGAE: 실제 보기 선언이 없습니다")?;
+        let declaration=program.root_stmts.iter().find_map(|s|match s {
+            Stmt::Definition{name:n,span,..} if n==name
+                && candidate["artifact"]["identity"]["composition_declaration"]==json!([span.start,span.end])=>Some(span),_=>None,
+        }).ok_or("E_AUTHORED_BOGAE: 실제 루트 보기 선언이 없습니다")?;
+        if candidate["artifact"]["identity"]!=json!({"scope":"temporary_execution","module":source_identity,
+            "composition_declaration":[declaration.start,declaration.end]}) {
+            return Err("E_AUTHORED_BOGAE: 보기 생산과 원문 소유가 다릅니다".into());
+        }
+        let mut capture=|ri:Option<usize>,view:&ddonirang_lang::runtime::ViewValue|->Result<(),String>{
+            if let Some(selection)=view.table_selection() {
+                if !selection.same_source(source_identity) {return Err("E_AUTHORED_BOGAE: 열 선택의 원문 판본이 다릅니다".into());}
+                selections.push((ci,ri,ObservationViewSelection::Table(selection.clone())));
+            }
+            if let Some(selection)=view.xy_selection() {
+                if !selection.same_source(source_identity) {return Err("E_AUTHORED_BOGAE: XY 선택 원문 판본이 다릅니다".into());}
+                selections.push((ci,ri,ObservationViewSelection::Xy(selection.clone())));
+            }
+            Ok(())
+        };
+        match resources.get(name) {
+            Some(Value::View(view))=>capture(None,view)?,
+            Some(Value::BogaeComposition(composition))=>{
+                for (ri,relation) in composition.relations().iter().enumerate() {
+                    capture(Some(ri),relation.view())?;
+                    if matches!(relation,BogaeRelationValue::Primary{..}) {capture(None,relation.view())?;}
+                }
+            },
+            _=>return Err("E_AUTHORED_BOGAE: 보기 생산 당시의 typed 값이 없습니다".into()),
+        }
+    }
+    Ok(TypedTableProjection {projection,selections,source:source_identity.into()})
+}
+
+pub fn resolve_selected(program:&CanonProgram,source_identity:&str,
+    resources:&HashMap<String,Value>,entry:Option<&str>)->Option<Json> {
+    // Legacy callers must not silently erase a selected view into a full table.
+    match resolve_selected_with_tables(program,source_identity,resources,entry) {
+        Ok(packet) if packet.selections.is_empty()=>packet.projection,
+        Ok(_)=>Some(json!({"schema":"ddn.bogae_projection.v1","status":"rejected",
+            "diagnostic":{"code":"E_BOGAE_PROJECTION_INVALID","message":"선택 결과표에는 typed 운반 경로가 필요합니다"}})),
+        Err(message)=>Some(json!({"schema":"ddn.bogae_projection.v1","status":"rejected",
+            "diagnostic":{"code":"E_BOGAE_PROJECTION_INVALID","message":message}})),
+    }
+}
+
+fn resolve_selected_raw(
     program: &CanonProgram,
     source_identity: &str,
     resources: &HashMap<String, Value>,
@@ -153,10 +315,8 @@ pub fn resolve_selected(
                             }
                             let primary=composition.relations().iter().find(|r|matches!(r,BogaeRelationValue::Primary {..})).expect("validated primary");
                             let view=crate::scene_value::project_view(primary.view());
-                            let indices:Vec<_>=view["elements"].as_array().into_iter().flatten().enumerate()
-                                .filter(|(_,element)|**element==target["element"])
-                                .map(|(index,_)|index).collect();
-                            projected["selection"]=json!({"kind":"primary_scene_element.v1","element_indices":indices});
+                            projected["selection"]=primary_scene_element_selection(&view,&target)
+                                .expect("checked scene-element target");
                         }
                         projected["target"]=target;
                         projected["recipe"]=json!({"kind":"sealed_named_callable","source":recipe.source_identity,
@@ -182,7 +342,7 @@ pub fn resolve_selected(
         let artifact = json!({"schema":"ddn.authored_bogae_projection.v1", "identity":identity,
             "view":primary_view, "relations":relations,
             "time_policy":project_time(primary_time),
-            "lock":{"schema":"ddn.authored_bogae_projection.v1", "adapter":if primary_view["kind"] == "scene" {"scene_plane2.v1"} else {"result_table.v1"},
+            "lock":{"schema":"ddn.authored_bogae_projection.v1", "adapter":if primary_view["spatial_profile"]=="space3" {"scene_space3.r1"} else if primary_view["kind"] == "scene" {"scene_plane2.v1"} else {"result_table.v1"},
                 "time":"common.v1", "diagnostic":"bogae.v1", "module_source":source_identity}});
         let digest = crate::runtime_surface::sha256_hex(
             format!("ddn.authored_bogae_projection.v1\0{artifact}").as_bytes(),

@@ -69,8 +69,10 @@ impl DdnRunner {
             bogae_entry: None,
             authored_bogae: None,
             bogae_history: crate::bogae_time::SceneHistory::default(),
+            table_selection_history: None,
             prev_keys_pressed: 0,
             project_asset_registry: None,
+            source_bound_binary_assets: None,
             work_cost: Rc::new(RefCell::new(WorkCostMeter::default())),
             async_queue_capacity: ddonirang_lang::DEFAULT_ASYNC_QUEUE_CAPACITY,
             internal_dispatch: InternalDdnRunnerDispatchState::default(),
@@ -263,6 +265,11 @@ impl DdnRunner {
         self.work_cost.borrow().receipt()
     }
 
+    /// Borrow the actual compiled source admission; no adapter-chosen tuple.
+    pub(crate) fn sealed_execution_source_capture(&self) -> Option<&crate::source_snapshot_admission::SourceCapture> {
+        self.program.sealed_source_capture()
+    }
+
     pub(crate) fn saved_program_sources(&self) -> Option<&crate::project_revision_envelope_supply::VerifiedSavedV25Sources> {
         self.program.sealed_project_sources()
     }
@@ -296,6 +303,7 @@ impl DdnRunner {
         mut self,
         registry: Arc<gate0_registry::ProjectAssetRegistry>,
     ) -> Self {
+        self.source_bound_binary_assets = None;
         self.project_asset_registry = Some(registry);
         self
     }
@@ -304,7 +312,22 @@ impl DdnRunner {
         &mut self,
         registry: Option<Arc<gate0_registry::ProjectAssetRegistry>>,
     ) {
+        self.source_bound_binary_assets = None;
         self.project_asset_registry = registry;
+    }
+
+    /// Attach only bytes admitted for this exact program capture. Replacement
+    /// fails closed; equal source text is not an execution-source capability.
+    pub(crate) fn set_source_bound_binary_assets(&mut self, assets: Arc<crate::authored_bogae::xy::binary_assets::PreparedBinaryAssets>) -> Result<(), String> {
+        self.set_project_asset_registry(None);
+        let capture = self.program.sealed_source_capture()
+            .ok_or_else(|| "E_AUTHORED_BOGAE: 실제 원문 캡처 없는 그림 바이트는 실행에 연결하지 않습니다".to_string())?;
+        if !assets.matches_source(assets.source_path(), capture) {
+            return Err("E_AUTHORED_BOGAE: 그림 바이트와 실행 원문 판본이 다릅니다".to_string());
+        }
+        self.project_asset_registry = Some(assets.registry().clone());
+        self.source_bound_binary_assets = Some(assets);
+        Ok(())
     }
 
     pub fn run_update(
@@ -537,6 +560,7 @@ impl DdnRunner {
             self.async_queue_capacity,
             self.internal_dispatch.clone(),
         );
+        ctx.source_bound_binary_assets = self.source_bound_binary_assets.as_deref();
         ctx.logical_input = logical_input.cloned();
         if let Some(bootstrap)=&self.subject_bootstrap {
             let staged=match world.subject_world().map(|snapshot|bootstrap.stage_committed(snapshot)).transpose() {
@@ -608,7 +632,7 @@ impl DdnRunner {
             ctx.dispatch_logical_input_reactions()?;
             for stmt in &ctx.program.root_stmts {
                 let post_settle_observation=crate::bogae_projection::is_observation_definition(stmt)
-                    || (!ctx.program.derived_plan.bindings.is_empty() && matches!(stmt,Stmt::PublicObservation{..}));
+                    || matches!(stmt,Stmt::PublicObservation{..});
                 if (self.named_entry_after_definitions || !ctx.program.derived_plan.bindings.is_empty())
                     && post_settle_observation {
                     continue;
@@ -638,7 +662,7 @@ impl DdnRunner {
             if self.named_entry_after_definitions || !ctx.program.derived_plan.bindings.is_empty() {
                 for stmt in &ctx.program.root_stmts {
                     if crate::bogae_projection::is_observation_definition(stmt)
-                        || (!ctx.program.derived_plan.bindings.is_empty() && matches!(stmt,Stmt::PublicObservation{..})) {
+                        || matches!(stmt,Stmt::PublicObservation{..}) {
                         if let Err(error) = ctx.eval_stmt(&mut locals, stmt) {
                             self.prev_keys_pressed = prev_keys_pressed;
                             return Err(error);
@@ -646,8 +670,12 @@ impl DdnRunner {
                     }
                 }
             }
-            root_bogae_projection = crate::bogae_projection::resolve_selected(
-                &ctx.program.program, &ctx.program.source_identity, &locals, self.bogae_entry.as_deref());
+            root_bogae_projection = match crate::bogae_projection::resolve_selected_with_tables(
+                &ctx.program.program, &ctx.program.source_identity, &locals, self.bogae_entry.as_deref()) {
+                Ok(packet) if packet.has_projection()=>Some(packet),
+                Ok(_)=>None,
+                Err(error)=>{self.prev_keys_pressed=prev_keys_pressed;return Err(error.into());}
+            };
         } else {
         let update = if let Some(update) = ctx.program.functions.get(seed_name) {
             update
@@ -660,6 +688,7 @@ impl DdnRunner {
                 result_emissions: Default::default(),
                 display_outputs: Vec::new(),
                 bogae_projection: None,
+                table_selections: Default::default(),
                 patch: Patch {
                     ops: Vec::new(),
                     origin: Origin::system("ddn"),
@@ -701,18 +730,21 @@ impl DdnRunner {
         let state_transitions = collect_state_transition_records(&patch.ops);
         let input_reads = ctx.input_reads.borrow().clone();
         let resources = ctx.resources.into_owned();
-        let bogae_projection = root_bogae_projection.or_else(|| crate::bogae_projection::resolve_selected(
-            &ctx.program.program, &ctx.program.source_identity, &resources, self.bogae_entry.as_deref()));
-        let bogae_projection = if let Some(activation) = &self.authored_bogae {
-            match activation.apply(bogae_projection) {
-                Ok(projection) => projection,
-                Err(error) => {
-                    self.prev_keys_pressed = prev_keys_pressed;
-                    return Err(error.into());
-                }
-            }
-        } else { bogae_projection };
+        let packet=match root_bogae_projection {
+            Some(packet)=>packet,
+            None=>match crate::bogae_projection::resolve_selected_with_tables(
+                &ctx.program.program,&ctx.program.source_identity,&resources,self.bogae_entry.as_deref()) {
+                Ok(packet)=>packet,
+                Err(error)=>{self.prev_keys_pressed=prev_keys_pressed;return Err(error.into());}
+            },
+        };
+        let (bogae_projection,table_selections)=match packet.activate(self.authored_bogae.as_ref()) {
+            Ok(result)=>result,
+            Err(error)=>{self.prev_keys_pressed=prev_keys_pressed;return Err(error.into());}
+        };
         let authored_projection=bogae_projection.clone();
+        let mut table_selections=table_selections;
+        let mut staged_table_history=self.table_selection_history.clone();
         let mut bogae_projection=bogae_projection;
         if self.bogae_activation_requested {
             if let Err(error) = crate::bogae_projection::admit_activation(bogae_projection.as_ref()) {
@@ -724,6 +756,20 @@ impl DdnRunner {
                     Ok(resolved)=>bogae_projection=Some(resolved),
                     Err(error)=>{self.prev_keys_pressed=prev_keys_pressed;return Err(error.into());}
                 }
+            }
+        }
+        if self.bogae_activation_requested && (!table_selections.is_empty() || staged_table_history.is_some()) {
+            let timeline=staged_table_history.get_or_insert_with(Default::default);
+            let resolved=(|| -> Result<_,String> {
+                let frame=timeline.capture(table_selections.clone())?;
+                let projection=bogae_projection.as_ref().ok_or("E_AUTHORED_BOGAE: 선택표의 해소된 보기가 없습니다")?;
+                let selected=timeline.resolve(input.tick_id,projection,&frame)?;
+                timeline.commit(input.tick_id,frame)?;
+                Ok(selected)
+            })();
+            match resolved {
+                Ok(selected)=>table_selections=selected,
+                Err(error)=>{self.prev_keys_pressed=prev_keys_pressed;return Err(error.into());}
             }
         }
         if self.bogae_activation_requested {
@@ -739,12 +785,14 @@ impl DdnRunner {
         if self.bogae_activation_requested {
             if let Some(projection)=authored_projection {self.bogae_history.commit(input.tick_id,projection);}
         }
+        self.table_selection_history=staged_table_history;
         let work_cost = ctx.work_cost.borrow().receipt();
         self.internal_dispatch = ctx.internal_dispatch.clone();
         Ok(DdnRunOutput {
             result_emissions: ctx.result_emissions,
             display_outputs: ctx.display_outputs,
             bogae_projection,
+            table_selections,
             patch,
             resources,
             input_reads,
@@ -775,6 +823,12 @@ impl DdnRunner {
 
     // A3-P11: consumed input history is distinct from a newer host snapshot.
     pub(crate) fn consumed_keys_pressed(&self) -> u64 { self.prev_keys_pressed }
+    pub(crate) fn table_selection_history_for_rollback(&self)->Option<crate::bogae_time::TableSelectionTimeline> {
+        self.table_selection_history.clone()
+    }
+    pub(crate) fn restore_table_selection_history_after_rollback(&mut self,history:Option<crate::bogae_time::TableSelectionTimeline>) {
+        self.table_selection_history=history;
+    }
 
     pub(crate) fn restore_consumed_keys_pressed(&mut self, keys: u64) {
         self.prev_keys_pressed = keys;
@@ -782,6 +836,7 @@ impl DdnRunner {
 
     pub fn restore_scene_history(&mut self, history: crate::bogae_time::SceneHistory) {
         self.bogae_history = history;
+        self.table_selection_history = None;
     }
 }
 

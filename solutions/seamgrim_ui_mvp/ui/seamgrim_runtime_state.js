@@ -146,9 +146,16 @@ export function normalizeWasmStatePayload(payload) {
     // Neither belongs in world resources, input records or JS-derived hashes.
     ...((obj.bogae_projection ?? nestedState.bogae_projection) ? {
       bogae_projection: obj.bogae_projection ?? nestedState.bogae_projection,
-      public_observation_table_projection: obj.public_observation_table_projection
-        ?? nestedState.public_observation_table_projection ?? null,
     } : {}),
+    // Public observations are also produced without an authored Bogae view.
+    // Preserve that Rust-owned table independently; never recreate its seal.
+    ...((obj.public_observation_table_projection ?? nestedState.public_observation_table_projection) ? {
+      public_observation_table_projection: obj.public_observation_table_projection
+        ?? nestedState.public_observation_table_projection,
+    } : {}),
+    // Preserve the same Rust model result separately from world resources.
+    ...(obj.model_execution ? {model_execution: obj.model_execution} : {}),
+    ...(obj.model_execution_envelope ? {model_execution_envelope: obj.model_execution_envelope} : {}),
     channels,
     row,
     patch,

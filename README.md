@@ -18,9 +18,9 @@
 
 ## 개발 현황
 
-V2 비공개 후보·V3 첫 탐구노트·V4 첫 조건부 풀이 단계·V5 첫 로봇은 각각 고정 범위의 내부 한정 검토를 마쳤습니다. 전체 버전 완성이나 Human·공개 완료와는 다릅니다. V6~V9는 후속 계획 후보입니다.
+언어는 또니랑 V1~V9, 셈그림 창작·교재·탐구는 응용, 작업대·CLI·LSP는 공식 도구로 구분합니다. 후속 고정 개발물의 구현·검증·미완 상태와 실제 공개 코드는 구별합니다. 모든 언어 판이 완성됐다는 뜻은 아닙니다.
 
-[2026-11-01 고정 결과·문서 갱신](publish/development/UPDATES_20261101.md) · [2026-10-31 개발·계약 갱신](publish/development/UPDATES_20261031.md) · [현재 개발·지원 범위](publish/development/STATUS.md) · [개발 소스 빌드와 제외 범위](publish/development/BUILD_SOURCE.md)
+[2026-11-24 현황 갱신](publish/development/UPDATES_20261124.md) · [현재 개발·지원 범위](publish/development/STATUS.md) · [공개 소스 빌드 범위](publish/development/BUILD_SOURCE.md)
 
 ## 한국어로 생각하는 언어
 

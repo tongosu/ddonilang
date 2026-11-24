@@ -29,6 +29,8 @@ pub struct Normalizer {
     indent: usize,
     output: String,
     call_signatures: HashMap<String, Vec<ParamPin>>,
+    authored_argument_order: HashMap<NodeId,Vec<NodeId>>,
+    legacy_ddl_call_rendering: bool,
     source_epoch: SourceEpoch,
     registered_sum_pins:Option<BTreeMap<NodeId,[u8;32]>>,
     registered_sum_seen:BTreeSet<NodeId>,
@@ -42,6 +44,8 @@ impl Normalizer {
             indent: 0,
             output: String::new(),
             call_signatures: HashMap::new(),
+            authored_argument_order: HashMap::new(),
+            legacy_ddl_call_rendering: false,
             source_epoch: SourceEpoch::PreV25,
             registered_sum_pins:None,
             registered_sum_seen:BTreeSet::new(),
@@ -61,9 +65,13 @@ impl Normalizer {
 
     /// 프로그램 정본화
     pub fn normalize_program(&mut self, program: &CanonProgram) -> String {
+        if let Some(source) = &program.origin.checked_structure_source {
+            return source.clone();
+        }
         self.registered_sum_seen.clear();self.registered_sum_failure=None;
         self.source_epoch = program.source_epoch;
         self.call_signatures = collect_call_signatures(program);
+        self.authored_argument_order = program.origin.authored_argument_order.clone();
         // Sum schemas are declarations, not executable statements (RD-349).
         // Emit root schemas before callables that construct their branches.
         if program.source_epoch == SourceEpoch::V25 {
@@ -311,6 +319,8 @@ impl Normalizer {
 
     fn normalize_type(&mut self, type_ref: &TypeRef) {
         match type_ref {
+            TypeRef::CardCallEquality {left,right} => self.write(&format!("{} =:= {}",left.source_text(),right.source_text())),
+            TypeRef::AlgebraNonzero { term } => self.write(&format!("{} != 0",term.source_text())),
             TypeRef::AlgebraEquality { left,right } => self.write(&format!("{} =:= {}",left.source_text(),right.source_text())),
             TypeRef::StructureLaw { structure, member } => {
                 self.write(structure); self.write("."); self.write(member);
@@ -1004,6 +1014,11 @@ impl Normalizer {
                 self.write(field);
             }
             ExprKind::SeedLiteral { param, body } => {
+                if self.source_epoch==SourceEpoch::V25 {
+                    self.write("(");self.write(param);self.write(") |-> ");
+                    if matches!(body.kind,ExprKind::FunctionBlock{..}){self.normalize_expr(body);}
+                    else{self.write("(");self.normalize_expr(body);self.write(")");}return;
+                }
                 self.write("{");
                 if seed_literal_param_count(param) > 1 {
                     self.write("(");
@@ -1017,8 +1032,39 @@ impl Normalizer {
                 self.write("}");
             }
             ExprKind::Call { args, func } => {
+                let reordered;
+                let args=if self.source_epoch==SourceEpoch::V25 && !self.legacy_ddl_call_rendering {
+                    let order=OriginMap::argument_order_indices(self.authored_argument_order.get(&expr.id).map(Vec::as_slice),args)
+                        .unwrap_or_else(|_|(0..args.len()).collect());
+                    reordered=order.into_iter().map(|index|args[index].clone()).collect::<Vec<_>>();
+                    reordered.as_slice()
+                }else{args.as_slice()};
+                // Keep the finite phrase and its owned named argument grouped;
+                // the generic inline `value:pin` form loses this call boundary.
+                if self.source_epoch == SourceEpoch::V25
+                    && func == crate::stdlib::vc17::SUJARO_CALL_TAIL
+                    && args.len() == 1 && args[0].resolved_pin.as_deref() == Some("글") {
+                    self.write("((글=");
+                    self.normalize_expr(&args[0].expr);
+                    self.write(") ");self.write(func);self.write(")");
+                    return;
+                }
                 if self.normalize_transform_call(args, func) {
                     return;
+                }
+                // Complex explicit named arguments must retain both labels
+                // and source order; positional fallback would bind a reversed
+                // callback to the data pin after a format/reparse roundtrip.
+                if self.source_epoch==SourceEpoch::V25 && !self.legacy_ddl_call_rendering && !args.is_empty()
+                    && args.iter().all(|arg|matches!(arg.binding_reason,BindingReason::UserFixed)&&arg.resolved_pin.is_some())
+                    && args.iter().any(|arg|!self.can_inline_bound_expr(&arg.expr)) {
+                    self.write("(");
+                    for (index,arg) in args.iter().enumerate(){
+                        if index>0{self.write(", ");}
+                        self.write(arg.resolved_pin.as_deref().unwrap());self.write("=(");
+                        self.normalize_expr(&arg.expr);self.write(")");
+                    }
+                    self.write(") ");self.write(func);return;
                 }
                 if self.normalize_bound_call(args, func) {
                     return;
@@ -1067,6 +1113,11 @@ impl Normalizer {
                         self.write("\"");
                     }
                 }
+            }
+            ExprKind::FunctionBlock{statements,result}=>{
+                self.write("{\n");self.indent+=1;
+                for stmt in &statements.stmts{self.write_indent();self.normalize_stmt(stmt);self.write("\n");}
+                self.write_indent();self.normalize_expr(result);self.write("\n");self.indent-=1;self.write_indent();self.write("}");
             }
             ExprKind::Thunk(body) => self.normalize_body(body),
             ExprKind::Eval { thunk, mode } => {
@@ -1324,6 +1375,9 @@ impl Normalizer {
         }
         let mut normalizer = Normalizer::new(self._level);
         normalizer.call_signatures = self.call_signatures.clone();
+        normalizer.source_epoch = self.source_epoch;
+        normalizer.authored_argument_order = self.authored_argument_order.clone();
+        normalizer.legacy_ddl_call_rendering = self.legacy_ddl_call_rendering;
         normalizer.normalize_expr(expr);
         Some(normalizer.output)
     }
@@ -1575,7 +1629,27 @@ pub fn normalize(program: &CanonProgram, level: NormalizationLevel) -> String {
 /// a registered path never falls back to spelling order.
 pub fn normalize_with_registered_sum_pin_order(program:&CanonProgram,level:NormalizationLevel,
     order:&BTreeMap<NodeId,[u8;32]>)->Result<String,String> {
+    normalize_registered_root(program,level,order,false)
+}
+
+/// Historical call rendering for comparing a checked saved DDL consumer's
+/// root catalog row. Do not use this text for parsing, execution or new writes.
+pub fn normalize_legacy_saved_ddl_root(program:&CanonProgram,
+    order:&BTreeMap<NodeId,[u8;32]>)->Result<String,String> {
+    normalize_registered_root(program,NormalizationLevel::N1,order,true)
+}
+
+/// Historical N1 rendering used solely for a checked saved DDL Start digest.
+pub fn normalize_legacy_saved_ddl_start(program:&CanonProgram)->String {
+    let mut normalizer=Normalizer::new(NormalizationLevel::N1);
+    normalizer.legacy_ddl_call_rendering=true;
+    normalizer.normalize_program(program)
+}
+
+fn normalize_registered_root(program:&CanonProgram,level:NormalizationLevel,
+    order:&BTreeMap<NodeId,[u8;32]>,legacy_ddl_call_rendering:bool)->Result<String,String> {
     let mut normalizer=Normalizer::new(level);
+    normalizer.legacy_ddl_call_rendering=legacy_ddl_call_rendering;
     normalizer.registered_sum_pins=Some(order.clone());
     let output=normalizer.normalize_program(program);
     if let Some((span,code))=normalizer.registered_sum_failure {

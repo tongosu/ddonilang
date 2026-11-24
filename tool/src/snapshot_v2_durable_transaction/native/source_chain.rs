@@ -31,7 +31,11 @@ fn restore_recorded_source(project:&[u8],parent:&[u8],revision:&[u8],integrity:&
     if let Some(source)=cached{let _timing=crate::storage_observation::Span::start("source.chain_decode_cache_hit");return Ok(source)}
     #[cfg(test)] SOURCE_DECODES.with(|v|v.set(v.get()+1));
     let source={let _timing=crate::storage_observation::Span::start("source.chain_decode_cache_miss");
-        Source::restore(project,parent,revision,integrity,profile,pesi,payload,envelope)?};
+        // Selection is not authority: the private codec verifies full fixed
+        // material, profile, source ownership, envelope and registration.
+        let logic=crate::authored_project::recorded_logic_payload_is_selected(payload)?;
+        if logic{Source::restore_logic_private(project,parent,revision,integrity,profile,pesi,payload,envelope)?}
+        else{Source::restore(project,parent,revision,integrity,profile,pesi,payload,envelope)?}};
     SOURCE_READBACK.with(|v|{
         let Ok(mut v)=v.try_borrow_mut() else{return};let Some(items)=v.as_mut() else{return};
         // A resource bound on the optional optimization, never an admission
@@ -60,6 +64,14 @@ pub(super) fn read_retained_source_ancestry(db:&rusqlite::Connection,project:&[u
     Ok(SourceChain{initial:match initial{Some(s)=>s,None=>read(db,project,revision)?},latest})
 }
 pub(super) fn read(db:&rusqlite::Connection,project:&[u8],revision:&[u8])->Result<Source,Failure>{
+    read_selected(db,project,revision,None)
+}
+
+pub(super) fn read_public_edition(db:&rusqlite::Connection,previous:&Source,revision:&[u8])->Result<Source,Failure>{
+    read_selected(db,previous.project(),revision,Some(previous))
+}
+
+fn read_selected(db:&rusqlite::Connection,project:&[u8],revision:&[u8],previous:Option<&Source>)->Result<Source,Failure>{
     db.query_row("SELECT r.revision_integrity_sha256,r.payload_kind,r.payload_key,
         p.project_identity,p.expected_parent_history_revision_identity,p.new_history_revision_identity,
         p.execution_profile_identity,p.project_execution_snapshot_identity,p.revision_integrity_sha256,
@@ -84,7 +96,15 @@ pub(super) fn read(db:&rusqlite::Connection,project:&[u8],revision:&[u8])->Resul
                 _=>return Err(rusqlite::Error::InvalidQuery)};
             let pesi:[u8;32]=blob(7,32)?.try_into().map_err(|_|rusqlite::Error::InvalidQuery)?;
             {let _timing=crate::storage_observation::Span::start("source.chain_decode_verify");
-            restore_recorded_source(project,parent,revision,&integrity,blob(6,4096)?,&pesi,blob(10,2_000_000)?,blob(9,1_000_000)?)}
+            let profile=blob(6,4096)?;
+            let payload=blob(10,2_000_000)?;
+            let envelope=blob(9,1_000_000)?;
+            match previous {
+                Some(previous) if parent==previous.revision()=>
+                    Source::restore_public_edition(previous,revision,&integrity,profile,&pesi,payload,envelope),
+                Some(_)=>Err("E_DDL_EDITION_PARENT_MISMATCH".into()),
+                None=>restore_recorded_source(project,parent,revision,&integrity,profile,&pesi,payload,envelope),
+            }}
                 .map_err(|_|rusqlite::Error::InvalidQuery)
         }).map_err(database_error)
 }

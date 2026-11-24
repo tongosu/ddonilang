@@ -6,7 +6,7 @@ use std::collections::{HashMap,HashSet,VecDeque};
 
 fn reject(span:Span,code:&str,reason:&str)->ParseError {ParseError{span,message:format!("{code}: {reason}")}}
 #[derive(Default)]
-struct Effects {write:Option<Span>,read:Option<Span>,calls:Vec<(String,Span)>,policy_sides:HashMap<NodeId,&'static str>}
+struct Effects {write:Option<Span>,read:Option<Span>,calls:Vec<(String,Span)>,policy_sides:HashMap<NodeId,&'static str>,policy_space:HashSet<NodeId>}
 
 // A conservative execution-only qualifier, separate from public TypeRef T.
 // A field projection is checked by the resolved runtime slot owner. General
@@ -120,6 +120,23 @@ fn scan(program:&CanonProgram,body:Option<&Body>,root:&[Stmt],params:&[ParamPin]
         Job::Expr(expr,command_position)=>{
             if let ExprKind::Call{func,args}=&expr.kind {
                 let canonical=crate::stdlib::canonicalize_stdlib_alias(func);
+                if canonical=="표준장면.카메라"&&!locals.contains(func.as_str())&&!locals.contains(canonical)
+                    &&!program.items.iter().any(|TopLevelItem::SeedDef(seed)|seed.callable_surface_names().iter().any(|name|name==func||name==canonical)) {
+                    let signature=crate::stdlib::minimal_stdlib_sigs().into_iter().find(|signature|signature.name==canonical)
+                        .ok_or_else(||reject(expr.span,"E_ATOM_POLICY_OWNER_REQUIRED","카메라의 실제 서명이 없습니다"))?;
+                    let mut occupied=vec![false;signature.params.len()];let mut projection=None;
+                    for arg in args {
+                        let slot=if let Some(pin)=arg.resolved_pin.as_deref(){signature.params.iter().position(|name|*name==pin)}else{occupied.iter().position(|value|!*value)}
+                            .ok_or_else(||reject(arg.span,"E_CALL_PIN_UNKNOWN","카메라의 받는자리를 해소할 수 없습니다"))?;
+                        if std::mem::replace(&mut occupied[slot],true){return Err(reject(arg.span,"E_CALL_PIN_DUPLICATE","카메라의 받는자리가 겹칩니다"));}
+                        if signature.params[slot]=="투영" {projection=Some(&arg.expr);}
+                    }
+                    let projection=projection.ok_or_else(||reject(expr.span,"E_CALL_REQUIRED_PIN_MISSING","카메라의 투영 받는자리가 없습니다"))?;
+                    if !matches!(&projection.kind,ExprKind::Literal(Literal::Atom(atom)) if atom=="원근") {
+                        return Err(reject(projection.span,"E_SPACE3_PROJECTION_UNSUPPORTED","첫 공간 R1에는 명시 #원근이 필요합니다"));
+                    }
+                    effects.policy_space.insert(projection.id);
+                }
                 if canonical=="표준보개.곁"&&!locals.contains(func.as_str())&&!locals.contains(canonical)
                     &&!program.items.iter().any(|TopLevelItem::SeedDef(seed)|seed.callable_surface_names().iter().any(|name|name==func||name==canonical)) {
                     let signature=crate::stdlib::minimal_stdlib_sigs().into_iter().find(|signature|signature.name==canonical)
@@ -185,6 +202,7 @@ fn scan(program:&CanonProgram,body:Option<&Body>,root:&[Stmt],params:&[ParamPin]
                 ExprKind::SelectionPlace{target,index}=>{jobs.push(Job::Expr(target,false));jobs.push(Job::Expr(index,false));},
                 ExprKind::Infix{left,right,..}=>{jobs.push(Job::Expr(left,false));jobs.push(Job::Expr(right,false));},
                 ExprKind::Suffix{value,..}=>jobs.push(Job::Expr(value,false)),
+                ExprKind::FunctionBlock{statements,result}=>{jobs.push(Job::Expr(result,false));jobs.push(Job::Body(statements));},
                 ExprKind::Thunk(body)=>jobs.push(Job::Body(body)),
                 ExprKind::Eval{thunk,..}=>jobs.push(Job::Expr(thunk,false)),
                 ExprKind::Pack{fields}|ExprKind::TemplateRender{inject:fields,..}|ExprKind::FormulaEval{inject:fields,..}=>jobs.extend(fields.iter().map(|(_,e)|Job::Expr(e,false))),
@@ -236,6 +254,11 @@ pub(crate) fn validate(program:&mut CanonProgram)->Result<(),ParseError>{
         let occurrence=program.origin.atom_value_occurrences.get_mut(node)
             .ok_or_else(||reject(Span{start:0,end:0},"E_ATOM_POLICY_OWNER_REQUIRED","위치 policy의 실제 원문 발생이 없습니다"))?;
         occurrence.role=AtomValueRole::StandardBogaeSide{selector};
+    }
+    for node in root.policy_space.iter().chain(summaries.values().flat_map(|effect|effect.policy_space.iter())) {
+        let occurrence=program.origin.atom_value_occurrences.get_mut(node)
+            .ok_or_else(||reject(Span{start:0,end:0},"E_ATOM_POLICY_OWNER_REQUIRED","원근 policy의 실제 원문 발생이 없습니다"))?;
+        occurrence.role=AtomValueRole::StandardSpaceProjectionR1;
     }
     Ok(())
 }

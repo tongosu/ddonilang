@@ -983,3 +983,5 @@ mod tests {
 mod wo22_crash_tests;
 #[cfg(all(test,windows))]
 mod authoring_crash_tests;
+#[cfg(all(test,windows))]
+mod first_failure_recovery_tests;

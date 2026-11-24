@@ -58,8 +58,10 @@ struct BinderRow {id:String,scope:String,selected_pin:String,spelling:String,cap
 
 #[derive(Debug)]
 pub(in crate::authored_project::registration) struct ResolvedCatalog {
-    raw:Vec<u8>,templates:SumRoleCandidates,patterns:UserPatternCandidates,
+    raw:Vec<u8>,
+    legacy_ddl_start:bool,templates:SumRoleCandidates,patterns:UserPatternCandidates,
     selected:Option<SelectedPlainCallable>,
+    public:Option<PublicCallableSelection>,
 }
 fn id(text:&str)->Result<[u8;32],String> {
     if text.len()!=64||!text.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)) {return Err(fail("등록 정체의 정본 표기가 아닙니다"));}
@@ -105,7 +107,7 @@ impl SelectedPlainCallable {
         if capture.identity()!=&self.site.capture||module_raw(source,&self.path)?!=Some(self.site.module) {
             return Err(fail("선택 함수의 capture·모듈이 변경됐습니다"));
         }
-        let program=ddonirang_lang::parse_v25_with_mode(capture.text(),&self.path,ddonirang_lang::ParseMode::Strict)
+        let program=source.parse_capture(capture.text(),&self.path)
             .map_err(|e|fail(&e.to_string()))?;
         let seed=unique(program.items.iter().map(|TopLevelItem::SeedDef(seed)|seed)
             .filter(|seed|seed.span.start as u64==self.site.start&&seed.span.end as u64==self.site.end))?;
@@ -121,9 +123,47 @@ impl SelectedPlainCallable {
     }
 }
 
-fn contexts(source:&Source,selected:Option<&SelectedPlainCallable>)->Result<BTreeMap<Site,std::sync::Arc<DeclarationContext>>,String> {
+/// Explicit process-local selection; transport bytes alone never select it.
+#[derive(Clone,Debug)]
+pub(in crate::authored_project::registration) struct PublicCallableSelection {
+    original:crate::authored_project::ProjectArtifact,
+    module:String,
+}
+impl PublicCallableSelection {
+    fn new(source:&Source,module:&str)->Result<Self,String> {
+        let Source::Saved(owned)=source else {return Err(fail("공개 함수의 저장 owner가 없습니다"));};
+        let selected=Self{original:owned.project().clone(),module:module.into()};
+        selected.contexts(source)?;
+        Ok(selected)
+    }
+    fn contexts(&self,source:&Source)->Result<BTreeMap<Site,std::sync::Arc<DeclarationContext>>,String> {
+        let Source::Saved(owned)=source else {return Err(fail("공개 함수의 저장 owner가 없습니다"));};
+        if owned.project()!=&self.original {return Err(fail("공개 함수의 원본·판본이 변경됐습니다"));}
+        let facts=source.public_callable_facts(&self.module)?;
+        let mut rows=BTreeMap::new();
+        for declaration in facts.declarations() {
+            let crate::authored_project::public_surface::DeclarationNode::Callable(seed)=declaration.node() else {
+                return Err("E_RESOLVED_PUBLIC_DECLARATION_ADAPTER_REQUIRED: 공개 비함수 선언의 owner 연결이 필요합니다".into());
+            };
+            if !matches!(seed.seed_kind,ddonirang_lang::SeedKind::Umjikssi|ddonirang_lang::SeedKind::Semssi|ddonirang_lang::SeedKind::ValueFunc)
+                ||seed.body.is_none() {return Err("E_RESOLVED_CONTEXT_EFFECT_ADAPTER_REQUIRED: 이 공개 선언의 기존 callable owner가 없습니다".into());}
+            let (_,capture)=source.captures().iter().find(|(path,_)|path==declaration.source_path())
+                .ok_or_else(||fail("공개 선언의 실제 capture가 없습니다"))?;
+            let start=declaration.declaration_offset().checked_add(seed.span.start).ok_or_else(||fail("공개 선언 위치 한도"))?;
+            let end=declaration.declaration_offset().checked_add(seed.span.end).ok_or_else(||fail("공개 선언 위치 한도"))?;
+            if capture.text().get(start..end).is_none(){return Err(fail("공개 선언 원문 범위 오류"));}
+            let site=Site{module:id(facts.module().as_str())?,capture:*capture.identity(),start:start as u64,end:end as u64};
+            let context=std::sync::Arc::new(DeclarationContext{site:site.clone(),name:Some(declaration.internal_name().into()),kind:Some(seed.seed_kind.clone())});
+            if rows.insert(site,context).is_some(){return Err(fail("공개 선언 위치가 중복됩니다"));}
+        }
+        if rows.is_empty(){return Err(fail("선택한 공개 함수가 없습니다"));}
+        Ok(rows)
+    }
+}
+
+fn contexts(source:&Source,selected:Option<&SelectedPlainCallable>,public:Option<&PublicCallableSelection>)->Result<BTreeMap<Site,std::sync::Arc<DeclarationContext>>,String> {
     let preparation=source.preparation();
-    let program=ddonirang_lang::parse_v25_with_mode(&preparation.source,&preparation.target_path,ddonirang_lang::ParseMode::Strict)
+    let program=source.parse_prepared()
         .map_err(|e|fail(&e.to_string()))?;
     let mut output=BTreeMap::new();
     for (path,capture) in source.captures() {if let Some(module)=module_raw(source,path)? {
@@ -135,6 +175,14 @@ fn contexts(source:&Source,selected:Option<&SelectedPlainCallable>)->Result<BTre
         .chain(matches.into_iter().map(|(stmt,seed)|(match stmt {Stmt::SumMatch{span,..}=>*span,_=>unreachable!()},seed))) {
         let context=context_for(source,seed,span,&mut BTreeMap::new())?;
         output.insert(context.site.clone(),context);
+    }
+    if let Some(public)=public {
+        if selected.is_some(){return Err(fail("첫 함수와 공개 함수 선택을 중복할 수 없습니다"));}
+        for (site,context) in public.contexts(source)? {
+            if let Some(old)=output.get(&site) {
+                if old.name!=context.name||old.kind!=context.kind {return Err(fail("공개 함수와 기존 문맥 소유가 다릅니다"));}
+            } else {output.insert(site,context);}
+        }
     }
     if let Some(selected)=selected {
         let context=selected.context(source)?;
@@ -156,7 +204,7 @@ fn kind(context:&DeclarationContext)->Result<&'static str,String> {
 fn callable_pin_names(source:&Source,planned:&BTreeMap<Site,std::sync::Arc<DeclarationContext>>)->Result<Vec<(Site,String)>,String> {
     let mut names=Vec::new();
     for (path,capture) in source.captures() {let Some(module)=module_raw(source,path)? else {continue};
-        let program=ddonirang_lang::parse_v25_with_mode(capture.text(),path,ddonirang_lang::ParseMode::Strict).map_err(|e|fail(&e.to_string()))?;
+        let program=source.parse_capture(capture.text(),path).map_err(|e|fail(&e.to_string()))?;
         for TopLevelItem::SeedDef(seed) in &program.items {
             let site=Site{module,capture:*capture.identity(),start:seed.span.start as u64,end:seed.span.end as u64};
             if planned.get(&site).is_some_and(|context|context.name.is_some()) {for pin in &seed.params {names.push((site.clone(),pin.pin_name.clone()));}}
@@ -168,7 +216,7 @@ fn callable_pin_names(source:&Source,planned:&BTreeMap<Site,std::sync::Arc<Decla
 impl ResolvedCatalog {
     pub(in crate::authored_project::registration) fn needed(source:&Source)->Result<bool,String> {
         let preparation=source.preparation();
-        let program=ddonirang_lang::parse_v25_with_mode(&preparation.source,&preparation.target_path,ddonirang_lang::ParseMode::Strict).map_err(|e|fail(&e.to_string()))?;
+        let program=source.parse_prepared().map_err(|e|fail(&e.to_string()))?;
         let (declarations,matches)=scoped_sum_syntax(&program);Ok(!declarations.is_empty()||!matches.is_empty())
     }
     pub(in crate::authored_project::registration) fn issue(source:&Source,nominals:&super::super::RegistrationDraft,
@@ -218,16 +266,77 @@ impl ResolvedCatalog {
         Ok(super::super::FirstCallableExportFacts{module:def.module.clone(),capture:def.capture.clone(),definition:def.id.clone(),
             pins:pins.try_into().map_err(|_|fail("공개 핀 분모"))?,result_type:def.result_type.clone()})
     }
+    pub(in crate::authored_project::registration) fn checked_public_callable_export(&self,source:&Source,
+        owner:&super::super::RegistrationDraft,module:&str,
+        mut diagnostic:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+    )->Result<super::super::CheckedPublicCallableExport,String> {
+        let checked=self.recheck(source,owner)?;
+        let public=checked.public.as_ref().ok_or_else(||fail("명시한 전체 공개 함수 owner가 없습니다"))?;
+        if public.module!=module {return Err(fail("공개 DDL의 실제 소유 모듈이 다릅니다"));}
+        let contexts=public.contexts(source)?;
+        let facts=source.public_callable_facts(module)?;
+        let catalog:Catalog=serde_json::from_slice(checked.bytes()).map_err(|_|fail("공개 등록 원자료가 다릅니다"))?;
+        let mut definitions=Vec::new();
+        for declaration in facts.declarations() {
+            let (seed,body_canon)=crate::authored_project::public_surface::check_ddl_callable_shape(declaration).map_err(|error| {
+                if let Some(output)=diagnostic.as_deref_mut() {
+                    if let Some((_,capture))=source.captures().iter().find(|(path,_)|path==declaration.source_path()) {
+                        *output=error.source_diagnostic(declaration,capture.text());
+                    }
+                }
+                error.to_string()
+            })?;
+            let (_,capture)=source.captures().iter().find(|(path,_)|path==declaration.source_path())
+                .ok_or_else(||fail("공개 선언의 실제 원문이 없습니다"))?;
+            let start=declaration.declaration_offset().checked_add(seed.span.start).ok_or_else(||fail("공개 원문 범위 한도"))?;
+            let end=declaration.declaration_offset().checked_add(seed.span.end).ok_or_else(||fail("공개 원문 범위 한도"))?;
+            let site=Site{module:id(module)?,capture:*capture.identity(),start:start as u64,end:end as u64};
+            if !contexts.contains_key(&site){return Err(fail("공개 원문·capture·등록 문맥이 다릅니다"));}
+            let row=unique(catalog.definitions.iter().filter(|row|row.kind=="callable-context"&&row_site(row).ok().as_ref()==Some(&site)))?;
+            if row.result_type.is_empty(){return Err(fail("실제 결과 형식 증명이 없습니다"));}
+            let mut pins=Vec::new();
+            for param in &seed.params {
+                let pin=unique(catalog.pins.iter().filter(|pin|pin.owner==row.id&&pin.spelling==param.pin_name))?;
+                if !pin.required||!pin.default_canon.is_empty()||pin.type_hex.is_empty()||pin.type_hex!=row.result_type {
+                    return Err(fail("실제 정의 소유 핀·필수성·정확 나눔수 형식이 다릅니다"));
+                }
+                pins.push(super::super::PublicCallablePinExport{name:param.pin_name.clone(),identity:pin.id.clone(),type_hex:pin.type_hex.clone()});
+            }
+            if catalog.pins.iter().filter(|pin|pin.owner==row.id).count()!=pins.len(){return Err(fail("전체 공개 핀 분모가 다릅니다"));}
+            definitions.push(super::super::PublicCallableDefinitionExport{public_name:declaration.external_name().into(),
+                internal_name:declaration.internal_name().into(),identity:row.id.clone(),capture:row.capture.clone(),source_path:declaration.source_path().into(),
+                start:site.start,end:site.end,result_type:row.result_type.clone(),pins,closed_body_canon:body_canon});
+        }
+        if definitions.len()!=contexts.len(){return Err(fail("전체 공개 정의 분모가 다릅니다"));}
+        definitions.sort_by(|a,b|a.identity.cmp(&b.identity));
+        Ok(super::super::CheckedPublicCallableExport{module:module.into(),project_content_sha256:public.original.content_sha256.clone(),
+            catalog_sha256:hex::encode(Sha256::digest(checked.bytes())),
+            captures:catalog.captures.iter().map(|capture|(capture.module.clone(),capture.identity.clone(),capture.content_sha256.clone(),capture.byte_length)).collect(),definitions})
+    }
+
+
     pub(in crate::authored_project::registration) fn issue_first_callable(source:&Source,nominals:&super::super::RegistrationDraft,
         first:&crate::authored_project::FirstCallableAuthoredContext,entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>)->Result<Self,String> {
         let selected=SelectedPlainCallable::from_context(source,first)?;
         Self::issue_selected(source,nominals,Some(selected),entropy)
     }
+    pub(in crate::authored_project::registration) fn select_public_callables(source:&Source,module:&str)->Result<PublicCallableSelection,String> {
+        PublicCallableSelection::new(source,module)
+    }
+    pub(in crate::authored_project::registration) fn issue_public_callables(source:&Source,nominals:&super::super::RegistrationDraft,
+        public:PublicCallableSelection,entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>)->Result<Self,String> {
+        Self::issue_selected_scopes(source,nominals,None,Some(public),entropy)
+    }
     fn issue_selected(source:&Source,nominals:&super::super::RegistrationDraft,selected:Option<SelectedPlainCallable>,
         entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>)->Result<Self,String> {
+        Self::issue_selected_scopes(source,nominals,selected,None,entropy)
+    }
+    fn issue_selected_scopes(source:&Source,nominals:&super::super::RegistrationDraft,selected:Option<SelectedPlainCallable>,
+        public:Option<PublicCallableSelection>,entropy:&mut impl FnMut(&mut [u8;32])->Result<(),String>)->Result<Self,String> {
+        if let Some(public)=&public {public.contexts(source)?;}
         if let Some(selected)=&selected {selected.context(source)?;}
         let mut templates=SumRoleCandidates::reserve(source,nominals,entropy)?;
-        let planned=contexts(source,selected.as_ref())?;
+        let planned=contexts(source,selected.as_ref(),public.as_ref())?;
         let mut used=reserved(source,nominals)?;
         for row in &templates.templates {used.insert(row.id.0);for branch in &row.branches {used.insert(branch.id.0);used.extend(branch.pins.iter().map(|pin|pin.id.0));}}
         let mut context_ids=BTreeMap::new();
@@ -243,14 +352,60 @@ impl ResolvedCatalog {
         let patterns=UserPatternCandidates::issue_with_contexts(source,nominals,&templates,Some(&context_ids),&reserved_pins,entropy)?;
         // Every necessary role is reserved before closed type proof/canon.
         templates.bind_types(source,nominals)?;
-        let transport=Self::project(source,nominals,&templates,&patterns,&context_ids,&callable_pins,selected.as_ref())?;
+        let transport=Self::project(source,nominals,&templates,&patterns,&context_ids,&callable_pins,selected.as_ref(),public.as_ref(),None)?;
         let raw=encode(&transport)?;
         if raw.len()>LIMIT {return Err(fail("등록 자료 크기 한도입니다"));}
-        Ok(Self{raw,templates,patterns,selected})
+        Ok(Self{raw,templates,patterns,selected,public,legacy_ddl_start:false})
+    }
+    /// Rebind one checked source revision without minting or spelling-derived
+    /// identity transfer. Existing IDs are unchanged; current role/type/canon
+    /// verification is repeated before the new data can be consumed.
+    pub(in crate::authored_project::registration) fn rebind_nominal_revision(
+        old_source:&Source,old_nominals:&super::super::RegistrationDraft,
+        source:&Source,nominals:&super::super::RegistrationDraft,bytes:&[u8],
+    )->Result<Self,String>{
+        if old_source.mode()!="nominal-source"||source.mode()!="nominal-source"||old_source.scope()!=source.scope()
+            ||old_source.captures().len()!=1||source.captures().len()!=1||old_source.module_ids()?!=source.module_ids()? {
+            return Err(fail("명목 원문 판의 소유 경계가 다릅니다"));
+        }
+        Self::restore(old_source,old_nominals,bytes)?;
+        let old=&old_source.captures()[0].1;let current=&source.captures()[0].1;
+        let a=old.bytes();let b=current.bytes();let mut prefix=a.iter().zip(b).take_while(|(a,b)|a==b).count();
+        while !old.text().is_char_boundary(prefix)||!current.text().is_char_boundary(prefix){prefix-=1;}
+        let mut suffix=a[prefix..].iter().rev().zip(b[prefix..].iter().rev()).take_while(|(a,b)|a==b).count();
+        while !old.text().is_char_boundary(a.len()-suffix)||!current.text().is_char_boundary(b.len()-suffix){suffix-=1;}
+        let old_end=a.len()-suffix;let new_end=b.len()-suffix;
+        let position=|offset:u64|->Result<u64,String>{let offset=usize::try_from(offset).map_err(|_|fail("원문 위치 한도"))?;
+            if offset<=prefix{return Ok(offset as u64)}
+            if offset>=old_end{return Ok((new_end+offset-old_end) as u64)}
+            Err(fail("등록 선언·받는자리 내부 편집의 소유 이행을 증명하지 못했습니다. 편집 원문은 보존했습니다"))};
+        let mut catalog:Catalog=serde_json::from_slice(bytes).map_err(|_|fail("이전 등록 원자료 오류"))?;
+        let old_id=hex::encode(old.identity());let current_id=hex::encode(current.identity());
+        for row in &mut catalog.definitions {if row.capture!=old_id{return Err(fail("다른 원문 선언입니다"));}row.start=position(row.start)?;row.end=position(row.end)?;row.capture=current_id.clone();}
+        for row in &mut catalog.scopes {if row.capture!=old_id{return Err(fail("다른 원문 범위입니다"));}row.start=position(row.start)?;row.end=position(row.end)?;row.capture=current_id.clone();}
+        for row in &mut catalog.binders {if row.capture!=old_id{return Err(fail("다른 원문 받는자리입니다"));}row.start=position(row.start)?;row.end=position(row.end)?;row.capture=current_id.clone();}
+        if catalog.captures.len()!=1{return Err(fail("원문 판 개수가 다릅니다"));}
+        catalog.captures[0].identity=current_id.clone();catalog.captures[0].content_sha256=hex::encode(Sha256::digest(b));catalog.captures[0].byte_length=b.len() as u64;
+        let preparation=source.preparation();let mut program=source.parse_capture(current.text(),&source.captures()[0].0).map_err(|e|fail(&e.to_string()))?;
+        let mut order=BTreeMap::new();
+        for stmt in sum_syntax(&program).1 {let Stmt::SumMatch{arms,..}=stmt else{unreachable!()};for arm in arms {
+            let scope=unique(catalog.scopes.iter().filter(|row|row.capture==current_id&&row.start==arm.span.start as u64&&row.end==arm.span.end as u64))?;
+            for binder in &arm.binder {let selected=unique(catalog.binders.iter().filter(|row|row.scope==scope.id&&row.capture==current_id&&row.start==binder.span.start as u64&&row.end==binder.span.end as u64&&row.spelling==binder.pin))?;order.insert(binder.id,id(&selected.selected_pin)?);}
+        }}
+        ddonirang_lang::canonicalize(&mut program).map_err(|e|fail(&e.to_string()))?;
+        for row in &mut catalog.definitions {
+            if row.kind=="root-context" {row.canonical=ddonirang_lang::normalizer::normalize_with_registered_sum_pin_order(&program,ddonirang_lang::NormalizationLevel::N1,&order)?;}
+            else if row.kind!="sum-template" {
+                let seed=unique(program.items.iter().map(|TopLevelItem::SeedDef(seed)|seed).filter(|seed|seed.span.start as u64==row.start&&seed.span.end as u64==row.end))?;
+                row.canonical=ddonirang_lang::normalizer::normalize_registered_fragment(&program,ddonirang_lang::normalizer::RegisteredCanonFragment::Definition(seed),&order)?;
+            }
+        }
+        Self::restore(source,nominals,&encode(&catalog)?)
     }
     pub(in crate::authored_project::registration) fn bytes(&self)->&[u8] {&self.raw}
+    pub(in crate::authored_project::registration) fn has_legacy_ddl_start(&self)->bool {self.legacy_ddl_start}
     pub(in crate::authored_project::registration) fn checked_canon(&self,source:&Source,nominals:&super::super::RegistrationDraft)->Result<String,String> {
-        self.patterns.checked_canon(source,nominals,&self.templates)
+        self.patterns.checked_canon(source,nominals,&self.templates,self.legacy_ddl_start)
     }
     pub(in crate::authored_project::registration) fn bind_program(&self,source:&Source,program:&mut CanonProgram)->Result<(),String> {
         let order=self.patterns.pin_order(source,program)?;
@@ -260,9 +415,9 @@ impl ResolvedCatalog {
     }
     fn project(source:&Source,nominals:&super::super::RegistrationDraft,templates:&SumRoleCandidates,
         patterns:&UserPatternCandidates,context_ids:&BTreeMap<Site,DefinitionId>,callable_pins:&BTreeMap<(Site,String),PinId>,
-        selected:Option<&SelectedPlainCallable>)->Result<Catalog,String> {
+        selected:Option<&SelectedPlainCallable>,public:Option<&PublicCallableSelection>,legacy_ddl_root:Option<&str>)->Result<Catalog,String> {
         templates.verify(source,nominals)?;patterns.verify(source,nominals,templates)?;
-        let planned=contexts(source,selected)?;
+        let planned=contexts(source,selected,public)?;
         if planned.len()!=context_ids.len(){return Err(fail("원문 문맥 집합이 다릅니다"));}
         let expected_pins=callable_pin_names(source,&planned)?;
         if expected_pins.len()!=callable_pins.len()||expected_pins.iter().any(|key|!callable_pins.contains_key(key)) {return Err(fail("callable 받는자리 집합이 다릅니다"));}
@@ -281,7 +436,7 @@ impl ResolvedCatalog {
         for (path,capture) in source.captures() {let Some(module)=module_raw(source,path)? else {continue};
             catalog.modules.push(hex::encode(module));
             catalog.captures.push(Capture{identity:hex::encode(capture.identity()),module:hex::encode(module),content_sha256:hex::encode(Sha256::digest(capture.bytes())),byte_length:capture.bytes().len() as u64});
-            let mut program=ddonirang_lang::parse_v25_with_mode(capture.text(),path,ddonirang_lang::ParseMode::Strict).map_err(|e|fail(&e.to_string()))?;
+            let mut program=source.parse_capture(capture.text(),path).map_err(|e|fail(&e.to_string()))?;
             let mut order=BTreeMap::new();let mut binder_definitions=BTreeMap::new();let mut binder_spans=BTreeMap::new();
             for stmt in sum_syntax(&program).1 {let Stmt::SumMatch{arms,..}=stmt else {unreachable!()};for arm in arms {
                 let site=Site{module,capture:*capture.identity(),start:arm.span.start as u64,end:arm.span.end as u64};
@@ -291,7 +446,11 @@ impl ResolvedCatalog {
             ddonirang_lang::canonicalize(&mut program).map_err(|e|fail(&e.to_string()))?;
             let root_site=Site{module,capture:*capture.identity(),start:0,end:capture.bytes().len() as u64};
             let root_id=*context_ids.get(&root_site).ok_or_else(||fail("실제 원문 뿌리 문맥이 없습니다"))?;
-            let canonical=ddonirang_lang::normalizer::normalize_with_registered_sum_pin_order(&program,ddonirang_lang::NormalizationLevel::N1,&order)?;
+            let canonical=if legacy_ddl_root==Some(path.as_str()) {
+                ddonirang_lang::normalizer::normalize_legacy_saved_ddl_root(&program,&order)?
+            } else {
+                ddonirang_lang::normalizer::normalize_with_registered_sum_pin_order(&program,ddonirang_lang::NormalizationLevel::N1,&order)?
+            };
             charge_role_bytes(&mut canonical_bytes,canonical.len())?;
             catalog.definitions.push(Definition{id:hex::encode(root_id.0),module:hex::encode(module),capture:hex::encode(capture.identity()),start:0,end:root_site.end,
                 kind:"root-context".into(),spelling:String::new(),canonical,result_type:String::new(),owner:String::new()});
@@ -346,9 +505,18 @@ impl ResolvedCatalog {
         Self::restore_selected(source,nominals,bytes,Some(SelectedPlainCallable::from_context(source,first)?))
     }
     pub(in crate::authored_project::registration) fn recheck(&self,source:&Source,nominals:&super::super::RegistrationDraft)->Result<Self,String> {
-        Self::restore_selected(source,nominals,self.bytes(),self.selected.clone())
+        Self::restore_selected_scopes(source,nominals,self.bytes(),self.selected.clone(),self.public.clone())
+    }
+    pub(in crate::authored_project::registration) fn restore_public_callables(source:&Source,nominals:&super::super::RegistrationDraft,
+        bytes:&[u8],public:PublicCallableSelection)->Result<Self,String> {
+        Self::restore_selected_scopes(source,nominals,bytes,None,Some(public))
     }
     fn restore_selected(source:&Source,nominals:&super::super::RegistrationDraft,bytes:&[u8],selected:Option<SelectedPlainCallable>)->Result<Self,String> {
+        Self::restore_selected_scopes(source,nominals,bytes,selected,None)
+    }
+    fn restore_selected_scopes(source:&Source,nominals:&super::super::RegistrationDraft,bytes:&[u8],selected:Option<SelectedPlainCallable>,
+        public:Option<PublicCallableSelection>)->Result<Self,String> {
+        if let Some(public)=&public {public.contexts(source)?;}
         if let Some(selected)=&selected {selected.context(source)?;}
         if bytes.len()>LIMIT||bytes.starts_with(&[0xef,0xbb,0xbf]) {return Err(fail("등록 자료 크기·BOM 오류"));}
         let catalog:Catalog=serde_json::from_slice(bytes).map_err(|_|fail("등록 자료의 닫힌 형식이 다릅니다"))?;
@@ -368,7 +536,7 @@ impl ResolvedCatalog {
             branches.sort_by_key(|branch|branch.id);templates.push(Template{id:DefinitionId(id(&row.id)?),site:planned.site,lexical_scope:planned.lexical_scope,spelling:planned.spelling,branches});
         }
         templates.sort_by_key(|row|row.id);let templates=SumRoleCandidates{scope:catalog.scope.clone(),templates};templates.verify(source,nominals)?;
-        let planned_contexts=contexts(source,selected.as_ref())?;let mut context_ids=BTreeMap::new();
+        let planned_contexts=contexts(source,selected.as_ref(),public.as_ref())?;let mut context_ids=BTreeMap::new();
         for (site,context) in &planned_contexts {
             let row=unique(catalog.definitions.iter().filter(|row|row.kind==kind(context).unwrap_or("")&&row_site(row).ok().as_ref()==Some(site)))?;
             context_ids.insert(site.clone(),DefinitionId(id(&row.id)?));
@@ -393,9 +561,27 @@ impl ResolvedCatalog {
         }
         scopes.sort_by_key(|row|row.id);
         let patterns=UserPatternCandidates{contexts:pattern_contexts.into_iter().map(|(id,declaration)|ContextCandidate{id,declaration}).collect(),scopes};
-        let expected=Self::project(source,nominals,&templates,&patterns,&context_ids,&callable_pins,selected.as_ref())?;
-        if encode(&expected)?!=bytes {return Err(fail("등록 자료가 실제 원문·씨·소유자·정본과 다릅니다"));}
-        Ok(Self{raw:bytes.into(),templates,patterns,selected})
+        let expected=Self::project(source,nominals,&templates,&patterns,&context_ids,&callable_pins,selected.as_ref(),public.as_ref(),None)?;
+        let legacy_ddl_start=encode(&expected)?!=bytes;
+        if legacy_ddl_start {
+            // These selected registration owners restore the embedded
+            // original project, before the consumer activation exists.
+            // Recompute only the old entry root rendering and still require
+            // exact equality of the complete, source-owned catalog.
+            let legacy_path=match source {
+                Source::Saved(saved) if (selected.is_some()||public.is_some())
+                    && saved.sources().saved().j1_profile().is_none()
+                    && saved.sources().logic_callable_context().is_none() => {
+                    Some(saved.project().source_snapshot.entry_path.as_str())
+                }
+                _=>None,
+            };
+            let mismatch=||fail("등록 자료가 실제 원문·씨·소유자·정본과 다릅니다");
+            let path=legacy_path.ok_or_else(mismatch)?;
+            let legacy=Self::project(source,nominals,&templates,&patterns,&context_ids,&callable_pins,selected.as_ref(),public.as_ref(),Some(path))?;
+            if encode(&legacy)?!=bytes {return Err(mismatch());}
+        }
+        Ok(Self{raw:bytes.into(),templates,patterns,selected,public,legacy_ddl_start})
     }
 }
 
@@ -497,5 +683,167 @@ mod g1_plain_callable_tests {
         let changed=authored_project::open(changed.save().unwrap().as_bytes()).unwrap();let changed_source=source(&changed);
         assert!(registration::prepare_first_callable_under_candidate_owner(&changed_source,&original_context,None,&mut |id|next(&mut invoked,id)).is_err());
         assert!(registration::restore_precanon_first_callable_candidate(&changed_source,&context(&changed),draft.recorded_blobs()).is_err());assert_eq!(invoked,0);
+    }
+}
+
+
+#[cfg(test)]
+mod r21_public_callable_tests {
+    use super::*;
+    use crate::authored_project::{self,ProjectArtifact,SourceFile,SourceSnapshot};
+    use crate::authored_project::registration;
+    use crate::project_revision_envelope_supply as supply;
+
+    fn project()->ProjectArtifact {
+        let snapshot=SourceSnapshot{entry_path:"main.ddn".into(),root_path:Some("root.ddn".into()),files:vec![
+            SourceFile{path:"root.ddn".into(),text:"(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"main.ddn\",원문=\"main.ddn\"),(이름=모음,머리=\"모음.ddn\",원문=차림[\"모음.ddn\",\"추가.ddn\"])], 시작=(모듈=앱,정의=실행)) 얽음.\n".into()},
+            SourceFile{path:"main.ddn".into(),text:"(모음=모음) 쓰임.\n실행:움직씨 := {\n((왼값=(2,1) 나눔수, 오른값=(3,1) 나눔수) 모음.첫째) 보여주기.\n((값=(4,1) 나눔수) 모음.둘째) 보여주기.\n}.\n".into()},
+            SourceFile{path:"모음.ddn".into(),text:"#!한국어\n// 日本語 위치 보존\n(첫째=더하다, 둘째=두배하다) 드러냄.\n(왼값:나눔수~에, 오른값:나눔수~을) 더하다:나눔수:셈씨 := { 더하다 <- 왼값 + 오른값. }.\n(숨은값:나눔수~을) 숨기다:나눔수:셈씨 := { 숨기다 <- 숨은값. }.\n".into()},
+            SourceFile{path:"추가.ddn".into(),text:"(값:나눔수~을) 두배하다:나눔수:셈씨 := { 두배하다 <- 값 + 값. }.\n".into()},
+        ]};
+        let made=ProjectArtifact::create("v1-core-v25".into(),snapshot,String::new()).unwrap();
+        authored_project::open(made.save().unwrap().as_bytes()).unwrap()
+    }
+    fn owner(project:&ProjectArtifact)->String {project.authored_identity.modules.iter().find(|m|m.name=="모음").unwrap().id.as_str().into()}
+    fn source(project:&ProjectArtifact)->supply::PreCanonAuthoredSourceV1 {
+        supply::admit_fresh_precanon_authored_source(project.save().unwrap().as_bytes()).unwrap()
+    }
+    fn next(count:&mut u64,id:&mut [u8;32])->Result<(),String>{*count+=1;id.fill(0);id[0]=213;id[24..].copy_from_slice(&count.to_be_bytes());Ok(())}
+    fn prepare(owned:&supply::PreCanonAuthoredSourceV1,module:&str,count:&mut u64)->registration::RegistrationDraft {
+        registration::prepare_public_callables_under_candidate_owner(owned,module,None,&mut |id|next(count,id)).unwrap()
+    }
+    fn transport(draft:&registration::RegistrationDraft)->Catalog {
+        serde_json::from_slice(draft.resolved.as_ref().unwrap().bytes()).unwrap()
+    }
+    fn reseal(draft:&registration::RegistrationDraft,mutate:impl FnOnce(&mut Catalog))->Vec<registration::RecordedRegistrationBlob> {
+        let mut records=draft.recorded_blobs();let row=records.iter_mut().find(|r|r.role.as_deref()==Some(ROLE)).unwrap();
+        let mut catalog:Catalog=serde_json::from_slice(&hex::decode(&row.raw_hex).unwrap()).unwrap();
+        mutate(&mut catalog);let bytes=encode(&catalog).unwrap();
+        row.byte_length=bytes.len() as u64;row.sha256=hex::encode(Sha256::digest(&bytes));row.raw_hex=hex::encode(bytes);records
+    }
+    #[test]
+    fn r21_explicit_public_owner_issues_f_g_and_preserves_default_old_bytes() {
+        let project=project();let owned=source(&project);let view=Source::saved(&owned);let module=owner(&project);
+        assert!(!ResolvedCatalog::needed(&view).unwrap());
+        let mut old_count=0;let old=registration::prepare_precanon_under_candidate_owner(&owned,None,&mut |id|next(&mut old_count,id)).unwrap();
+        let old_bytes=serde_json::to_vec(&old.recorded_blobs()).unwrap();assert!(old.resolved.is_none());
+        let mut count=0;let draft=prepare(&owned,&module,&mut count);assert!(count>0);
+        let catalog=transport(&draft);
+        let rows=catalog.definitions.iter().filter(|r|r.kind=="callable-context").collect::<Vec<_>>();
+        assert_eq!(rows.len(),2);assert_eq!(rows.iter().map(|r|r.spelling.as_str()).collect::<BTreeSet<_>>(),BTreeSet::from(["더하다","두배하다"]));
+        assert_ne!(rows[0].id,rows[1].id);assert!(rows.iter().all(|r|r.module==module&&!r.result_type.is_empty()));
+        assert_eq!(catalog.pins.len(),3);assert!(catalog.providers.is_empty());
+        for row in rows {
+            let pin_count=if row.spelling=="더하다"{2}else{1};
+            assert_eq!(catalog.pins.iter().filter(|p|p.owner==row.id).count(),pin_count);
+            let capture=owned.sources().captures().iter().find(|(_,c)|hex::encode(c.identity())==row.capture).unwrap();
+            assert!(capture.1.text().get(row.start as usize..row.end as usize).unwrap().contains(&row.spelling));
+        }
+        assert_eq!(catalog.pins.iter().map(|p|p.id.as_str()).collect::<BTreeSet<_>>().len(),3);
+        assert!(catalog.pins.iter().all(|p|p.required&&!p.type_hex.is_empty()));
+        let restored_old=registration::restore_precanon_recorded_candidate(&owned,serde_json::from_slice(&old_bytes).unwrap()).unwrap();
+        assert_eq!(serde_json::to_vec(&restored_old.recorded_blobs()).unwrap(),old_bytes);
+        assert!(registration::restore_precanon_recorded_candidate(&owned,draft.recorded_blobs()).is_err());
+        let mut again_count=0;let again=registration::prepare_precanon_under_candidate_owner(&owned,None,&mut |id|next(&mut again_count,id)).unwrap();
+        assert_eq!(old_count,again_count);assert_eq!(serde_json::to_vec(&again.recorded_blobs()).unwrap(),old_bytes);
+    }
+    #[test]
+    fn r21_public_recorded_cold_restore_keeps_ids_and_uses_no_entropy() {
+        let project=project();let fresh=source(&project);let module=owner(&project);let mut count=0;let draft=prepare(&fresh,&module,&mut count);
+        let before=serde_json::to_vec(&draft.recorded_blobs()).unwrap();
+        let captures=fresh.sources().recorded_capture_catalog_json().unwrap();let artifact=project.save().unwrap();
+        let original=supply::admit_saved_authored_project(fresh.sources().clone(),artifact.as_bytes()).unwrap();
+        let restored_sources=supply::restore_saved_v25_sources(original.resolved_revision_supply(),&captures).unwrap();
+        let owned=supply::admit_precanon_authored_source(std::sync::Arc::new(restored_sources),artifact.as_bytes()).unwrap();
+        let restored=registration::restore_precanon_public_callables_candidate(&owned,&module,serde_json::from_slice(&before).unwrap()).unwrap();
+        assert_eq!(serde_json::to_vec(&restored.recorded_blobs()).unwrap(),before);
+        let mut reuse_count=0;let again=registration::prepare_public_callables_under_candidate_owner(&owned,&module,Some(&restored),&mut |id|next(&mut reuse_count,id)).unwrap();
+        assert_eq!(reuse_count,0);assert_eq!(serde_json::to_vec(&again.recorded_blobs()).unwrap(),before);
+        assert_eq!(restored.resolved_start_material(&owned).unwrap().unwrap().1,draft.resolved.as_ref().unwrap().bytes());
+    }
+    #[test]
+    fn r21_public_owner_refuses_forged_pin_type_foreign_and_stale_source() {
+        let project=project();let owned=source(&project);let module=owner(&project);let mut count=0;let draft=prepare(&owned,&module,&mut count);
+        for records in [reseal(&draft,|c|{c.pins[0].owner=c.definitions.iter().find(|r|r.kind=="root-context").unwrap().id.clone();}),
+            reseal(&draft,|c|{c.pins[0].type_hex="00".into();})] {
+            assert!(registration::restore_precanon_public_callables_candidate(&owned,&module,records).is_err());
+        }
+        let mut invoked=0;
+        assert!(registration::prepare_public_callables_under_candidate_owner(&owned,&"ff".repeat(32),None,&mut |id|next(&mut invoked,id)).is_err());assert_eq!(invoked,0);
+        let other=project.duplicate().unwrap();let other=authored_project::open(other.save().unwrap().as_bytes()).unwrap();let other_source=source(&other);
+        assert!(registration::restore_precanon_public_callables_candidate(&other_source,&owner(&other),draft.recorded_blobs()).is_err());
+        let mut changed=project.clone();changed.source_snapshot.files.iter_mut().find(|f|f.path=="추가.ddn").unwrap().text.push_str("// 판본 변경\n");
+        let changed=authored_project::open(changed.save().unwrap().as_bytes()).unwrap();
+        assert!(registration::restore_precanon_public_callables_candidate(&source(&changed),&owner(&changed),draft.recorded_blobs()).is_err());
+    }
+}
+
+#[cfg(test)]
+mod r25_public_export_tests {
+    use super::*;
+    use crate::authored_project::{self,ProjectArtifact};
+    use crate::authored_project::registration;
+    use crate::project_revision_envelope_supply as supply;
+    const ORIGINAL:&str=r#####"{"authored_identity":{"clone_origin":null,"entry":null,"logical_dependency_id":"d93448392868869dab65fa96a8a73c3869f07eaa540229b427d60ef336fcd9e9","modules":[{"compositions":[],"head":"main.ddn","id":"5143b023273c0ce951e9b7a410db70c3f1849c2492a0ee9c46eac577a1f2350b","name":"앱","sources":["main.ddn"]},{"compositions":[],"head":"함수.ddn","id":"a21d1b41d973933d2b3957e49fe998e3a98ee6d1871bfd79a707a94f6dd2ebb4","name":"함수","sources":["함수.ddn"]}],"schema":"ddn.authored_identity.v1"},"content_sha256":"724af7c43bb6492f703355101cbeb42371f05efd4d390ff0d6a884adbdd5dd53","schema":"ddn.authored_project_artifact.v1","source_profile":"v1-core-v25","source_snapshot":{"entry_path":"main.ddn","files":[{"path":"root.ddn","text":"(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"main.ddn\",원문=\"main.ddn\"),(이름=함수,머리=\"함수.ddn\",원문=\"함수.ddn\")], 시작=(모듈=앱,정의=실행)) 얽음.\n"},{"path":"main.ddn","text":"(함수=함수) 쓰임.\n실행:움직씨 := {\n    ((q=(3,1) 나눔수, p=(12,1) 나눔수) 함수.F) 보여주기.\n    ((r=(4,1) 나눔수) 함수.G) 보여주기.\n}.\n"},{"path":"함수.ddn","text":"(F=F, G=G) 드러냄.\n(p:나눔수~에, q:나눔수~을) F:나눔수:셈씨 := { F <- p + q. }.\n(r:나눔수~을) G:나눔수:셈씨 := { G <- r + r. }.\n"}],"root_path":"root.ddn"}}"#####;
+    fn project()->ProjectArtifact {authored_project::open(ORIGINAL.as_bytes()).unwrap()}
+    fn source(project:&ProjectArtifact)->supply::PreCanonAuthoredSourceV1 {
+        supply::admit_fresh_precanon_authored_source(project.save().unwrap().as_bytes()).unwrap()
+    }
+    fn module(project:&ProjectArtifact)->String {project.authored_identity.modules.iter().find(|row|row.name=="함수").unwrap().id.as_str().into()}
+    fn next(count:&mut u64,id:&mut [u8;32])->Result<(),String> {*count+=1;id.fill(0);id[0]=214;id[24..].copy_from_slice(&count.to_be_bytes());Ok(())}
+    fn requested(facts:&registration::CheckedPublicCallableExport)->Vec<registration::PublicCallableSurfaceRequest> {
+        facts.definitions.iter().map(|row|registration::PublicCallableSurfaceRequest{definition:row.identity.clone(),surface:row.public_name.clone(),
+            pins:row.pins.iter().enumerate().map(|(i,pin)|(pin.identity.clone(),if i==0{"金額".into()}else{"税額".into()},if row.pins.len()>1&&i==0{"に".into()}else{"を".into()})).collect()}).collect()
+    }
+    #[test]
+    fn r25_actual_full_public_f_g_profile_and_recorded_owner_recheck() {
+        let project=project();let owned=source(&project);let module=module(&project);let mut calls=0;
+        let draft=registration::prepare_public_callables_under_candidate_owner(&owned,&module,None,&mut |id|next(&mut calls,id)).unwrap();
+        let facts=draft.checked_public_callable_export(&owned,&module).unwrap();
+        assert_eq!(facts.definitions.len(),2);assert_eq!(facts.definitions.iter().map(|row|row.pins.len()).sum::<usize>(),3);
+        assert_eq!(facts.definitions.iter().map(|row|row.public_name.as_str()).collect::<BTreeSet<_>>(),BTreeSet::from(["F","G"]));
+        assert!(facts.definitions.iter().all(|row|!row.result_type.is_empty()&&row.closed_body_canon.starts_with("add(")&&row.source_path=="함수.ddn"));
+        let mut registry=ddonirang_lang::ddl::SuccessorRegistryOwner::default();let mut profile_calls=0;
+        let (export,profile)=draft.issue_public_callable_profile(&owned,&module,requested(&facts),&mut registry,&mut |raw|{profile_calls+=1;raw.fill(199);Ok(())}).unwrap();
+        assert_eq!(profile_calls,1);assert_eq!(export,facts);assert_eq!(profile.surfaces().len(),2);
+        let same_name=profile.surfaces().iter().flat_map(|row|row.pins.iter().filter(|pin|pin.surface=="金額").map(move |pin|(&row.identity,&pin.identity))).collect::<Vec<_>>();
+        assert_eq!(same_name.len(),2);assert_ne!(same_name[0],same_name[1]);assert_ne!(same_name[0].1,same_name[1].1);
+        assert!(registry.lookup(profile.identity(),"1",profile.content_sha256(),1).is_err());
+        assert_eq!(registry.resolve_exported(&[profile.clone()],"日本語","2").unwrap().content(),profile.content());
+        // Restore the real recorded captures and G1 catalog without entropy;
+        // this is not Native persistence or restoration of a new wire format.
+        let artifact=project.save().unwrap();let original=supply::admit_saved_authored_project(owned.sources().clone(),artifact.as_bytes()).unwrap();
+        let restored_sources=supply::restore_saved_v25_sources(original.resolved_revision_supply(),&owned.sources().recorded_capture_catalog_json().unwrap()).unwrap();
+        let cold=supply::admit_precanon_authored_source(std::sync::Arc::new(restored_sources),artifact.as_bytes()).unwrap();
+        let restored=registration::restore_precanon_public_callables_candidate(&cold,&module,draft.recorded_blobs()).unwrap();
+        let cold_facts=restored.checked_public_callable_export(&cold,&module).unwrap();assert_eq!(cold_facts,facts);
+        let (_,same)=restored.issue_public_callable_profile(&cold,&module,requested(&cold_facts),&mut registry,&mut |_|panic!("same owner content cannot reissue")).unwrap();
+        assert_eq!(same.identity(),profile.identity());
+    }
+    #[test]
+    fn r25_public_coverage_cross_definition_pin_and_stale_refused_before_issuance() {
+        let project=project();let owned=source(&project);let module=module(&project);let mut count=0;
+        let draft=registration::prepare_public_callables_under_candidate_owner(&owned,&module,None,&mut |id|next(&mut count,id)).unwrap();
+        let facts=draft.checked_public_callable_export(&owned,&module).unwrap();let all=requested(&facts);
+        let mut omitted=all.clone();omitted.pop();
+        let mut forged=all.clone();forged[0].pins[0].0=all[1].pins[0].0.clone();
+        let mut extra=all.clone();let duplicate=extra[0].pins[0].clone();extra[0].pins.push(duplicate);
+        let mut registry=ddonirang_lang::ddl::SuccessorRegistryOwner::default();
+        for rows in [omitted,forged,extra] {
+            assert!(draft.issue_public_callable_profile(&owned,&module,rows,&mut registry,&mut |_|panic!("bad coverage cannot issue")).is_err());
+        }
+        let mut changed=project.clone();changed.source_snapshot.files.iter_mut().find(|file|file.path=="함수.ddn").unwrap().text.push_str("// stale 日本語\n");
+        let changed=authored_project::open(changed.save().unwrap().as_bytes()).unwrap();
+        assert!(draft.checked_public_callable_export(&source(&changed),&module).is_err());
+        assert!(draft.checked_public_callable_export(&owned,&"ff".repeat(32)).is_err());
+    }
+    #[test]
+    fn r25_actual_body_dependency_scope_not_inferred_from_semssi_kind() {
+        let project=project();let mut project=project.clone();
+        let row=project.source_snapshot.files.iter_mut().find(|row|row.path=="함수.ddn").unwrap();
+        row.text=row.text.replace("F <- p + q","F <- p - q");
+        let project=authored_project::open(project.save().unwrap().as_bytes()).unwrap();let owned=source(&project);let module=module(&project);let mut count=0;
+        let draft=registration::prepare_public_callables_under_candidate_owner(&owned,&module,None,&mut |id|next(&mut count,id)).unwrap();
+        let failure=draft.checked_public_callable_export(&owned,&module).unwrap_err();assert!(failure.contains("E_DDL_PUBLIC_BODY_SCOPE"),"{failure}");
     }
 }

@@ -15,10 +15,11 @@ const logicalOperations = new Map([
   ["logicalExportSavedProjectArtifact", "exportSavedProjectArtifact"],
   ["logicalExportProjectCheckpoint", "exportProjectCheckpoint"],
 ]);
-const sessionOperations = new Set(["updateLogic", "reset", "getStateJson", "step", "setParam", "exportSavedProjectArtifact", "saveNativeCheckpoint", "close"]);
+const sessionOperations = new Set(["updateLogic", "configureProjectAssetsBinary", "reset", "getStateJson", "step", "setParam", "exportSavedProjectArtifact", "saveNativeCheckpoint", "close"]);
 const adapterOperations = new Set([
   "authoredProjectOperation",
   "observeMathNotebook",
+  "observeAlgebraProject",
   "compareGeneralOriginalRecording",
   "verifyAssumptionSource",
   "canonMaegimPlan", "sourceAnalysis", "moduleDirectiveAnalysis", "sharedCompletion",

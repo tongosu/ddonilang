@@ -16,6 +16,7 @@ pub mod output_display;
 pub(crate) mod replay_evidence;
 pub mod bogae_recipe;
 pub mod scene_value;
+mod dependency_tool;
 pub mod authored_project;
 pub mod authored_bogae;
 pub mod completion;
@@ -32,6 +33,7 @@ pub mod repl_workflow;
 pub mod replay_diff;
 pub mod ddn_runtime;
 pub mod math_notebook;
+pub mod linear_problem;
 pub mod result_place;
 pub mod deterministic_debug;
 #[cfg(not(target_arch = "wasm32"))]
@@ -137,6 +139,7 @@ pub(crate) mod registered_atom_contract;
 pub(crate) mod subject_reference_owner;
 pub(crate) mod tuple_saved_type_plan;
 pub(crate) mod numeric_constraint_plan;
+pub(crate) mod function_call_graph;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod patch_workflow;
 pub mod runtime_surface;
@@ -179,3 +182,5 @@ pub mod paths;
 // identity as that workflow. This is an internal Rust API, not a public wire
 // contract.
 pub use serde_json;
+
+mod native_source_observation;

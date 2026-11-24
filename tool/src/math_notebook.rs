@@ -11,6 +11,17 @@ use serde_json::{json, Value as Json};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Model { Motion, Water }
+impl Model {
+    fn parse(kind: &str) -> Result<Self,String> {match kind {
+        "uniform_motion"=>Ok(Self::Motion), "water_tank"=>Ok(Self::Water),
+        _=>Err(fail("E_NOTEBOOK_MODEL", "지원하지 않는 명시 모형입니다")),
+    }}
+    fn name(self)-> &'static str {match self {Self::Motion=>"uniform_motion",Self::Water=>"water_tank"}}
+    fn amount_dim(self)->UnitDim {match self {Self::Motion=>UnitDim::LENGTH,Self::Water=>UnitDim::LENGTH.add(UnitDim::LENGTH).add(UnitDim::LENGTH)}}
+}
+
 fn fail(code: &str, detail: &str) -> String {
     format!("{code}: {detail}")
 }
@@ -31,15 +42,18 @@ fn exact(v: &Value) -> Result<BigRational, String> {
         )),
     }
 }
-fn basis(v: &Value, dim: UnitDim) -> Result<(), String> {
+fn basis(v: &Value, dim: UnitDim) -> Result<i64, String> {
     match v {
         Value::Unit(u) if u.dim != dim => {
             Err(fail("E_NOTEBOOK_DIMENSION", "단위 기준의 차원이 다릅니다"))
         }
-        Value::Unit(u) if u.value == Fixed64::from_i64(1) => Ok(()),
+        Value::Unit(u) if u.value == Fixed64::from_i64(1) => Ok(1),
+        // Existing minute unit is exactly 60 canonical seconds. Do not infer
+        // an exact rational from arbitrary rounded Fixed64 unit values.
+        Value::Unit(u) if dim == UnitDim::TIME && u.value == Fixed64::from_i64(60) => Ok(60),
         _ => Err(fail(
             "E_NOTEBOOK_UNIT_BASIS",
-            "첫 모형은 정규 크기 1의 실제 단위 기준을 요구합니다",
+            "단위 기준은 정규 크기 1 또는 시간의 정확한 60초 기준이어야 합니다",
         )),
     }
 }
@@ -56,13 +70,31 @@ pub fn observe_uniform_motion(source: &str, path: &str) -> Result<String, String
     if source.len() > 65536 {
         return Err(fail("E_NOTEBOOK_BUDGET", "원문 크기 한도를 넘었습니다"));
     }
+    if let Some(observation) = ddonirang_lang::structure_grid::observe(source, path) {
+        return observation.map(|value| value.to_string()).map_err(|error| {
+            json!({"status":"rejected","path":path,"diagnostic":{
+                "code":error.code(),"detail":error.message,
+                "span":{"start":error.span.start,"end":error.span.end}
+            }}).to_string()
+        });
+    }
+    if let Some(report) = crate::proof_workflow::observe_card_goal(source, path)? { return Ok(report); }
     let program = DdnProgram::from_v25_source(source, path)?;
-    observe_runner(DdnRunner::new(program, "매마디"), source, path)
+    observe_runner(DdnRunner::new(program, "매마디"), source, path, None)
 }
 
 /// M6 passes the complete existing authored artifact, never edited metadata.
 /// Admission, module ownership and the selected start are checked by their owners.
 pub fn observe_uniform_motion_project(artifact: &str) -> Result<String, String> {
+    observe_project(artifact,None)
+}
+
+/// Explicit variant; source model identity must agree after actual execution.
+pub fn observe_project_model(artifact: &str, model_kind: &str) -> Result<String,String> {
+    observe_project(artifact,Some(Model::parse(model_kind)?))
+}
+
+fn observe_project(artifact: &str, model: Option<Model>) -> Result<String, String> {
     if artifact.len() > 262144 {
         return Err(fail(
             "E_NOTEBOOK_BUDGET",
@@ -89,6 +121,7 @@ pub fn observe_uniform_motion_project(artifact: &str) -> Result<String, String> 
         runner,
         &sources.preparation().source,
         &sources.preparation().target_path,
+        model,
     )?)
     .map_err(|e| e.to_string())?;
     report["authored_source"] = json!({"artifact_sha256":format!("{:x}",Sha256::digest(artifact.as_bytes())),
@@ -97,7 +130,7 @@ pub fn observe_uniform_motion_project(artifact: &str) -> Result<String, String> 
     Ok(report.to_string())
 }
 
-fn observe_runner(mut runner: DdnRunner, source: &str, path: &str) -> Result<String, String> {
+fn observe_runner(mut runner: DdnRunner, source: &str, path: &str, model: Option<Model>) -> Result<String, String> {
     if source.len() > 65536 {
         return Err(fail(
             "E_NOTEBOOK_BUDGET",
@@ -117,10 +150,21 @@ fn observe_runner(mut runner: DdnRunner, source: &str, path: &str) -> Result<Str
         rng_seed: 0,
     };
     let out = runner.run_update(&NuriWorld::new(), &input, &HashMap::new())?;
-    observe_output(out, source, path)
+    observe_output(out, source, path, model)
 }
 
-fn observe_output(out: DdnRunOutput, source: &str, path: &str) -> Result<String, String> {
+fn observe_output(out: DdnRunOutput, source: &str, path: &str, selection: Option<Model>) -> Result<String, String> {
+    if let Some(model)=selection {
+        match out.resources.get("탐구모형") {
+            Some(Value::String(name)) if name==model.name()=>{},
+            None if model==Model::Motion=>{},
+            _=>return Err(fail("E_NOTEBOOK_MODEL", "실제 원문의 탐구모형과 요청 모형이 일치하지 않습니다")),
+        }
+    }
+    let model=selection.unwrap_or(Model::Motion);
+    let amount_dim=model.amount_dim();
+    let rate_dim=amount_dim.sub(UnitDim::TIME);
+
     let Some(Value::Tuple(coefficients)) = out.resources.get("탐구계수") else {
         return Err(fail(
             "E_NOTEBOOK_INPUT",
@@ -135,10 +179,10 @@ fn observe_output(out: DdnRunOutput, source: &str, path: &str) -> Result<String,
             .get(key)
             .ok_or_else(|| fail("E_NOTEBOOK_INPUT", &format!("필수 입력 {key}가 없습니다")))
     };
-    basis(resource("길이기준")?, UnitDim::LENGTH)?;
-    basis(resource("시간기준")?, UnitDim::TIME)?;
-    basis(resource("속도기준")?, UnitDim::SPEED)?; // Explicit normalization: (length/time)*time=length, using actual dimensions.
-    if UnitDim::SPEED.add(UnitDim::TIME) != UnitDim::LENGTH {
+    let length_scale = basis(resource(if model==Model::Water {"양기준"} else {"길이기준"})?, amount_dim)?;
+    let time_scale = basis(resource("시간기준")?, UnitDim::TIME)?;
+    let velocity_scale = basis(resource(if model==Model::Water {"유량기준"} else {"속도기준"})?, rate_dim)?; // Explicit normalization: (length/time)*time=length, using actual dimensions.
+    if rate_dim.add(UnitDim::TIME) != amount_dim {
         return Err(fail(
             "E_NOTEBOOK_DIMENSION",
             "속도와 시간의 차원 연결이 다릅니다",
@@ -155,7 +199,7 @@ fn observe_output(out: DdnRunOutput, source: &str, path: &str) -> Result<String,
     }
     let mut rows = vec![];
     for value in times {
-        let t = exact(value)?;
+        let t = exact(value)? * BigRational::from_integer(time_scale.into());
         if t.is_negative() {
             return Err(fail(
                 "E_NOTEBOOK_TIME_DOMAIN",
@@ -163,9 +207,9 @@ fn observe_output(out: DdnRunOutput, source: &str, path: &str) -> Result<String,
             ));
         }
         let x = &x0 + &velocity * &t;
-        rows.push(
-            json!({"time":quantity(&t,UnitDim::TIME),"position":quantity(&x,UnitDim::LENGTH)}),
-        );
+        rows.push(if model==Model::Water {
+            json!({"time":quantity(&t,UnitDim::TIME),"amount":quantity(&x,amount_dim)})
+        } else {json!({"time":quantity(&t,UnitDim::TIME),"position":quantity(&x,amount_dim)})});
     }
     // Internal solver input is derived from validated exact coefficients and
     // explicit bases, never from stripped UI labels or a second DDN parser.
@@ -195,8 +239,8 @@ fn observe_output(out: DdnRunOutput, source: &str, path: &str) -> Result<String,
             );
             // Algebraic substitution is independent of the lesson's time domain.
             let left = &x0 + &velocity * &t;
-            let substitution = json!({"left":quantity(&left,UnitDim::LENGTH),
-                "right":quantity(&target,UnitDim::LENGTH),"equal":left==target});
+            let substitution = json!({"left":quantity(&left,amount_dim),
+                "right":quantity(&target,amount_dim),"equal":left==target});
             if t.is_negative() {
                 json!({"kind":"outside_domain","algebraic_time":quantity(&t,UnitDim::TIME),
                     "substitution":substitution})
@@ -206,9 +250,17 @@ fn observe_output(out: DdnRunOutput, source: &str, path: &str) -> Result<String,
             }
         }
     };
+    if model==Model::Water {
+        return Ok(json!({"schema":"ddn.math-notebook.water-tank.observation.v1","model":"water_tank",
+            "source_sha256":format!("{:x}",Sha256::digest(source.as_bytes())),"source_path":path,
+            "source_profile":"v1-core-v25","proof":false,"time_domain":"t>=0","rows":rows,"solution":solution,
+            "inputs":{"initial_amount":quantity(&x0,amount_dim),"inflow_rate":quantity(&velocity,rate_dim),"target_amount":quantity(&target,amount_dim)},
+            "normalization":{"amount_basis":length_scale,"time_basis":time_scale,"rate_basis":velocity_scale,
+                "equation_left":lhs,"equation_right":rhs,"unit_dimension_schema":UnitDim::WIRE_SCHEMA_V2}}).to_string());
+    }
     Ok(json!({"schema":"ddn.math-notebook.observation.v1","model":"uniform_motion","source_sha256":format!("{:x}",Sha256::digest(source.as_bytes())),
         "source_path":path,"proof":false,"time_domain":"t>=0","rows":rows,"solution":solution,
-        "inputs":{"initial_position":quantity(&x0,UnitDim::LENGTH),"velocity":quantity(&velocity,UnitDim::SPEED),"target":quantity(&target,UnitDim::LENGTH)},
-        "normalization":{"length_basis":1,"time_basis":1,"velocity_basis":1,"equation_left":lhs,"equation_right":rhs,
+        "inputs":{"initial_position":quantity(&x0,amount_dim),"velocity":quantity(&velocity,rate_dim),"target":quantity(&target,amount_dim)},
+        "normalization":{"length_basis":length_scale,"time_basis":time_scale,"velocity_basis":velocity_scale,"equation_left":lhs,"equation_right":rhs,
             "unit_dimension_schema":UnitDim::WIRE_SCHEMA_V2},"source_profile":"v1-core-v25"}).to_string())
 }

@@ -1,0 +1,32 @@
+{
+  "status": "active",
+  "profile_identity": "ddn.structure.finite-chain",
+  "version": 1,
+  "selector": "유한순서범주차림새R1",
+  "provider": {
+    "identity": "ddn.structure.finite-chain.source",
+    "version": 1
+  },
+  "checker": {
+    "identity": "ddn.structure.finite-chain.naturality",
+    "version": 1
+  },
+  "evidence": {
+    "identity": "ddn.structure.finite-chain.unique-arrow",
+    "version": 1
+  },
+  "family": "finite-chain-functors-natural-transformations",
+  "head": "자연변환",
+  "body_rule": "자연성",
+  "signature": "same resolved domain and codomain; source-scoped functor declaration boundaries",
+  "laws": [
+    "strictly ordered finite object lists",
+    "total monotone object maps",
+    "one arrow for each ordered pair with from <= to",
+    "one component per domain object",
+    "composition at an identical functor declaration"
+  ],
+  "assumptions": [],
+  "canon": "source declarations and object-keyed components",
+  "projection": "checked components and identical declaration joins; observation only"
+}

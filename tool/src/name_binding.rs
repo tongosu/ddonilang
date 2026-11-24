@@ -591,6 +591,7 @@ impl Facts {
                 self.expr(right);
             }
             ExprKind::Suffix { value, .. } => self.expr(value),
+            ExprKind::FunctionBlock{statements,result}=>{self.body(statements);self.expr(result);},
             ExprKind::Thunk(body) => self.body(body),
             ExprKind::Eval { thunk, .. } => self.expr(thunk),
             ExprKind::Pipe { stages } => {

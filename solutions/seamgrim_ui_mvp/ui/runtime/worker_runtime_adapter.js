@@ -1,7 +1,8 @@
-const SESSION_METHODS = ["updateLogic", "reset", "getStateJson", "step", "setParam", "exportSavedProjectArtifact", "saveNativeCheckpoint", "close"];
+const SESSION_METHODS = ["updateLogic", "configureProjectAssetsBinary", "reset", "getStateJson", "step", "setParam", "exportSavedProjectArtifact", "saveNativeCheckpoint", "close"];
 const ADAPTER_METHODS = [
   "authoredProjectOperation",
   "observeMathNotebook",
+  "observeAlgebraProject",
   "compareGeneralOriginalRecording",
   "bindLogicalSource",
   "verifyAssumptionSource",
@@ -21,6 +22,61 @@ function runtimeError(message, code = "E_EXECUTION_CANCELLED") {
   const error = new Error(message);
   error.code = code;
   return error;
+}
+
+// This existing API throws Rust ExecutionDiagnostic JSON as its machine payload.
+// Decode that payload only for its captured request, never positions from prose.
+function machineDiagnostic(message,wireCode) {
+  let value;try{value=JSON.parse(message);}catch{return null;}
+  if(!value||typeof value!=='object'||Array.isArray(value)
+      ||typeof value.code!=='string'||!/^E_[A-Z0-9_]+$/u.test(value.code)
+      ||typeof value.message!=='string'||typeof value.phase!=='string'
+      ||typeof value.source_path!=='string'||!Object.hasOwn(value,'source_span')
+      ||(wireCode!==null&&wireCode!==undefined&&wireCode!==value.code))return null;
+  return value;
+}
+function actualSourceDiagnostic(value,context) {
+  if(!value||!context?.has(value.source_path))return null;
+  const span=value.source_span;
+  if(span!==null&&(!span||!Number.isSafeInteger(span.start)||!Number.isSafeInteger(span.end)
+      ||span.start<0||span.end<span.start||span.end>context.get(value.source_path)))return null;
+  return value;
+}
+function capturedDiagnosticContext(operation,request) {
+  if(operation==='runSummaryWithSourceProfile'&&typeof request?.sourceText==='string')
+    return new Map([[String(request.sourcePath??'lesson.ddn'),new TextEncoder().encode(request.sourceText).byteLength]]);
+  let snapshot;
+  try {
+    if(operation==='createSession'&&typeof request?.projectRuntimeArtifactText==='string'){
+      const artifact=JSON.parse(request.projectRuntimeArtifactText);
+      if(artifact.source_profile!==request.sourceProfileIdentity)return null;
+      snapshot=artifact.source_snapshot;
+    } else if(operation==='authoredProjectOperation'){
+      const op=request?.operation;
+      if(!['create','update','source_probe','source_prepare','public_callable_source_prepare','public_callable_source_run','linked_callable_source_run'].includes(op))return null;
+      const input=JSON.parse(request.text);
+      if(op==='public_callable_source_prepare'||op==='linked_callable_source_run'){
+        snapshot=JSON.parse(input.consumer_project_json_utf8).source_snapshot;
+      }else if(op==='public_callable_source_run'){
+        const artifact=JSON.parse(input.source_artifact_utf8);
+        if(artifact.schema!=='ddn.source_only_project_artifact.v1')return null;
+        const payload=JSON.parse(artifact.project_payload_utf8);
+        if(!['ddn.saved_runtime_project.v2','ddn.saved_runtime_project.v4'].includes(payload.schema))return null;
+        snapshot=JSON.parse(payload.authored_project_json_utf8).source_snapshot;
+      }else{
+        snapshot=['create','update'].includes(op)?input.source_snapshot:JSON.parse(input.artifact_json_utf8).source_snapshot;
+      }
+    }
+  }catch{return null;}
+  if(!Array.isArray(snapshot?.files)||snapshot.files.length===0)return null;
+  const rows=new Map();
+  for(const file of snapshot.files){
+    if(typeof file?.path!=='string'||!file.path||typeof file.text!=='string'||rows.has(file.path))return null;
+    rows.set(file.path,new TextEncoder().encode(file.text).byteLength);
+  }
+  // This is request custody only. The Rust producer still admits the actual
+  // profile, source, Definition/Pin, error and span; JSON is not a permit.
+  return rows;
 }
 
 // Every WASM entry (including constructor, reset and receipt generation) runs
@@ -48,8 +104,17 @@ export class WorkerRuntimeAdapter {
       else {
         const message = String(data.error?.message ?? "실행 작업에 실패했습니다.");
         // Preserve product diagnostics. A delivered product error is not a Worker failure.
-        const code = data.error?.code ?? message.match(/\b(E_[A-Z0-9_]+)\b/u)?.[1] ?? null;
-        pending.reject(runtimeError(message, code));
+        const machine=machineDiagnostic(message,data.error?.code);
+        const diagnostic=actualSourceDiagnostic(machine,pending.diagnosticContext);
+        const code = machine?.code ?? data.error?.code ?? message.match(/\b(E_[A-Z0-9_]+)\b/u)?.[1] ?? null;
+        const error=runtimeError(message,code);
+        if(machine)error.diagnosticMessage=machine.message;
+        if(diagnostic){
+          error.diagnostic=diagnostic;error.source_path=diagnostic.source_path;
+          error.source_span=diagnostic.source_span;error.phase=diagnostic.phase;
+          error.cause=diagnostic.cause??null;
+        }
+        pending.reject(error);
       }
     };
     worker.onerror = (event) => {
@@ -65,7 +130,9 @@ export class WorkerRuntimeAdapter {
       let worker;
       try { worker = this.ensureWorker(); } catch (error) { reject(error); return; }
       const id = this.nextId++;
-      this.pending.set(id, { resolve, reject });
+      const request=args[0];
+      const diagnosticContext=capturedDiagnosticContext(operation,request);
+      this.pending.set(id, { resolve, reject, diagnosticContext });
       try { worker.postMessage({ id, operation, args, sessionId }); }
       catch (error) { this.pending.delete(id); reject(error); }
     });

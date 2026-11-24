@@ -573,6 +573,36 @@ fn seal_public_observation_table_projection(projection: JsonValue) -> JsonValue 
     canonical_json(&projection)
 }
 
+/// Produce a selected table under the same existing projection schema. Only
+/// checked typed selections and the original validated trace enter this path;
+/// callers cannot submit arbitrary replacement JSON for sealing.
+pub(crate) fn build_selected_public_observation_table_projection(
+    trace:&JsonValue, expected_run_id:&str,
+    selection:&ddonirang_lang::runtime::ResultTableSelection,
+)->Result<JsonValue,String> {
+    let candidate=crate::authored_bogae::produce_selected_table_candidate(selection,trace,expected_run_id)?;
+    let mut selected=OwnedJson::from_value(candidate.full_projection);
+    let previous=selected.value_mut().as_object_mut()
+        .ok_or("E_PUBLIC_OBSERVATION_TABLE_INVALID: 실제 표 생산 결과가 object가 아닙니다")?
+        .insert("tables".into(),JsonValue::Array(candidate.tables));
+    if let Some(previous)=previous {drop(OwnedJson::from_value(previous));}
+    // Retain original source_trace_hash/run. The private sealer computes a
+    // fresh content hash over the selected columns/cells; no full-table seal
+    // is copied onto altered contents.
+    Ok(seal_public_observation_table_projection(selected.into_parent_value()))
+}
+
+pub(crate) fn build_xy_public_observation_projection(trace:&JsonValue,run:&str,
+    selection:&ddonirang_lang::runtime::XySelection)
+    ->Result<(ddonirang_lang::runtime::PlaneScene,JsonValue),String> {
+    let (scene,candidate)=crate::authored_bogae::xy::project_joint(selection,trace,run)?;
+    let tables=crate::authored_bogae::xy::selected_tables(&candidate)?;
+    let mut table=OwnedJson::from_value(candidate.full_projection);
+    let previous=table.value_mut().as_object_mut().ok_or("E_AUTHORED_BOGAE: XY 표가 object가 아닙니다")?.insert("tables".into(),JsonValue::Array(tables));
+    if let Some(value)=previous {drop(OwnedJson::from_value(value));}
+    Ok((scene,seal_public_observation_table_projection(table.into_parent_value())))
+}
+
 /// Appends one or more newly committed frames to an already sealed public
 /// observation surface. The result is byte-equivalent to rebuilding the trace
 /// and table projection from the complete frame history, while avoiding a
@@ -2290,5 +2320,59 @@ mod tests {
         })])
         .expect_err("synthetic id rejected");
         assert!(error.contains("SYNTHETIC_ID_REMOVED"));
+    }
+}
+
+#[cfg(test)]
+mod selected_table_seal_tests {
+    use super::*;
+    fn selection(source:&str,columns:&str)->ddonirang_lang::runtime::ResultTableSelection {
+        use ddonirang_lang::{Stmt,stdlib::*};
+        let mut program=ddonirang_lang::parse_v25(source,"selected-seal.ddn").unwrap();
+        ddonirang_lang::canonicalize(&mut program).unwrap();
+        // Internal selector input only; this does not claim public dispatch.
+        let parsed=ddonirang_lang::parse_v25(&format!("선택 := {columns}."),"selector.ddn").unwrap();
+        let Stmt::Definition{value,..}=&parsed.root_stmts[0] else{panic!("selector")};
+        let candidate=crate::numeric_constraint_plan::table_selection_candidate(&program,value).unwrap();
+        let (raw,digest)=result_table_registration_material(1).unwrap();
+        let record:JsonValue=serde_json::from_str(raw).unwrap();
+        let id=|key:&str|{let s=record[key].as_str().unwrap();std::array::from_fn(|i|u8::from_str_radix(&s[2*i..2*i+2],16).unwrap())};
+        let checked=lookup_result_table_registration(&id("owner"),&id("definition"),1,digest,&[]).unwrap();
+        candidate.into_typed(&checked).unwrap()
+    }
+    const SOURCE:&str="(거리: 2@m, 판정: \"도착\", 완료: 참) 내보임.";
+    #[test]
+    fn selected_table_seal_keeps_trace_and_changes_hash_for_actual_selected_content() {
+        let run=crate::runtime_surface::run_summary_from_source(SOURCE,"selected-seal.ddn",Some(1)).unwrap();
+        let trace=&run["public_observation_trace"];let before=trace.clone();let run_id=trace["run_id"].as_str().unwrap();
+        let full=build_public_observation_table_projection(trace,run_id).unwrap();
+        let selected=build_selected_public_observation_table_projection(trace,run_id,&selection(SOURCE,"차림[관찰.완료, 관찰.거리]")).unwrap();
+        assert_eq!(trace,&before);assert_eq!(selected["schema"],full["schema"]);
+        assert_eq!(selected["run"],full["run"]);assert_eq!(selected["source_trace_hash"],full["source_trace_hash"]);
+        assert_ne!(selected["projection_hash"],full["projection_hash"]);
+        assert_eq!(selected["projection_hash"],public_observation_table_projection_hash(&selected));
+        assert_eq!(selected["tables"][0]["columns"][0],full["tables"][0]["columns"][2]);
+        assert_eq!(selected["tables"][0]["columns"][1],full["tables"][0]["columns"][0]);
+        assert_eq!(selected["tables"][0]["rows"][0]["cells"][0],full["tables"][0]["rows"][0]["cells"][2]);
+        let reversed=build_selected_public_observation_table_projection(trace,run_id,&selection(SOURCE,"차림[관찰.거리, 관찰.완료]")).unwrap();
+        assert_ne!(selected["projection_hash"],reversed["projection_hash"]);
+    }
+    #[test]
+    fn selected_table_seal_rejects_run_source_and_preserves_absent_sample_states() {
+        let run=crate::runtime_surface::run_summary_from_source(SOURCE,"selected-seal.ddn",Some(1)).unwrap();
+        let trace=&run["public_observation_trace"];let run_id=trace["run_id"].as_str().unwrap();
+        let chosen=selection(SOURCE,"차림[관찰.거리]");
+        assert!(build_selected_public_observation_table_projection(trace,"other-run",&chosen).is_err());
+        let stale=selection(&SOURCE.replace("2@m","3@m"),"차림[관찰.거리]");
+        assert!(build_selected_public_observation_table_projection(trace,run_id,&stale).is_err());
+        // Synthetic state mutations exercise preservation, not runtime production.
+        for status in ["gap","missing","pruned"] {
+            let mut synthetic=trace.clone();synthetic["samples"][0]["cells"][0]["status"]=json!(status);
+            if status=="missing" {synthetic["samples"][0]["cells"][0]["reason"]=json!("#원천없음");}
+            let selected=build_selected_public_observation_table_projection(&synthetic,run_id,&chosen).unwrap();
+            let cell=&selected["tables"][0]["rows"][0]["cells"][0];
+            assert_eq!(cell["status"],status);assert!(cell.get("value_canon").is_none());
+            assert_eq!(selected["projection_hash"],public_observation_table_projection_hash(&selected));
+        }
     }
 }

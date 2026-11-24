@@ -7,6 +7,25 @@ import {
   inspectNativeObservationManifest,
 } from "./observation_manifest_contract.js";
 
+export function hasReadOnlySpace3Projection(projection, {includeAuthored = false} = {}) {
+  const readOnlyView = view => view?.schema === 'ddn.scene_space3_projection.v1'
+    || (view?.kind === 'scene' && view.spatial_profile === 'space3');
+  const readOnlyOwner = owner => readOnlyView(owner?.view)
+    || (Array.isArray(owner?.relations)
+      && owner.relations.some(relation => readOnlyView(relation?.view)));
+  return Array.isArray(projection?.candidates)
+    && projection.candidates.some(candidate => readOnlyOwner(candidate?.artifact)
+      || (includeAuthored && readOnlyOwner(candidate?.authored_artifact)));
+}
+
+export function checkSpace3WorldSave(state, {observedHistory = false} = {}) {
+  const history = state?.state?.snapshot_v2?.scene_history?.frames;
+  if (observedHistory || hasReadOnlySpace3Projection(state?.bogae_projection)
+    || (Array.isArray(history) && history.some(frame => hasReadOnlySpace3Projection(frame?.projection)))) {
+    throw new Error('E_PROJECT_RUNTIME_SPACE3_DURABILITY_UNSUPPORTED: 3D 보기는 읽기 전용입니다. 마지막 저장 상태는 그대로입니다.');
+  }
+}
+
 const INERT_SUPPORTED_PROFILE_BOOTSTRAP_SOURCE = "1 보여주기.";
 
 function normalizeStatusLines(lines) {
@@ -103,6 +122,7 @@ export class WasmVmHandle {
     defaultSourceText = "",
     seedU64 = undefined,
     sourceProfileIdentity = "",
+    sourcePath = "",
     projectEntryName = "",
     bogaeEntryName = "",
     authoredArtifactText = "",
@@ -112,6 +132,7 @@ export class WasmVmHandle {
     this.defaultSourceText = String(defaultSourceText ?? "");
     this.seedU64 = Number.isFinite(Number(seedU64)) ? Number(seedU64) : null;
     this.sourceProfileIdentity = String(sourceProfileIdentity ?? "");
+    this.sourcePath = String(sourcePath ?? "");
     this.projectEntryName = String(projectEntryName ?? "");
     this.bogaeEntryName = String(bogaeEntryName ?? "");
     this.authoredArtifactText = String(authoredArtifactText ?? "");
@@ -312,7 +333,7 @@ export class WasmVmHandle {
         if (typeof client.updateLogicWithSourceProfile !== "function") {
           throw new Error("E_WASM_SOURCE_PROFILE_API_MISSING");
         }
-        client.updateLogicWithSourceProfile(this.lastSourceText, this.sourceProfileIdentity);
+        client.updateLogicWithSourceProfile(this.lastSourceText, this.sourceProfileIdentity, this.sourcePath || undefined);
       } else {
         client.updateLogic(this.lastBodyText);
       }
@@ -573,7 +594,21 @@ export class WasmVmHandle {
 
   async saveNativeCheckpoint(authoredText) {
     if (!this.hasNativeSource()) return null;
+    // Read from the same live VM immediately before requesting its checkpoint.
+    // The Native writer still owns durable admission for every entry point.
+    const state = this.client.getStateParsed();
+    checkSpace3WorldSave(state);
     return JSON.parse(this.client.vm.save_native_source_checkpoint(authoredText));
+  }
+
+  // Byte transport is not asset identity/rights or public image admission.
+  async configureProjectAssetsBinary(projectSourceJson, binaryFiles) {
+    if (this.closed) throw new Error('E_RUNTIME_SESSION_CLOSED: 닫힌 실행은 다시 사용할 수 없습니다.');
+    if (this.sourceBoundProject) throw new Error('E_PROJECT_BINARY_ASSETS_LIFECYCLE: 저장 작품의 자산 소유를 교체할 수 없습니다.');
+    const client = this.client ?? await this.ensureClient(this.defaultSourceText);
+    const configure = client?.vm?.configure_project_assets_binary;
+    if (typeof configure !== 'function') throw new Error('E_WASM_BINARY_ASSET_API_MISSING: 바이너리 입력 실행기가 필요합니다.');
+    return configure.call(client.vm, projectSourceJson, binaryFiles);
   }
 
   async exportSavedProjectArtifact(parentHex, revisionHex) {
@@ -644,13 +679,16 @@ export async function createWasmVm({
   ddnSourceText = "",
   seedU64 = undefined,
   sourceProfileIdentity = "",
+  sourcePath = "",
   projectEntryName = "",
   bogaeEntryName = "",
   authoredArtifactText = "",
   projectRuntimeArtifactText = "",
   nativeSourceRequested = false,
   nativeSourceNewRun = false,
+  nativeSourceRestoreOnly = false,
   nativeSourceSelectionJson = '',
+  nominalSourceArtifactText = "",
   savedProjectArtifactText = "",
   expectedParentRevisionHex = "",
   historyRevisionHex = "",
@@ -661,14 +699,21 @@ export async function createWasmVm({
   formatReadyStatus = null,
   formatFallbackStatus = null,
 } = {}) {
-  if (projectRuntimeArtifactText && savedProjectArtifactText) {
+  if (nativeSourceRestoreOnly && (!projectRuntimeArtifactText || !nativeSourceRequested || nativeSourceNewRun)) {
+    throw new Error("E_PROJECT_RUNTIME_MODE: 실행 상태 복원에는 Native 저장 작품이 필요합니다.");
+  }
+  if ([projectRuntimeArtifactText,savedProjectArtifactText,nominalSourceArtifactText].filter(Boolean).length>1) {
     throw new Error("E_PROJECT_RUNTIME_MODE: 새 실행과 저장 실행을 함께 지정할 수 없습니다.");
   }
   if (savedProjectArtifactText && seedU64 !== undefined) {
     throw new Error("E_PROJECT_RUNTIME_SEED_OVERRIDE: 복원 실행의 난수 씨앗을 바꿀 수 없습니다.");
   }
-  const sourceBoundProject = Boolean(projectRuntimeArtifactText || savedProjectArtifactText);
+  const sourceBoundProject = Boolean(projectRuntimeArtifactText || savedProjectArtifactText || nominalSourceArtifactText);
   const vmFactory = !sourceBoundProject ? null : (module) => {
+    if(nominalSourceArtifactText){
+      if(typeof module.DdnWasmVm?.from_nominal_source_artifact_json!=='function')throw new Error('E_NOMINAL_SOURCE_RUNTIME_MISSING');
+      return module.DdnWasmVm.from_nominal_source_artifact_json(nominalSourceArtifactText,ddnSourceText,sourcePath,sourceProfileIdentity);
+    }
     // A saved Native locator chooses a transport, never a VM permission. The
     // shared Rust/Native source owner still admits the actual project/frame.
     if(projectRuntimeArtifactText&&(nativeSourceRequested||module.authored_project_operation?.('source_probe',JSON.stringify({artifact_json_utf8:projectRuntimeArtifactText}))==='true')){
@@ -677,7 +722,10 @@ export async function createWasmVm({
         if(typeof module.DdnWasmVm.from_native_project_json_for_new_run!=='function')throw new Error('E_NATIVE_SOURCE_NEW_RUN_API_MISSING');
         return module.DdnWasmVm.from_native_project_json_for_new_run(projectRuntimeArtifactText,nativeSourceSelectionJson);
       }
-      return module.DdnWasmVm.from_native_project_json(projectRuntimeArtifactText);
+      if (nativeSourceRestoreOnly && module.DdnWasmVm.from_native_project_json.length < 2) {
+        throw new Error('E_NATIVE_SOURCE_RESTORE_API_MISSING: 실행 상태 복원 실행기가 필요합니다.');
+      }
+      return module.DdnWasmVm.from_native_project_json(projectRuntimeArtifactText,nativeSourceRestoreOnly ? true : undefined);
     }
     const name = savedProjectArtifactText ? "from_saved_project_artifact_json" : "from_authored_project_json";
     if (typeof module.DdnWasmVm?.[name] !== "function") {
@@ -708,6 +756,7 @@ export async function createWasmVm({
     defaultSourceText: ddnSourceText,
     seedU64,
     sourceProfileIdentity,
+    sourcePath,
     projectEntryName,
     bogaeEntryName,
     authoredArtifactText,

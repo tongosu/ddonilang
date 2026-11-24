@@ -215,6 +215,7 @@ fn collect_expr(expr: &Expr, source: &str, out: &mut Vec<HistoricalAsyncMigratio
             collect_expr(right, source, out);
         }
         ExprKind::Suffix { value, .. } => collect_expr(value, source, out),
+        ExprKind::FunctionBlock{statements,result}=>{collect_body(statements,source,out);collect_expr(result,source,out);},
         ExprKind::Thunk(body) => collect_body(body, source, out),
         ExprKind::Eval { thunk, .. } => collect_expr(thunk, source, out),
         ExprKind::Pipe { stages } => {

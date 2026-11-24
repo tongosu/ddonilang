@@ -1,31 +1,39 @@
+import {bindComparisonProvider} from './notebook/comparison_provider.mjs';
+import {notebookComparisonHtml,markComparisonSelection} from './notebook/comparison.mjs';
+import { selectedSample, sampleSelectionHtml, markSelectedSample } from './notebook/sample_selection.mjs';
 import { createNotebookModel, createEquationAuthoringModel } from './notebook/model.js';
-import { notebookResultHtml, comparisonRanges, equationAuthoringHtml, equationObservationHtml } from './notebook/view.js';
+import { notebookResultHtml, notebookExperimentHtml, notebookErrorHtml, comparisonRanges, notebookViewport, equationAuthoringHtml, equationObservationHtml } from './notebook/view.js';
 import { uniformMotionSourceContext } from './notebook/uniform_motion.js';
 import { createNotebookReproductionPair } from './persistence/notebook_source.js';
 
 export function installNotebookHost({ root, opener, runtimeBridge, readSource,
+  sourceStatusElement, modelProviders,
   readLocator, rememberLocator, applyReopenedLocator, readSavedSources = () => [], rememberSavedSource,
   readEquationContext, applyEquationSource, saveEquationSource }) {
   if (!root || !opener) return { invalidate() {}, dispose() {} };
   let provider = null, model = null, session = null, sessionId = '', mode = 'table', zoom = 1, pan = 0;
   let lastFocus = null, disposed = false, ioBusy = false, operationNotice = '';
-  let pair = null, pairViews = {A:null,B:null};
+  let pair = null, pairViews = {A:null,B:null}, pairSampleIndex = null;
+  let boundProvider = null, comparisonLayout = 'side';
   root.innerHTML = `<header class="notebook-toolbar"><h2>탐구 노트</h2>
+    <label>모형 <select data-notebook="model"><option value="uniform_motion">등속운동</option><option value="water_tank">물탱크</option></select></label>
     <button type="button" data-notebook="calculate">계산</button>
     <button type="button" data-notebook="pin">비교에 담기</button>
     <button type="button" data-notebook="save">원문 저장</button>
     <button type="button" data-notebook="open">저장 원문 열기</button>
     <button type="button" data-notebook="close" aria-label="탐구 노트 닫기" title="닫기">×</button></header>
     <p class="notebook-status" data-notebook="status" role="status"></p>
+    <section data-notebook="error" hidden></section>
     <nav class="notebook-modes" aria-label="결과 보기"><button type="button" data-notebook-mode="table" aria-pressed="true">표</button>
     <button type="button" data-notebook-mode="graph" aria-pressed="false">그래프</button>
-    <button type="button" data-notebook-mode="position" aria-pressed="false">위치</button></nav>
+    <button type="button" data-notebook-mode="position" aria-pressed="false">눈금 그림</button></nav>
     <div class="notebook-viewport" data-notebook="viewport" hidden>
       <label>확대 <input type="range" data-notebook="zoom" min="1" max="4" step="0.25" value="1"></label>
       <label>가로 이동 <input type="range" data-notebook="pan" min="-1" max="1" step="0.1" value="0"></label>
       <button type="button" data-notebook="reset" title="그래프 범위 초기화" aria-label="그래프 범위 초기화">↺</button></div>
     <section data-notebook="result" aria-label="현재 계산 결과"></section>
     <section class="notebook-comparisons" data-notebook="comparisons" aria-label="두 실험 비교"></section>
+    <label>비교 배치 <select data-notebook="comparison-layout"><option value="side">나란히</option><option value="overlay">겹쳐</option></select></label>
     <button type="button" data-notebook="clear">비교 비우기</button>
     <button type="button" data-notebook="equation-toggle" aria-expanded="false">풀이 작성</button>
     <section data-notebook="equation" hidden></section>
@@ -57,6 +65,11 @@ export function installNotebookHost({ root, opener, runtimeBridge, readSource,
     eq('open').disabled = equationBusy || !readLocator?.();
     eq('load').disabled = equationBusy || typeof readEquationContext !== 'function';
     eq('check').disabled = !state.valid || state.dirty || equationBusy || state.busy;
+    eq('targets').disabled = !state.valid || state.dirty || equationBusy || state.busy;
+    eq('target').replaceChildren(new Option('초기 가정 등식을 선택하세요', ''), ...state.targets.map((item,index) => new Option(item.label, String(index))));
+    eq('target').value = state.selectedTargetIndex === null ? '' : String(state.selectedTargetIndex);
+    eq('target').disabled = equationBusy || state.busy || !state.targets.length;
+    eq('linear-check').disabled = !state.valid || state.dirty || equationBusy || state.busy || state.selectedTargetIndex === null;
     try { eq('result').innerHTML = equationObservationHtml(state.report, state.context?.sourceText ?? ''); }
     catch (error) { eq('result').textContent = `표시 실패: ${error.message}`; }
   }
@@ -85,6 +98,15 @@ export function installNotebookHost({ root, opener, runtimeBridge, readSource,
     equationNotice = '';
     try { await equation.check(); } catch { renderEquation(); }
   });
+  eq('targets').addEventListener('click', async () => {
+    equationNotice = '';
+    try { await equation.readTargets(); } catch { renderEquation(); }
+  });
+  eq('target').addEventListener('change', () => equationAction(() => equation.selectTarget(eq('target').value === '' ? null : Number(eq('target').value))));
+  eq('linear-check').addEventListener('click', async () => {
+    equationNotice = '';
+    try { await equation.check('linear'); } catch { renderEquation(); }
+  });
   async function equationIO(fn, notice) {
     if (equationBusy) return;
     equationBusy = true; equationNotice = ''; renderEquation();
@@ -106,12 +128,40 @@ export function installNotebookHost({ root, opener, runtimeBridge, readSource,
     equation.load();
   }, '재열기 완료 · NOT_PRODUCED'));
   renderEquation();
+  function decorateSample(container, view, index, slot, ranges = {}, displayMode = mode) {
+    if (!view) return;
+    const controls = document.createElement('div');
+    controls.dataset.notebookSampleSlot = slot;
+    controls.innerHTML = sampleSelectionHtml(view, index);
+    controls.querySelector('select').disabled = ioBusy || Boolean(model?.snapshot().busy);
+    container.prepend(controls);
+    try { markSelectedSample(container, view, index, displayMode); }
+    catch (error) {
+      const notice = document.createElement('p');
+      notice.setAttribute('role', 'status');
+      notice.textContent = `표본 강조를 표시하지 못했습니다: ${error.message}`;
+      container.append(notice);
+    }
+    if (displayMode === 'graph' && index !== null && !ranges.incompatible) {
+      const axis = notebookViewport(ranges.axis ?? comparisonRanges([view]).axis, { zoom, pan });
+      const point = view.graph?.series?.[0]?.points?.[index];
+      if (axis && point && (point.x < axis.x_min || point.x > axis.x_max
+          || point.y < axis.y_min || point.y > axis.y_max)) {
+        const notice = document.createElement('p');
+        notice.setAttribute('role', 'status');
+        notice.dataset.notebookSampleOutside = 'true';
+        notice.textContent = '선택 표본은 현재 그래프 범위 밖에 있습니다. 정확값은 위에서 확인하고, 축소하거나 가로 이동해 표본을 보세요.';
+        controls.append(notice);
+      }
+    }
+  }
   function render() {
     if (disposed) return;
     const state = model?.snapshot() ?? { current: null, comparisons: [], busy: false, error: '' };
     let ready = false;
     try { ready = Boolean(readSource()); } catch { /* Unsaved source is not a current canonical artifact. */ }
     element('calculate').disabled = !provider || !ready || state.busy || ioBusy;
+    element('model').disabled = ioBusy || state.busy || !modelProviders;
     element('pin').disabled = !state.current || state.busy || ioBusy || state.comparisons.length >= 2;
     element('save').disabled = !ready || ioBusy || state.busy;
     element('open').disabled = ioBusy || state.busy || !readLocator?.();
@@ -119,7 +169,9 @@ export function installNotebookHost({ root, opener, runtimeBridge, readSource,
     element('pair-save').disabled = state.comparisons.length !== 2 || ioBusy || state.busy;
     element('pair-open').disabled = ioBusy || !element('saved-A').value || !element('saved-B').value;
     for (const slot of ['A','B']) element(`recompute-${slot}`).disabled = !provider || !pair?.snapshot().experiments[slot].projectId || ioBusy;
-    element('status').textContent = state.error || operationNotice || (ioBusy ? '원문 처리 중' : !ready ? '현재 원문 저장 필요' : !provider
+    element('error').hidden = !state.error;
+    element('error').innerHTML = notebookErrorHtml(state.error);
+    element('status').textContent = (state.error ? '계산을 완료하지 못했습니다.' : '') || operationNotice || (ioBusy ? '원문 처리 중' : !ready ? '현재 원문 저장 필요' : !provider
       ? '계산 기능 연결 준비 중' : state.busy ? '계산 중' : state.current ? '현재 원문 결과' : '재계산 전');
     const view = state.current?.view;
     element('result').replaceChildren();
@@ -127,19 +179,41 @@ export function installNotebookHost({ root, opener, runtimeBridge, readSource,
     element('viewport').hidden = mode !== 'graph';
     const visualization = document.createElement('div'); visualization.innerHTML = notebookResultHtml(view, mode, { zoom, pan }); element('result').append(visualization);
     if (view?.solutionMessage) { const p = document.createElement('p'); p.textContent = view.solutionMessage; element('result').append(p); }
-    const ranges = comparisonRanges(state.comparisons.map(x => x.view));
-    element('comparisons').innerHTML = state.comparisons.map((item, i) =>
-      `<section aria-label="실험 ${i === 0 ? 'A' : 'B'}"><h3>실험 ${i === 0 ? 'A' : 'B'} · 이번 세션 결과</h3>${notebookResultHtml(item.view, mode, { ...ranges, zoom, pan, clipId: `notebook-compare-${i}` })}</section>`).join('');
-    if (pair) {
-      const ranges = comparisonRanges(Object.values(pairViews).filter(Boolean));
-      element('comparisons').innerHTML = ['A','B'].map(slot => `<section aria-label="저장 실험 ${slot}"><h3>실험 ${slot} · ${pairViews[slot] ? '명시 재계산한 새 결과' : 'NOT_PRODUCED'}</h3>${notebookResultHtml(pairViews[slot], mode, {...ranges,zoom,pan,clipId:`saved-${slot}`})}</section>`).join('');
+    decorateSample(element('result'), view, state.current?.selectedIndex ?? null, 'current');
+    const compared = pair ? ['A','B'].map(slot => pairViews[slot]) : state.comparisons.map(item => item.view);
+    const sources = pair ? ['A','B'].map(slot => pair.snapshot().experiments[slot].sourceProjectText)
+      : state.comparisons.map(item => item.source);
+    const index = pair ? pairSampleIndex : state.comparisons[0]?.selectedIndex ?? null;
+    const slot = pair ? 'pair' : 'comparison';
+    const sampleRanges = comparisonRanges(compared.filter(Boolean));
+    const support = compared.length === 2 && compared.every(Boolean) ? provider?.compare(compared,sources) : null;
+    const overlay = support?.supported && mode === 'graph' && comparisonLayout === 'overlay';
+    const target = element('comparisons');
+    if (support?.supported) {
+      target.innerHTML = notebookComparisonHtml(compared,{layout:overlay?'overlay':'side',mode,index,zoom,pan,selectionControls:false});
+      target.querySelectorAll('[data-ab-experiment]').forEach((panel,i) =>
+        decorateSample(panel,compared[i],index,slot,sampleRanges,overlay?'table':mode));
+      if (overlay && target.querySelector('.notebook-ab-overlay')) markComparisonSelection(target,compared,index);
+    } else {
+      target.innerHTML = compared.map((item,i) => `<section aria-label="실험 ${i?'B':'A'}"><h3>실험 ${i?'B':'A'} · ${item?'실제 계산 결과':'NOT_PRODUCED'}</h3>${notebookExperimentHtml(item,mode,{...sampleRanges,zoom,pan,clipId:`ab-pending-${i}`})}</section>`).join('');
+      [...target.children].forEach((panel,i) => decorateSample(panel,compared[i],index,slot,sampleRanges));
+      if (support && !support.supported) { const notice=document.createElement('p');notice.setAttribute('role','status');notice.textContent=support.reason;target.prepend(notice); }
     }
+    element('comparison-layout').disabled = ioBusy || state.busy || !support?.supported;
     root.querySelectorAll('[data-notebook-mode]').forEach(button =>
       button.setAttribute('aria-pressed', String(button.dataset.notebookMode === mode)));
   }
+  function retainObservations(reset = false) {
+    if (!boundProvider) return;
+    const state = model.snapshot();
+    const sources = state.comparisons.map(item => item.source);
+    if (state.current) sources.push(state.current.source);
+    if (pair) for (const slot of ['A','B']) if (pairViews[slot]) sources.push(pair.snapshot().experiments[slot].sourceProjectText);
+    boundProvider[reset ? 'reset' : 'retain'](sources);
+  }
   function buildModel() {
     model?.dispose();
-    model = createNotebookModel({ readSource, inspect: provider?.inspect, project: provider?.project, changed: render });
+    model = createNotebookModel({ readSource, inspect: provider?.inspect, project: provider?.project, compare: provider?.compare, changed: () => { render(); retainObservations(); } });
   }
   async function sourceSession() {
     const raw = readSource();
@@ -155,7 +229,10 @@ export function installNotebookHost({ root, opener, runtimeBridge, readSource,
     session.setSourceProject(raw);
     return session;
   }
-  const reportError = error => { element('status').textContent = String(error?.message ?? error); };
+  const reportError = error => {
+    if (!model?.snapshot().error) operationNotice = String(error?.message ?? error);
+    render();
+  };
   async function action(fn, successText) {
     if (ioBusy) return;
     operationNotice = ''; ioBusy = true; render();
@@ -185,7 +262,7 @@ export function installNotebookHost({ root, opener, runtimeBridge, readSource,
       const raw=await runtimeBridge.authoredProjectOperation({operation:'clone',text:compared[i].source});
       candidate.setSourceProject(slot,raw);candidate.bindContext(slot,uniformMotionSourceContext(raw));
     }
-    pair?.dispose();pair=candidate;pairViews={A:null,B:null};
+    pair?.dispose();pair=candidate;pairViews={A:null,B:null};pairSampleIndex=null;
     try {await pair.save();} finally {publishAcknowledgedSources();}
   },'두 재현 원문 저장 완료 · 과거 결과는 저장하지 않음'));
   for(const slot of ['A','B'])element(`saved-${slot}`).addEventListener('change',render);
@@ -198,21 +275,49 @@ export function installNotebookHost({ root, opener, runtimeBridge, readSource,
     }
     const candidate=createNotebookReproductionPair({runtimeBridge});
     try {await candidate.open(receipts);} catch(error) {candidate.dispose();throw error;}
-    pair?.dispose();pair=candidate;pairViews={A:null,B:null};model.reopened();
+    pair?.dispose();pair=candidate;pairViews={A:null,B:null};pairSampleIndex=null;model.reopened();retainObservations(true);
   },'두 원문 재열기 완료 · 각각 명시 재계산 필요'));
   for(const slot of ['A','B'])element(`recompute-${slot}`).addEventListener('click',()=>action(async()=>{
-    pairViews[slot]=null;
+    pairViews[slot]=null;retainObservations();
     const raw=pair.snapshot().experiments[slot].sourceProjectText;
     pair.bindContext(slot,uniformMotionSourceContext(raw));
+    pairSampleIndex = null;
     const state=await pair.recompute(slot,provider.inspectReproduction),view=provider.project(state.experiments[slot].report,raw);
+    pairSampleIndex = null;
     const other=pairViews[slot==='A'?'B':'A'];
-    if(other && (JSON.stringify(other.comparisonKey)!==JSON.stringify(view.comparisonKey)
-      || JSON.stringify(other.comparedInput)===JSON.stringify(view.comparedInput)))throw new Error('같은 모형·의존·시각·목표에서 속도만 바꾼 두 실험이 아닙니다.');
-    pairViews[slot]=view;
+    if(other) {
+      const otherSource=pair.snapshot().experiments[slot==='A'?'B':'A'].sourceProjectText;
+      const support=provider.compare([other,view],[otherSource,raw]);
+      if(!support.supported)throw new Error(support.reason);
+    }
+    pairViews[slot]=view;retainObservations();
   },`${slot} 명시 재계산 완료 · 새 결과`));
-  element('calculate').addEventListener('click', () => { operationNotice = ''; model.calculate().catch(reportError); });
+  root.addEventListener('change', event => {
+    if (!event.target.matches('[data-notebook-sample]')) return;
+    if (ioBusy || model?.snapshot().busy) return;
+    const slot = event.target.closest('[data-notebook-sample-slot]')?.dataset.notebookSampleSlot;
+    const experiment = event.target.closest('[data-ab-experiment]')?.dataset.abExperiment;
+    const index = event.target.value === '' ? null : Number(event.target.value);
+    try {
+      if (slot === 'current') model.selectSample(index);
+      else if (slot === 'comparison') model.selectComparisonSample(index);
+      else if (slot === 'pair') {
+        // Pair identity is the existing pair instance and its actual reports,
+        // never comparisonKey alone. Recompute/open/invalidate clear selection.
+        for (const view of Object.values(pairViews).filter(Boolean)) {
+          selectedSample(view, index);
+        }
+        pairSampleIndex = index; render();
+      }
+      const focusRoot = experiment === undefined ? root
+        : element('comparisons').querySelector(`[data-ab-experiment="${experiment}"]`) ?? root;
+      focusRoot.querySelector(`[data-notebook-sample-slot="${slot}"] [data-notebook-sample]`)?.focus();
+    } catch (error) { reportError(error); }
+  });
+  element('comparison-layout').addEventListener('change',event=>{comparisonLayout=event.target.value;render();});
+  element('calculate').addEventListener('click', () => { operationNotice = ''; model.calculate().catch(() => render()); });
   element('pin').addEventListener('click', () => { try { model.pin(); } catch (e) { reportError(e); } });
-  element('clear').addEventListener('click', () => model.clearComparisons());
+  element('clear').addEventListener('click', () => { model.clearComparisons(); retainObservations(); });
   element('zoom').addEventListener('input', event => { zoom = Number(event.target.value); render(); });
   element('pan').addEventListener('input', event => { pan = Number(event.target.value); render(); });
   element('reset').addEventListener('click', () => {
@@ -233,7 +338,7 @@ export function installNotebookHost({ root, opener, runtimeBridge, readSource,
     const active = await sourceSession();
     await active.open(locator);
     if (readSource() !== active.snapshot().sourceProjectText) throw new Error('재열기 원문이 일치하지 않습니다.');
-    model.reopened();
+    model.reopened();retainObservations(true);
   }, '재열기 완료 · 재계산 전'));
   root.querySelectorAll('[data-notebook-mode]').forEach(button => button.addEventListener('click', () => {
     mode = button.dataset.notebookMode; render();
@@ -242,15 +347,23 @@ export function installNotebookHost({ root, opener, runtimeBridge, readSource,
   element('close').addEventListener('click', () => root.close());
   root.addEventListener('close', () => lastFocus?.focus());
   buildModel(); render();
+  // A source save may finish after this dialog opened. Repaint only; the
+  // existing readSource guard still decides whether exact current bytes match.
+  const sourceStatusObserver = sourceStatusElement && typeof MutationObserver === 'function'
+    ? new MutationObserver(() => { if (root.open) render(); }) : null;
+  sourceStatusObserver?.observe(sourceStatusElement, { childList: true, characterData: true, subtree: true });
   const api = {
     // Bind only the actual common producer and its explicit display projection.
     // No bridge method name or result wire is guessed before that supply.
     connectProducer(value) {
       if (typeof value?.inspect !== 'function' || typeof value?.project !== 'function') throw new TypeError('실제 계산·표시 공급자가 필요합니다.');
-      provider = { ...value, inspectReproduction: value.inspect, inspect: async raw => {
+      boundProvider?.dispose();
+      boundProvider = bindComparisonProvider(value);
+      const connected = boundProvider;
+      provider = { ...connected, inspectReproduction: connected.inspect, inspect: async raw => {
         const active = await sourceSession();
         if (readSource() !== raw) throw new Error('원문이 바뀌었습니다.');
-        return (await active.recheck(value.inspect)).report;
+        return (await active.recheck(connected.inspect)).report;
       } };
       buildModel(); render();
     },
@@ -258,10 +371,17 @@ export function installNotebookHost({ root, opener, runtimeBridge, readSource,
       equation.invalidate();
       operationNotice = ''; model.invalidate();
       session?.dispose(); session = null; sessionId = '';
-      pair?.dispose(); pair = null; pairViews = {A:null,B:null}; render();
+      pair?.dispose(); pair = null; pairViews = {A:null,B:null}; pairSampleIndex = null; retainObservations(true); render();
     },
-    dispose() { disposed = true; model.dispose(); equation.dispose(); session?.dispose(); pair?.dispose(); },
+    dispose() { disposed = true; boundProvider?.dispose(); sourceStatusObserver?.disconnect(); model.dispose(); equation.dispose(); session?.dispose(); pair?.dispose(); },
   };
+  element('model').addEventListener('change', () => {
+    const next = modelProviders?.[element('model').value];
+    if (!next) { operationNotice = '이 모형의 실제 생산자가 연결되지 않았습니다.'; render(); return; }
+    session?.dispose(); session = null; sessionId = '';
+    pair?.dispose(); pair = null; pairViews = {A:null,B:null}; pairSampleIndex = null; operationNotice = '';
+    api.connectProducer(next);
+  });
   // The integrator explicitly connects a fixed common producer after supply.
   // Until then, no math report is produced and calculation remains disabled.
   return api;

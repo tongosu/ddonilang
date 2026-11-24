@@ -147,6 +147,15 @@ impl LocalProjectError {
         }
     }
 
+    /// Preserve an actual producer failure across the source-admission boundary.
+    /// No display-message parsing or new analysis is used to recover fields.
+    pub(crate) fn into_execution_diagnostic(self)->crate::preprocess::ExecutionDiagnostic{
+        crate::preprocess::ExecutionDiagnostic{code:self.code,message:self.message,
+            source_path:self.path.unwrap_or_default(),span:self.source_span,
+            phase:self.phase.unwrap_or("project_prepare"),cause:self.cause,
+            offending_field:self.offending_field,expected:self.expected,actual:self.actual}
+    }
+
     fn from_execution_diagnostic(err: crate::preprocess::ExecutionDiagnostic) -> Self {
         Self {
             code: err.code,
@@ -775,6 +784,8 @@ struct SymbolValue {
 
 #[derive(Debug, Clone)]
 struct LinkedProject {
+    original_declarations: Vec<(String,ddonirang_lang::SeedDef)>,
+    requires_registered_nominal_owner: bool,
     symbol_boundary: LocalProjectSymbolBoundary,
     execution_source: String,
     execution_source_map: Vec<LinkedSourceSegment>,
@@ -1263,7 +1274,13 @@ pub fn build_disk_project_run_summary_with_supported_profile_prepared_host_resou
 pub fn build_project_graph(
     source: VirtualProjectSource,
 ) -> Result<LocalProjectGraph, LocalProjectError> {
-    if let Some(file) = source.files.iter().find(|file| normalize_role(&file.role) == "ddn_source"
+    build_project_graph_selected(source,None)
+}
+pub(crate) fn build_project_graph_with_j1_profile(source:VirtualProjectSource,profile:ddonirang_lang::ddl::CheckedJ1Profile)->Result<LocalProjectGraph,LocalProjectError>{
+    build_project_graph_selected(source,Some(profile))
+}
+fn build_project_graph_selected(source:VirtualProjectSource,j1:Option<ddonirang_lang::ddl::CheckedJ1Profile>)->Result<LocalProjectGraph,LocalProjectError>{
+    if let Some(file) = source.files.iter().find(|file| j1.is_none() && normalize_role(&file.role) == "ddn_source"
         && crate::ddn_runtime::first_callable_header_requires_context(&file.utf8_text)) {
         return Err(LocalProjectError::with_path("E_MULTILANG_PROJECT_CONTEXT_REQUIRED", &file.path,
             "日本語のDDL・原本・版を既存のモジュール結束に渡す実際の契約が必要です"));
@@ -1272,7 +1289,7 @@ pub fn build_project_graph(
         && ddonirang_lang::has_model_surface(&file.utf8_text)) {
         require_beta_project_feature("E_ALPHA_MODEL_PROJECT_UNSUPPORTED", "정식 작품의 모형 연결은 알파에서 지원하지 않습니다. 한 파일 모형 실행과는 별도 기능입니다")?;
     }
-    project_source_profile(&source, None)?;
+    if j1.is_none(){project_source_profile(&source, None)?;}
     let normalized_manifest = normalize_virtual_project_source(source.clone())?;
     let root_path = normalized_manifest.root_path.clone();
     let entry_from_source = normalized_manifest.entry_path.clone();
@@ -1290,7 +1307,8 @@ pub fn build_project_graph(
             "project graph를 만들 root 파일이 없습니다",
         )
     })?;
-    let directive = ddonirang_lang::work_root::parse_work_root(root_text).map_err(|error| {
+    let parsed_root=match j1{Some(profile)=>ddonirang_lang::work_root::parse_work_root_with_j1_profile(root_text,profile),None=>ddonirang_lang::work_root::parse_work_root(root_text)};
+    let directive = parsed_root.map_err(|error| {
         LocalProjectError::with_path_span("E_PROJECT_ROOT_PARSE", &root_path,
             error.message, (error.span.start, error.span.end))
     })?;
@@ -1389,6 +1407,19 @@ pub fn build_project_graph(
             "프로젝트 첫글 파일이 없습니다",
         ));
     }
+    if let Some(profile)=j1{
+        for path in &owned_paths{
+            Lexer::tokenize_j1_source(&text_by_path[path], profile)
+                .map_err(|(error, range)| {
+                    let span = Span::new(range.start, range.end);
+                    // Preserve this actual lexer failure through the existing
+                    // source-pack diagnostic projection, not formatted output.
+                    let failure=ddonirang_lang::ParseError{span,message:error.message};
+                    let mut error=LocalProjectError::with_path_span(failure.j1_source_code(),path,
+                        failure.message,(span.start,span.end));error.phase=Some("lang_lex");error
+                })?;
+        }
+    }
     let project_name = root_path.clone(); // Display only; no source authority.
     let mut targets = BTreeMap::new();
     if let Some(definition) = &start_definition { targets.insert(definition.clone(), entry_path.clone()); }
@@ -1446,11 +1477,22 @@ pub(crate) struct AuthoredPreparation {
     pub start_definition: Option<String>,
     source_map: Vec<LinkedSourceSegment>,
     imported_definitions: BTreeSet<(String,String,String)>,
+    pub(crate) original_declarations: Vec<(String,ddonirang_lang::SeedDef)>,
+    pub(crate) requires_registered_nominal_owner:bool,
 }
 
 impl AuthoredPreparation {
     pub fn permits_import(&self,importer_head:&str,owner_head:&str,name:&str)->bool {
         self.imported_definitions.contains(&(importer_head.into(),owner_head.into(),name.into()))
+    }
+    pub(crate) fn mapped_parse_diagnostic(&self,error:&ddonirang_lang::ParseError)->Option<crate::preprocess::ExecutionDiagnostic>{
+        // Only the actual linked parser's span and this preparation's map may
+        // identify an original document. An unmapped error keeps its raw form.
+        let (path,span)=self.original_span(error.span).ok()?;
+        let mut diagnostic=crate::preprocess::ExecutionDiagnostic::execution_mode_parse(error.clone(),&path)
+            .remap_source(path,(span.start,span.end));
+        diagnostic.phase="project_link_parse";
+        Some(diagnostic)
     }
     pub fn original_span(&self, span: Span) -> Result<(String, Span), String> {
         let segment = self.source_map.iter().find(|segment|
@@ -1465,25 +1507,69 @@ impl AuthoredPreparation {
     }
 }
 
+pub(crate) fn prepare_public_callable_authored_execution(source:VirtualProjectSource,artifact:&crate::authored_project::PublicCallableProjectArtifactV4)->Result<AuthoredPreparation,LocalProjectError>{
+    project_linking::prepare_public_callable_authored_execution(source,artifact)
+}
+pub(crate) fn prepare_logic_callable_authored_execution(source:VirtualProjectSource,syntax:ddonirang_lang::ddl::CheckedJ1Profile,
+    context:Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>,
+)->Result<AuthoredPreparation,LocalProjectError>{
+    project_linking::prepare_logic_callable_authored_execution(source,syntax,context)
+}
 pub(crate) fn prepare_authored_execution_with_first_callable(source:VirtualProjectSource,first:&crate::authored_project::FirstCallableAuthoredContext)->Result<AuthoredPreparation,LocalProjectError>{
     project_linking::prepare_first_callable_authored_execution(source,first)
 }
 
 pub(crate) fn prepare_authored_execution(source: VirtualProjectSource)
     -> Result<AuthoredPreparation,LocalProjectError> {
-    let linked = build_linked_project_with_options(source,None,false,None)?;
-    let mut imported_definitions=BTreeSet::new();
-    for symbol in &linked.symbol_boundary.resolved_symbols {
-        for import in &linked.symbol_boundary.imports {
-            if import.alias==symbol.alias && import.resolved_path==symbol.module_path {
-                imported_definitions.insert((import.importer_path.clone(),symbol.module_path.clone(),symbol.internal_name.clone()));
+    prepare_authored_execution_selected(source,None)
+}
+pub(crate) fn prepare_authored_execution_with_j1_profile(source:VirtualProjectSource,profile:ddonirang_lang::ddl::CheckedJ1Profile)->Result<AuthoredPreparation,LocalProjectError>{
+    prepare_authored_execution_selected(source,Some(profile))
+}
+fn prepare_authored_execution_selected(source:VirtualProjectSource,j1:Option<ddonirang_lang::ddl::CheckedJ1Profile>)->Result<AuthoredPreparation,LocalProjectError>{
+    let linked=match j1{Some(profile)=>project_linking::build_linked_project_with_j1_profile(source,None,false,None,profile),None=>build_linked_project_with_options(source,None,false,None)}?;
+    Ok(AuthoredPreparation::from_linked_project(linked))
+}
+
+pub(crate) fn link_checked_logic_module(
+    source: VirtualProjectSource,
+    path: &str,
+    syntax: ddonirang_lang::ddl::CheckedJ1Profile,
+    context: Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>,
+) -> Result<(AuthoredPreparation, ddonirang_lang::CanonProgram), LocalProjectError> {
+    project_linking::link_checked_logic_module(source, path, syntax, context)
+}
+
+pub(crate) fn link_checked_multilang_modules(
+    project: &crate::authored_project::ProjectArtifact,
+    public: &crate::authored_project::PublicCallableAuthoredContext,
+    logic: &crate::authored_project::registration::logic_dependency::CheckedLogicDependency,
+) -> Result<LinkedMultilangProgram, LocalProjectError> {
+    project_linking::link_checked_multilang_modules(project, public, logic)
+}
+
+pub(crate) struct LinkedMultilangProgram {
+    pub preparation: AuthoredPreparation,
+    pub program: ddonirang_lang::CanonProgram,
+    pub logic_context: Arc<ddonirang_lang::parser::RegisteredLogicCallableContext>,
+}
+
+impl AuthoredPreparation {
+    fn from_linked_project(linked: LinkedProject) -> Self {
+        let mut imported_definitions=BTreeSet::new();
+        for symbol in &linked.symbol_boundary.resolved_symbols {
+            for import in &linked.symbol_boundary.imports {
+                if import.alias==symbol.alias && import.resolved_path==symbol.module_path {
+                    imported_definitions.insert((import.importer_path.clone(),symbol.module_path.clone(),symbol.internal_name.clone()));
+                }
             }
         }
+        // The linker has just checked this exact source's graph. Its metadata is
+        // data, not execution admission; do not build the same graph a second time.
+            Self { source:linked.execution_source,target_path:linked.symbol_boundary.entry_path,
+            start_definition:linked.start_definition,source_map:linked.execution_source_map,imported_definitions,
+                original_declarations:linked.original_declarations,requires_registered_nominal_owner:linked.requires_registered_nominal_owner }
     }
-    // The linker has just checked this exact source's graph. Its metadata is
-    // data, not execution admission; do not build the same graph a second time.
-    Ok(AuthoredPreparation { source:linked.execution_source,target_path:linked.symbol_boundary.entry_path,
-        start_definition:linked.start_definition,source_map:linked.execution_source_map,imported_definitions })
 }
 
 mod project_linking;
@@ -1725,11 +1811,37 @@ struct CurrentModuleDirectives {
 fn parse_unlinked_work_module(
     source: &str, path: &str,
 ) -> Result<ddonirang_lang::CanonProgram, ddonirang_lang::ParseError> {
-    let tokens = Lexer::new(source).tokenize().map_err(|error| ddonirang_lang::ParseError {
+    parse_unlinked_work_module_selected(source,path,None)
+}
+fn parse_unlinked_work_module_selected(source:&str,path:&str,j1:Option<ddonirang_lang::ddl::CheckedJ1Profile>)->Result<ddonirang_lang::CanonProgram,ddonirang_lang::ParseError>{
+    parse_unlinked_work_module_with_headers(source,path,j1,&[])
+}
+fn parse_unlinked_work_module_with_headers(source:&str,path:&str,j1:Option<ddonirang_lang::ddl::CheckedJ1Profile>,headers:&[String])->Result<ddonirang_lang::CanonProgram,ddonirang_lang::ParseError>{
+    if let Some(profile)=j1{return ddonirang_lang::Parser::parse_unlinked_j1_module(source,path,profile);}
+
+    let (mut lexer, _) = Lexer::with_korean_source_header(source).map_err(|error| ddonirang_lang::ParseError {
+        span: Span::new(error.pos,error.pos+1),message:error.message,
+    })?;
+    let tokens = lexer.tokenize().map_err(|error| ddonirang_lang::ParseError {
         span: Span::new(error.pos, error.pos + 1), message: error.message,
     })?;
     ddonirang_lang::Parser::new_v25_with_mode(tokens, ParseMode::Strict)
-        .parse_unlinked_module(source.to_string(), path.to_string())
+        .parse_unlinked_module_with_schema_headers(source.to_string(), path.to_string(),headers)
+}
+
+#[cfg(test)]
+mod r20_unlinked_header_tests {
+    use super::*;
+    #[test]
+    fn r20_unlinked_header_uses_original_source_epoch_and_spans() {
+        let source="#!한국어\r\n// 日本語 위치\r\n(값:나눔수~을) 두배하다:나눔수:셈씨 := { 두배하다 <- 값 + 값. }.\r\n";
+        let parsed=parse_unlinked_work_module(source,"두배.ddn").unwrap();
+        assert_eq!(parsed.origin.source,source);assert_eq!(parsed.source_epoch,ddonirang_lang::SourceEpoch::V25);
+        let TopLevelItem::SeedDef(seed)=&parsed.items[0];
+        assert!(source.get(seed.span.start..seed.span.end).unwrap().contains("두배하다"));
+        assert!(parse_unlinked_work_module("#!日本語\n값 <- 1.","unknown.ddn").is_err());
+        assert!(parse_unlinked_work_module("#!한국어\n#!한국어\n값 <- 1.","duplicate.ddn").is_err());
+    }
 }
 
 pub(crate) fn resolve_work_import_source_path(
@@ -1772,7 +1884,26 @@ fn is_model_recipe_dependency(source: &VirtualProjectSource, graph: &LocalProjec
 pub(crate) fn resolve_work_project_module_directives(
     source: &VirtualProjectSource, path: &str,
 ) -> Result<ProjectModuleDirectives, LocalProjectError> {
-    let graph = build_project_graph(source.clone())?;
+    resolve_work_project_module_directives_selected(source,path,None)
+}
+pub(crate) fn resolve_work_project_module_directives_with_j1_profile(source:&VirtualProjectSource,path:&str,profile:ddonirang_lang::ddl::CheckedJ1Profile)->Result<ProjectModuleDirectives,LocalProjectError>{
+    resolve_work_project_module_directives_selected(source,path,Some(profile))
+}
+fn module_schema_headers(source:&VirtualProjectSource,graph:&LocalProjectGraph,module:&str,paths:&[String],j1:Option<ddonirang_lang::ddl::CheckedJ1Profile>)->Result<Vec<String>,LocalProjectError>{
+    let mut headers=BTreeSet::new();
+    if j1.is_some()||is_model_recipe_dependency(source,graph,module)?{return Ok(Vec::new());}
+    for file in &source.files{
+        let path=normalize_project_path(&file.path)?;
+        if !paths.contains(&path){continue;}
+        let masked=mask_module_metadata_blocks(&file.utf8_text)?;
+        if masked.trim().is_empty()||ddonirang_lang::has_model_surface(&masked){continue;}
+        headers.extend(ddonirang_lang::Parser::discover_schema_header_names(&masked).map_err(|e|
+            LocalProjectError::with_path_span("E_PROJECT_MODULE_PARSE",&path,e.message,(e.span.start,e.span.end)))?);
+    }
+    Ok(headers.into_iter().collect())
+}
+fn resolve_work_project_module_directives_selected(source:&VirtualProjectSource,path:&str,j1:Option<ddonirang_lang::ddl::CheckedJ1Profile>)->Result<ProjectModuleDirectives,LocalProjectError>{
+    let graph = build_project_graph_selected(source.clone(),j1)?;
     let path = normalize_project_path(path)?;
     let (module, closure) = graph.module_sources.iter().find(|(_, paths)| paths.contains(&path))
         .ok_or_else(|| LocalProjectError::with_path("E_PROJECT_UNDECLARED_SOURCE", &path,
@@ -1780,8 +1911,9 @@ pub(crate) fn resolve_work_project_module_directives(
     let texts = source.files.iter().map(|file| Ok((normalize_project_path(&file.path)?, &file.utf8_text)))
         .collect::<Result<BTreeMap<_, _>, LocalProjectError>>()?;
     let mut definitions = BTreeSet::new();
+    let headers=module_schema_headers(source,&graph,module,closure,j1)?;
     for source_path in closure {
-        let masked = mask_module_metadata_blocks(texts[source_path])?;
+        let masked = if j1.is_some(){texts[source_path].to_string()}else{mask_module_metadata_blocks(texts[source_path])?};
         if masked.trim().is_empty() { continue; }
         if ddonirang_lang::has_model_surface(&masked) {
             let model = ddonirang_lang::parse_model_program_with_source_file(&masked, source_path)
@@ -1797,10 +1929,19 @@ pub(crate) fn resolve_work_project_module_directives(
             definitions.extend(recipes.into_iter().map(|recipe| recipe.name));
             continue;
         }
-        let program = parse_unlinked_work_module(&masked, source_path)
-            .map_err(|error| LocalProjectError::with_path_span(
-                if error.code() == "E_PARSE" { "E_PROJECT_MODULE_PARSE" } else { error.code() }, source_path,
-                error.message, (error.span.start, error.span.end)))?;
+        let program = parse_unlinked_work_module_with_headers(&masked, source_path,j1,&headers)
+            .map_err(|error| {
+                let span = (error.span.start, error.span.end);
+                let code = if error.code() == "E_PARSE" { "E_PROJECT_MODULE_PARSE" } else { error.code() };
+                let mut failure = LocalProjectError::with_path_span(code, source_path, error.message.clone(), span);
+                if j1.is_some() {
+                    let mut diagnostic = failure.clone().into_execution_diagnostic();
+                    diagnostic.code = error.j1_source_code();
+                    diagnostic.phase = "lang_parse";
+                    failure.cause = Some(Box::new(diagnostic));
+                }
+                failure
+            })?;
         for item in program.items {
             let TopLevelItem::SeedDef(seed) = item;
             definitions.insert(seed.canonical_name);
@@ -1825,12 +1966,14 @@ pub(crate) fn resolve_work_project_module_directives(
         }
     }
     let head = &graph.module_paths[module];
-    let head_tokens = Lexer::new(texts[head]).tokenize().map_err(|error|
+    let lexer=match j1{Some(profile)=>Lexer::with_j1_profile(texts[head],profile),None=>Lexer::with_korean_source_header(texts[head]).map(|(lexer,_)|lexer)};
+    let mut head_lexer=lexer.map_err(|error|LocalProjectError::with_path("E_PROJECT_MODULE_PARSE",head,error.message))?;
+    let head_tokens = head_lexer.tokenize().map_err(|error|
         LocalProjectError::with_path("E_PROJECT_MODULE_PARSE", head, error.message))?;
     let mut aliases = BTreeSet::new();
     let mut segment_start = 0;
     for (index, token) in head_tokens.iter().enumerate() {
-        if matches!(&token.kind, TokenKind::Ident(name) | TokenKind::Josa(name) if name == "쓰임") {
+        if matches!(&token.kind, TokenKind::Ident(name) | TokenKind::Josa(name) if name == if j1.is_some(){"使用"}else{"쓰임"}) {
             for pair in head_tokens[segment_start..index].windows(2) {
                 if matches!(pair[1].kind, TokenKind::Equals) {
                     if let TokenKind::Ident(name) | TokenKind::Josa(name) = &pair[0].kind {
@@ -1850,7 +1993,8 @@ pub(crate) fn resolve_work_project_module_directives(
     let context = ModuleDirectiveContext::default()
         .with_known_imports(graph.module_paths.keys().cloned())
         .with_public_definitions(definitions);
-    let parsed = parse_module_directive_prefix(texts[head], head, &context)
+    let prefix=match j1{Some(profile)=>ddonirang_lang::module_directive::parse_module_directive_prefix_with_j1_profile(texts[head],head,&context,profile),None=>parse_module_directive_prefix(texts[head],head,&context)};
+    let parsed = prefix
         .map_err(|error| {
             let code = if error.message.contains("E_RD457_IMPORT_TARGET_UNKNOWN") { "E_MODULE_MISSING" }
                 else if error.message.contains("DUPLICATE") { "E_IMPORT_ALIAS_DUPLICATE" }
@@ -1863,7 +2007,13 @@ pub(crate) fn resolve_work_project_module_directives(
                     .last().map(|pair| (pair[0].span.start, pair[0].span.end))
                     .unwrap_or((error.span.start, error.span.end))
             } else { (error.span.start, error.span.end) };
-            LocalProjectError::with_path_span(code, head, error.message, span)
+            let mut failure = LocalProjectError::with_path_span(code, head, error.message, span);
+            if j1.is_some() && code == "E_MODULE_MISSING" {
+                let mut diagnostic = failure.clone().into_execution_diagnostic();
+                diagnostic.span = Some((error.span.start, error.span.end));
+                failure.cause = Some(Box::new(diagnostic));
+            }
+            failure
         })?;
     Ok(ProjectModuleDirectives {
         imports: parsed.imports.into_iter().flat_map(|directive| directive.entries)
@@ -2077,6 +2227,46 @@ pub(crate) fn resolve_first_callable_module_translation_request(
     let (module,closure)=graph.module_sources.iter().find(|(name,_)|graph.module_paths[*name]==head)
         .ok_or_else(||LocalProjectError::with_path("E_DDL_ORIGINAL_MODULE_REQUIRED",path,"기존 모듈 그래프에 결속되지 않은 대상입니다"))?;
     if head!=expected_head || !texts.contains_key(&head){return Err(LocalProjectError::with_path("E_DDL_ORIGINAL_MODULE_MISMATCH",path,"옮김 대상이 실제 선택 원본 모듈과 다릅니다"));}
+    // Existing graph already checks dependency/cycle/closure rules. Do not
+    // redirect locators, probe the disk or make a path-based identity.
+    let _=module;
+    Ok(FirstCallableModuleTranslationRequest{head,closure:closure.clone(),request,binding:entry.clone()})
+}
+
+pub(crate) fn resolve_public_callable_module_translation_request(
+    text:&str,path:&str,original:&VirtualProjectSource,expected_head:&str,
+    first:&ddonirang_lang::parser::RegisteredPublicCallableContext,
+)->Result<FirstCallableModuleTranslationRequest,LocalProjectError>{
+    resolve_public_callable_module_translation_request_selected(text,path,original,expected_head,first,None,Default::default())
+}
+pub(crate) fn resolve_public_callable_module_translation_request_selected(text:&str,path:&str,original:&VirtualProjectSource,expected_head:&str,first:&ddonirang_lang::parser::RegisteredPublicCallableContext,j1:Option<ddonirang_lang::ddl::CheckedJ1Profile>,public_targets:BTreeSet<String>)->Result<FirstCallableModuleTranslationRequest,LocalProjectError>{
+    let graph=build_project_graph_selected(original.clone(),j1)?;
+    let texts=original.files.iter().map(|file|(file.path.clone(),file.utf8_text.clone())).collect::<BTreeMap<_,_>>();
+    let mut targets=graph.module_paths.keys().cloned().collect::<BTreeSet<_>>();
+    for name in texts.keys(){targets.insert(name.clone());targets.insert(format!("./{name}"));if let Some(stem)=name.strip_suffix(".ddn"){targets.insert(stem.into());targets.insert(format!("./{stem}"));}}
+    let scope=ModuleDirectiveContext::default().with_known_imports(targets)
+        .with_public_definitions(public_targets);
+    let parsed=ddonirang_lang::module_directive::parse_module_directive_prefix_with_public_callable_context(text,path,&scope,first)
+        .map_err(|e|{
+            let code=if e.message.starts_with("E_MULTILANG_SUCCESSOR_HEADER_SCOPE:") {
+                "E_MULTILANG_SUCCESSOR_HEADER_SCOPE"
+            } else {
+                "E_DDL_ACTIVATION_PARSE"
+            };
+            LocalProjectError::with_path_span(code,path,e.message,(e.span.start,e.span.end))
+        })?;
+    let binding=parsed.imports.ok_or_else(||LocalProjectError::with_path("E_DDL_ACTIVATION_REQUIRED",path,"옮김이 선언된 쓰임이 없습니다"))?;
+    let request=binding.translation.ok_or_else(||LocalProjectError::with_path("E_DDL_ACTIVATION_REQUIRED",path,"쓰임만으로 말씨를 활성화하지 않습니다"))?;
+    if binding.entries.len()!=1{return Err(LocalProjectError::with_path("E_DDL_ACTIVATION_OWNER_OR_PROFILE",path,"정확한 한 모듈·말씨·판본이 필요합니다"));}
+    if request.target_language!=first.profile().canonical_name()||request.target_version!=first.profile().version(){
+        return Err(LocalProjectError::with_path_span("E_DDL_ACTIVATION_OWNER_OR_PROFILE",path,"정확한 한 모듈·말씨·판본이 필요합니다",(request.span.start,request.span.end)));
+    }
+    let entry=&binding.entries[0];
+    let head=if graph.module_paths.contains_key(&entry.target){if j1.is_some(){graph.module_paths[&entry.target].clone()}else{resolve_work_import_source_path(original,&entry.target)?}}
+        else{resolve_import_source_path(path,&entry.target)?};
+    let (module,closure)=graph.module_sources.iter().find(|(name,_)|graph.module_paths[*name]==head)
+        .ok_or_else(||LocalProjectError::with_path("E_DDL_ORIGINAL_MODULE_REQUIRED",path,"기존 모듈 그래프에 결속되지 않은 대상입니다"))?;
+    if head!=expected_head || !texts.contains_key(&head){return Err(LocalProjectError::with_path_span("E_DDL_ORIGINAL_MODULE_MISMATCH",path,"옮김 대상이 실제 선택 원본 모듈과 다릅니다",(binding.span.start,binding.span.end)));}
     // Existing graph already checks dependency/cycle/closure rules. Do not
     // redirect locators, probe the disk or make a path-based identity.
     let _=module;
@@ -2315,8 +2505,11 @@ fn collect_alias_show_requests_from_body(
 fn collect_alias_symbol_requests_from_tokens(
     text: &str,
 ) -> Result<Vec<AliasShowRequest>, LocalProjectError> {
-    let masked = mask_module_metadata_blocks(text)?;
-    let tokens = Lexer::new(&masked).tokenize().map_err(|err| {
+    collect_alias_symbol_requests_selected(text,None)
+}
+fn collect_alias_symbol_requests_selected(text:&str,j1:Option<ddonirang_lang::ddl::CheckedJ1Profile>)->Result<Vec<AliasShowRequest>,LocalProjectError>{
+    let masked=match j1{Some(profile)=>source_resolution::strip_j1_module_metadata_mapped(text,profile)?.text,None=>mask_module_metadata_blocks(text)?};
+    let tokens = match j1{Some(profile)=>Lexer::with_j1_linked_source(&masked,profile),None=>Lexer::new(&masked)}.tokenize().map_err(|err| {
         LocalProjectError::new(
             "E_PROJECT_ENTRY_PARSE",
             format!("entry DDN 토큰화 실패: {}", err.message),
@@ -2754,5 +2947,38 @@ mod multilang_first_graph_tests {
         source.files[1].utf8_text = "#!日本語\n(金額=(100,1) 有理数, 税額=(10,1) 有理数) 合計する.".into();
         let error = build_project_graph(source).unwrap_err();
         assert_eq!(error.code, "E_MULTILANG_PROJECT_CONTEXT_REQUIRED");
+    }
+}
+
+#[cfg(test)]
+mod r31_j1_project_graph_tests{
+    use super::*;
+    fn snapshot()->crate::authored_project::SourceSnapshot{serde_json::from_str(SNAPSHOT).unwrap()}
+    fn source()->VirtualProjectSource{let snapshot=snapshot();VirtualProjectSource{schema:VIRTUAL_PROJECT_SOURCE_SCHEMA.into(),kind:None,package_hash:None,
+        root_path:snapshot.root_path.unwrap(),entry_path:snapshot.entry_path,files:snapshot.files.into_iter().map(|file|VirtualProjectFileSource{
+            role:if file.path=="root.ddn"{"root"}else{"ddn_source"}.into(),path:file.path,utf8_text:file.text}).collect()}}
+    const SNAPSHOT:&str="{\"root_path\":\"root.ddn\",\"entry_path\":\"main.ddn\",\"files\":[{\"path\":\"root.ddn\",\"text\":\"#!日本語\\n(版=\\\"v25\\\", モジュール群=列[\\n  (名前=アプリ, 見出し=\\\"main.ddn\\\", 原文=\\\"main.ddn\\\"),\\n  (名前=計算, 見出し=\\\"calc.ddn\\\", 原文=\\\"calc.ddn\\\")\\n], 開始=(モジュール=アプリ, 定義=実行)) 構成.\\n\"},{\"path\":\"calc.ddn\",\"text\":\"#!日本語\\n(F=合計, G=倍) 公開.\\n(金額:有理数~に, 税額:有理数~を) 合計:有理数:関数 := {\\n  合計 <- 金額 + 税額.\\n}.\\n(金額:有理数~を) 倍:有理数:関数 := {\\n  倍 <- 金額 + 金額.\\n}.\\n(金額:有理数~を) 内部:有理数:関数 := {\\n  内部 <- 金額 + 金額.\\n}.\\n\"},{\"path\":\"main.ddn\",\"text\":\"#!日本語\\n(計算=計算) 使用.\\n実行:手続き := {\\n  ((税額=(3,1) 有理数, 金額=(12,1) 有理数) 計算.F) 表示.\\n  ((金額=(4,1) 有理数) 計算.G) 表示.\\n}.\\n\"}]}";
+    #[test]fn r31_j1_actual_graph_owner_public_private_and_explicit_profile(){
+        let syntax=ddonirang_lang::ddl::CheckedJ1Profile::resolve(ddonirang_lang::ddl::J1_SOURCE_PROFILE).unwrap();let source=source();
+        assert!(build_project_graph(source.clone()).is_err());
+        let graph=build_project_graph_with_j1_profile(source.clone(),syntax).unwrap();
+        assert_eq!(graph.module_paths["計算"],"calc.ddn");assert_eq!(graph.start_definition.as_deref(),Some("実行"));
+        let directives=resolve_work_project_module_directives_with_j1_profile(&source,"calc.ddn",syntax).unwrap();
+        assert_eq!(directives.exports.iter().map(|row|row.external_name.as_str()).collect::<Vec<_>>(),["F","G"]);
+        assert!(!directives.exports.iter().any(|row|row.internal_name=="内部"));
+        let main=resolve_work_project_module_directives_with_j1_profile(&source,"main.ddn",syntax).unwrap();assert_eq!(main.imports[0].source,"計算");
+        let artifact=crate::authored_project::ProjectArtifact::create(ddonirang_lang::ddl::J1_SOURCE_PROFILE.into(),snapshot(),String::new()).unwrap();
+        let raw=artifact.save().unwrap();let reopened=crate::authored_project::open(raw.as_bytes()).unwrap();
+        assert_eq!(artifact.authored_identity,reopened.authored_identity);assert_eq!(artifact.source_snapshot,reopened.source_snapshot);
+        assert_eq!(artifact.authored_identity.modules.len(),2);
+    }
+    #[test]fn r31_j1_project_header_unknown_module_and_private_exports_fail_closed(){
+        let syntax=ddonirang_lang::ddl::CheckedJ1Profile::resolve(ddonirang_lang::ddl::J1_SOURCE_PROFILE).unwrap();
+        let mut bad=source();let file=bad.files.iter_mut().find(|file|file.path=="calc.ddn").unwrap();file.utf8_text=file.utf8_text.replace("#!日本語","#!한국어");
+        assert!(build_project_graph_with_j1_profile(bad,syntax).is_err());
+        let mut bad=source();let file=bad.files.iter_mut().find(|file|file.path=="main.ddn").unwrap();file.utf8_text=file.utf8_text.replace("計算=計算","計算=アプリ");
+        assert_eq!(resolve_work_project_module_directives_with_j1_profile(&bad,"main.ddn",syntax).unwrap().imports[0].source,"アプリ");
+        let mut bad=source();let file=bad.files.iter_mut().find(|file|file.path=="calc.ddn").unwrap();file.utf8_text=file.utf8_text.replace("G=倍","G=アプリ");
+        assert!(resolve_work_project_module_directives_with_j1_profile(&bad,"calc.ddn",syntax).is_err());
     }
 }

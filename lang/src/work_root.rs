@@ -58,6 +58,7 @@ pub struct RootDirective {
     pub span: Span,
     pub pins: Vec<RootPin>,
     source: String,
+    j1_profile: Option<crate::ddl::CheckedJ1Profile>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -76,6 +77,7 @@ pub struct StartReference {
 }
 
 impl RootDirective {
+    fn list_role(&self)->&'static str {if self.j1_profile.is_some(){"列"}else{"차림"}}
     pub fn field(&self, field: RootField) -> Option<&FieldValue> {
         self.pins
             .iter()
@@ -89,11 +91,11 @@ impl RootDirective {
             span: self.span,
             message: "E_WORK_ROOT_MODULES_REQUIRED: 모듬이 필요합니다".into(),
         })?;
-        let entries = list_entries(&value.tokens, &self.source)?;
+        let entries = list_entries(&value.tokens, &self.source, self.list_role())?;
         let mut modules = Vec::new();
         let mut names = BTreeSet::new();
         for entry in entries {
-            let fields = record_fields(entry, &self.source, &["이름", "머리", "원문"])?;
+            let fields = record_fields(entry, &self.source, if self.j1_profile.is_some(){&["名前", "見出し", "原文"]}else{&["이름", "머리", "원문"]})?;
             let module_name = bare_name(fields[0], &self.source)?;
             if !names.insert(module_name.clone()) {
                 return Err(error(
@@ -105,7 +107,7 @@ impl RootDirective {
             let sources = if fields[2].len() == 1 {
                 vec![path_text(fields[2])?]
             } else {
-                list_entries(fields[2], &self.source)?
+                list_entries(fields[2], &self.source, self.list_role())?
                     .into_iter()
                     .map(path_text)
                     .collect::<Result<Vec<_>, _>>()?
@@ -124,7 +126,7 @@ impl RootDirective {
         let Some(value) = self.field(RootField::Start) else {
             return Ok(None);
         };
-        let fields = record_fields(&value.tokens, &self.source, &["모듈", "정의"])?;
+        let fields = record_fields(&value.tokens, &self.source, if self.j1_profile.is_some(){&["モジュール", "定義"]}else{&["모듈", "정의"]})?;
         Ok(Some(StartReference {
             module: bare_name(fields[0], &self.source)?,
             definition: bare_name(fields[1], &self.source)?,
@@ -201,9 +203,9 @@ fn comma_parts(tokens: &[Token]) -> Result<Vec<&[Token]>, ParseError> {
     Ok(parts)
 }
 
-fn list_entries<'a>(tokens: &'a [Token], source: &str) -> Result<Vec<&'a [Token]>, ParseError> {
+fn list_entries<'a>(tokens: &'a [Token], source: &str, list_role: &str) -> Result<Vec<&'a [Token]>, ParseError> {
     if tokens.len() < 3
-        || authored(&tokens[0], source) != "차림"
+        || authored(&tokens[0], source) != list_role
         || !matches!(tokens[1].kind, TokenKind::LBracket)
         || !matches!(tokens.last().unwrap().kind, TokenKind::RBracket)
     {
@@ -293,11 +295,23 @@ fn name(token: &Token) -> Option<&str> {
 /// No arbitrary expressions or calls are evaluated, and nested values retain
 /// their token/span authority for later typed interpretation.
 pub fn parse_work_root(source: &str) -> Result<RootDirective, ParseError> {
-    // F5-GA[ROOT-CURSOR]: 공유 Lexer의 EOF는 소비하지 않는다. 커서 증가는 비-EOF 토큰 뒤에서만 하며 값 루프도 EOF에서 먼저 거부한다.
-    let tokens = Lexer::new(source).tokenize().map_err(|err| ParseError {
-        span: Span::new(err.pos, err.pos + 1),
-        message: err.message,
-    })?;
+    parse_work_root_checked(source,None)
+}
+
+/// Exact syntax capability; header alone never selects this entry.
+pub fn parse_work_root_with_j1_profile(source:&str,profile:crate::ddl::CheckedJ1Profile)->Result<RootDirective,ParseError>{
+    parse_work_root_checked(source,Some(profile))
+}
+fn parse_work_root_checked(source:&str,j1_profile:Option<crate::ddl::CheckedJ1Profile>)->Result<RootDirective,ParseError>{
+    let tokens = match j1_profile {
+        Some(profile) => Lexer::tokenize_j1_source(source, profile)
+            .map_err(|(error, span)| ParseError { span: Span::new(span.start, span.end), message: error.message })?,
+        None => Lexer::new(source).tokenize().map_err(|err| ParseError {
+            span: Span::new(err.pos, err.pos + source.get(err.pos..)
+                .and_then(|tail| tail.chars().next()).map_or(0, char::len_utf8)),
+            message: err.message,
+        })?,
+    };
     let mut pos = 0;
     if !matches!(tokens[pos].kind, TokenKind::LParen) {
         return Err(error(&tokens[pos], "E_WORK_ROOT_SURFACE: 작품 뿌리는 '(항목=값, ...) 얽음.'으로 작성하세요. 프로젝트/얼개 옛 표면은 허용하지 않습니다"));
@@ -311,7 +325,10 @@ pub fn parse_work_root(source: &str) -> Result<RootDirective, ParseError> {
         // Field slots are exact spellings even where the shared lexer assigns
         // a keyword token (for example 시작); do not invent a second lexer.
         let field_spelling = &source[tokens[pos].span.start..tokens[pos].span.end];
-        let Some(field) = RootField::from_name(field_spelling) else {
+        let field=if j1_profile.is_some(){match field_spelling{
+            "版"=>Some(RootField::SourceEpoch),"モジュール群"=>Some(RootField::Modules),"開始"=>Some(RootField::Start),_=>None,
+        }}else{RootField::from_name(field_spelling)};
+        let Some(field) = field else {
             return Err(error(&tokens[pos], &format!("E_WORK_ROOT_UNKNOWN_FIELD: 얽음은 가지/판본/글판/모듬/내놓음/시작/실행계약/보개만 허용합니다 (입력: {:?})", tokens[pos].raw)));
         };
         if !seen.insert(field) {
@@ -396,7 +413,7 @@ pub fn parse_work_root(source: &str) -> Result<RootDirective, ParseError> {
         }
     }
     pos += 1;
-    if name(&tokens[pos]) != Some("얽음") {
+    if name(&tokens[pos]) != Some(if j1_profile.is_some(){"構成"}else{"얽음"}) {
         return Err(error(
             &tokens[pos],
             "E_WORK_ROOT_SURFACE: 현재 뿌리 지시어는 '얽음'입니다. 얼개는 이관용 옛 표면입니다",
@@ -421,6 +438,7 @@ pub fn parse_work_root(source: &str) -> Result<RootDirective, ParseError> {
         span: Span::new(start, end),
         pins,
         source: source.into(),
+        j1_profile,
     };
     if !matches!(root.field(RootField::SourceEpoch).map(|value| &value.kind), Some(FieldValueKind::Text(value)) if value == "v25")
     {
@@ -585,5 +603,24 @@ mod tests {
                 .unwrap()
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod r31_j1_root_tests{
+    use super::*;
+    const ROOT:&str="#!日本語\r\n(版=\"v25\", モジュール群=列[(名前=アプリ, 見出し=\"main.ddn\", 原文=\"main.ddn\"),(名前=計算, 見出し=\"calc.ddn\", 原文=列[\"calc.ddn\"])], 開始=(モジュール=アプリ, 定義=実行)) 構成.\r\n";
+    fn parse(raw:&str)->Result<RootDirective,ParseError>{parse_work_root_with_j1_profile(raw,crate::ddl::CheckedJ1Profile::resolve(crate::ddl::J1_SOURCE_PROFILE).unwrap())}
+    #[test]fn r31_j1_root_same_typed_modules_start_and_utf8_spans(){
+        let root=parse(ROOT).unwrap();let modules=root.typed_modules().unwrap();let start=root.typed_start().unwrap().unwrap();
+        assert_eq!(modules.len(),2);assert_eq!(modules[1].name,"計算");assert_eq!(modules[1].sources,["calc.ddn"]);
+        assert_eq!(start.module,"アプリ");assert_eq!(start.definition,"実行");
+        assert_eq!(&ROOT[start.span.start..start.span.end],"(モジュール=アプリ, 定義=実行)");
+        assert!(parse_work_root(ROOT).is_err());
+    }
+    #[test]fn r31_j1_root_exact_roles_header_and_epoch_refuse(){
+        for raw in [ROOT.replace("#!日本語", "#!한국어"),ROOT.replace("版=", "글판="),ROOT.replace("v25", "v24"),ROOT.replace("構成", "얽음"),ROOT.replace("開始=", "版=\"v25\", 開始=")]{assert!(parse(&raw).is_err(),"{raw}");}
+        let bad=ROOT.replace("定義=実行","名前=実行");assert!(parse(&bad).is_err());
+        let bad=ROOT.replace("見出し=\"main.ddn\"","見出し=\"main.ddn\", 見出し=\"main.ddn\"");assert!(parse(&bad).is_err());
     }
 }

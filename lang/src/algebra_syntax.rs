@@ -34,7 +34,9 @@ pub(crate) fn term(expr: &Expr) -> Result<AlgebraTermSyntax, ParseError> {
                     "-" => AlgebraTermKind::Subtract(Box::new(left),Box::new(visit(right,depth+1,remaining)?)),
                     "*" => AlgebraTermKind::Multiply(Box::new(left),Box::new(visit(right,depth+1,remaining)?)),
                     "/" => {
-                        let denominator=integer(right).ok_or_else(||reject(right.span,"분모에는 0이 아닌 정수 상수만 쓸 수 있습니다"))?;
+                        let Some(denominator)=integer(right) else {
+                            return Ok(AlgebraTermSyntax{span:expr.span,kind:AlgebraTermKind::RationalDivide(Box::new(left),Box::new(visit(right,depth+1,remaining)?))});
+                        };
                         if denominator==0 {return Err(reject(right.span,"분모가 0인 정적 항은 허용하지 않습니다"));}
                         AlgebraTermKind::DivideByInteger(Box::new(left),denominator)
                     }
@@ -43,7 +45,24 @@ pub(crate) fn term(expr: &Expr) -> Result<AlgebraTermSyntax, ParseError> {
             }
             _ => return Err(reject(expr.span,"정확 정수 상수와 명시된 나눔수 변수의 정적 항이 필요합니다")),
         }};
-        Ok(AlgebraTermSyntax {span:expr.span,kind})
+        // Preserve the exact parsed delimiters without changing runtime Expr
+        // spans. Descendant extents also matter for (a) * b and a / (b).
+        let mut span = expr.span;
+        match &kind {
+            AlgebraTermKind::Add(a,b) | AlgebraTermKind::Subtract(a,b)
+                | AlgebraTermKind::Multiply(a,b) | AlgebraTermKind::RationalDivide(a,b) => {
+                span = span.merge(&a.span).merge(&b.span);
+            }
+            AlgebraTermKind::DivideByInteger(a,_) => {
+                span = span.merge(&a.span);
+                if let ExprKind::Infix {right,..} = &expr.kind {
+                    if let Some(group) = right.source_group_span { span = span.merge(&group); }
+                }
+            }
+            _ => {}
+        }
+        if let Some(group) = expr.source_group_span { span = span.merge(&group); }
+        Ok(AlgebraTermSyntax {span,kind})
     }
     visit(expr,0,&mut 4096)
 }

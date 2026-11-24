@@ -9,7 +9,7 @@ pub(super) const DOMAIN:&[u8]=b"DDN.R3.TYPEPROOF.1\0";
 const LIMIT:usize=1_000_000;
 
 #[derive(Clone,Copy,PartialEq,Eq)]
-enum Scalar {Integer,Approximate,Rational,Bool,Text}
+enum Scalar {Integer,Approximate,Rational,Bool,Text,Bytes}
 #[derive(Clone,Copy)]
 enum SymbolKind {Sum(DefinitionId),Nominal(u8,[u8;32]),StructuralProduct(usize)}
 struct Symbol {name:String,scope:Span,site:Site,kind:SymbolKind}
@@ -115,7 +115,7 @@ impl StaticTypeOwner {
             let node=match job {
                 Work::Text=>leaf(Scalar::Text),
                 Work::Type(TypeRef::Infer)=>return Err(fail("미해소 형식으로 증명을 발급할 수 없습니다")),
-                Work::Type(TypeRef::AlgebraEquality { .. })=>return Err(fail("대수 명제는 실행값의 형식 증명으로 발급할 수 없습니다")),
+                Work::Type(TypeRef::AlgebraEquality { .. }|TypeRef::CardCallEquality { .. } | TypeRef::AlgebraNonzero { .. })=>return Err(fail("대수 명제는 실행값의 형식 증명으로 발급할 수 없습니다")),
                 Work::Type(TypeRef::StructureLaw { .. })=>return Err(fail("구조 법칙 목표는 실행값의 형식 증명으로 발급할 수 없습니다")),
                 Work::Type(TypeRef::PropositionConjunction(_))=>return Err(fail("논리곱 명제는 실행값의 형식 증명으로 발급할 수 없습니다")),
                 Work::Type(TypeRef::Named(name))=>{
@@ -142,7 +142,7 @@ impl StaticTypeOwner {
                     }} else if ddonirang_lang::sum_owner::resolve_named_builtin_sum_owner(&name).is_some() {
                         Node::Sum{template:builtin_reference_failure_ids()?[0],args:Vec::new()}
                     } else {leaf(match name.as_str() {
-                        "바른수"=>Scalar::Integer,"셈수"=>Scalar::Approximate,"나눔수"=>Scalar::Rational,"참거짓"=>Scalar::Bool,"글"=>Scalar::Text,
+                        "바른수"=>Scalar::Integer,"셈수"=>Scalar::Approximate,"나눔수"=>Scalar::Rational,"참거짓"=>Scalar::Bool,"글"=>Scalar::Text,"바이트열"=>Scalar::Bytes,
                         _=>return Err(format!("E_R3_TYPE_OWNER_UNRESOLVED: `{name}`의 실제 닫힌 형식 소유자가 없습니다 @{}..{}",at.start,at.end)),
                     })}
                 },
@@ -197,7 +197,7 @@ fn take(built:&mut Vec<usize>,n:usize)->Result<Vec<usize>,String> {
     let at=built.len().checked_sub(n).ok_or_else(||fail("형식 증명의 자식 개수가 다릅니다"))?;Ok(built.split_off(at))
 }
 fn leaf(kind:Scalar)->Node {
-    let name=match kind{Scalar::Integer=>"바른수",Scalar::Approximate=>"셈수",Scalar::Rational=>"나눔수",Scalar::Bool=>"참거짓",Scalar::Text=>"글"};
+    let name=match kind{Scalar::Integer=>"바른수",Scalar::Approximate=>"셈수",Scalar::Rational=>"나눔수",Scalar::Bool=>"참거짓",Scalar::Text=>"글",Scalar::Bytes=>"바이트열"};
     let mut bytes=Vec::new();RecordFieldType::Named{name:name.into()}.encode_canon(&mut bytes);Node::Leaf{bytes,scalar:Some(kind)}
 }
 
@@ -263,5 +263,123 @@ impl StaticTypeProof {
     }
     pub(super) fn verify_recorded(&self,raw:&[u8])->Result<(),String> {
         if raw.len()>LIMIT||self.encode()?.as_slice()!=raw {return Err(fail("기록된 형식 증명이 실제 해소 결과와 다릅니다"));}Ok(())
+    }
+}
+
+
+impl StaticTypeOwner {
+    /// Fulfill a B1 requirement through this actual checked source/type owner.
+    /// A builtin spelling is only a selector: normal scope/shadow resolution
+    /// and the closed Scalar::Bool proof remain mandatory. No type ID is issued.
+    pub(super) fn fulfill_logic_type_requirement(&self,at:Span,requirement:ddonirang_lang::stdlib::logic_callable_registration_r1::LogicTypeRequirement)->Result<StaticTypeProof,String>{
+        if at.start>=at.end||at.end>self.program.origin.source.len(){return Err(fail("E_LOGIC_TYPE_SOURCE_RANGE"));}
+        match requirement{ddonirang_lang::stdlib::logic_callable_registration_r1::LogicTypeRequirement::ExistingCheckedBool=>{
+            let proof=self.resolve(&TypeRef::Named("참거짓".into()),at)?;
+            if !matches!(proof.nodes.get(proof.root),Some(Node::Leaf{scalar:Some(Scalar::Bool),..})){return Err(fail("E_LOGIC_ACTUAL_BOOL_OWNER_REQUIRED"));}
+            Ok(proof)
+        }}
+    }
+}
+#[cfg(test)]
+mod r31_logic_bool_source_tests{
+    use super::*;
+    #[test]fn r31_logic_bool_requirement_uses_real_admitted_source_and_private_type_proof(){
+        use crate::authored_project::{ProjectArtifact,SourceSnapshot,SourceFile};
+        let raw="실행:움직씨 := { 참 보여주기. }.";
+        let project=ProjectArtifact::create("v1-core-v25".into(),SourceSnapshot{root_path:Some("root.ddn".into()),entry_path:"main.ddn".into(),files:vec![
+            SourceFile{path:"root.ddn".into(),text:"(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"main.ddn\",원문=\"main.ddn\")], 시작=(모듈=앱,정의=실행)) 얽음.".into()},
+            SourceFile{path:"main.ddn".into(),text:raw.into()}]},String::new()).unwrap();
+        let owned=crate::project_revision_envelope_supply::admit_fresh_precanon_authored_source(project.save().unwrap().as_bytes()).unwrap();
+        let draft=super::super::super::prepare_precanon_under_candidate_owner(&owned,None,&mut |_|Err("unexpected new nominal identity".into())).unwrap();
+        let source=Source::saved(&owned);let owner=StaticTypeOwner::from_source(&source,&draft,&[]).unwrap();
+        let TopLevelItem::SeedDef(seed)=&owner.checked_program().items[0];
+        let Stmt::Show{expr,..}=&seed.body.as_ref().unwrap().stmts[0] else{panic!("actual output expression required")};
+        let requirement=ddonirang_lang::stdlib::logic_callable_registration_r1::LogicTypeRequirement::ExistingCheckedBool;
+        let proof=owner.fulfill_logic_type_requirement(expr.span,requirement).unwrap();
+        assert!(matches!(proof.nodes.get(proof.root),Some(Node::Leaf{scalar:Some(Scalar::Bool),..})));
+        assert!(!proof.encode().unwrap().is_empty());
+        assert!(owner.fulfill_logic_type_requirement(Span::new(0,0),requirement).is_err());
+    }
+}
+
+#[cfg(test)]
+mod r31_j1_logic_type_source_tests {
+    use super::*;
+    #[test]
+    fn r31_j1_bool_requirement_uses_actual_japanese_source_and_existing_type_owner() {
+        use crate::authored_project::{ProjectArtifact,SourceSnapshot,SourceFile};
+        let project=ProjectArtifact::create("v1-core-v25-ja-base-r1".into(),SourceSnapshot {
+            root_path:Some("root.ddn".into()),entry_path:"main.ddn".into(),files:vec![
+                SourceFile{path:"root.ddn".into(),text:"#!日本語\n(版=\"v25\", モジュール群=列[(名前=アプリ, 見出し=\"main.ddn\", 原文=\"main.ddn\")], 開始=(モジュール=アプリ, 定義=実行)) 構成.\n".into()},
+                SourceFile{path:"main.ddn".into(),text:"#!日本語\n実行:手続き := { 真 表示. }.\n".into()}
+            ]},String::new()).unwrap();
+        let admitted=crate::project_revision_envelope_supply::admit_fresh_precanon_authored_source(project.save().unwrap().as_bytes()).unwrap();
+        let draft=super::super::super::prepare_precanon_under_candidate_owner(&admitted,None,&mut |_|Err("unexpected nominal issue".into())).unwrap();
+        let source=Source::saved(&admitted);
+        let owner=StaticTypeOwner::from_source(&source,&draft,&[]).unwrap();
+        let TopLevelItem::SeedDef(seed)=&owner.checked_program().items[0];
+        let Stmt::Show{expr,..}=&seed.body.as_ref().unwrap().stmts[0] else{panic!("actual Japanese source expression required")};
+        assert!(matches!(expr.kind,ExprKind::Literal(ddonirang_lang::Literal::Bool(true))));
+        let requirement=ddonirang_lang::stdlib::logic_callable_registration_r1::LogicTypeRequirement::ExistingCheckedBool;
+        let proof=owner.fulfill_logic_type_requirement(expr.span,requirement).unwrap();
+        let existing=owner.resolve(&TypeRef::Named("참거짓".into()),expr.span).unwrap();
+        assert_eq!(proof.encode().unwrap(),existing.encode().unwrap());
+        assert!(matches!(proof.nodes.get(proof.root),Some(Node::Leaf{scalar:Some(Scalar::Bool),..})));
+    }
+}
+
+
+#[cfg(test)]
+mod bytes_owner_tests {
+    use super::*;
+    use crate::authored_project::{ProjectArtifact, SourceFile, SourceSnapshot};
+
+    #[test]
+    fn existing_bytes_type_proof_is_distinct_from_text() {
+        let project = ProjectArtifact::create(
+            "v1-core-v25".into(),
+            SourceSnapshot {
+                root_path: Some("root.ddn".into()),
+                entry_path: "main.ddn".into(),
+                files: vec![
+                    SourceFile {
+                        path: "root.ddn".into(),
+                        text: "(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"main.ddn\",원문=\"main.ddn\")], 시작=(모듈=앱,정의=실행)) 얽음.".into(),
+                    },
+                    SourceFile {
+                        path: "main.ddn".into(),
+                        text: "실행:움직씨 := { (글=\"é\") UTF8바이트열로 보여주기. }.".into(),
+                    },
+                ],
+            },
+            String::new(),
+        ).unwrap();
+        let saved = project.save().unwrap();
+        let admitted = crate::project_revision_envelope_supply::admit_fresh_precanon_authored_source(saved.as_bytes()).unwrap();
+        let draft = super::super::super::prepare_precanon_under_candidate_owner(
+            &admitted, None, &mut |_| Err("unexpected nominal issue".into()),
+        ).unwrap();
+        let source = Source::saved(&admitted);
+        let owner = StaticTypeOwner::from_source(&source, &draft, &[]).unwrap();
+        let TopLevelItem::SeedDef(seed) = &owner.checked_program().items[0];
+        let Stmt::Show { expr, .. } = &seed.body.as_ref().unwrap().stmts[0] else {
+            panic!("actual conversion expression required");
+        };
+        assert_eq!(
+            owner.checked_program().origin.bytes_calls.get(&expr.id),
+            Some(&ddonirang_lang::bytes::BytesConversion::EncodeUtf8Exact)
+        );
+        let bytes = owner.resolve(&TypeRef::Named("바이트열".into()), expr.span).unwrap();
+        let text = owner.resolve(&TypeRef::Named("글".into()), expr.span).unwrap();
+        let Some(Node::Leaf { bytes: leaf, scalar: Some(Scalar::Bytes) }) = bytes.nodes.get(bytes.root) else {
+            panic!("existing bytes scalar proof required");
+        };
+        let mut canonical = Vec::new();
+        RecordFieldType::Named { name: "바이트열".into() }.encode_canon(&mut canonical);
+        assert_eq!(leaf, &canonical);
+        assert_ne!(bytes.encode().unwrap(), text.encode().unwrap());
+        assert!(!bytes.is_rational_scalar());
+        let unknown = owner.resolve(&TypeRef::Named("미등록형식".into()), expr.span);
+        assert!(matches!(unknown, Err(message) if message.contains("E_R3_TYPE_OWNER_UNRESOLVED")));
     }
 }

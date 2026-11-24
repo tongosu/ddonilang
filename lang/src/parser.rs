@@ -13,6 +13,7 @@ pub struct Parser {
     piecewise_definitions: HashMap<NodeId, PiecewiseDefinition>,
     tokens: Vec<Token>,
     source_epoch: SourceEpoch,
+    type_reference_sites: Option<Vec<(String,Span,bool)>>,
     source: String,
     pos: usize,
     nid: u64,
@@ -30,10 +31,13 @@ pub struct Parser {
     registered_call_candidates: HashMap<NodeId, Vec<NodeId>>,
     authored_call_candidates: HashMap<NodeId, Vec<NodeId>>,
     authored_call_name_spans: HashMap<NodeId,Span>,
+    authored_argument_order: HashMap<NodeId,Vec<NodeId>>,
+    authored_pin_label_spans: HashMap<NodeId,Span>,
     static_structure_calls: HashMap<NodeId, StaticStructureBinding>,
     static_algebra_calls: HashMap<NodeId, StaticAlgebraBinding>,
     registered_call_spans: HashMap<NodeId, Span>,
     registered_definitions: HashMap<NodeId, SeedDef>,
+    rd714_niladic_calls: HashMap<NodeId, String>,
     explicitly_registered_owners: HashSet<String>,
     product_definitions: HashMap<String, (NodeId, Vec<ParamPin>)>,
     schema_categories: HashMap<String, SchemaCategory>,
@@ -41,11 +45,14 @@ pub struct Parser {
     schema_construction_nodes: HashSet<NodeId>,
     sum_definitions: HashMap<String, Vec<SumBranchDecl>>,
     bytes_calls: HashMap<NodeId, crate::bytes::BytesConversion>,
+    vc17_named_calls: HashMap<NodeId, crate::stdlib::vc17::Definition>,
     atom_value_occurrences: HashMap<NodeId, AtomValueOccurrence>,
     retirement_commands: HashMap<NodeId,RetirementCommandBinding>,
     subject_reference_calls: HashMap<NodeId,SubjectReferenceCallBinding>,
     manipulation_phase_calls: HashMap<NodeId,ManipulationPhaseCallBinding>,
     mode: ParseMode,
+    public_callable_context: Option<std::sync::Arc<RegisteredPublicCallableContext>>,
+    public_callable_module: bool,
     first_callable_ddl: bool,
     first_callable_context: Option<std::sync::Arc<RegisteredFirstCallableContext>>,
 }
@@ -126,6 +133,73 @@ impl RegisteredFirstCallableContext {
     pub fn ddl_path(&self) -> &str { &self.ddl_path }
     pub fn projection(&self) -> &SeedDef { &self.projection }
 }
+/// Compilation-only whole-public correspondence. Durable identities and
+/// actual export admission remain with the tool's checked source owner.
+#[derive(Debug,Clone)]
+pub struct PublicCallableBinding {
+    pub definition:String,pub pin_identities:Vec<String>,pub original:SeedDef,
+    pub source_path:String,pub source_text:String,
+}
+#[derive(Debug,Clone)]
+pub struct RegisteredPublicCallableContext {
+    pub(crate) profile:crate::ddl::RegisteredSuccessorProfile,
+    pub(crate) bindings:Vec<PublicCallableBinding>,
+    pub(crate) projections:Vec<SeedDef>,pub(crate) ddl_source:String,pub(crate) ddl_path:String,
+    pub(crate) activation:Option<crate::module_directive::ModuleDirectiveEntry>,
+    pub(crate) next_node:u64,
+    pub(crate) consumer_j1:Option<crate::ddl::CheckedJ1Profile>,
+}
+impl RegisteredPublicCallableContext {
+    pub fn from_public_and_ddl(profile:crate::ddl::RegisteredSuccessorProfile,
+        bindings:Vec<PublicCallableBinding>,ddl_source:&str,ddl_path:&str,next_node:u64,
+    )->Result<Self,ParseError>{
+        let fail=|message:&str|ParseError{span:Span::new(0,ddl_source.len()),message:message.into()};
+        if profile.is_logic_builtin(){return Err(fail("E_DDL_PUBLIC_PROFILE_KIND"));}
+        if !(ddl_path.ends_with(".ddl")||ddl_path.ends_with(".옮김"))||ddl_source.len()>16384||bindings.is_empty()
+            ||bindings.len()!=profile.surfaces().len(){return Err(fail("E_DDL_PUBLIC_COVERAGE"));}
+        let tokens=Lexer::with_public_callable_projection(ddl_source,&profile,true)
+            .and_then(|mut lexer|lexer.tokenize()).map_err(|e|ParseError{span:Span::new(e.pos,e.pos+ddl_source.get(e.pos..).and_then(|s|s.chars().next()).map_or(0,char::len_utf8)),message:e.message})?;
+        let mut parser=Parser::new_v25_with_mode(tokens,ParseMode::Strict);parser.source=ddl_source.into();parser.first_callable_ddl=true;
+        let mut projections=Vec::new();
+        while !parser.is_at_end(){projections.push(parser.parse_seed_def()?);if projections.len()>128{return Err(fail("E_DDL_PUBLIC_LIMIT"));}}
+        if projections.len()!=bindings.len(){return Err(fail("E_DDL_PUBLIC_COVERAGE"));}
+        let mut ids=HashSet::new();let mut originals=HashSet::new();
+        for row in profile.surfaces(){
+            let matched=bindings.iter().filter(|binding|binding.definition==row.identity).collect::<Vec<_>>();
+            if matched.len()!=1||!ids.insert(row.identity.clone()){return Err(fail("E_DDL_PUBLIC_DEFINITION_OWNER"));}
+            let binding=matched[0];let original=&binding.original;
+            if !originals.insert(original.canonical_name.clone())||original.seed_kind!=SeedKind::Semssi||original.body.is_none()||!original.type_params.is_empty()||original.proof_header.is_some()||!original.modifiers.is_empty()
+                ||original.params.len()!=row.pins.len()||binding.pin_identities.len()!=row.pins.len()
+                ||original.result_type!=Some(TypeRef::Named("나눔수".into())){return Err(fail("E_DDL_PUBLIC_ORIGINAL_REQUIRED"));}
+            let found=projections.iter().filter(|projection|projection.canonical_name==row.surface).collect::<Vec<_>>();
+            if found.len()!=1{return Err(fail("E_DDL_PUBLIC_COVERAGE"));}let projection=found[0];
+            if projection.seed_kind!=SeedKind::Semssi||projection.body.is_some()||!projection.alternate_forms.is_empty()||!projection.type_params.is_empty()||projection.proof_header.is_some()||!projection.modifiers.is_empty()
+                ||projection.params.len()!=row.pins.len()||projection.result_type!=Some(TypeRef::Named("有理数".into())){return Err(fail("E_DDL_PUBLIC_PROJECTION"));}
+            for (index,pin) in row.pins.iter().enumerate(){
+                let original_pin=&original.params[index];let projected=&projection.params[index];
+                if binding.pin_identities[index]!=pin.identity||original_pin.optional||original_pin.default_value.is_some()
+                    ||original_pin.type_ref!=TypeRef::Named("나눔수".into())||projected.pin_name!=pin.surface
+                    ||projected.type_ref!=TypeRef::Named("有理数".into())||projected.optional||projected.default_value.is_some()
+                    ||projected.josa_list.as_slice()!=[pin.particle.as_str()]{return Err(ParseError{span:projected.span,message:"E_DDL_PUBLIC_PIN_OWNER".into()});}
+            }
+        }
+        Ok(Self{profile,bindings,projections,ddl_source:ddl_source.into(),ddl_path:ddl_path.into(),activation:None,consumer_j1:None,next_node})
+    }
+    pub fn profile(&self)->&crate::ddl::RegisteredSuccessorProfile{&self.profile}
+    pub fn ddl_source(&self)->&str{&self.ddl_source}
+    pub fn ddl_path(&self)->&str{&self.ddl_path}
+    pub fn bindings(&self)->&[PublicCallableBinding]{&self.bindings}
+    /// Selected by the verified consumer artifact, never by a header alone.
+    pub fn with_consumer_j1(mut self,profile:Option<crate::ddl::CheckedJ1Profile>)->Self {
+        self.consumer_j1=profile;self
+    }
+    pub fn consumer_j1(&self)->Option<crate::ddl::CheckedJ1Profile>{self.consumer_j1}
+    pub fn with_module_activation(mut self,binding:crate::module_directive::ModuleDirectiveEntry)->Result<Self,ParseError>{
+        if binding.local_name.is_empty()||binding.target.is_empty(){return Err(ParseError{span:Span::new(0,0),message:"E_DDL_ACTIVATION_BINDING_REQUIRED".into()});}
+        self.activation=Some(binding);Ok(self)
+    }
+}
+
 #[derive(Clone,Default)]
 struct DeclaredNames {
     // Keep root-hide authorization distinct from ordinary value bindings.
@@ -156,6 +230,17 @@ enum DimState {
     Unknown,
 }
 impl Parser {
+    /// Compiler-local syntax provenance for a known AST type prefix. This
+    /// invokes the same grammar without adding a type resolver or public wire.
+    /// A separate parser owns these sites, so speculative program lookahead
+    /// cannot leave ghost type occurrences in a completed module.
+    pub fn parse_type_reference_prefix(source:&str,tokens:Vec<Token>)
+        ->Result<(TypeRef,Vec<(String,Span,bool)>),ParseError> {
+        let mut parser=Self::new_v25_with_mode(tokens,ParseMode::Strict);
+        parser.source=source.into();parser.type_reference_sites=Some(Vec::new());
+        let ty=parser.parse_type_ref()?;
+        Ok((ty,parser.type_reference_sites.take().unwrap_or_default()))
+    }
     pub fn new(tokens: Vec<Token>) -> Self {
         Self::new_with_mode(tokens, ParseMode::SuccessorDefault)
     }
@@ -169,6 +254,7 @@ impl Parser {
         Self {
             tokens,
             source_epoch,
+            type_reference_sites:None,
             piecewise_definitions: HashMap::new(),
             source: String::new(),
             pos: 0,
@@ -187,10 +273,13 @@ impl Parser {
             registered_call_candidates: HashMap::new(),
             authored_call_candidates: HashMap::new(),
             authored_call_name_spans: HashMap::new(),
+            authored_argument_order: HashMap::new(),
+            authored_pin_label_spans: HashMap::new(),
                 static_structure_calls: HashMap::new(),
                 static_algebra_calls: HashMap::new(),
             registered_call_spans: HashMap::new(),
             registered_definitions: HashMap::new(),
+            rd714_niladic_calls: HashMap::new(),
             explicitly_registered_owners: HashSet::new(),
             product_definitions: HashMap::new(),
             schema_categories: HashMap::new(),
@@ -198,14 +287,117 @@ impl Parser {
             schema_construction_nodes: HashSet::new(),
             sum_definitions: HashMap::new(),
             bytes_calls: HashMap::new(),
+            vc17_named_calls: HashMap::new(),
             atom_value_occurrences: HashMap::new(),
             retirement_commands: HashMap::new(),
             subject_reference_calls: HashMap::new(),
             manipulation_phase_calls: HashMap::new(),
             mode,
+            public_callable_context: None,
+            public_callable_module: false,
             first_callable_ddl: false,
             first_callable_context: None,
         }
+    }
+
+    /// Reparse retained original tails through the same V25 parser, carrying
+    /// one compilation-node counter across files; no source concatenation or
+    /// path-derived semantic identity is used.
+    pub fn parse_public_original_tail(source:&str,path:&str,next_node:u64)->Result<(CanonProgram,u64),ParseError>{
+        let tokens=Lexer::new(source).tokenize().map_err(|e|ParseError{span:Span::new(e.pos,e.pos+1),message:e.message})?;
+        let mut parser=Self::new_v25_with_mode(tokens,ParseMode::Strict);parser.nid=next_node;
+        let program=parser.parse_program(source.into(),path.into())?;Ok((program,parser.nid))
+    }
+    pub fn parse_with_public_callable_context(source:&str,path:&str,context:std::sync::Arc<RegisteredPublicCallableContext>)->Result<CanonProgram,ParseError>{
+        Self::parse_public_callable_consumer(source,path,context,false)
+    }
+
+    /// Internal building block for a linked J1 module; this does not select
+    /// an execution entry or accept a storage carrier.
+    pub fn parse_with_public_callable_module_context(
+        source:&str,path:&str,context:std::sync::Arc<RegisteredPublicCallableContext>,
+    )->Result<CanonProgram,ParseError>{
+        if context.consumer_j1().is_none(){
+            return Err(ParseError{span:Span::new(0,0),message:"E_J1_PROFILE_REQUIRED".into()});
+        }
+        Self::parse_public_callable_consumer(source,path,context,true)
+    }
+
+    /// Collect only local, uniquely declared targets before validating a module export.
+    pub fn j1_local_export_targets(
+        source: &str,
+        path: &str,
+        syntax: crate::ddl::CheckedJ1Profile,
+    ) -> Result<std::collections::BTreeSet<String>, ParseError> {
+        let program = Self::parse_unlinked_j1_module(source, path, syntax)?;
+        Ok(Self::local_export_targets(&program))
+    }
+
+    fn local_export_targets(program: &CanonProgram) -> std::collections::BTreeSet<String> {
+        let mut counts = HashMap::new();
+        for TopLevelItem::SeedDef(seed) in &program.items {
+            let (count, has_body) = counts.entry(seed.canonical_name.as_str()).or_insert((0, false));
+            *count += 1;
+            *has_body |= seed.body.is_some();
+        }
+        counts.into_iter()
+            .filter(|(_, (count, has_body))| *count == 1 && *has_body)
+            .map(|(name, _)| name.to_owned())
+            .collect()
+    }
+
+    pub fn public_callable_module_prefix(
+        source: &str,
+        path: &str,
+        context: &RegisteredPublicCallableContext,
+    ) -> Result<crate::ModuleDirectiveDocument, ParseError> {
+        Self::public_callable_consumer_tokens(source, path, context, true)
+            .map(|(document, _)| document)
+    }
+
+    fn public_callable_consumer_tokens(
+        source: &str,
+        path: &str,
+        context: &RegisteredPublicCallableContext,
+        module: bool,
+    ) -> Result<(crate::ModuleDirectiveDocument, Vec<Token>), ParseError> {
+        let activation=context.activation.as_ref().ok_or_else(||ParseError{span:Span::new(0,0),message:"E_DDL_ACTIVATION_REQUIRED".into()})?;
+        let mut directive_context = crate::ModuleDirectiveContext::default()
+            .with_known_imports([activation.target.clone()]);
+        if module {
+            let syntax = context.consumer_j1().ok_or_else(|| ParseError {
+                span: Span::new(0, 0), message: "E_J1_PROFILE_REQUIRED".into(),
+            })?;
+            directive_context = directive_context.with_public_definitions(
+                Self::j1_local_export_targets(source, path, syntax)?,
+            );
+        }
+        let (document,tokens)=crate::module_directive::public_callable_module_tokens(source,path,&directive_context,&context)?;
+        let imports=document.imports.as_ref().ok_or_else(||ParseError{span:Span::new(0,0),message:"E_DDL_ACTIVATION_REQUIRED".into()})?;
+        let request=imports.translation.as_ref().ok_or_else(||ParseError{span:imports.span,message:"E_DDL_ACTIVATION_REQUIRED".into()})?;
+        if imports.entries.as_slice()!=std::slice::from_ref(activation)||(!module && document.exports.is_some())
+            ||request.target_language!=context.profile.canonical_name()||request.target_version!=context.profile.version(){return Err(ParseError{span:imports.span,message:"E_DDL_ACTIVATION_OWNER_OR_PROFILE".into()});}
+        Ok((document, tokens))
+    }
+
+    fn parse_public_callable_consumer(
+        source:&str,path:&str,context:std::sync::Arc<RegisteredPublicCallableContext>,module:bool,
+    )->Result<CanonProgram,ParseError>{
+        let (document, tokens) = Self::public_callable_consumer_tokens(source, path, &context, module)?;
+        let start=source.len()-document.declaration_source.len();
+        let tokens=tokens.into_iter().filter(|token|token.span.start>=start).collect::<Vec<_>>();
+        let syntax=context.consumer_j1();
+        let shows=tokens.iter().filter(|t|matches!(t.kind,TokenKind::KwBoyeojugi)&&t.raw=="表示")
+            .map(|t|t.span.start).collect::<Vec<_>>();
+        let mut parser=Self::new_v25_with_mode(tokens,ParseMode::Strict);
+        parser.nid=context.next_node;parser.public_callable_context=Some(context);
+        parser.public_callable_module=module;
+        let mut program=parser.parse_program(source.into(),path.into())?;
+        if let Some(syntax)=syntax {
+            crate::canonicalizer::resolve_j1_type_roles(&mut program,syntax)?;
+            resolve_j1_expression_roles(&mut program,&shows)?;
+        }
+        Ok(program)
     }
 
     pub fn parse_with_first_callable_context(
@@ -623,6 +815,7 @@ impl Parser {
     /// from the whole call/argument syntax. Neither span selects a target.
     fn parsed_source_call(&mut self,span:Span,args:Vec<ArgBinding>,func:String,name_span:Span)->Expr {
         let id=self.next_id();self.authored_call_name_spans.insert(id,name_span);
+        self.authored_argument_order.insert(id,args.iter().map(|arg|arg.id).collect());
         Expr::new(id,span,ExprKind::Call{args,func})
     }
 
@@ -631,7 +824,7 @@ impl Parser {
         source: String,
         file_path: String,
     ) -> Result<CanonProgram, ParseError> {
-        self.parse_program_phase(source, file_path, true)
+        self.parse_program_phase(source, file_path, true, &[])
     }
 
     /// Declaration discovery only. Imported call targets are resolved after
@@ -641,14 +834,33 @@ impl Parser {
         source: String,
         file_path: String,
     ) -> Result<CanonProgram, ParseError> {
-        self.parse_program_phase(source, file_path, false)
+        self.parse_program_phase(source, file_path, false, &[])
     }
 
+    /// Syntax-only headers from the same already selected module closure.
+    /// This does not resolve or admit a constructor; the linked program must
+    /// still contain its actual declaration and pass ordinary vc04 validation.
+    pub fn parse_unlinked_module_with_schema_headers(&mut self,source:String,file_path:String,headers:&[String])
+        ->Result<CanonProgram,ParseError>{self.parse_program_phase(source,file_path,false,headers)}
+    pub fn discover_schema_header_names(source:&str)->Result<Vec<String>,ParseError>{
+        let(mut lexer,_)=Lexer::with_korean_source_header(source).map_err(|e|ParseError{span:Span::new(e.pos,e.pos+1),message:e.message})?;
+        let tokens=lexer.tokenize().map_err(|e|ParseError{span:Span::new(e.pos,e.pos+1),message:e.message})?;
+        let mut parser=Self::new_v25_with_mode(tokens,ParseMode::Strict);parser.source=source.into();
+        let mut names=parser.scan_schema_header_names().into_iter().collect::<Vec<_>>();names.sort();Ok(names)
+    }
+    fn scan_schema_header_names(&self)->HashSet<String>{
+        let mut names=HashSet::new();let mut depth=0usize;
+        if self.source_epoch==SourceEpoch::V25{for index in 0..self.tokens.len(){
+            if depth==0&&self.is_vc04_schema_header_at(index){names.insert(self.tokens[index].raw.clone());}
+            match self.tokens[index].kind{TokenKind::LBrace=>depth+=1,TokenKind::RBrace=>depth=depth.saturating_sub(1),_=>{}}
+        }}names
+    }
     fn parse_program_phase(
         &mut self,
         source: String,
         file_path: String,
         resolve_calls: bool,
+        module_schema_headers:&[String],
     ) -> Result<CanonProgram, ParseError> {
         self.source = source.clone();
         self.root_hide = false;
@@ -664,15 +876,11 @@ impl Parser {
         self.schema_construction_nodes.clear();
         // Grammar lookahead only. Actual category/owner/slot admission happens
         // after the complete program has been parsed, including forward uses.
-        if self.source_epoch==SourceEpoch::V25 {
-            let mut depth=0usize;
-            for index in 0..self.tokens.len() {
-                if depth==0&&self.is_vc04_schema_header_at(index) {self.schema_header_names.insert(self.tokens[index].raw.clone());}
-                match self.tokens[index].kind {TokenKind::LBrace=>depth+=1,TokenKind::RBrace=>depth=depth.saturating_sub(1),_=>{}}
-            }
-        }
+        self.schema_header_names=self.scan_schema_header_names();
+        if !resolve_calls{self.schema_header_names.extend(module_schema_headers.iter().cloned());}
         self.sum_definitions.clear();
         self.bytes_calls.clear();
+        self.vc17_named_calls.clear();
         self.atom_value_occurrences.clear();
         self.retirement_commands.clear();
         self.subject_reference_calls.clear();
@@ -686,16 +894,20 @@ impl Parser {
         self.registered_call_candidates.clear();
         self.authored_call_candidates.clear();
         self.authored_call_name_spans.clear();
+        self.authored_argument_order.clear();
+        self.authored_pin_label_spans.clear();
         self.piecewise_definitions.clear();
         self.static_structure_calls.clear();
         self.static_algebra_calls.clear();
         self.registered_call_spans.clear();
         self.registered_definitions.clear();
+        self.rd714_niladic_calls.clear();
         self.explicitly_registered_owners.clear();
         let mut items = Vec::new();
         let mut root_stmts = Vec::new();
         let mut top_level_decl = Vec::new();
         let mut authored_jjaim_blocks = Vec::new();
+        let mut checked_structure_source = None;
         while !self.is_at_end() {
             if matches!(self.current().kind, TokenKind::Pragma(_)) {
                 return Err(ParseError {
@@ -727,6 +939,38 @@ impl Parser {
             if matches!(self.current().kind, TokenKind::BogeaMadangBlock(_)) {
                 let _ = self.parse_bogae_madang_block_stmt()?;
                 continue;
+            }
+            if self.source_epoch == SourceEpoch::V25 && self.is_profiled_structure_start() {
+                if self.pos != 0 {
+                    return Err(ParseError {
+                        span: self.current_span(),
+                        message: "E_STRUCTURE_SYNTAX: 등록 짜임은 한 원문 전체를 차지해야 합니다".into(),
+                    });
+                }
+                let descriptor = self.parse_profiled_structure()?;
+                let structure = crate::structure_grid::resolve(&source, &file_path)
+                    .ok_or_else(|| ParseError {
+                        span: descriptor.source_group_span.unwrap_or(descriptor.span),
+                        message: "E_STRUCTURE_SYNTAX: 등록된 차림새 이름을 직접 선택해야 합니다".into(),
+                    })??;
+                checked_structure_source = Some(structure.canonical_source);
+                for (span, text) in structure.output {
+                    let expr = Expr {
+                        id: self.next_id(),
+                        span,
+                        kind: ExprKind::Literal(Literal::String(text)),
+                        numeric_literal_source: None,
+                        source_unary_minus: false,
+                        source_group_span: None,
+                    };
+                    root_stmts.push(Stmt::Show {
+                        id: self.next_id(),
+                        span,
+                        mood: Mood::Imperative,
+                        expr,
+                    });
+                }
+                break;
             }
             if matches!(self.current().kind, TokenKind::JjaimBlock(_)) {
                 let stmt = self.parse_jjaim_block_stmt()?;
@@ -772,20 +1016,26 @@ impl Parser {
             items,
             root_stmts,
             origin: OriginMap {
+                registered_public_sites: Vec::new(),
                 lexical_names: None,
                 piecewise_definitions: self.piecewise_definitions.clone(),
                 file_path,
                 source,
                 authored_jjaim_blocks,
+                checked_structure_source,
                 node_spans: std::collections::HashMap::new(),
                 registered_sum_pin_order:None,
                 registered_call_candidates: HashMap::new(),
                 authored_call_candidates: HashMap::new(),
             authored_call_name_spans: HashMap::new(),
+            authored_argument_order: HashMap::new(),
+            authored_pin_label_spans: HashMap::new(),
                 static_structure_calls: HashMap::new(),
                 static_algebra_calls: HashMap::new(),
                 bytes_calls: HashMap::new(),
+            vc17_named_calls: HashMap::new(),
                 atom_value_occurrences: self.atom_value_occurrences.clone(),
+                logic_callable_calls:HashMap::new(),
                 retirement_commands: HashMap::new(),
                 subject_reference_calls: HashMap::new(),
                 manipulation_phase_calls: HashMap::new(),
@@ -793,6 +1043,11 @@ impl Parser {
         };
         if let Some(context) = &self.first_callable_context {
             crate::canonicalizer::bind_first_callable_registered_program(&mut program, context)?;
+        }
+        program.origin.authored_call_name_spans = self.authored_call_name_spans.clone();
+        program.origin.authored_pin_label_spans = self.authored_pin_label_spans.clone();
+        if let Some(context)=&self.public_callable_context {
+            crate::canonicalizer::bind_public_callable_registered_program(&mut program,context,self.public_callable_module)?;
         }
         self.validate_seed_name_conflicts(&program)?;
         self.bind_registered_forms(&program)?;
@@ -807,10 +1062,11 @@ impl Parser {
         }
         program.origin.registered_call_candidates = self.registered_call_candidates.clone();
         program.origin.authored_call_candidates = self.authored_call_candidates.clone();
-        program.origin.authored_call_name_spans = self.authored_call_name_spans.clone();
+        program.origin.authored_argument_order = self.authored_argument_order.clone();
         program.origin.static_structure_calls = self.static_structure_calls.clone();
         program.origin.static_algebra_calls = self.static_algebra_calls.clone();
         program.origin.bytes_calls = self.bytes_calls.clone();
+        program.origin.vc17_named_calls = self.vc17_named_calls.clone();
         program.origin.retirement_commands = self.retirement_commands.clone();
         program.origin.subject_reference_calls = self.subject_reference_calls.clone();
         program.origin.manipulation_phase_calls = self.manipulation_phase_calls.clone();
@@ -1314,6 +1570,29 @@ impl Parser {
     }
 
     fn parse_call_name(&mut self) -> Result<Option<(String, Span)>, ParseError> {
+        // RD-542 S08: consume only these exact source tokens. Keep the
+        // authored phrase in the AST/canon and the full UTF-8 call-name span.
+        if self.source_epoch == SourceEpoch::V25 {
+            let at = self.pos;
+            let count = if self.tokens.get(at).is_some_and(|t|t.raw=="숫자로")
+                && self.tokens.get(at+1).is_some_and(|t|t.raw=="바꾸기") {Some(2)}
+            else if self.tokens.get(at).is_some_and(|t|t.raw=="숫자")
+                && self.tokens.get(at+1).is_some_and(|t|t.raw=="로"
+                    && self.tokens[at].span.end==t.span.start)
+                && self.tokens.get(at+2).is_some_and(|t|t.raw=="바꾸기") {Some(3)}
+            else {None};
+            if let Some(count)=count {
+                let start=self.to_ast_span(self.tokens[at].span);
+                let end=self.to_ast_span(self.tokens[at+count-1].span);
+                self.pos+=count;
+                return Ok(Some((crate::stdlib::vc17::SUJARO_CALL_TAIL.into(),start.merge(&end))));
+            }
+        }
+        // A particle following a grouped value belongs to the argument,
+        // not to a callable-name segment.
+        if matches!(self.current().kind, TokenKind::Josa(_)) {
+            return Ok(None);
+        }
         if !self.check_ident() {
             return Ok(None);
         }
@@ -2276,6 +2555,7 @@ fn validate_field_expr(
             validate_field_expr(right, env)?;
             Ok(FieldShape::Unknown)
         }
+        ExprKind::FunctionBlock{statements,result}=>{let mut nested=env.clone();validate_field_body(statements,&mut nested)?;validate_field_expr(result,&mut nested)},
         ExprKind::Thunk(body) => {
             validate_field_body(body, &mut env.clone())?;
             Ok(FieldShape::Unknown)
@@ -2306,13 +2586,84 @@ pub struct ParseError {
     pub message: String,
 }
 
+pub const STRUCTURE_PROFILE_REGISTRY_UNAVAILABLE: &str = "E_STRUCTURE_PROFILE_REGISTRY_UNAVAILABLE";
+
 impl ParseError {
+    /// Additional source-pack diagnostics are selected only by the J1 producer;
+    /// the existing code() projection stays unchanged for every old profile.
+    pub fn j1_source_code(&self)->&'static str{
+        for code in ["E_MULTILANG_FULLWIDTH_SYNTAX","E_MULTILANG_UNREGISTERED_SURFACE",
+            "E_J1_HEADER_PROFILE_MISMATCH","E_J1_PROFILE_UNSUPPORTED","E_J1_ROLE_AMBIGUOUS",
+            "E_J1_UNREGISTERED_SURFACE","E_J1_DUPLICATE_HEADER","E_FIXED64_LITERAL_RANGE",
+            // Tags emitted by the same checked J1/B1 source producer. Consumers
+            // use this error directly, never reverse-parse a formatted report.
+            "E_DDL_ACTIVATION_REQUIRED","E_DDL_ACTIVATION_OWNER_OR_PROFILE","E_DDL_PUBLIC_PIN_OWNER",
+            "E_LOGIC_SOURCE_LIMIT","E_LOGIC_SOURCE_CALL_NAME_REQUIRED","E_LOGIC_ALIAS_SHADOWED",
+            "E_LOGIC_CALL_UNREGISTERED","E_LOGIC_CALL_ARITY","E_LOGIC_CALL_EXPLICIT_PIN_REQUIRED",
+            "E_LOGIC_CALL_PIN_OWNER","E_LOGIC_QUALIFIED_CALL_REQUIRED"]{
+            if self.message==code || self.message.starts_with(&format!("{code}:")){return code;}
+        }
+        self.code()
+    }
     pub fn code(&self) -> &'static str {
+        if let Some(code) = crate::structure_grid::diagnostic_code(&self.message) {
+            return code;
+        }
+
+        // Preserve producer-owned machine codes before presentation. UTF-8 spans
+        // remain the actual ParseError span; no rendered-message position parsing.
+        for code in [
+            STRUCTURE_PROFILE_REGISTRY_UNAVAILABLE,
+            "E_PROOF_ARGUMENT_BINDING",
+            "E_PROOF_ARGUMENT_COUNT",
+            "E_PROOF_ASSUMPTION",
+            "E_PROOF_BINDER_DUPLICATE",
+            "E_PROOF_BUDGET",
+            "E_PROOF_CALL_AMBIGUOUS",
+            "E_PROOF_CALL_SHADOWED",
+            "E_PROOF_CALL_UNRESOLVED",
+            "E_PROOF_CALL_UNSUPPORTED",
+            "E_PROOF_CONTEXT_MISMATCH",
+            "E_PROOF_COORDINATE_ADMISSION",
+            "E_PROOF_COORDINATE_ASSUMPTIONS",
+            "E_PROOF_COORDINATE_DEFINITION",
+            "E_PROOF_COORDINATE_LITERAL",
+            "E_PROOF_COORDINATE_TYPE",
+            "E_PROOF_COORDINATE_UNSUPPORTED",
+            "E_PROOF_DEFINITION",
+            "E_PROOF_EVIDENCE",
+            "E_PROOF_GOAL",
+            "E_PROOF_IDENTITY_DEFINITION",
+            "E_PROOF_INFERENCE_UNRESOLVED",
+            "E_PROOF_NUMERIC_CONTEXT",
+            "E_PROOF_NUMERIC_CONTRACT",
+            "E_PROOF_NUMERIC_SUPPLY_REQUIRED",
+            "E_PROOF_NUMERIC_TYPE",
+            "E_PROOF_PROJECTION",
+            "E_PROOF_RESULT",
+            "E_PROOF_ROOT_UNSUPPORTED",
+            "E_PROOF_RULE_UNSUPPORTED",
+            "E_PROOF_STALE_SOURCE",
+            "E_PROOF_STRUCTURE_ADMISSION",
+            "E_PROOF_STRUCTURE_CONSUMPTION",
+            "E_PROOF_STRUCTURE_DESCRIPTOR",
+            "E_PROOF_STRUCTURE_EXECUTION",
+            "E_PROOF_STRUCTURE_MEMBER",
+            "E_PROOF_STRUCTURE_POLICY",
+            "E_PROOF_STRUCTURE_TYPE",
+            "E_PROOF_SUBSTITUTION",
+            "E_PROOF_TYPE",
+        ] {
+            if self.message==code || self.message.strip_prefix(code).is_some_and(|rest|rest.starts_with(':')) {
+                return code;
+            }
+        }
+
         for code in ["E_VC04_RETIRE_AMBIGUOUS", "E_VC04_RETIRE_BINDING", "E_VC04_RETIRE_PIN", "E_VC04_RETIRE_TARGET", "E_VC04_COMMAND_VALUE", "E_VC04_PURE_WORLD_WRITE", "E_SCHEMA_CONSTRUCTION_SURFACE",
             "E_PRODUCT_DEFINITION_DUPLICATE", "E_PRODUCT_SCHEMA_BODY", "E_PRODUCT_FIELD_SCHEMA", "E_PRODUCT_FIELD_DUPLICATE",
             "E_PRODUCT_NAMED_FIELD_REQUIRED", "E_PRODUCT_FIELD_UNKNOWN", "E_PRODUCT_FIELD_MISSING",
             "E_RUNTIME_TYPE_MISMATCH", "E_BYTES_ARGUMENT_BINDING", "E_BYTES_LITERAL_INVALID",
-            "E_TYPE_MISMATCH"] {
+            "E_TYPE_MISMATCH", "E_CALL_POSITIONAL_ARGUMENT_EXCESS"] {
             if self.message.starts_with(code) { return code; }
         }
         if self.message.starts_with("E_V25_IF_SURFACE:") {
@@ -2490,6 +2841,8 @@ mod expressions;
 
 mod callables;
 mod piecewise;
+pub(crate) mod logic_callable;
+pub use logic_callable::{RegisteredLogicCallableContext,ResolvedLogicCall};
 
 #[cfg(test)]
 mod multilang_first_tests {
@@ -2617,4 +2970,221 @@ const DDL:&str="#!日本語\n(金額:有理数~に, 税額:有理数~を)\n合�
  #[test]fn r14_missing_duplicate_wrong_profile_module_and_bad_pin_refuse(){
   let ctx=context();let raw=source();let prefix=raw.lines().nth(1).unwrap();for bad in [raw.replace(prefix,""),raw.replace("./세금","./다른모듈"),raw.replace("대상판본=\"1\"","대상판본=\"latest\""),raw.replace(", 税額=(10,1) 有理数",""),raw.replace(prefix,&format!("{prefix}\n{prefix}"))]{assert!(Parser::parse_with_first_callable_context(&bad,"利用.ddn",ctx.clone()).is_err(),"{bad}");}
  }
+}
+
+
+/// J1 role resolution operates on shared tokens, never translated source text.
+pub(crate) fn j1_role_tokens(source:&str,profile:crate::ddl::CheckedJ1Profile)->Result<Vec<Token>,ParseError>{
+    let mut tokens = Lexer::tokenize_j1_source(source, profile)
+        .map_err(|(error, span)| ParseError { span: Span::new(span.start, span.end), message: error.message })?;
+    for index in 0..tokens.len(){
+        let TokenKind::Ident(name)=&tokens[index].kind else{continue};let name=name.clone();
+        let colon=index>0&&matches!(tokens[index-1].kind,TokenKind::Colon);
+        let after_value=index>0&&matches!(tokens[index-1].kind,TokenKind::RParen|TokenKind::RBracket);
+        let expression_end=index>0&&matches!(tokens[index-1].kind,TokenKind::RParen|TokenKind::RBracket|TokenKind::Ident(_)|TokenKind::Josa(_)|TokenKind::Integer(_)|TokenKind::Float(_)|TokenKind::StringLit(_));
+        let next=tokens.get(index+1).map(|t|&t.kind);
+        let kind=match name.as_str(){
+            "手続き" if colon=>Some(TokenKind::KwUmjikssi),
+            "関数" if colon=>Some(TokenKind::KwSemssi),
+            "有理数" if colon||after_value=>Some(TokenKind::Ident("나눔수".into())),
+            "真偽" if colon=>Some(TokenKind::Ident("참거짓".into())),
+            "列" if matches!(next,Some(TokenKind::LBracket))=>{
+                Some(TokenKind::Ident("차림".into()))
+            },
+            "表示" if expression_end&&matches!(next,Some(TokenKind::Dot))=>{
+                Some(TokenKind::KwBoyeojugi)
+            },
+            _=>None,
+        };
+        if let Some(kind)=kind{tokens[index].kind=kind;}
+    }Ok(tokens)
+}
+impl Parser {
+    /// Shared declaration-only grammar for a producer-selected J1 DDL text.
+    /// Parsing returns syntax, never an exported library or activation authority.
+    /// The owner must still validate the complete Definition/Pin/type denominator.
+    pub fn parse_j1_ddl_declarations(source:&str,path:&str,profile:crate::ddl::CheckedJ1Profile)
+        ->Result<Vec<SeedDef>,ParseError>{
+        if source.len()>16384||!(path.ends_with(".ddl")||path.ends_with(".옮김")){
+            return Err(ParseError{span:Span::new(0,0),message:"E_DDL_DECLARATION_INPUT".into()});
+        }
+        let tokens=j1_role_tokens(source,profile)?;
+        let mut parser=Self::new_v25_with_mode(tokens,ParseMode::Strict);
+        parser.source=source.into();parser.first_callable_ddl=true;
+        let mut declarations=Vec::new();
+        while !parser.is_at_end(){
+            declarations.push(parser.parse_seed_def()?);
+            if declarations.len()>128{return Err(ParseError{span:parser.current_span(),message:"E_DDL_PUBLIC_LIMIT".into()});}
+        }
+        Ok(declarations)
+    }
+    /// Declaration discovery only. Candidate spellings allow prefix syntax
+    /// inspection; real graph/public owners must validate targets afterwards.
+    pub fn parse_unlinked_j1_module(source:&str,path:&str,profile:crate::ddl::CheckedJ1Profile)->Result<CanonProgram,ParseError>{
+        Self::parse_j1_public_original(source,path,1,profile).map(|(program,_)|program)
+    }
+    pub fn parse_j1_public_original(source:&str,path:&str,next_node:u64,profile:crate::ddl::CheckedJ1Profile)->Result<(CanonProgram,u64),ParseError>{
+        Self::parse_j1_module_source(source,path,next_node,profile,false)
+    }
+
+    fn parse_j1_module_source(
+        source:&str,path:&str,next_node:u64,profile:crate::ddl::CheckedJ1Profile,resolve_calls:bool,
+    )->Result<(CanonProgram,u64),ParseError>{
+        let tokens=j1_role_tokens(source,profile)?;
+        let candidates=tokens.iter().filter_map(|token|match &token.kind{
+            TokenKind::Ident(name)|TokenKind::Josa(name)|TokenKind::StringLit(name)=>Some(name.clone()),_=>None,
+        }).collect::<Vec<_>>();
+        let context=crate::module_directive::ModuleDirectiveContext::default().with_known_imports(candidates.clone()).with_public_definitions(candidates);
+        let (document,tokens)=crate::module_directive::j1_module_tokens(source,path,&context,profile)?;
+        let start=source.len()-document.declaration_source.len();
+        let tokens=tokens.into_iter().filter(|token|token.span.start>=start).collect::<Vec<_>>();
+        let shows=tokens.iter().filter(|token|matches!(token.kind,TokenKind::KwBoyeojugi)&&token.raw=="表示").map(|token|token.span.start).collect::<Vec<_>>();
+        let mut parser=Self::new_v25_with_mode(tokens,ParseMode::Strict);parser.nid=next_node;
+        let mut program=parser.parse_program_phase(source.into(),path.into(),resolve_calls,&[])?;
+        crate::canonicalizer::resolve_j1_type_roles(&mut program,profile)?;
+        resolve_j1_expression_roles(&mut program,&shows)?;Ok((program,parser.nid))
+    }
+    pub fn parse_j1_v25_with_mode(source:&str,path:&str,profile:crate::ddl::CheckedJ1Profile,mode:ParseMode)->Result<CanonProgram,ParseError>{
+        let tokens=j1_role_tokens(source,profile)?;
+        Self::parse_j1_tokens(source,path,tokens,mode,profile)
+    }
+
+    /// Imported checked definitions reserve their existing node range.
+    pub fn parse_j1_linked_public_consumer(
+        source: &str, path: &str, profile: crate::ddl::CheckedJ1Profile,
+        context: &RegisteredPublicCallableContext,
+    ) -> Result<CanonProgram, ParseError> {
+        let tokens = j1_role_tokens(source, profile)?;
+        Self::parse_j1_tokens_from(source, path, tokens, ParseMode::Strict, profile, context.next_node)
+    }
+
+    pub(crate) fn parse_j1_tokens(source:&str,path:&str,tokens:Vec<Token>,mode:ParseMode,profile:crate::ddl::CheckedJ1Profile)->Result<CanonProgram,ParseError>{
+        Self::parse_j1_tokens_from(source, path, tokens, mode, profile, 1)
+    }
+
+    fn parse_j1_tokens_from(
+        source: &str, path: &str, tokens: Vec<Token>, mode: ParseMode,
+        profile: crate::ddl::CheckedJ1Profile, next_node: NodeId,
+    ) -> Result<CanonProgram, ParseError> {
+        let show_roles=tokens.iter().filter(|t|matches!(t.kind,TokenKind::KwBoyeojugi)&&t.raw=="表示").map(|t|t.span.start).collect::<Vec<_>>();
+        let mut parser=Self::new_v25_with_mode(tokens,mode);
+        parser.nid = next_node;
+        let mut program=parser.parse_program(source.into(),path.into())?;
+        crate::canonicalizer::resolve_j1_type_roles(&mut program,profile)?;
+        resolve_j1_expression_roles(&mut program,&show_roles)?;Ok(program)
+    }
+}
+#[cfg(test)]
+mod r31_j1_parser_tests {
+    use super::*;
+    #[test] fn r31_j1_actual_definition_and_output_use_existing_ast(){
+        let raw="#!日本語\n(金額:有理数~に, 税額:有理数~を) 合計:有理数:関数 := { 合計 <- 金額 + 税額. }.\n";
+        let p=Parser::parse_j1_v25_with_mode(raw,"calc.ddn",crate::ddl::CheckedJ1Profile::resolve(crate::ddl::J1_SOURCE_PROFILE).unwrap(),ParseMode::Strict).unwrap();
+        assert_eq!(p.origin.source,raw);let TopLevelItem::SeedDef(seed)=&p.items[0];
+        assert_eq!(seed.canonical_name,"合計");assert_eq!(seed.seed_kind,SeedKind::Semssi);
+        assert_eq!(seed.params[0].type_ref,TypeRef::Named("나눔수".into()));assert_eq!(seed.params[0].pin_name,"金額");
+        let raw="#!日本語\n実行:手続き := { ((3,1) 有理数) 表示. }.";
+        let p=Parser::parse_j1_v25_with_mode(raw,"main.ddn",crate::ddl::CheckedJ1Profile::resolve(crate::ddl::J1_SOURCE_PROFILE).unwrap(),ParseMode::Strict).unwrap();
+        let TopLevelItem::SeedDef(seed)=&p.items[0];assert_eq!(seed.seed_kind,SeedKind::Umjikssi);
+        assert!(matches!(seed.body.as_ref().unwrap().stmts[0],Stmt::Show{..}));
+    }
+}
+
+fn resolve_j1_expression_roles(program:&mut CanonProgram,show_roles:&[usize])->Result<(),ParseError>{
+    fn expr(e:&mut Expr,bound:&HashSet<String>)->Result<(),ParseError>{
+        match &mut e.kind{
+            ExprKind::Var(name) if matches!(name.as_str(),"真"|"偽")&&!bound.contains(name)=>e.kind=ExprKind::Literal(Literal::Bool(name=="真")),
+            ExprKind::Call{func,args}=>{
+                if func=="有理数"{
+                    if bound.contains(func){return Err(ParseError{span:e.span,message:"E_J1_ROLE_AMBIGUOUS: 나눔수 생성 역할과 사용자 함수가 충돌합니다".into()});}
+                    *func="나눔수".into();
+                }
+                for arg in args{expr(&mut arg.expr,bound)?;}
+            },
+            ExprKind::Infix{left,right,..}=>{expr(left,bound)?;expr(right,bound)?;},
+            ExprKind::CollectionConstructor{elements}=>{
+                if bound.contains("列"){return Err(ParseError{span:e.span,message:"E_J1_ROLE_AMBIGUOUS: 목록 역할과 사용자 이름이 충돌합니다".into()});}
+                for element in elements{expr(element,bound)?;}
+            },
+            _=>{},
+        }Ok(())
+    }
+    fn stmts(stmts:&mut [Stmt],bound:&mut HashSet<String>,show_roles:&[usize])->Result<(),ParseError>{
+        for stmt in stmts{match stmt{
+            Stmt::Show{expr:e,span,..}=>{
+                if bound.contains("表示")&&show_roles.iter().any(|at|span.start<=*at&&*at<span.end){return Err(ParseError{span:*span,message:"E_J1_ROLE_AMBIGUOUS: 출력 역할과 보이는 사용자 이름이 충돌합니다".into()});}
+                expr(e,bound)?;
+            },
+            Stmt::Expr{expr:e,..}|Stmt::Return{value:e,..}=>expr(e,bound)?,
+            Stmt::Definition{name,value,..}=>{expr(value,bound)?;bound.insert(name.clone());},
+            Stmt::Mutate{target,value,..}=>{expr(value,bound)?;if let ExprKind::Var(name)=&target.kind{bound.insert(name.clone());}},
+            _=>{},
+        }}Ok(())
+    }
+    let global=program.items.iter().map(|TopLevelItem::SeedDef(seed)|seed.canonical_name.clone()).collect::<HashSet<_>>();
+    for TopLevelItem::SeedDef(seed) in &mut program.items{
+        let mut bound=global.clone();bound.extend(seed.params.iter().map(|pin|pin.pin_name.clone()));
+        if let Some(body)=&mut seed.body{stmts(&mut body.stmts,&mut bound,show_roles)?;}
+    }
+    stmts(&mut program.root_stmts,&mut global.clone(),show_roles)
+}
+#[cfg(test)]
+mod r31_j1_scope_tests{
+    use super::*;
+    fn parse(s:&str)->Result<CanonProgram,ParseError>{Parser::parse_j1_v25_with_mode(s,"main.ddn",crate::ddl::CheckedJ1Profile::resolve(crate::ddl::J1_SOURCE_PROFILE).unwrap(),ParseMode::Strict)}
+    #[test]fn r31_j1_role_spellings_are_not_global_user_name_reservations(){
+        let p=parse("#!日本語\n(表示:有理数~を) F:有理数:関数 := { F <- 表示. }.\n実行:手続き := { ((3,1) 有理数) 表示. }.").unwrap();
+        assert_eq!(p.items.len(),2);
+        let p=parse("#!日本語\n(真:真偽~を) F:真偽:関数 := { F <- 真. }.\n実行:手続き := { 真 表示. }.").unwrap();
+        let TopLevelItem::SeedDef(seed)=&p.items[1];assert!(matches!(&seed.body.as_ref().unwrap().stmts[0],Stmt::Show{expr:Expr{kind:ExprKind::Literal(Literal::Bool(true)),..},..}));
+        assert!(parse("#!日本語\n(表示:有理数~を) F:有理数:関数 := { ((1,1) 有理数) 表示. }.").unwrap_err().message.contains("ROLE_AMBIGUOUS"));
+    }
+}
+
+#[cfg(test)]
+mod r31_pin_label_source_tests{
+    use super::*;
+    fn arg(program:&CanonProgram)->&ArgBinding{
+        let seed=program.items.iter().map(|TopLevelItem::SeedDef(seed)|seed)
+            .find(|seed|matches!(seed.seed_kind,SeedKind::Umjikssi)).unwrap();
+        let Stmt::Show{expr,..}=&seed.body.as_ref().unwrap().stmts[0] else{panic!("show")};
+        let ExprKind::Call{args,..}=&expr.kind else{panic!("call")}; &args[0]
+    }
+    #[test]fn r31_j1_pin_label_ko_value_range_stays_separate(){
+        let raw="실행:움직씨 := { ((값=거짓) 아님) 보여주기. }.";
+        let program=crate::parse_v25_with_mode(raw,"main.ddn",ParseMode::Strict).unwrap();
+        let arg=arg(&program);let label=program.origin.authored_pin_label_spans[&arg.id];
+        assert_eq!(&raw[label.start..label.end],"값");assert_eq!(&raw[arg.span.start..arg.span.end],"거짓");
+        assert_eq!(arg.span,arg.expr.span);assert_ne!(label,arg.span);
+    }
+    #[test]fn r31_j1_pin_label_japanese_token_survives_canonicalization(){
+        let raw="#!日本語\n(値:真偽) F:真偽:関数 := { F <- 値. }.\n実行:手続き := { ((値=偽) F) 表示. }.";
+        let syntax=crate::ddl::CheckedJ1Profile::resolve(crate::ddl::J1_SOURCE_PROFILE).unwrap();
+        let mut program=Parser::parse_j1_v25_with_mode(raw,"main.ddn",syntax,ParseMode::Strict).unwrap();
+        crate::canonicalize(&mut program).unwrap();
+        let arg=arg(&program);let label=program.origin.authored_pin_label_spans[&arg.id];
+        assert_eq!(&raw[label.start..label.end],"値");assert_eq!(&raw[arg.span.start..arg.span.end],"偽");
+        assert_eq!(label.end-label.start,3);assert_eq!(arg.span,arg.expr.span);assert_eq!(program.origin.source,raw);
+    }
+}
+
+
+#[cfg(test)]
+mod type_reference_prefix_sites {
+    use super::*;
+    fn parse(source:&str)->(TypeRef,Vec<(String,Span,bool)>){
+        let tokens=Lexer::new(source).tokenize().unwrap();Parser::parse_type_reference_prefix(source,tokens).unwrap()
+    }
+    #[test]
+    fn named_type_and_applied_constructor_have_distinct_exact_syntax_roles(){
+        let source="(점수표)차림";let(ty,sites)=parse(source);
+        assert_eq!(ty,TypeRef::Applied{name:"차림".into(),args:vec![TypeRef::Named("점수표".into())]});
+        assert_eq!(sites.len(),2);assert!(sites[0].2);assert!(!sites[1].2);
+        for(name,span,_)in sites{assert_eq!(&source[span.start..span.end],name);}
+    }
+    #[test]
+    fn proof_expression_variables_are_not_named_type_sites(){
+        let(ty,sites)=parse("(점수표 != 0)보임");assert!(matches!(ty,TypeRef::Applied{..}));
+        assert!(sites.iter().all(|(_,_,named)|!*named));
+    }
 }

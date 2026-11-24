@@ -254,7 +254,7 @@ fn runtime_shape(type_ref: &TypeRef) -> Option<&'static str> {
         TypeRef::Tensor { .. } => return Some("tensor"),
         TypeRef::Named(name) => canonicalize_type_alias(name),
         TypeRef::Applied { name, .. } => canonicalize_type_alias(name),
-        TypeRef::Function { .. } | TypeRef::Infer | TypeRef::PropositionConjunction(_) | TypeRef::StructureLaw { .. } | TypeRef::AlgebraEquality { .. } => return None,
+        TypeRef::Function { .. } | TypeRef::Infer | TypeRef::PropositionConjunction(_) | TypeRef::StructureLaw { .. } | TypeRef::AlgebraEquality { .. } | TypeRef::CardCallEquality { .. } | TypeRef::AlgebraNonzero { .. } => return None,
     };
     Some(match name {
         "값" => "any",

@@ -21,6 +21,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
+pub(crate) mod xy;
+
 const REGISTRATION: &str = "ddn.authored_bogae_registration.v2";
 const PROJECTION: &str = "ddn.authored_bogae_projection.v2";
 fn fail(message: &str) -> String {
@@ -31,6 +33,412 @@ fn hash(bytes: &[u8]) -> String {
 }
 fn source_hash(source: &str) -> String {
     format!("sha256:{}", hash(source.as_bytes()))
+}
+
+/// Internal result, not a registered 보기값 or a serializable admission token.
+/// Keeps the validated full projection for provenance and selected rows apart.
+pub(crate) struct SelectedTableCandidate {
+    pub(crate) full_projection: Value,
+    pub(crate) tables: Vec<Value>,
+    pub(crate) column_types: Vec<ddonirang_lang::runtime::ResultTableColumnType>,
+}
+
+pub(crate) fn produce_selected_table_candidate(
+    selection: &ddonirang_lang::runtime::ResultTableSelection,
+    trace: &Value,
+    expected_run: &str,
+) -> Result<SelectedTableCandidate, String> {
+    if trace.get("source_identity").and_then(Value::as_str) != Some(selection.source()) {
+        return Err(fail("열 선택과 실행 자료의 원문 판본이 다릅니다"));
+    }
+    // Use the actual shared validator; do not trust a caller's ready flag or
+    // mutate/reseal a projection whose content hash belongs to the full data.
+    let full = crate::deterministic_debug::build_public_observation_table_projection(trace, expected_run)?;
+    if full["presentation_state"] == "run_failed" {
+        return Err(fail("실패 실행에서 선택 결과표를 생산할 수 없습니다"));
+    }
+    let mut tables = Vec::new();
+    for table in full["tables"].as_array().ok_or_else(|| fail("결과표 공급이 없습니다"))? {
+        let columns = table["columns"].as_array().ok_or_else(|| fail("열 공급이 없습니다"))?;
+        let indices: Option<Vec<_>> = selection.columns().iter().map(|field| {
+            columns.iter().position(|column| column["identity"]["name"] == field.name
+                && column["identity"]["source_ref"] == field.source_ref)
+        }).collect();
+        // Different observation statements are separate tables. Never join
+        // them by row number, time, or equal lengths.
+        let Some(indices) = indices else { continue; };
+        let mut selected = table.clone();
+        selected["columns"] = Value::Array(indices.iter().map(|&i| columns[i].clone()).collect());
+        let rows = selected["rows"].as_array_mut().ok_or_else(|| fail("표본 공급이 없습니다"))?;
+        for row in rows {
+            let cells = row["cells"].as_array().ok_or_else(|| fail("표본 값 공급이 없습니다"))?;
+            let chosen = indices.iter().map(|&i| cells.get(i).cloned()
+                .ok_or_else(|| fail("열과 표본의 대응이 다릅니다")))
+                .collect::<Result<Vec<_>, _>>()?;
+            row["cells"] = Value::Array(chosen);
+        }
+        tables.push(selected);
+    }
+    if tables.is_empty() {
+        return Err(fail("선택한 열을 함께 공급하는 표본이 없습니다; 자동 결합하지 않습니다"));
+    }
+    Ok(SelectedTableCandidate { full_projection: full, tables,
+        column_types: selection.columns().iter().map(|field| field.kind.clone()).collect() })
+}
+
+#[cfg(test)]
+mod table_selection_internal_tests {
+    use super::*;
+    fn candidate(source: &str, selectors: &str) -> Result<crate::numeric_constraint_plan::TableSelectionCandidate, String> {
+        let mut program = ddonirang_lang::parse_v25(source, "table.ddn").map_err(|e| format!("{e:?}"))?;
+        ddonirang_lang::canonicalize(&mut program).map_err(|e| format!("{e:?}"))?;
+        // Separate selector AST exercises the internal candidate API only;
+        // this is explicitly NOT public 열들= dispatch or source lowering.
+        let parsed = ddonirang_lang::parse_v25(&format!("선택 := {selectors}."), "selector.ddn").map_err(|e| format!("{e:?}"))?;
+        let Stmt::Definition { value, .. } = &parsed.root_stmts[0] else { panic!("selector"); };
+        crate::numeric_constraint_plan::table_selection_candidate(&program, value)
+    }
+    fn produce_resolved_candidate(selection:&crate::numeric_constraint_plan::TableSelectionCandidate,
+        trace:&Value,expected_run:&str)->Result<SelectedTableCandidate,String> {
+        use ddonirang_lang::runtime::{ResultTableSelection,ResultTableColumn,ResultTableColumnType};
+        let columns=selection.fields.iter().map(|field|ResultTableColumn {
+            declaration:field.declaration,observation:field.observation,
+            name:field.name.clone(),source_ref:field.source_ref.clone(),
+            kind:match &field.kind {
+                crate::numeric_constraint_plan::TableColumnKind::Existing(ty)=>ResultTableColumnType::Existing(ty.clone()),
+                crate::numeric_constraint_plan::TableColumnKind::Unit(dim)=>ResultTableColumnType::Unit(*dim),
+            },
+        }).collect();
+        let typed=ResultTableSelection::from_resolved_source(&transport_registration(),selection.source.clone(),columns)?;
+        produce_selected_table_candidate(&typed,trace,expected_run)
+    }
+    const SOURCE: &str = "(거리: 2, 판정: \"도착\", 완료: 참) 내보임.";
+    fn transport_registration()->ddonirang_lang::stdlib::CheckedResultTableDescriptor {
+        use ddonirang_lang::stdlib::{result_table_registration_material,lookup_result_table_registration};
+        let (raw,digest)=result_table_registration_material(1).unwrap();
+        let record:Value=serde_json::from_str(raw).unwrap();
+        let id=|key:&str| {let s=record[key].as_str().unwrap();
+            std::array::from_fn(|i|u8::from_str_radix(&s[2*i..2*i+2],16).unwrap())};
+        lookup_result_table_registration(&id("owner"),&id("definition"),1,digest,&[]).unwrap()
+    }
+    #[test]
+    fn table_transport_actual_source_keeps_order_type_unit_and_value_key() {
+        use ddonirang_lang::runtime::{Value as RuntimeValue,ViewValue,BogaeTimePolicy,ResultTableColumnType,map_key_canon};
+        let source="(거리: 2@m, 완료: 참) 내보임.";
+        let descriptor=transport_registration();
+        let a=candidate(source,"차림[관찰.완료, 관찰.거리]").unwrap().into_typed(&descriptor).unwrap();
+        let b=candidate(source,"차림[관찰.거리, 관찰.완료]").unwrap().into_typed(&descriptor).unwrap();
+        assert_eq!(a.columns()[0].name,"완료");
+        assert!(matches!(a.columns()[1].kind,ResultTableColumnType::Unit(_)));
+        assert_eq!(a.columns()[0].observation,a.columns()[1].observation);
+        assert_ne!(a.columns()[0].declaration,a.columns()[1].declaration);
+        let av=RuntimeValue::View(ViewValue::SelectedResultTable(a.clone()));
+        let bv=RuntimeValue::View(ViewValue::SelectedResultTable(b));
+        assert_ne!(av,bv);assert_ne!(map_key_canon(&av),map_key_canon(&bv));
+        assert_eq!(av,av.clone());assert_eq!(map_key_canon(&av),map_key_canon(&av.clone()));
+        let timed=ViewValue::Timed {view:Box::new(ViewValue::SelectedResultTable(a.clone())),policy:BogaeTimePolicy::Fixed(0)};
+        assert_eq!(timed.table_selection(),Some(&a));
+        assert_ne!(map_key_canon(&av),map_key_canon(&RuntimeValue::View(timed)));
+        assert_eq!(map_key_canon(&RuntimeValue::View(ViewValue::ResultTable)),"<보기값:결과표>");
+    }
+    #[test]
+    fn table_transport_rejects_mixed_observation_and_does_not_erase_source_revision() {
+        let descriptor=transport_registration();
+        let mixed=candidate("(거리: 2) 내보임. (완료: 참) 내보임.","차림[관찰.거리, 관찰.완료]").unwrap();
+        assert!(mixed.into_typed(&descriptor).is_err());
+        let a=candidate("(거리: 2) 내보임.","차림[관찰.거리]").unwrap().into_typed(&descriptor).unwrap();
+        let b=candidate("(거리: 3) 내보임.","차림[관찰.거리]").unwrap().into_typed(&descriptor).unwrap();
+        assert_ne!(a,b);assert!(!a.same_source(b.source()));
+        let mut duplicate=a.columns().to_vec();duplicate.push(duplicate[0].clone());
+        assert!(ddonirang_lang::runtime::ResultTableSelection::from_resolved_source(&descriptor,a.source().into(),duplicate).is_err());
+    }
+    #[test]
+    fn table_projection_transport_binds_actual_view_owners_and_rejects_legacy_loss() {
+        use ddonirang_lang::runtime::{Value as V,ViewValue,BogaeTimePolicy};
+        let source="보기 := (() 표준보기.결과표). 다른 := (() 표준보기.결과표). (거리: 2, 완료: 참) 내보임.";
+        let descriptor=transport_registration();
+        let a=candidate(source,"차림[관찰.거리, 관찰.완료]").unwrap().into_typed(&descriptor).unwrap();
+        let b=candidate(source,"차림[관찰.완료, 관찰.거리]").unwrap().into_typed(&descriptor).unwrap();
+        let mut program=ddonirang_lang::parse_v25(source,"table.ddn").unwrap();
+        ddonirang_lang::canonicalize(&mut program).unwrap();
+        // Internal typed-value injection tests the transport, not public 열들=.
+        let resources=HashMap::from([
+            ("보기".into(),V::View(ViewValue::SelectedResultTable(a.clone()))),
+            ("다른".into(),V::View(ViewValue::Timed{view:Box::new(ViewValue::SelectedResultTable(b.clone())),policy:BogaeTimePolicy::Fixed(0)})),
+        ]);
+        let packet=crate::bogae_projection::resolve_selected_with_tables(&program,a.source(),&resources,None).unwrap();
+        let (projection,bound)=packet.activate(None).unwrap();let projection=projection.unwrap();
+        assert_eq!(bound.source(),a.source());assert!(!bound.is_empty());
+        let rows=projection["candidates"].as_array().unwrap();
+        assert_eq!(bound.selection(&rows[0]["artifact"]["identity"],None),Some(&a));
+        assert_eq!(bound.selection(&rows[1]["artifact"]["identity"],None),Some(&b));
+        assert_eq!(rows[1]["artifact"]["time_policy"]["kind"],"fixed");
+        assert!(bound.selection(&json!({"scope":"other"}),None).is_none());
+        let legacy=crate::bogae_projection::resolve_selected(&program,a.source(),&resources,Some("보기")).unwrap();
+        assert_eq!(legacy["status"],"rejected");
+        assert!(crate::bogae_projection::resolve_selected_with_tables(&program,"sha256:other",&resources,None).is_err());
+    }
+    #[test]
+    fn table_projection_transport_preserves_unselected_and_selected_entry_separation() {
+        use ddonirang_lang::runtime::{Value as V,ViewValue};
+        let source="보기 := (() 표준보기.결과표). 전체 := (() 표준보기.결과표). (거리: 2) 내보임.";
+        let selection=candidate(source,"차림[관찰.거리]").unwrap().into_typed(&transport_registration()).unwrap();
+        let mut program=ddonirang_lang::parse_v25(source,"table.ddn").unwrap();ddonirang_lang::canonicalize(&mut program).unwrap();
+        let resources=HashMap::from([("보기".into(),V::View(ViewValue::SelectedResultTable(selection.clone()))),
+            ("전체".into(),V::View(ViewValue::ResultTable))]);
+        let full=crate::bogae_projection::resolve_selected(&program,selection.source(),&resources,Some("전체")).unwrap();
+        assert_eq!(full["status"],"ready");assert_eq!(full["candidates"][0]["artifact"]["view"],json!({"kind":"result_table"}));
+        let (projection,bound)=crate::bogae_projection::resolve_selected_with_tables(&program,selection.source(),&resources,Some("보기")).unwrap().activate(None).unwrap();
+        assert_eq!(bound.selection(&projection.unwrap()["candidates"][0]["artifact"]["identity"],None),Some(&selection));
+    }
+    const TIMELINE_SOURCE:&str="보기 := () 표준보기.결과표. (거리: 2, 완료: 참) 내보임.";
+    fn timeline_packet(selectors:Option<&str>,policy:ddonirang_lang::runtime::BogaeTimePolicy)
+        ->(Value,crate::bogae_projection::BoundTableSelections) {
+        use ddonirang_lang::runtime::{Value as V,ViewValue};
+        let base=candidate(TIMELINE_SOURCE,"차림[관찰.거리]").unwrap();let source=base.source.clone();
+        let view=match selectors {Some(selectors)=>ViewValue::SelectedResultTable(
+            candidate(TIMELINE_SOURCE,selectors).unwrap().into_typed(&transport_registration()).unwrap()),
+            None=>ViewValue::ResultTable};
+        let mut program=ddonirang_lang::parse_v25(TIMELINE_SOURCE,"table.ddn").unwrap();ddonirang_lang::canonicalize(&mut program).unwrap();
+        let resources=HashMap::from([("보기".into(),V::View(ViewValue::Timed{view:Box::new(view),policy}))]);
+        let (projection,bound)=crate::bogae_projection::resolve_selected_with_tables(&program,&source,&resources,Some("보기")).unwrap().activate(None).unwrap();
+        (projection.unwrap(),bound)
+    }
+    #[test]
+    fn table_owner_projection_selects_with_existing_schema_and_preserves_unselected() {
+        use ddonirang_lang::runtime::BogaeTimePolicy as P;
+        let run=crate::runtime_surface::run_summary_from_supported_source_profile(TIMELINE_SOURCE,"table.ddn",Some(1),Some("v1-core-v25")).unwrap();
+        let frames=run["engine_state"]["state"]["snapshot_v2"]["public_observation_frames"].as_array().unwrap();
+        let (raw,bound)=timeline_packet(Some("차림[관찰.완료, 관찰.거리]"),P::Fixed(0));
+        let resolved=crate::bogae_time::SceneHistory::default().preview(0,&raw).unwrap();
+        let output=crate::bogae_time::resolve_typed_result_tables(&resolved,frames,bound.source(),bound.source(),&bound).unwrap();
+        let table=&output["candidates"][0]["artifact"]["view"]["table_projection"];
+        assert_eq!(table["schema"],"ddn.public_observation_table_projection.v2");
+        assert_eq!(table["tables"][0]["columns"][0]["identity"]["name"],"완료");
+        assert_eq!(table["projection_hash"],crate::deterministic_debug::public_observation_table_projection_hash(table));
+        assert!(resolved["candidates"][0]["artifact"]["view"].get("table_projection").is_none());
+        let (raw,plain)=timeline_packet(None,P::Fixed(0));
+        let resolved=crate::bogae_time::SceneHistory::default().preview(0,&raw).unwrap();
+        let mut legacy=resolved.clone();
+        crate::bogae_time::resolve_result_tables(&mut legacy,frames,plain.source(),plain.source()).unwrap();
+        assert_eq!(legacy,crate::bogae_time::resolve_typed_result_tables(&resolved,frames,plain.source(),plain.source(),&plain).unwrap());
+    }
+    #[test]
+    fn table_owner_projection_rejects_mixed_owner_without_partial_publication() {
+        use ddonirang_lang::runtime::BogaeTimePolicy as P;
+        let run=crate::runtime_surface::run_summary_from_supported_source_profile(TIMELINE_SOURCE,"table.ddn",Some(1),Some("v1-core-v25")).unwrap();
+        let frames=run["engine_state"]["state"]["snapshot_v2"]["public_observation_frames"].as_array().unwrap();
+        let (raw,bound)=timeline_packet(Some("차림[관찰.거리]"),P::Fixed(0));
+        let mut resolved=crate::bogae_time::SceneHistory::default().preview(0,&raw).unwrap();
+        let mut other=resolved["candidates"][0].clone();other["artifact"]["identity"]["module"]=json!("other-source");
+        resolved["candidates"].as_array_mut().unwrap().push(other);
+        let before=resolved.clone();
+        assert!(crate::bogae_time::resolve_typed_result_tables(&resolved,frames,bound.source(),bound.source(),&bound).is_err());
+        assert_eq!(resolved,before);
+        assert!(crate::bogae_time::resolve_typed_result_tables(&resolved,frames,"other-source",bound.source(),&bound).is_err());
+    }
+    #[test]
+    fn table_live_runner_rejects_conflicting_committed_selection_and_keeps_rollback_history() {
+        use ddonirang_lang::runtime::BogaeTimePolicy as P;
+        let (old,bound)=timeline_packet(Some("차림[관찰.거리]"),P::Common);
+        let mut history=crate::bogae_time::SceneHistory::default();history.commit(0,old);
+        let mut timeline=crate::bogae_time::TableSelectionTimeline::default();
+        timeline.commit(0,timeline.capture(bound).unwrap()).unwrap();
+        let program=crate::ddn_runtime::DdnProgram::from_v25_source(TIMELINE_SOURCE,"table.ddn").unwrap();
+        let mut runner=crate::ddn_runtime::DdnRunner::new(program,"매마디").with_bogae_activation();
+        runner.configure_bogae_entry("보기").unwrap();
+        runner.restore_scene_history(history.clone());
+        runner.restore_table_selection_history_after_rollback(Some(timeline));
+        let input=ddonirang_core::InputSnapshot {tick_id:0,dt:ddonirang_core::Fixed64::ONE,
+            keys_pressed:0,last_key_name:String::new(),pointer_x_i32:0,pointer_y_i32:0,
+            ai_injections:vec![],net_events:vec![],frame_source:ddonirang_core::InputSource::Person,rng_seed:0};
+        let world=ddonirang_core::NuriWorld::new();
+        let before=runner.bogae_history_for_resume().snapshot();
+        // Internal old selected history, then actual ordinary source execution.
+        // This is not public 열들= admission evidence.
+        let error=runner.run_update(&world,&input,&HashMap::new()).err().expect("committed selection conflict");
+        assert!(error.to_string().contains("확정한 마디"),"{error}");
+        assert_eq!(runner.bogae_history_for_resume().snapshot(),before);
+        assert!(runner.table_selection_history_for_rollback().is_some());
+        runner.restore_scene_history(history);
+        assert!(runner.table_selection_history_for_rollback().is_none(),"snapshot alone cannot restore typed selection");
+    }
+    #[test]
+    fn table_public_source_selected_projection_and_rejections() {
+        let source="(거리: 2@m, 완료: 참) 내보임. 보기 := (열들=차림[관찰.완료, 관찰.거리]) 표준보기.결과표.";
+        let run=crate::runtime_surface::run_summary_with_bogae_entry(source,"selected-public.ddn",Some(1),"v1-core-v25","보기").unwrap();
+        let table=&run["bogae_projection"]["candidates"][0]["artifact"]["view"]["table_projection"];
+        assert_eq!(table["tables"][0]["columns"][0]["identity"]["name"],"완료","{run}");
+        assert_eq!(table["tables"][0]["columns"][1]["identity"]["name"],"거리");
+        assert_eq!(table["projection_hash"],crate::deterministic_debug::public_observation_table_projection_hash(table));
+        for columns in ["차림[]","차림[관찰.거리, 관찰.거리]","차림[관찰.없음]"] {
+            let bad=source.replace("차림[관찰.완료, 관찰.거리]",columns);
+            assert!(crate::runtime_surface::run_summary_with_bogae_entry(&bad,"selected-public.ddn",Some(1),"v1-core-v25","보기").is_err(),"{columns}");
+        }
+    }
+    // Characterization of the existing snapshot boundary, NOT selected-table
+    // restore support. Distinct typed choices must not be recovered by guessing
+    // from a kind-only history snapshot or by borrowing the latest choice.
+    #[test]
+    fn table_snapshot_current_schema_does_not_encode_selection() {
+        use ddonirang_lang::runtime::BogaeTimePolicy as P;
+        let (left, left_bound)=timeline_packet(Some("차림[관찰.거리]"),P::Common);
+        let (right, right_bound)=timeline_packet(Some("차림[관찰.완료]"),P::Common);
+        assert_ne!(left_bound,right_bound);
+        let mut a=crate::bogae_time::SceneHistory::default();
+        let mut b=crate::bogae_time::SceneHistory::default();
+        a.commit(0,left);b.commit(0,right);
+        assert_eq!(a.snapshot(),b.snapshot(),"the current wire does not carry the typed choice");
+        let restored=crate::bogae_time::SceneHistory::from_snapshot(Some(&a.snapshot()),1).unwrap();
+        assert_eq!(restored.restored_projection(Some(0)).unwrap(),b.restored_projection(Some(0)).unwrap());
+    }
+    #[test]
+    fn table_timeline_uses_historical_choice_for_fixed_and_relative_not_latest() {
+        use ddonirang_lang::runtime::BogaeTimePolicy as P;
+        let (old,old_bound)=timeline_packet(Some("차림[관찰.거리, 관찰.완료]"),P::Common);
+        let mut scenes=crate::bogae_time::SceneHistory::default();scenes.commit(0,old.clone());
+        let mut timeline=crate::bogae_time::TableSelectionTimeline::default();
+        timeline.commit(0,timeline.capture(old_bound).unwrap()).unwrap();
+        let snapshot=scenes.snapshot();
+        for policy in [P::Fixed(0),P::Relative(-1),P::Common] {
+            let (now,bound)=timeline_packet(Some("차림[관찰.완료, 관찰.거리]"),policy);
+            let current=timeline.capture(bound).unwrap();let resolved=scenes.preview(1,&now).unwrap();
+            let selected=timeline.resolve(1,&resolved,&current).unwrap();
+            let first=&selected.selection(&resolved["candidates"][0]["artifact"]["identity"],None).unwrap().columns()[0].name;
+            assert_eq!(first,if policy==P::Common {"완료"}else{"거리"});
+        }
+        assert_eq!(scenes.snapshot(),snapshot); // no hidden selection wire
+    }
+    #[test]
+    fn table_timeline_keeps_past_unselected_and_refuses_missing_history() {
+        use ddonirang_lang::runtime::BogaeTimePolicy as P;
+        let (old,old_bound)=timeline_packet(None,P::Common);
+        let mut scenes=crate::bogae_time::SceneHistory::default();scenes.commit(0,old);
+        let mut timeline=crate::bogae_time::TableSelectionTimeline::default();
+        timeline.commit(0,timeline.capture(old_bound).unwrap()).unwrap();
+        let (now,bound)=timeline_packet(Some("차림[관찰.거리]"),P::Fixed(0));
+        let resolved=scenes.preview(1,&now).unwrap();let current=timeline.capture(bound.clone()).unwrap();
+        assert!(timeline.resolve(1,&resolved,&current).unwrap().is_empty());
+        assert!(timeline.resolve(1,&json!({}),&current).is_err());
+        let mut mixed=resolved.clone();mixed["candidates"][0]["artifact"]["identity"]=json!({"scope":"foreign"});
+        assert!(timeline.resolve(1,&mixed,&current).is_err());
+        let missing=crate::bogae_time::TableSelectionTimeline::default();
+        let current=missing.capture(bound).unwrap();assert!(missing.resolve(1,&resolved,&current).is_err());
+    }
+    #[test]
+    fn table_timeline_rejects_other_run_source_and_conflicting_committed_choice() {
+        use ddonirang_lang::runtime::BogaeTimePolicy as P;
+        let (_,a)=timeline_packet(Some("차림[관찰.거리]"),P::Common);
+        let (_,b)=timeline_packet(Some("차림[관찰.완료]"),P::Common);
+        let mut timeline=crate::bogae_time::TableSelectionTimeline::default();
+        let other=crate::bogae_time::TableSelectionTimeline::default();
+        assert!(timeline.commit(0,other.capture(a.clone()).unwrap()).is_err());
+        timeline.commit(0,timeline.capture(a).unwrap()).unwrap();
+        assert!(timeline.commit(0,timeline.capture(b).unwrap()).is_err());
+        let source="보기 := (() 표준보기.결과표). (거리: 3) 내보임.";
+        let selection=candidate(source,"차림[관찰.거리]").unwrap().into_typed(&transport_registration()).unwrap();
+        let mut program=ddonirang_lang::parse_v25(source,"table.ddn").unwrap();ddonirang_lang::canonicalize(&mut program).unwrap();
+        let resources=HashMap::from([("보기".into(),ddonirang_lang::runtime::Value::View(
+            ddonirang_lang::runtime::ViewValue::SelectedResultTable(selection.clone())))]);
+        let (_,foreign)=crate::bogae_projection::resolve_selected_with_tables(&program,selection.source(),&resources,None).unwrap().activate(None).unwrap();
+        assert!(timeline.capture(foreign).is_err());
+    }
+    fn registered_surface(source:&str,shadowed:bool)->Result<Option<(Option<usize>,Option<ddonirang_lang::runtime::ResultTableSelection>)>,String> {
+        let mut program=ddonirang_lang::parse_v25(source,"registered-table.ddn").map_err(|e|format!("{e:?}"))?;
+        ddonirang_lang::canonicalize(&mut program).map_err(|e|format!("{e:?}"))?;
+        let call=program.root_stmts.iter().find_map(|s|match s {Stmt::Definition{name,value,..} if name=="보기"=>Some(value),_=>None}).ok_or("test call missing")?;
+        crate::numeric_constraint_plan::resolve_registered_result_table_call(&program,call,&transport_registration(),shadowed)?
+            .map(|resolved|resolved.into_parts(&program,call)).transpose()
+    }
+    #[test]
+    fn table_registered_call_real_source_separates_optional_roles_in_authored_order() {
+        for (args,time,columns) in [
+            ("()",None,false),
+            ("(시간=(() 표준시간.공통))",Some(0),false),
+            ("(열들=차림[관찰.완료, 관찰.거리])",None,true),
+            ("(열들=차림[관찰.완료, 관찰.거리], 시간=(() 표준시간.공통))",Some(1),true),
+            ("(시간=(() 표준시간.공통), 열들=차림[관찰.완료, 관찰.거리])",Some(0),true),
+        ] {
+            let source=format!("(거리: 2@m, 완료: 참) 내보임. 보기 := {args} 표준보기.결과표.");
+            let (actual,selection)=registered_surface(&source,false).unwrap_or_else(|e|panic!("{args}: {e}")).unwrap();
+            assert_eq!(actual,time);assert_eq!(selection.is_some(),columns);
+            if let Some(selection)=selection {assert_eq!(selection.columns()[0].name,"완료");assert_eq!(selection.columns()[1].name,"거리");}
+        }
+    }
+    #[test]
+    fn table_registered_call_refuses_invalid_selection_without_claiming_other_callable() {
+        for args in ["(열들=차림[])","(열들=차림[관찰.거리, 관찰.거리])","(열들=차림[관찰.비공개])",
+            "(열들=차림[2])","(열들=차림[관찰.거리], 열들=차림[관찰.거리])","(없는핀=2)"] {
+            let source=format!("(거리: 2) 내보임. 보기 := {args} 표준보기.결과표.");
+            assert!(registered_surface(&source,false).is_err(),"{args}");
+        }
+        let source="(거리: 2) 내보임. 보기 := (열들=차림[관찰.거리]) 표준보기.결과표.";
+        assert!(registered_surface(source,true).unwrap().is_none());
+        assert!(registered_surface(&format!("표준보기 := 7. {source}"),false).unwrap().is_none());
+        assert!(registered_surface(&source.replace("표준보기.결과표","다른.결과표"),false).unwrap().is_none());
+    }
+    #[test]
+    fn table_registered_call_cannot_be_consumed_under_another_source_owner() {
+        let source="(거리: 2) 내보임. 보기 := (열들=차림[관찰.거리]) 표준보기.결과표.";
+        let mut original=ddonirang_lang::parse_v25(source,"a.ddn").unwrap();ddonirang_lang::canonicalize(&mut original).unwrap();
+        let call=original.root_stmts.iter().find_map(|s|match s {Stmt::Definition{name,value,..} if name=="보기"=>Some(value),_=>None}).unwrap();
+        for (text,path) in [(source.to_string(),"b.ddn"),(source.replace("거리: 2","거리: 3"),"a.ddn")] {
+            let resolved=crate::numeric_constraint_plan::resolve_registered_result_table_call(&original,call,&transport_registration(),false).unwrap().unwrap();
+            let mut other=ddonirang_lang::parse_v25(&text,path).unwrap();ddonirang_lang::canonicalize(&mut other).unwrap();
+            assert!(resolved.into_parts(&other,call).is_err());
+        }
+    }
+    #[test]
+    fn table_selection_internal_actual_run_preserves_order_and_full_data() {
+        let selection = candidate(SOURCE, "차림[관찰.완료, 관찰.판정, 관찰.거리]").unwrap();
+        let run = crate::runtime_surface::run_summary_from_source(SOURCE, "table.ddn", Some(1)).unwrap();
+        let trace = &run["public_observation_trace"];
+        let before = trace.clone();
+        let result = produce_resolved_candidate(&selection, trace, trace["run_id"].as_str().unwrap()).unwrap();
+        assert_eq!(trace, &before);
+        assert_eq!(result.tables[0]["columns"][0]["identity"]["name"], "완료");
+        assert_eq!(result.tables[0]["columns"][1]["dtype"], "string");
+        assert_eq!(result.column_types.len(), 3);
+        let original = &result.full_projection["tables"][0];
+        assert_eq!(result.tables[0]["rows"][0]["cells"][0], original["rows"][0]["cells"][2]);
+        assert_eq!(original["columns"][0]["identity"]["name"], "거리");
+        assert!(produce_resolved_candidate(&selection, trace, "other-run").is_err());
+        let stale = candidate("(거리: 3, 판정: \"도착\", 완료: 참) 내보임.", "차림[관찰.거리]").unwrap();
+        assert!(produce_resolved_candidate(&stale, trace, trace["run_id"].as_str().unwrap()).is_err());
+    }
+    #[test]
+    fn table_selection_internal_refuses_empty_duplicate_private_and_nonreference() {
+        for expression in ["차림[]", "차림[관찰.거리, 관찰.거리]", "차림[관찰.비공개]", "차림[2]", "차림[다른.거리]"] {
+            assert!(candidate(SOURCE, expression).is_err(), "{expression}");
+        }
+        assert!(candidate("관찰 := 2. (거리: 2) 내보임.", "차림[관찰.거리]").is_err());
+    }
+    #[test]
+    fn table_selection_internal_units_states_and_no_cross_statement_join() {
+        let source = "(거리: 2@m, 판정: \"도착\") 내보임.";
+        let selection = candidate(source, "차림[관찰.판정, 관찰.거리]").unwrap();
+        let run = crate::runtime_surface::run_summary_from_source(source, "table.ddn", Some(1)).unwrap();
+        let original = &run["public_observation_trace"];
+        let run_id = original["run_id"].as_str().unwrap();
+        let produced = produce_resolved_candidate(&selection, original, run_id).unwrap();
+        assert_eq!(produced.tables[0]["columns"][1]["unit"], produced.full_projection["tables"][0]["columns"][0]["unit"]);
+        assert_ne!(produced.tables[0]["columns"][1]["unit"], "");
+        // Synthetic state vectors test preservation, not actual runtime
+        // generation of a gap/missing/pruned sample.
+        for status in ["gap", "missing", "pruned"] {
+            let mut trace = original.clone();
+            trace["samples"][0]["cells"][0]["status"] = json!(status);
+            if status == "missing" { trace["samples"][0]["cells"][0]["reason"] = json!("#원천없음"); }
+            let projected = produce_resolved_candidate(&selection, &trace, run_id).unwrap();
+            assert_eq!(projected.tables[0]["rows"][0]["cells"][1]["status"], status);
+            assert!(projected.tables[0]["rows"][0]["cells"][1].get("value_canon").is_none());
+        }
+        let separate = "(거리: 2) 내보임. (판정: \"도착\") 내보임.";
+        let selection = candidate(separate, "차림[관찰.거리, 관찰.판정]").unwrap();
+        let run = crate::runtime_surface::run_summary_from_source(separate, "table.ddn", Some(1)).unwrap();
+        let trace = &run["public_observation_trace"];
+        assert!(produce_resolved_candidate(&selection, trace, trace["run_id"].as_str().unwrap()).is_err());
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -149,6 +557,11 @@ impl ContentScope<'_> {
             ExprKind::Nuance{level,expr}=>json!({"nuance":level,"value":self.expr(expr)?}),
             ExprKind::Pipe{stages}=>json!({"pipe":stages.iter().map(|e|self.expr(e)).collect::<Result<Vec<_>,_>>()?}),
             ExprKind::FlowValue=>json!({"flow":true}),
+            ExprKind::FunctionBlock{statements,result}=>{
+                let previous=self.locals.clone();let stmts=self.body(statements)?;
+                let tail=self.expr(result)?;self.locals=previous;
+                json!({"function_block":stmts,"result":tail})
+            }
             ExprKind::Thunk(body)=>json!({"thunk":self.body(body)?}),
             ExprKind::Eval{thunk,mode}=>json!({"eval":format!("{mode:?}"),"thunk":self.expr(thunk)?}),
             ExprKind::SeedLiteral{param,body}=>{

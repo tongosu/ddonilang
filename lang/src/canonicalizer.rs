@@ -203,6 +203,208 @@ pub fn canonicalize_first_callable_registered_source(
     Ok(text)
 }
 
+pub(crate) fn bind_public_callable_registered_program(program:&mut CanonProgram,context:&crate::parser::RegisteredPublicCallableContext,module:bool)->Result<(),ParseError>{
+    public_callable_caller_expressions(
+        &mut program.items, &mut program.root_stmts, &program.origin.authored_pin_label_spans,
+        context, false, module, "有理数", Some(PublicCallLocations {
+            names: &program.origin.authored_call_name_spans,
+            sites: &mut program.origin.registered_public_sites,
+        }),
+    )?;
+    for binding in &context.bindings{program.items.push(TopLevelItem::SeedDef(binding.original.clone()));}
+    Ok(())
+}
+/// Reuse the registered projection only for the linked seed whose exact bytes
+/// and original module range were verified by the project linker.
+pub fn bind_linked_public_callable_seed(
+    program: &mut CanonProgram,
+    seed_span: Span,
+    context: &crate::parser::RegisteredPublicCallableContext,
+) -> Result<(), ParseError> {
+    let error = |message: &str| ParseError { span: seed_span, message: message.into() };
+    let mut target = None;
+    for (index, TopLevelItem::SeedDef(seed)) in program.items.iter().enumerate() {
+        if seed.span == seed_span && target.replace(index).is_some() {
+            return Err(error("E_MULTILANG_LINKED_SOURCE_SITE_MISMATCH"));
+        }
+    }
+    let index = target.ok_or_else(|| error("E_MULTILANG_LINKED_SOURCE_SITE_MISMATCH"))?;
+    let syntax = context.consumer_j1().ok_or_else(|| error("E_J1_PROFILE_REQUIRED"))?;
+    let tokens = Lexer::with_j1_profile(&program.origin.source, syntax)
+        .and_then(|mut lexer| lexer.tokenize())
+        .map_err(|failure| {
+            let width = program.origin.source.get(failure.pos..)
+                .and_then(|tail| tail.chars().next()).map_or(0, char::len_utf8);
+            ParseError { span: Span::new(failure.pos, failure.pos + width), message: failure.message }
+        })?;
+    let mut linked_context = context.clone();
+    for (index, binding) in linked_context.bindings.iter_mut().enumerate() {
+        let address = format!("__ddn_public_{}", index);
+        // A runtime address is never a source-level alias. In particular, a
+        // caller cannot guess a name to bypass the explicit registered pins.
+        if tokens.iter().any(|token| {
+            !matches!(token.kind, TokenKind::StringLit(_) | TokenKind::BytesLit(_))
+                && token.raw.contains(&address)
+        }) || program.items.iter().any(|TopLevelItem::SeedDef(seed)| {
+                seed.canonical_name == address || seed.alternate_forms.contains(&address)
+            })
+        {
+            return Err(error("E_MULTILANG_LINKED_DEFINITION_COLLISION"));
+        }
+        let seed = &mut binding.original;
+        let statements = seed.body.as_mut().map(|body| body.stmts.as_mut_slice())
+            .ok_or_else(|| error("E_MULTILANG_LINKED_SOURCE_SITE_MISMATCH"))?;
+        match statements {
+            [Stmt::Return { .. }] => {}
+            [Stmt::Mutate { target, deferred: false, .. }] => match &mut target.kind {
+                ExprKind::Var(name) if *name == seed.canonical_name => *name = address.clone(),
+                _ => return Err(error("E_MULTILANG_LINKED_SOURCE_SITE_MISMATCH")),
+            },
+            _ => return Err(error("E_MULTILANG_LINKED_SOURCE_SITE_MISMATCH")),
+        }
+        seed.canonical_name = address;
+        seed.alternate_forms.clear();
+    }
+    let mut seed = program.items[index].clone();
+    public_callable_caller_expressions(
+        std::slice::from_mut(&mut seed), &mut [], &program.origin.authored_pin_label_spans,
+        &linked_context, false, true, "나눔수", None,
+    )?;
+    program.items[index] = seed;
+    program.items.extend(linked_context.bindings.into_iter().map(|binding| TopLevelItem::SeedDef(binding.original)));
+    Ok(())
+}
+
+struct PublicCallLocations<'a> {
+    names: &'a HashMap<NodeId, Span>,
+    sites: &'a mut Vec<RegisteredPublicCallSite>,
+}
+
+fn public_callable_caller_expressions(
+    items: &mut [TopLevelItem], root_stmts: &mut [Stmt], pin_labels: &HashMap<NodeId, Span>,
+    context: &crate::parser::RegisteredPublicCallableContext, reverse: bool, module: bool, rational_constructor: &str, mut locations: Option<PublicCallLocations<'_>>,
+) -> Result<(), ParseError> {
+    fn expression(expr:&mut Expr,context:&crate::parser::RegisteredPublicCallableContext,reverse:bool,pin_labels:&HashMap<NodeId,Span>,rational_constructor:&str, locations:&mut Option<PublicCallLocations<'_>>)->Result<(),ParseError>{
+        let fail=|span,message:&str|ParseError{span,message:message.into()};
+        match &mut expr.kind{
+            ExprKind::Call{func,args}=>{
+                for arg in args.iter_mut(){expression(&mut arg.expr,context,reverse,pin_labels,rational_constructor,locations)?;}
+                if func==rational_constructor{*func=if reverse{"有理数"}else{"나눔수"}.into();return Ok(());}
+                let surface_name=if reverse {
+                    func.as_str()
+                } else if let Some((alias,name))=func.split_once('.') {
+                    if !context.activation.as_ref().is_some_and(|activation|activation.local_name==alias) {
+                        return Err(fail(expr.span,"E_MULTILANG_CALL_UNREGISTERED"));
+                    }
+                    name
+                } else {
+                    func.as_str()
+                };
+                let matches=context.profile.surfaces().iter().filter_map(|surface|context.bindings.iter().find(|binding|binding.definition==surface.identity)
+                    .filter(|binding|if reverse{binding.original.canonical_name==surface_name}else{surface.surface==surface_name}).map(|binding|(surface,binding))).collect::<Vec<_>>();
+                if matches.len()!=1{return Err(fail(expr.span,"E_MULTILANG_CALL_UNREGISTERED"));}
+                let (surface,binding)=matches[0];
+                if let Some(locations) = locations.as_mut() {
+                    if let Some(&span) = locations.names.get(&expr.id) {
+                        locations.sites.push(RegisteredPublicCallSite { span, definition: binding.definition.clone(), pin: None });
+                    }
+                }
+                *func=if reverse{surface.surface.clone()}else{binding.original.canonical_name.clone()};
+                let mut named_pins = HashSet::new();
+                let mut duplicate_pin = None;
+                for arg in args{
+                    if let Some(name)=&mut arg.resolved_pin{
+                        let candidates=surface.pins.iter().enumerate().filter(|(index,pin)|if reverse{binding.original.params[*index].pin_name==*name}else{pin.surface==*name}).collect::<Vec<_>>();
+                        if candidates.len()!=1{return Err(fail(pin_labels.get(&arg.id).copied().unwrap_or(arg.span),"E_MULTILANG_PIN_UNREGISTERED"));}
+                        let (index,pin)=candidates[0];
+                        if !reverse && !named_pins.insert(index) && duplicate_pin.is_none() {
+                            duplicate_pin = Some(ParseError {
+                                span: pin_labels.get(&arg.id).copied().unwrap_or(arg.span),
+                                message: format!("핀 '{}'에 인자가 중복되었습니다", name),
+                            });
+                        }
+                        if let Some(locations) = locations.as_mut() {
+                            if let Some(&span) = pin_labels.get(&arg.id) {
+                                locations.sites.push(RegisteredPublicCallSite {
+                                    span, definition: binding.definition.clone(), pin: Some(pin.identity.clone()),
+                                });
+                            }
+                        }
+                        *name=if reverse{pin.surface.clone()}else{binding.original.params[index].pin_name.clone()};
+                    }
+                    if let Some(particle)=&mut arg.josa{
+                        let candidates=surface.pins.iter().enumerate().filter(|(index,pin)|if reverse{binding.original.params[*index].josa_list.contains(particle)}else{pin.particle==*particle}).collect::<Vec<_>>();
+                        if candidates.len()!=1{return Err(fail(arg.span,"E_MULTILANG_PARTICLE_AMBIGUOUS"));}
+                        let (index,pin)=candidates[0];*particle=if reverse{pin.particle.clone()}else{binding.original.params[index].josa_list.first().cloned().ok_or_else(||fail(arg.span,"E_MULTILANG_PARTICLE_SUPPLY_REQUIRED"))?};
+                    }
+                }
+                if let Some(error) = duplicate_pin {
+                    return Err(error);
+                }
+            }
+            ExprKind::Infix{left,right,..}=>{expression(left,context,reverse,pin_labels,rational_constructor,locations)?;expression(right,context,reverse,pin_labels,rational_constructor,locations)?;}
+            ExprKind::Literal(_)|ExprKind::Var(_)=>{},
+            _=>return Err(fail(expr.span,"E_MULTILANG_EXPRESSION_UNSUPPORTED")),
+        }Ok(())
+    }
+    fn statements(stmts:&mut [Stmt],context:&crate::parser::RegisteredPublicCallableContext,reverse:bool,pin_labels:&HashMap<NodeId,Span>,rational_constructor:&str, locations:&mut Option<PublicCallLocations<'_>>)->Result<(),ParseError>{
+        if stmts.is_empty()||stmts.len()>128{return Err(ParseError{span:Span::new(0,0),message:"E_MULTILANG_PUBLIC_CALLER_SCOPE".into()});}
+        for stmt in stmts{match stmt{Stmt::Show{expr,..}|Stmt::Expr{expr,..}=>expression(expr,context,reverse,pin_labels,rational_constructor,locations)?,_=>return Err(ParseError{span:Span::new(0,0),message:"E_MULTILANG_PUBLIC_CALLER_SCOPE".into()})}}Ok(())
+    }
+    if items.is_empty(){return statements(root_stmts,context,reverse,pin_labels,rational_constructor,&mut locations);}
+    if !root_stmts.is_empty() {
+        return Err(ParseError { span: Span::new(0, 0), message: "E_MULTILANG_PUBLIC_CALLER_SCOPE".into() });
+    }
+    if let Some(TopLevelItem::SeedDef(extra)) = items.get(1) {
+        return Err(ParseError { span: extra.span, message: "E_MULTILANG_PUBLIC_CALLER_SCOPE".into() });
+    }
+    let TopLevelItem::SeedDef(seed)=&mut items[0];
+    let module_function=module && !reverse && seed.seed_kind==SeedKind::Semssi;
+    if !(seed.seed_kind==SeedKind::Umjikssi||module_function)||!seed.params.is_empty()||!seed.alternate_forms.is_empty()
+        ||context.bindings.iter().any(|binding|binding.original.canonical_name==seed.canonical_name)
+        ||context.profile.surfaces().iter().any(|surface|surface.surface==seed.canonical_name){return Err(ParseError{span:seed.span,message:"E_MULTILANG_PUBLIC_ENTRY_SCOPE".into()});}
+    let body=seed.body.as_mut().ok_or_else(||ParseError{span:seed.span,message:"E_MULTILANG_PUBLIC_ENTRY_BODY_REQUIRED".into()})?;
+    if module_function {
+        let [statement]=body.stmts.as_mut_slice() else{
+            return Err(ParseError{span:seed.span,message:"E_MULTILANG_PUBLIC_CALLER_SCOPE".into()});
+        };
+        let value=match statement{
+            Stmt::Return{value,..}=>value,
+            Stmt::Mutate{target,value,..}
+                if matches!(&target.kind,ExprKind::Var(name) if name==&seed.canonical_name)=>value,
+            _=>return Err(ParseError{span:seed.span,message:"E_MULTILANG_PUBLIC_CALLER_SCOPE".into()}),
+        };
+        return expression(value,context,false,pin_labels,rational_constructor,&mut locations);
+    }
+    statements(&mut body.stmts,context,reverse,pin_labels,rational_constructor,&mut locations)
+}
+pub fn canonicalize_public_callable_registered_source(program:&CanonProgram,context:&std::sync::Arc<crate::parser::RegisteredPublicCallableContext>)->Result<String,ParseError>{
+    if context.consumer_j1().is_some() {
+        // The J1 frontdoor preserves authored bytes. Revalidate that exact
+        // source rather than emitting a Korean spelling as Japanese source.
+        let source=&program.origin.source;
+        let reparsed=crate::parser::Parser::parse_with_public_callable_context(source,&program.origin.file_path,context.clone())?;
+        if crate::normalize(&reparsed,crate::NormalizationLevel::N1)!=crate::normalize(program,crate::NormalizationLevel::N1){
+            return Err(ParseError{span:Span::new(0,source.len()),message:"E_MULTILANG_CANON_BINDING_CHANGED".into()});
+        }
+        return Ok(source.clone());
+    }
+    let mut view=program.clone();
+    view.items.retain(|TopLevelItem::SeedDef(seed)|!context.bindings.iter().any(|binding|binding.original.id==seed.id));
+    public_callable_caller_expressions(
+        &mut view.items, &mut view.root_stmts, &view.origin.authored_pin_label_spans,
+        context, true, false, "나눔수", None,
+    )?;
+    let activation=context.activation.as_ref().ok_or_else(||ParseError{span:Span::new(0,0),message:"E_DDL_ACTIVATION_REQUIRED".into()})?;
+    let directive_context=crate::module_directive::ModuleDirectiveContext::default().with_known_imports([activation.target.clone()]);
+    let (mut document,_)=crate::module_directive::public_callable_module_tokens(&program.origin.source,&program.origin.file_path,&directive_context,context)?;
+    document.declaration_source.clear();
+    let text=format!("{}{}",crate::module_directive::canonicalize_module_directive_document(&document),crate::normalize(&view,crate::NormalizationLevel::N1));
+    let reparsed=crate::parser::Parser::parse_with_public_callable_context(&text,&program.origin.file_path,context.clone())?;
+    if crate::normalize(&reparsed,crate::NormalizationLevel::N1)!=crate::normalize(program,crate::NormalizationLevel::N1){return Err(ParseError{span:Span::new(0,text.len()),message:"E_MULTILANG_CANON_BINDING_CHANGED".into()});}
+    Ok(text)
+}
+
 pub struct LintWarning {
     pub code: &'static str,
     pub span: Span,
@@ -689,6 +891,9 @@ fn canonicalize_expr(
             canonicalize_expr(right, signatures, warnings)?;
         }
         ExprKind::Suffix { value, .. } => canonicalize_expr(value, signatures, warnings)?,
+        ExprKind::FunctionBlock{statements,result}=>{
+            canonicalize_body(statements,signatures,warnings)?;canonicalize_expr(result,signatures,warnings)?;
+        }
         ExprKind::Thunk(body) => canonicalize_body(body, signatures, warnings)?,
         ExprKind::Eval { thunk, .. } => canonicalize_expr(thunk, signatures, warnings)?,
         ExprKind::SeedLiteral { param, body } => {
@@ -801,6 +1006,14 @@ fn canonicalize_type_ref(
     context:&CanonicalSeedContext,
 ) -> Result<(), ParseError> {
     match type_ref {
+        TypeRef::CardCallEquality {left,right} => {
+            for call in [left,right] {
+                canonicalize_ident(&mut call.name, call.span, warnings)?;
+                canonicalize_ident(&mut call.pin, call.pin_span, warnings)?;
+                canonicalize_ident(&mut call.argument, call.argument_span, warnings)?;
+            }
+        }
+        TypeRef::AlgebraNonzero {term} => { canonicalize_algebra_term(term,warnings)?; }
         TypeRef::AlgebraEquality {left,right} => {
             canonicalize_algebra_term(left,warnings)?;
             canonicalize_algebra_term(right,warnings)?;
@@ -1159,6 +1372,10 @@ fn lint_tailless_expr(
         ExprKind::Suffix { value, .. } => {
             lint_tailless_expr(value, known_seeds, stdlib_names, warnings)
         }
+        ExprKind::FunctionBlock{statements,result}=>{
+            lint_tailless_body(statements,known_seeds,stdlib_names,warnings);
+            lint_tailless_expr(result,known_seeds,stdlib_names,warnings);
+        }
         ExprKind::Thunk(body) => lint_tailless_body(body, known_seeds, stdlib_names, warnings),
         ExprKind::Eval { thunk, .. } => {
             lint_tailless_expr(thunk, known_seeds, stdlib_names, warnings)
@@ -1251,10 +1468,37 @@ fn canonicalize_algebra_term(term:&mut crate::ast::AlgebraTermSyntax,warnings:&m
     match &mut term.kind {
         AlgebraTermKind::Name(name)=>canonicalize_ident(name,term.span,warnings)?,
         AlgebraTermKind::Integer(_)=>{},
-        AlgebraTermKind::Add(a,b)|AlgebraTermKind::Subtract(a,b)|AlgebraTermKind::Multiply(a,b)=>{
+        AlgebraTermKind::Add(a,b)|AlgebraTermKind::Subtract(a,b)|AlgebraTermKind::Multiply(a,b)|AlgebraTermKind::RationalDivide(a,b)=>{
             canonicalize_algebra_term(a,warnings)?;canonicalize_algebra_term(b,warnings)?;
         }
         AlgebraTermKind::DivideByInteger(a,_)=>canonicalize_algebra_term(a,warnings)?,
     }
+    Ok(())
+}
+
+
+/// Resolve only J1 type-role spellings inside actual typed AST slots.
+/// This does not create a type identity/proof or modify authored source text.
+pub(crate) fn resolve_j1_type_roles(program:&mut CanonProgram,_profile:crate::ddl::CheckedJ1Profile)->Result<(),ParseError>{
+    let declared=program.items.iter().filter_map(|TopLevelItem::SeedDef(seed)|seed.seed_kind.is_schema().then_some(seed.canonical_name.clone())).collect::<std::collections::HashSet<_>>();
+    fn types(root:&mut TypeRef,declared:&std::collections::HashSet<String>)->Result<(),ParseError>{
+        let mut pending=vec![root];
+        while let Some(ty)=pending.pop(){match ty{
+            TypeRef::Named(name) if matches!(name.as_str(),"有理数"|"真偽")=>{
+                if declared.contains(name){return Err(ParseError{span:Span::new(0,0),message:"E_J1_TYPE_ROLE_AMBIGUOUS: 선언 형식과 기본 타입 역할이 충돌합니다".into()});}
+                *name=if name=="有理数"{"나눔수"}else{"참거짓"}.into();
+            },
+            TypeRef::Applied{args,..}|TypeRef::Tuple(args)|TypeRef::PropositionConjunction(args)=>pending.extend(args.iter_mut()),
+            TypeRef::Tensor{element,..}=>pending.push(element),
+            TypeRef::Function{params,result}=>{pending.extend(params.iter_mut());pending.push(result);},
+            _=>{},
+        }}Ok(())
+    }
+    for TopLevelItem::SeedDef(seed) in &mut program.items{
+        for pin in &mut seed.params{types(&mut pin.type_ref,&declared)?;}
+        if let Some(result)=&mut seed.result_type{types(result,&declared)?;}
+        if let Some(body)=&mut seed.body{for stmt in &mut body.stmts{if let Stmt::Definition{type_ref,..}=stmt{types(type_ref,&declared)?;}}}
+    }
+    for stmt in &mut program.root_stmts{if let Stmt::Definition{type_ref,..}=stmt{types(type_ref,&declared)?;}}
     Ok(())
 }

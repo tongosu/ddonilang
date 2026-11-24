@@ -2,6 +2,7 @@ use num_bigint::{BigInt, Sign};
 mod assumption_transfer;
 mod propositional;
 pub mod algebra;
+pub mod conditional_algebra;
 pub use propositional::{check_propositional_evidence, CheckedPropositionalEvidence, PropositionalEvidence, PropositionalGoal};
 pub use assumption_transfer::{check_assumption_transfer, CheckedAssumptionTransfer, CheckedInitialIdentity, CheckedIdentityConsumption};
 use num_traits::One;

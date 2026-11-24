@@ -539,6 +539,73 @@ pub fn solve_linear_equation(lhs: &str, rhs: &str) -> Result<RelationSolveOutcom
     solve_relation_equation(lhs, rhs)
 }
 
+/// Internal workbench admission; not a proof or a change to general solving.
+#[derive(Debug, PartialEq, Eq)]
+pub enum LinearProblemAdmission {
+    Admitted,
+    OutsideFamily(&'static str),
+}
+
+pub fn admit_linear_problem(lhs: &str, rhs: &str) -> Result<LinearProblemAdmission, String> {
+    fn inspect(expr: &Expr, variables: &mut BTreeSet<String>, variable_denominator: &mut bool) -> Result<(), String> {
+        match expr {
+            Expr::Num(_) => {},
+            Expr::Var(name) => { variables.insert(name.clone()); },
+            Expr::Neg(inner) => inspect(inner, variables, variable_denominator)?,
+            Expr::Div(left, right) => {
+                inspect(left, variables, variable_denominator)?;
+                let mut denominator_variables = BTreeSet::new();
+                inspect(right, &mut denominator_variables, variable_denominator)?;
+                if denominator_variables.is_empty() {
+                    let denominator = expr_to_poly_collect_obligations(right, &mut BTreeSet::new())?;
+                    if denominator.is_zero() {
+                        return Err("E_SYMBOLIC_DIV_ZERO 0으로 나눌 수 없습니다".to_string());
+                    }
+                } else { *variable_denominator = true; }
+                variables.extend(denominator_variables);
+            },
+            Expr::Add(a,b) | Expr::Sub(a,b) | Expr::Mul(a,b) | Expr::Pow(a,b) => {
+                inspect(a, variables, variable_denominator)?;
+                inspect(b, variables, variable_denominator)?;
+            },
+        }
+        Ok(())
+    }
+    let left = Parser::new(lhs).parse()?;
+    let right = Parser::new(rhs).parse()?;
+    let mut variables = BTreeSet::new();
+    let mut variable_denominator = false;
+    inspect(&left, &mut variables, &mut variable_denominator)?;
+    inspect(&right, &mut variables, &mut variable_denominator)?;
+    if variable_denominator { return Ok(LinearProblemAdmission::OutsideFamily("variable_denominator")); }
+    if variables.len() != 1 { return Ok(LinearProblemAdmission::OutsideFamily("original_variable_count")); }
+    let left = expr_to_poly_collect_obligations(&left, &mut BTreeSet::new())?;
+    let right = expr_to_poly_collect_obligations(&right, &mut BTreeSet::new())?;
+    let difference = left.sub(&right);
+    if difference.terms.keys().any(|mono| mono.0.iter().map(|(_,exp)| u64::from(*exp)).sum::<u64>() > 1) {
+        return Ok(LinearProblemAdmission::OutsideFamily("residual_degree"));
+    }
+    Ok(LinearProblemAdmission::Admitted)
+}
+
+#[cfg(test)]
+mod linear_problem_admission_tests {
+    use super::*;
+    #[test]
+    fn difference_scope_preserves_original_domain_and_variables() {
+        for (left,right) in [("x*x+x","x*x+1"),("-(3/5)*(2*(t-1)-3)","(t+7)/5"),("x+1","x+2"),("x+1","x+1")] {
+            assert_eq!(admit_linear_problem(left,right).unwrap(), LinearProblemAdmission::Admitted);
+        }
+        for (left,right,reason) in [("x*x","4","residual_degree"),("x+y","y+1","original_variable_count"),("x+(y-y)","1","original_variable_count"),("x/x","1","variable_denominator"),("x/(x-x+1)","1","variable_denominator"),("1","1","original_variable_count")] {
+            assert_eq!(admit_linear_problem(left,right).unwrap(), LinearProblemAdmission::OutsideFamily(reason));
+        }
+        assert!(admit_linear_problem("x/(1-1)","1").unwrap_err().starts_with("E_SYMBOLIC_DIV_ZERO"));
+        assert!(solve_relation_equation("x*x","4").is_ok());
+        assert_eq!(solve_relation_equation("x+1","x+2").unwrap(), RelationSolveOutcome::NoSolution);
+        assert_eq!(solve_relation_equation("x+1","x+1").unwrap(), RelationSolveOutcome::NonUnique);
+    }
+}
+
 pub fn relation_holds(
     lhs: &str,
     rhs: &str,

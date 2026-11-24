@@ -240,6 +240,7 @@ fn scan_expr(expr: &Expr, counts: &mut LiveHookCounts) {
             scan_expr(right, counts);
         }
         ExprKind::Suffix { value, .. } => scan_expr(value, counts),
+        ExprKind::FunctionBlock{statements,result}=>{scan_body(statements,counts);scan_expr(result,counts);},
         ExprKind::Thunk(body) => scan_body(body, counts),
         ExprKind::Eval { thunk, .. } => scan_expr(thunk, counts),
         ExprKind::Pipe { stages } => {

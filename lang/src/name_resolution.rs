@@ -619,6 +619,10 @@ impl Resolver<'_> {
                 }
             }
             ExprKind::Eval { thunk, .. } => self.expr(thunk),
+            ExprKind::FunctionBlock{statements,result}=>{
+                self.scopes.push(Scope::new());self.uncertain.push(HashSet::new());
+                self.statements(&statements.stmts);self.expr(result);self.scopes.pop();self.uncertain.pop();
+            }
             ExprKind::Thunk(body) => self.body(body),
             ExprKind::Literal(_) => {}
             _ => self.opaque(expr.span),
@@ -686,6 +690,10 @@ pub(crate) fn resolve(program: &CanonProgram, tokens: &[Token]) -> NameResolutio
             false,
         );
         r.callables.insert(seed.id, key);
+        // Generated invocation forms share the declaration owner; locals still shadow them.
+        for form in seed.rd714_first_call_forms() {
+            r.scopes[0].entry(form).or_default().push(key);
+        }
         r.scopes[0]
             .entry(seed.canonical_name.clone())
             .or_default()

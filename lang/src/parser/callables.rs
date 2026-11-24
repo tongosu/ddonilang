@@ -1,6 +1,46 @@
 //! Existing callable declarations, forms, parameters and type syntax; all method bodies and identities retained.
 use super::*;
 
+#[cfg(test)]
+mod w22_tests {
+    use crate::{parse_v25, parse_v25_and_normalize};
+    use crate::ast::TopLevelItem;
+    use crate::normalizer::NormalizationLevel;
+
+    #[test]
+    fn w22_explicit_same_binder_is_not_a_default_and_roundtrips() {
+        let source = "(값=값:셈수~을) 두배하다:셈수:셈씨 := { 두배하다 <- 값 * 2. }.";
+        let p = parse_v25(source, "binder.ddn").unwrap();
+        let TopLevelItem::SeedDef(seed) = &p.items[0];
+        assert_eq!(seed.params[0].explicit_local_name.as_deref(), Some("값"));
+        assert!(seed.params[0].default_value.is_none());
+        let canon = parse_v25_and_normalize(source, "binder.ddn", NormalizationLevel::N1).unwrap();
+        // RD602: exact same-spelling full and short inputs canon to short.
+        assert!(canon.contains("값:셈수"));
+        assert!(!canon.contains("값=값:"));
+        assert_eq!(p.origin.source, source);
+        assert_eq!(canon, parse_v25_and_normalize(&canon, "binder.ddn", NormalizationLevel::N1).unwrap());
+    }
+
+    #[test]
+    fn w22_distinct_binder_is_not_silently_rebound() {
+        let source = "(공개=지역:셈수~을) 두배하다:셈수:셈씨 := { 두배하다 <- 지역 * 2. }.";
+        let error = parse_v25(source, "binder.ddn").unwrap_err();
+        assert!(error.message.contains("E_CALLABLE_LOCAL_BINDER_UNSUPPORTED"));
+    }
+
+    #[test]
+    fn w22_existing_default_and_explicit_morphology_remain_separate() {
+        let p = parse_v25("(값:셈수=2) 두배하다:셈수:셈씨 := { 두배하다 <- 값 * 2. }.", "default.ddn").unwrap();
+        let TopLevelItem::SeedDef(seed) = &p.items[0];
+        assert!(seed.params[0].explicit_local_name.is_none());
+        assert!(seed.params[0].default_value.is_some());
+        let p = parse_v25("(대상=대상:셈수~을) 돕다{도우~도와}:셈수:셈씨 := { 돕다 <- 대상. }.", "forms.ddn").unwrap();
+        let TopLevelItem::SeedDef(seed) = &p.items[0];
+        assert_eq!(seed.alternate_forms, vec!["도우", "도와"]);
+    }
+}
+
 impl Parser {
     pub(super) fn is_root_statement_start(&self) -> bool {
         match &self.current().kind {
@@ -59,6 +99,10 @@ impl Parser {
             // Other statement heads (condition/loop/control and braced
             // expression conditions) are root-program statements.
             TokenKind::LParen if self.source_epoch == SourceEpoch::V25 => {
+                if self.find_matching_rparen_after_current_lparen().is_some_and(|end|
+                    self.tokens.get(end + 1).is_some_and(|token| token.raw == "두고")) {
+                    return false;
+                }
                 let mut depth = 0usize;
                 for (index, token) in self.tokens.iter().enumerate().skip(self.pos) {
                     match token.kind {
@@ -190,7 +234,7 @@ impl Parser {
             }
             self.expect(&TokenKind::Dot, "schema 성분 선언의 마침표 `.`")?;
             params.push(ParamPin { id: self.next_id(), span: slot_start.merge(&self.previous_span()),
-                pin_name, type_ref, default_value: None, optional: false, josa_list: Vec::new() });
+                pin_name, explicit_local_name: None, type_ref, default_value: None, optional: false, josa_list: Vec::new() });
         }
         self.expect(&TokenKind::RBrace, "}")?;
         self.expect(&TokenKind::Dot, "schema 정의의 마침표 `.`")?;
@@ -252,7 +296,7 @@ impl Parser {
         // This is parser provenance, not admission or checker acceptance.
         if proof_header.is_none() && params.iter().any(|pin| matches!(
             &pin.type_ref, TypeRef::Applied { name, args }
-                if name == "보임" && matches!(args.as_slice(), [TypeRef::StructureLaw { .. } | TypeRef::AlgebraEquality { .. }])
+                if name == "보임" && matches!(args.as_slice(), [TypeRef::StructureLaw { .. } | TypeRef::AlgebraEquality { .. } | TypeRef::AlgebraNonzero { .. }])
         )) {
             proof_header = Some(ProofHeader {
                 propositions: Vec::new(),
@@ -272,8 +316,11 @@ impl Parser {
         // Full callable declarations place an explicit result type between the
         // preferred name and the callable kind:
         // `(pins) name:Result:셈씨 := { ... }`.
+        let parenthesized_goal = self.find_matching_rparen_after_current_lparen()
+            .is_some_and(|end| self.tokens.get(end + 1).is_some_and(|t| t.raw == "보임")
+                && self.tokens.get(end + 2).is_some_and(|t| matches!(t.kind, TokenKind::Colon)));
         let has_result_type = self.source_epoch == SourceEpoch::V25
-            && self.tokens[self.pos..]
+            && (parenthesized_goal || self.tokens[self.pos..]
                 .iter()
                 .take_while(|token| {
                     !matches!(
@@ -281,7 +328,7 @@ impl Parser {
                         TokenKind::Define | TokenKind::Equals | TokenKind::LBrace | TokenKind::Eof
                     )
                 })
-                .any(|token| matches!(token.kind, TokenKind::Colon));
+                .any(|token| matches!(token.kind, TokenKind::Colon)));
         let result_type = if has_result_type {
             let result_type = self.parse_type_ref()?;
             self.expect(&TokenKind::Colon, ":")?;
@@ -290,7 +337,14 @@ impl Parser {
             None
         };
         let kind = self.parse_seed_kind()?;
-        if kind != SeedKind::Product && alternate_forms.is_empty() && !self.first_callable_ddl {
+        // RD714 takes the authored v25 canonical name as written. A spelling
+        // ending in a generated suffix is not evidence of a different owner.
+        // Legacy profiles and other definition kinds keep their prior gate.
+        let rd714_authored_name = self.source_epoch == SourceEpoch::V25
+            && matches!(kind, SeedKind::Semssi | SeedKind::Umjikssi)
+            && alternate_forms.is_empty();
+        if kind != SeedKind::Product && alternate_forms.is_empty()
+            && !self.first_callable_ddl && !rd714_authored_name {
             self.validate_seed_name_tail(&name, start)?;
         }
         if result_type.is_some() && !matches!(kind, SeedKind::Semssi | SeedKind::Umjikssi) {
@@ -442,6 +496,7 @@ impl Parser {
                 id: self.next_id(),
                 span: param_start.merge(&self.previous_span()),
                 pin_name,
+                explicit_local_name: None,
                 type_ref,
                 default_value: None,
                 optional: false,
@@ -575,6 +630,27 @@ impl Parser {
             let TopLevelItem::SeedDef(seed) = item;
             self.registered_definitions.insert(seed.id, seed.clone());
             if seed.alternate_forms.is_empty() {
+                for form in seed.rd714_first_call_forms() {
+                    // Existing exact legacy tails already have an owner in
+                    // the ordinary resolver. Do not reclassify their origin
+                    // metadata as a newly registered alternate.
+                    if ["기", "고", "면", "면서"].iter().any(|tail|
+                        form == format!("{}{}", seed.canonical_name, tail)) {
+                        continue;
+                    }
+                    self.registered_form_candidates.entry(form.clone()).or_default().push(seed.id);
+                    // Keep an exact owner only while the surface has one
+                    // canonical family. Disjoint overload candidates remain
+                    // candidates for the existing typed call resolver.
+                    let owners: HashSet<_> = self.registered_form_candidates[&form].iter()
+                        .filter_map(|id| self.registered_definitions.get(id))
+                        .map(|definition| definition.canonical_name.as_str()).collect();
+                    if owners.len() == 1 {
+                        self.registered_forms.insert(form, seed.canonical_name.clone());
+                    } else {
+                        self.registered_forms.remove(&form);
+                    }
+                }
                 continue;
             }
             if !crate::ordinary_callable::is_v1_ordinary_callable(seed) {
@@ -638,6 +714,7 @@ impl Parser {
         while !self.check(&TokenKind::RParen) {
             let s = self.current_span();
             let name = self.expect_ident("파라미터")?.raw.clone();
+            let mut explicit_local_name = None;
             if let Some(header) = header.as_deref_mut() {
                 self.expect(&TokenKind::Equals, "공개핀=본문변수")?;
                 let local_name = self.expect_ident("증거 본문 변수")?.raw.clone();
@@ -645,6 +722,17 @@ impl Parser {
                     public_pin: name.clone(), local_name,
                     span: s.merge(&self.previous_span()),
                 });
+            } else if self.source_epoch == SourceEpoch::V25
+                && self.check(&TokenKind::Equals)
+                && self.peek_kind_n_is(1, |kind| matches!(kind, TokenKind::Ident(_) | TokenKind::Josa(_)))
+                && self.peek_kind_n_is(2, |kind| matches!(kind, TokenKind::Colon)) {
+                // A typed binder before ':' is not an expression default.
+                self.advance();
+                let local = self.expect_ident("본문 변수")?.raw.clone();
+                if local != name {
+                    return Err(self.error("E_CALLABLE_LOCAL_BINDER_UNSUPPORTED: 서로 다른 공개핀과 본문 변수의 소비 연결은 아직 지원하지 않습니다"));
+                }
+                explicit_local_name = Some(local);
             }
             let type_ref = if self.check(&TokenKind::Colon) {
                 self.advance();
@@ -683,6 +771,7 @@ impl Parser {
                 id: self.next_id(),
                 span: s.merge(&self.previous_span()),
                 pin_name: name,
+                explicit_local_name,
                 type_ref,
                 default_value,
                 optional,
@@ -761,11 +850,31 @@ impl Parser {
         }
     }
 
+    fn explicit_goal_call(&self, expr: &Expr) -> Result<crate::ast::ExplicitGoalCall, ParseError> {
+        let error = || ParseError {
+            span: expr.source_group_span.unwrap_or(expr.span),
+            message: "E_PROOF_CARD_GOAL_CALL: 양변에 받는자리 하나를 명시한 셈씨 호출이 필요합니다".into(),
+        };
+        let ExprKind::Call { func, args } = &expr.kind else { return Err(error()); };
+        let [arg] = args.as_slice() else { return Err(error()); };
+        let (Some(pin), ExprKind::Var(argument)) = (&arg.resolved_pin, &arg.expr.kind)
+            else { return Err(error()); };
+        if arg.binding_reason != BindingReason::UserFixed || arg.josa.is_some() {
+            return Err(error());
+        }
+        Ok(crate::ast::ExplicitGoalCall {
+            name: func.clone(), pin: pin.clone(), argument: argument.clone(),
+            span: expr.source_group_span.unwrap_or(expr.span),
+            pin_span: self.authored_pin_label_spans.get(&arg.id).copied().unwrap_or(arg.span),
+            argument_span: arg.expr.span,
+        })
+    }
+
     pub(super) fn parse_type_operand(&mut self) -> Result<ParsedTypeOperand, ParseError> {
         if let Some(end) = self.find_matching_rparen_after_current_lparen() {
             if self.source_epoch == SourceEpoch::V25
                 && self.tokens.get(end + 1).is_some_and(|token| token.raw == "보임")
-                && self.tokens[self.pos+1..end].iter().any(|token| matches!(token.kind,TokenKind::RelationEq)) {
+                && self.tokens[self.pos+1..end].iter().any(|token| matches!(token.kind,TokenKind::RelationEq | TokenKind::NotEq)) {
                 self.advance();
                 let expression=self.parse_expr()?;
                 self.expect(&TokenKind::RParen,")")?;
@@ -773,10 +882,19 @@ impl Parser {
                 let ExprKind::Infix {left,op,right}=&expression.kind else {
                     return Err(self.error("E_PROOF_ALGEBRA_GOAL: 정적 등식 목표가 필요합니다"));
                 };
-                if op!="=:=" { return Err(self.error("E_PROOF_ALGEBRA_GOAL: 정적 등식 목표가 필요합니다")); }
-                let goal=TypeRef::AlgebraEquality {
+                let goal=if op=="=:=" && (matches!(left.kind, ExprKind::Call { .. })
+                    || matches!(right.kind, ExprKind::Call { .. })) {
+                    TypeRef::CardCallEquality {
+                        left: self.explicit_goal_call(left)?,
+                        right: self.explicit_goal_call(right)?,
+                    }
+                } else if op=="=:=" { TypeRef::AlgebraEquality {
                     left:crate::algebra_syntax::term(left)?,right:crate::algebra_syntax::term(right)?,
-                };
+                }} else if op=="!=" {
+                    let zero=crate::algebra_syntax::term(right)?;
+                    if !matches!(zero.kind,AlgebraTermKind::Integer(0)) {return Err(self.error("E_PROOF_NONZERO_INPUT: 명시 비영 입력은 식 != 0 꼴이어야 합니다"));}
+                    TypeRef::AlgebraNonzero{term:crate::algebra_syntax::term(left)?}
+                } else {return Err(self.error("E_PROOF_ALGEBRA_GOAL: 정적 등식 또는 명시 비영 입력이 필요합니다"));};
                 return Ok(ParsedTypeOperand::Single(TypeRef::Applied {name:"보임".into(),args:vec![goal]}));
             }
             if self.tokens.get(end + 1).is_some_and(|token| token.raw == "텐서씨") {
@@ -819,7 +937,9 @@ impl Parser {
             }
             self.expect(&TokenKind::RParen, ")")?;
             if self.check_ident() && self.current().raw != "이고" {
-                let name = self.expect_ident("타입")?.raw.clone();
+                let token=self.expect_ident("타입")?.clone();
+                let name=token.raw.clone();let span=self.to_ast_span(token.span);
+                if let Some(sites)=&mut self.type_reference_sites{sites.push((name.clone(),span,false));}
                 if name == "_" {
                     return Err(self.error("타입 이름"));
                 }
@@ -839,7 +959,9 @@ impl Parser {
                 message: "E_FUNCTION_TYPE_GROUP_INVALID: 괄호 타입 목록에는 적용 타입 이름 또는 `-->`가 필요합니다".to_string(),
             });
         }
-        let name = self.expect_ident("타입")?.raw.clone();
+        let token=self.expect_ident("타입")?.clone();
+                let name=token.raw.clone();let span=self.to_ast_span(token.span);
+                if let Some(sites)=&mut self.type_reference_sites{sites.push((name.clone(),span,true));}
         if name == "_" {
             Ok(ParsedTypeOperand::Single(TypeRef::Infer))
         } else {

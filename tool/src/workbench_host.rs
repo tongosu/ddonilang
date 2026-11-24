@@ -267,12 +267,16 @@ fn handle_request_with_native(mut stream: TcpStream, root: &Path, assets: &std::
     let target = fields.next().unwrap_or("");
     if !matches!(method,"GET"|"POST") || fields.next()!=Some("HTTP/1.1")||fields.next().is_some() { return respond(&mut stream, 405, "text/plain", b"method denied", None); }
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
+    // Cookies do not include a port in their browser scope. Keep simultaneous
+    // local workbench sessions from replacing each other's authentication.
+    let local_port = stream.local_addr().map_err(|_| "E_WORKBENCH_LOCAL_ADDRESS")?.port();
+    let cookie_name = format!("ddn_workbench_token_{local_port}");
     let query_authorized = query.split('&').any(|field| field == format!("token={token}"));
     let cookie_authorized = headers.lines().skip(1).any(|line| {
         line.split_once(':').is_some_and(|(name, value)| {
             name.trim().eq_ignore_ascii_case("cookie")
                 && value.split(';').any(|field| {
-                    field.trim() == format!("ddn_workbench_token={token}")
+                    field.trim() == format!("{cookie_name}={token}")
                 })
         })
     });
@@ -299,13 +303,22 @@ fn handle_request_with_native(mut stream: TcpStream, root: &Path, assets: &std::
         }
         if request.len()-header_end!=length{return respond(&mut stream,400,"text/plain",b"body framing denied",None);}
         let body=String::from_utf8(request[header_end..].to_vec()).map_err(|_|"E_WORKBENCH_BODY_UTF8")?;
-        let result=native.ok_or("E_NATIVE_SOURCE_CONTROLLER_UNAVAILABLE")?.call(body);
+        let result=native.ok_or("E_NATIVE_SOURCE_CONTROLLER_UNAVAILABLE")?.call_with_diagnostic(body);
         return match result {
             Ok(body)=>respond(&mut stream,200,"application/json; charset=utf-8",body.as_bytes(),None),
-            Err(error)=>respond(&mut stream,409,"application/json; charset=utf-8",serde_json::json!({"error":error}).to_string().as_bytes(),None),
+            Err((error,diagnostic))=>{
+                let mut body=serde_json::json!({"error":error});
+                if let Some(diagnostic)=diagnostic {
+                    body["diagnostic"]=diagnostic.to_json_value();
+                }
+                respond(&mut stream,409,"application/json; charset=utf-8",body.to_string().as_bytes(),None)
+            },
         };
     }
-    if !query_authorized && !cookie_authorized { return respond(&mut stream, 403, "text/plain", b"token denied", None); }
+    if !query_authorized && !cookie_authorized {
+        return respond(&mut stream, 403, "text/plain; charset=utf-8",
+            "이 실행 창의 인증을 확인하지 못했습니다. 저장본과 원문은 변경하지 않았습니다. 작업대열기.cmd를 실행해 새로 열린 화면을 사용하세요. 이전 주소나 다른 실행 창의 주소를 다시 사용하지 마세요. 인증 자료를 직접 편집할 필요는 없습니다.".as_bytes(), None);
+    }
     if path=="/__ddn/vc04/source"&&native.is_some(){
         return respond(&mut stream,200,"application/json",b"{\"native_source\":true}",None);
     }
@@ -319,7 +332,8 @@ fn handle_request_with_native(mut stream: TcpStream, root: &Path, assets: &std::
     };
     let Some(asset) = assets.get(relative) else { return respond(&mut stream, 404, "text/plain", b"asset denied", None); };
     let body = fs::read(root.join(&asset.path)).map_err(|_| "E_WORKBENCH_ASSET_READ".to_string())?;
-    let set_cookie = if query_authorized && path == "/" { Some(format!("ddn_workbench_token={token}; HttpOnly; SameSite=Strict; Path=/")) } else { None };
+    let is_entry = path == "/" || asset.role == "entry" || relative == "ui/workbench/index.html";
+    let set_cookie = if query_authorized && is_entry { Some(format!("{cookie_name}={token}; HttpOnly; SameSite=Strict; Path=/")) } else { None };
     respond_with_native_marker(&mut stream, 200, &asset.content_type, &body, set_cookie.as_deref(),native.is_some()&&cfg!(windows))
 }
 
@@ -350,12 +364,30 @@ mod tests {
             let mut client=TcpStream::connect(address).unwrap();
             let (server,_)=listener.accept().unwrap();
             let worker=thread::spawn(move||handle_request_with_native(server,Path::new("."),&Default::default(),"actual",None));
+            let cookie=cookie.replace("ddn_workbench_token=",&format!("ddn_workbench_token_{}=",address.port()));
             let origin=if origin=="SELF"{format!("http://{address}")}else{origin.into()};
             write!(client,"POST /__ddn/vc04/source HTTP/1.1\r\nHost: {address}\r\nOrigin: {origin}\r\nCookie: {cookie}\r\nContent-Type: application/json\r\nContent-Length: 2\r\n{extra}\r\n{{}}").unwrap();
             let mut response=String::new();client.read_to_string(&mut response).unwrap();worker.join().unwrap().unwrap();
             assert!(!response.starts_with("HTTP/1.1 200"));
         }
         assert!(single_header("POST / HTTP/1.1\r\nContent-Length: 2\r\nContent-Length: 3\r\n","content-length").is_err());
+    }
+
+    #[test]
+    fn entry_cookie_is_scoped_to_port_and_deep_entry_keeps_auth() {
+        let root=std::env::temp_dir().join(format!("ddn-direct-auth-{}-{}",std::process::id(),SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+        fs::create_dir_all(&root).unwrap();fs::write(root.join("index.html"),"<main>entry</main>").unwrap();
+        let bytes=fs::read(root.join("index.html")).unwrap();
+        let manifest=serde_json::json!({"schema":"ddonirang.workbench_asset_manifest.v1","files":[{"path":"index.html","bytes":bytes.len(),"sha256":hex::encode(Sha256::digest(&bytes)),"content_type":"text/html","role":"entry"}]});
+        fs::write(root.join("asset_manifest.detjson"),manifest.to_string()).unwrap();
+        let a=WorkbenchHost::start(&root,&root.join("asset_manifest.detjson")).unwrap();let b=WorkbenchHost::start(&root,&root.join("asset_manifest.detjson")).unwrap();
+        let request=|host:&WorkbenchHost,target:&str,cookie:&str|{let mut s=TcpStream::connect(("127.0.0.1",host.port())).unwrap();write!(s,"GET {target} HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nCookie: {cookie}\r\n\r\n",host.port()).unwrap();let mut r=String::new();s.read_to_string(&mut r).unwrap();r};
+        let ra=request(&a,&format!("/index.html?token={}",a.token()),"");assert!(ra.starts_with("HTTP/1.1 200"));assert!(ra.contains(&format!("Set-Cookie: ddn_workbench_token_{}=",a.port())));
+        let rb=request(&b,&format!("/?token={}",b.token()),"");assert!(rb.starts_with("HTTP/1.1 200"));assert_ne!(a.port(),b.port());
+        let both=format!("ddn_workbench_token_{}={}; ddn_workbench_token_{}={}",a.port(),a.token(),b.port(),b.token());
+        assert!(request(&a,"/index.html",&both).starts_with("HTTP/1.1 200"));assert!(request(&b,"/index.html",&both).starts_with("HTTP/1.1 200"));
+        let wrong=format!("ddn_workbench_token_{}={}",a.port(),b.token());let denied=request(&a,"/index.html",&wrong);assert!(denied.starts_with("HTTP/1.1 403"));assert!(denied.contains("작업대열기.cmd"));
+        drop(a);drop(b);fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
@@ -451,13 +483,13 @@ mod tests {
         let mut accepted_text = String::new(); accepted.read_to_string(&mut accepted_text).unwrap();
         assert!(accepted_text.starts_with("HTTP/1.1 200"));
         assert!(accepted_text.contains("Cache-Control: no-store"));
-        assert!(accepted_text.contains("Set-Cookie: ddn_workbench_token="));
+        assert!(accepted_text.contains(&format!("Set-Cookie: ddn_workbench_token_{}=",host.port())));
         let mut cookie_asset = TcpStream::connect(("127.0.0.1", host.port())).unwrap();
         cookie_asset
             .write_all(
                 format!(
-                    "GET /styles.css HTTP/1.1\r\nHost: localhost\r\nCookie: ddn_workbench_token={}\r\n\r\n",
-                    host.token()
+                    "GET /styles.css HTTP/1.1\r\nHost: localhost\r\nCookie: ddn_workbench_token_{}={}\r\n\r\n",
+                    host.port(), host.token()
                 )
                 .as_bytes(),
             )
@@ -469,8 +501,8 @@ mod tests {
         lowercase_cookie_asset
             .write_all(
                 format!(
-                    "GET /styles.css HTTP/1.1\r\nHost: localhost\r\ncookie: ddn_workbench_token={}\r\n\r\n",
-                    host.token()
+                    "GET /styles.css HTTP/1.1\r\nHost: localhost\r\ncookie: ddn_workbench_token_{}={}\r\n\r\n",
+                    host.port(), host.token()
                 )
                 .as_bytes(),
             )
@@ -483,7 +515,7 @@ mod tests {
         assert!(lowercase_cookie_text.starts_with("HTTP/1.1 200"));
         for (url, expected) in [("/%EC%98%88%EC%A0%9C.ddn", 200), ("/%2e%2e/secret", 404), ("/%FF", 404), ("/not-in-manifest", 404)] {
             let mut stream = TcpStream::connect(("127.0.0.1", host.port())).unwrap();
-            stream.write_all(format!("GET {url} HTTP/1.1\r\nHost: localhost\r\nCookie: ddn_workbench_token={}\r\n\r\n", host.token()).as_bytes()).unwrap();
+            stream.write_all(format!("GET {url} HTTP/1.1\r\nHost: localhost\r\nCookie: ddn_workbench_token_{}={}\r\n\r\n", host.port(), host.token()).as_bytes()).unwrap();
             let mut response = String::new(); stream.read_to_string(&mut response).unwrap();
             assert!(response.starts_with(&format!("HTTP/1.1 {expected}")), "{url}: {response}");
             if expected == 200 { assert!(response.ends_with("1 보여주기.")); }

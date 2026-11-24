@@ -72,6 +72,19 @@ impl ExecutionDiagnostic {
         let code = err.code();
         let message = err.message;
         let span = Some((err.span.start, err.span.end));
+        if code == ddonirang_lang::STRUCTURE_PROFILE_REGISTRY_UNAVAILABLE {
+            return Self {
+                code,
+                message,
+                source_path: source_path.to_string(),
+                span,
+                phase: "structure_profile_lookup",
+                cause: None,
+                offending_field: None,
+                expected: None,
+                actual: None,
+            };
+        }
         let cause = Self {
             code,
             message: message.clone(),

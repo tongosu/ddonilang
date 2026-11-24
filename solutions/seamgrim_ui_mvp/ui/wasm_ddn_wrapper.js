@@ -36,11 +36,11 @@ export class DdnWasmVmClient {
     this.vm.update_logic_with_mode(source, mode);
   }
 
-  updateLogicWithSourceProfile(source, sourceProfileIdentity) {
+  updateLogicWithSourceProfile(source, sourceProfileIdentity, sourcePath = undefined) {
     if (typeof this.vm.update_logic_with_source_profile !== "function") {
       throw new Error("E_WASM_SOURCE_PROFILE_API_MISSING");
     }
-    this.vm.update_logic_with_source_profile(source, sourceProfileIdentity);
+    this.vm.update_logic_with_source_profile(source, sourceProfileIdentity, sourcePath);
   }
 
   configureProjectEntry(name) {

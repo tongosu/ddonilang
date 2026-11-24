@@ -1,3 +1,5 @@
+import {completionWouldDuplicateSuffix} from './cleanup/policy.mjs';
+import {placeCompletionAtCaret} from './cleanup/caret.mjs';
 // Existing file drawer, source editor, completion and lesson presentation; original state and text retained.
 export function createEditorPresentation({ activeFile, currentProject, displayedProjectTitle, els, escapeHtml, FIRST_STEPS_PROJECTS, localProjectTreePayloadFromSnapshot, runtimeBridge, selectFile, SOURCE_ANALYSIS_PROFILE_IDENTITY, state, workbenchProjectRegistryState, workbenchSourceProfile }) {
 function renderFileDrawer(project) {
@@ -165,10 +167,8 @@ function renderCompletionPopup() {
     popup.appendChild(option);
   });
   els.sourceEditor.setAttribute("aria-activedescendant", `completion-option-${state.completionSelectedIndex}`);
-  const editor = els.sourceEditor.getBoundingClientRect();
-  const box = popup.getBoundingClientRect();
-  popup.style.left = `${Math.max(8, Math.min(editor.right - box.width - 8, window.innerWidth - box.width - 8))}px`;
-  popup.style.top = `${Math.max(8, Math.min(editor.bottom - box.height - 8, window.innerHeight - box.height - 8))}px`;
+  const start = completionOffset(els.sourceEditor.value, state.completionItems[state.completionSelectedIndex]?.replacement_range?.start ?? {line:0,character:0});
+  placeCompletionAtCaret(els.sourceEditor, popup, start ?? els.sourceEditor.selectionStart);
 }
 
 function selectCompletion(index = state.completionSelectedIndex) {
@@ -190,6 +190,11 @@ function selectCompletion(index = state.completionSelectedIndex) {
     closeCompletionPopup();
     return;
   }
+  if(completionWouldDuplicateSuffix(source,start,end,String(item.insert_text??''))){
+    closeCompletionPopup();
+    els.sourceEditor.dataset.completionNotice='공급된 추천 범위가 단어 뒷부분을 포함하지 않아 적용하지 않았습니다. 커서를 단어 끝으로 옮겨 추천을 다시 여세요.';
+    document.dispatchEvent(new Event('ddn-completion-notice'));return;
+  }
   const next = `${source.slice(0, start)}${String(item.insert_text ?? "")}${source.slice(end)}`;
   els.sourceEditor.value = next;
   els.sourceEditor.setSelectionRange(start + String(item.insert_text ?? "").length, start + String(item.insert_text ?? "").length);
@@ -199,9 +204,10 @@ function selectCompletion(index = state.completionSelectedIndex) {
 }
 
 async function requestCompletion() {
+  els.sourceEditor.dataset.completionNotice="";
   const file = activeFile();
   const source = els.sourceEditor?.value ?? "";
-  if (state.completionComposing || !file?.path?.endsWith(".ddn") || els.sourceEditor?.readOnly
+  if (state.completionComposing || !/[.](?:ddn|또니)$/u.test(file?.path ?? "") || els.sourceEditor?.readOnly
       || document.activeElement !== els.sourceEditor) {
     closeCompletionPopup();
     return;

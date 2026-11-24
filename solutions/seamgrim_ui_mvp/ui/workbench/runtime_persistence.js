@@ -1,3 +1,4 @@
+import { checkSpace3WorldSave } from "../runtime/wasm_vm_runtime.js";
 // Existing runtime storage capture and restoration; producer, integrity and rejection paths unchanged.
 export function createRuntimePersistence({ activeFrame, activeRun, activeRunSourceChanged, alpha2HostPacing, buildFrame, buildRunId, commitRuntimeProject, currentProject, currentVirtualProjectSource, drawPreview, EXECUTION_EVENTS, hostBridge, loadRuntimeProject, nativeSourceAvailable, nativeSourceRequest, newRuntimeRevisionHex, projectExecutionPlanFromPrepared, readStateHash, recipeHash, renderAll, runtimeBridge, runtimeStorageRecord, state, syncExecutionLifecycleCompatibility, transitionExecutionLifecycle, virtualProjectSourceHash, workbenchAuthoredPanelAccess, workbenchHostExecutionState, workbenchLogicalPresentationState, workbenchSourceProfile }) {
 function captureRuntimeStorageContext(artifactText,{allowCold=false}={}) {
@@ -45,6 +46,7 @@ async function saveCurrentRuntimeProject(artifactText) {
       if(!workbenchAuthoredPanelAccess.current.hasNativeSourceContext())throw new Error('E_NATIVE_SOURCE_SAVE_REQUIRED: 먼저 작품 원문을 Native에 저장하세요.');
       const input=await context.inputRequest();unchanged();
       const current=await context.summary();unchanged();
+      checkSpace3WorldSave(current);
       const result=await nativeSourceRequest('logical_save',artifactText,{input_request:input,state_hash:current.state_hash});unchanged();
       if(result.kind!=='native_logical_world'||result.summary?.state_hash!==current.state_hash||result.summary?.madi_count!==current.madi_count)
         throw new Error('E_NATIVE_SOURCE_LOGICAL_SAVE_MISMATCH: Native 저장 결과가 현재 세계와 다릅니다.');
@@ -112,8 +114,11 @@ async function reopenCurrentRuntimeProject(artifactText) {
     }
   }
   const context=captureRuntimeStorageContext(artifactText,{allowCold:true});
-  const record=await loadRuntimeProject(context.projectId);context.unchanged();
-  if(!record)throw new Error('E_PROJECT_RUNTIME_NOT_SAVED: 이 작품의 저장된 실행 상태가 없습니다.');
+  const native=await nativeSourceAvailable();context.unchanged();
+  if(native&&!workbenchAuthoredPanelAccess.current.hasNativeSourceContext())
+    throw new Error('E_NATIVE_SOURCE_SAVE_REQUIRED: 저장한 Native 원문을 먼저 여세요.');
+  const record=native?null:await loadRuntimeProject(context.projectId);context.unchanged();
+  if(!native&&!record)throw new Error('E_PROJECT_RUNTIME_NOT_SAVED: 이 작품의 저장된 실행 상태가 없습니다.');
   if(context.cold) {
     const source=currentVirtualProjectSource(currentProject());
     if(!source)throw new Error('E_PROJECT_RUNTIME_ROOT_REQUIRED: 명시 뿌리 원문을 먼저 여세요.');
@@ -125,14 +130,19 @@ async function reopenCurrentRuntimeProject(artifactText) {
       authored_artifact_text:workbenchAuthoredPanelAccess.current.getRunArtifact(),bogae_entry:'',recipe_hash:recipeHash(),
       recipe_version:state.recipeVersion,setup:{},frames:[],immutable:true};
   }
-  const checked=await restoredRuntimeCandidate(context,record);
+  const candidate=native?await runtimeBridge.createSession({ddnSourceText:context.run.execution_source,
+    sourceProfileIdentity:workbenchSourceProfile(currentProject()),projectRuntimeArtifactText:artifactText,
+    nativeSourceRequested:true,nativeSourceRestoreOnly:true}):null;
+  let checked=null;
   let published=false;
   try{
-    const savedSource=JSON.parse(record.artifact_text).project_snapshot?.authored_project_json_utf8;
+    if(native&&!candidate.hasNativeSource())throw new Error('E_NATIVE_SOURCE_RESTORE_REPLY');
+    checked=native?{candidate,state:await candidate.getStateJson()}:await restoredRuntimeCandidate(context,record);
+    const savedSource=native?artifactText:JSON.parse(record.artifact_text).project_snapshot?.authored_project_json_utf8;
     if(savedSource!==artifactText)throw new Error('E_PROJECT_RUNTIME_SOURCE_CHANGED: 저장 실행의 원문과 현재 작품 자료가 다릅니다.');
     context.unchanged();
     const run={...context.run,run_id:buildRunId('restored'),parent_run_id:context.run.run_id,
-      frames:[],restored_from_revision:record.revision_hex,restored_without_tape_history:true,
+      frames:[],...(record?{restored_from_revision:record.revision_hex}:{}),restored_without_tape_history:true,
       committed_step_count:Number(checked.state.tick_id??0)};
     run.execution_mode_decision=checked.candidate.getExecutionModeDecision();
     run.configured_madi=checked.candidate.getConfiguredMadi();
@@ -151,10 +161,13 @@ async function reopenCurrentRuntimeProject(artifactText) {
     // No await inside publication; both VM and visible frame change together.
     state.runs.push(run);state.activeRunId=run.run_id;state.cursorIndex=0;state.wasm=checked.candidate;
     state.executionLifecycle=restoredLifecycle.lifecycle;syncExecutionLifecycleCompatibility();
+    const message='저장한 실행 상태를 복원했습니다. 연속 실행 작품은 다음 마디를 이어갈 수 있습니다.';
+    if(native)state.persistenceStatus={schema:'seamgrim.workbench.persistence_status.v1',
+      mode:'native_world',server_saved:false,local_saved:true,user_label:'Native에 저장한 실행 상태를 열었습니다.'};
     published=true;renderAll();drawPreview();
     await context.vm?.close();
-    return '저장한 실행 상태를 복원했습니다. 연속 실행 작품은 다음 마디를 이어갈 수 있습니다.';
-  }finally{if(!published)await checked.candidate.close();}
+    return message;
+  }finally{if(!published)await (checked?.candidate??candidate)?.close();}
 }
 async function exportCurrentRuntimeProject(artifactText) {
   const context=captureRuntimeStorageContext(artifactText);

@@ -85,6 +85,7 @@ const BOGAE_DEFAULT_TEXT_SIZE: Fixed64 = Fixed64::from_raw_i64(343_597_383);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SupportedSourceProfile {
     V1CoreV25,
+    V1CoreV25JaBaseR1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,6 +97,9 @@ pub struct SupportedSourceProfileError {
 pub fn resolve_supported_source_profile(
     identity: Option<&str>,
 ) -> Result<SupportedSourceProfile, SupportedSourceProfileError> {
+    if identity.is_some_and(|raw|raw.trim()==ddonirang_lang::ddl::J1_SOURCE_PROFILE&&raw!=ddonirang_lang::ddl::J1_SOURCE_PROFILE){
+        return Err(SupportedSourceProfileError{code:E_SOURCE_PROFILE_UNSUPPORTED,message:"J1 source profile의 정확한 철자가 필요합니다".into()});
+    }
     let identity = identity.map(str::trim).filter(|value| !value.is_empty());
     match identity {
         None => Err(SupportedSourceProfileError {
@@ -103,6 +107,7 @@ pub fn resolve_supported_source_profile(
             message: "supported source profile을 명시해야 합니다.".to_string(),
         }),
         Some(V1_CORE_SUPPORTED_SOURCE_PROFILE_IDENTITY) => Ok(SupportedSourceProfile::V1CoreV25),
+        Some(ddonirang_lang::ddl::J1_SOURCE_PROFILE) => Ok(SupportedSourceProfile::V1CoreV25JaBaseR1),
         Some(other) => Err(SupportedSourceProfileError {
             code: E_SOURCE_PROFILE_UNSUPPORTED,
             message: format!("지원하지 않는 source profile입니다: {other}"),
@@ -499,10 +504,14 @@ pub fn set_default_age_target(age: AgeTarget) {
 pub struct DdnProgram {
     source_identity: String,
     source_capture: Option<crate::source_snapshot_admission::SourceCapture>,
+    public_callable_context: Option<Arc<ddonirang_lang::parser::RegisteredPublicCallableContext>>,
+    public_callable_authored_owner: Option<Arc<crate::authored_project::PublicCallableAuthoredContext>>,
+    public_callable_canonical_source: Option<String>,
     first_callable_context: Option<Arc<ddonirang_lang::parser::RegisteredFirstCallableContext>>,
     first_callable_authored_owner: Option<Arc<crate::authored_project::FirstCallableAuthoredContext>>,
     first_callable_canonical_source: Option<String>,
     saved_project_sources: Option<Arc<crate::project_revision_envelope_supply::VerifiedSavedV25Sources>>,
+    logic_source_scopes:Option<Arc<BTreeMap<ddonirang_lang::NodeId,crate::authored_project::registration::CheckedLogicSourceScope>>>,
     #[allow(dead_code)]
     program: CanonProgram,
     functions: HashMap<String, SeedDef>,
@@ -512,6 +521,7 @@ pub struct DdnProgram {
     registered_atom_literals:BTreeMap<NodeId,ddonirang_core::platform::RegisteredAtomValueV1>,
     result_output_type_plan:Option<Arc<crate::registered_atom_contract::output_evidence::OutputTypePlanV1>>,
     temporary_registration:Option<Arc<crate::authored_project::registration::temporary::TemporaryRegisteredSource>>,
+    nominal_source_registration:Option<Arc<crate::authored_project::registration::nominal_source::RegisteredNominalSource>>,
     temporary_subject_bootstrap:Option<crate::unit_wire::subject_execution::SubjectExecutionStage>,
     registered_nominal_catalog:Option<Arc<crate::authored_project::registration::SavedNominalCatalogV1>>,
     registered_atom_contracts:Arc<Vec<crate::registered_atom_contract::RecordedAtomContract>>,
@@ -548,7 +558,8 @@ pub(crate) use saved_program_rebuild::canonical_definition_program;
 
 mod source_validation;
 pub use source_validation::{extract_setting_madi};
-use source_validation::{validate_v1_core_no_named_callable_recursion, validate_v25_known_infix_operand_types, scan_original_public_observation_fields, token_observation_name, collect_public_observation_fields, collect_top_level_decl_names, authored_top_level_decl_names, enforce_regex_age_gate, enforce_assertion_age_gate, enforce_state_machine_age_gate, enforce_quantifier_age_gate};
+pub(crate) use source_validation::authored_top_level_decl_names;
+use source_validation::{validate_v1_core_no_named_callable_recursion, validate_v25_known_infix_operand_types, scan_original_public_observation_fields, token_observation_name, collect_public_observation_fields, collect_top_level_decl_names, enforce_regex_age_gate, enforce_assertion_age_gate, enforce_state_machine_age_gate, enforce_quantifier_age_gate};
 
 mod internal_reactions;
 pub use internal_reactions::{InternalReactionProgram, InternalReactionOperation, InternalEffectIntent, ReactionProviderPatchCandidate, ReactionGroupCommitCandidate, InternalReactionFailure, InternalReactionSuccess, InternalReactionPrepared, InternalTypedReactionRuntime};
@@ -601,8 +612,10 @@ pub struct DdnRunner {
     bogae_entry: Option<String>,
     authored_bogae: Option<crate::authored_bogae::Activation>,
     bogae_history: crate::bogae_time::SceneHistory,
+    table_selection_history: Option<crate::bogae_time::TableSelectionTimeline>,
     prev_keys_pressed: u64,
     project_asset_registry: Option<Arc<gate0_registry::ProjectAssetRegistry>>,
+    source_bound_binary_assets: Option<Arc<crate::authored_bogae::xy::binary_assets::PreparedBinaryAssets>>,
     work_cost: Rc<RefCell<WorkCostMeter>>,
     async_queue_capacity: usize,
     internal_dispatch: InternalDdnRunnerDispatchState,
@@ -626,6 +639,7 @@ pub struct DdnRunOutput {
     /// A3-P1: typed display sidecar; never a world resource or input authority.
     pub display_outputs: Vec<crate::output_display::OutputDisplay>,
     pub bogae_projection: Option<serde_json::Value>,
+    pub(crate) table_selections: crate::bogae_projection::BoundTableSelections,
     pub patch: Patch,
     /// 실제 실행 중 읽은 입력 필드. 세계 상태에는 넣지 않는다.
     pub input_reads: BTreeSet<String>,
@@ -787,6 +801,9 @@ impl From<HashMap<String, Value>> for ResourceBindings {
 }
 
 struct EvalContext<'a> {
+    source_root_values:Rc<RefCell<BTreeMap<NodeId,Value>>>,
+    active_function_sources:Option<Arc<BTreeMap<NodeId,Value>>>,
+    active_function_graph:Option<Arc<crate::function_call_graph::CheckedGraph>>,
     result_emissions: crate::replay_evidence::StagedResultEmissionsV1,
     subject_stage:Option<Rc<RefCell<crate::unit_wire::subject_execution::SubjectExecutionStage>>>,
     tuple_type_plan: Rc<crate::tuple_saved_type_plan::TupleSavedTypePlan>,
@@ -839,6 +856,7 @@ struct EvalContext<'a> {
     // A named call starts its own binding owner and restores this stack.
     sum_pattern_bindings: Vec<String>,
     project_asset_registry: Option<&'a gate0_registry::ProjectAssetRegistry>,
+    source_bound_binary_assets: Option<&'a crate::authored_bogae::xy::binary_assets::PreparedBinaryAssets>,
     work_cost: Rc<RefCell<WorkCostMeter>>,
     internal_dispatch: InternalDdnRunnerDispatchState,
 }
@@ -891,6 +909,7 @@ fn restore_local_binding(locals: &mut HashMap<String, Value>, name: &str, previo
 
 #[derive(Clone)]
 struct EvalFrameSnapshot {
+    source_root_values:BTreeMap<NodeId,Value>,
     result_emissions: crate::replay_evidence::StagedResultEmissionsV1,
     derived_initialized: bool,
     subject_stage:Option<crate::unit_wire::subject_execution::SubjectExecutionStage>,
@@ -1095,6 +1114,7 @@ fn checked_selection_range(start:u64,end:u64,len:usize) -> Result<(usize,usize),
 #[derive(Debug)]
 pub(crate) enum EvalError {
     Message(String),
+    ConditionType,
     SourceLocated {
         error: Box<EvalError>,
         span: (usize, usize),
@@ -1118,6 +1138,7 @@ pub(crate) enum EvalError {
     },
     ArithmeticFault(ArithmeticFaultKind),
     DivisionByZero,
+    RationalZeroDenominator,
     FieldAccess {
         code: &'static str,
         message: String,
@@ -1162,6 +1183,7 @@ impl EvalError {
     fn message(&self) -> String {
         match self {
             EvalError::Message(message) => message.clone(),
+            EvalError::ConditionType => "E_RUNTIME_CONDITION_TYPE: 조건은 참거짓이어야 합니다".into(),
             EvalError::SourceLocated { error, line, column, .. } => {
                 format!("{} ({line}:{column})", error.message())
             }
@@ -1182,6 +1204,7 @@ impl EvalError {
                 )
             }
             EvalError::DivisionByZero => "0으로 나눌 수 없습니다".to_string(),
+            EvalError::RationalZeroDenominator => "나눔수의 분모는 0일 수 없습니다".to_string(),
             EvalError::ArithmeticFault(ArithmeticFaultKind::Overflow) => {
                 "Fixed64 계산 범위를 벗어났습니다".to_string()
             }
@@ -1203,7 +1226,12 @@ impl EvalError {
     pub(crate) fn diagnostic_parts(&self) -> (&'static str, String, Option<(usize, usize)>) {
         match self {
             EvalError::SourceLocated { error, span, .. } => {
-                (error.diagnostic_parts().0, self.message(), Some(*span))
+                let message = if matches!(error.as_ref(), EvalError::ConditionType) {
+                    error.message()
+                } else {
+                    self.message()
+                };
+                (error.diagnostic_parts().0, message, Some(*span))
             }
             EvalError::TypeMismatch { .. } => ("E_RUNTIME_TYPE_MISMATCH", self.message(), None),
             EvalError::AsyncCandidate {
@@ -1836,9 +1864,9 @@ fn contains_unresolved_bogae_relation_for_builtin<'a>(
         meter.charge_element_visits(1)?;
         match value {
             Value::BogaeRelation(_) | Value::BogaeComposition(_) => return Ok(true),
-            Value::Scene(_) | Value::SceneElement(_) | Value::View(ddonirang_lang::runtime::ViewValue::Scene(_)) =>
+            Value::Scene(_) | Value::SpaceScene(_) | Value::SceneElement(_) | Value::View(ddonirang_lang::runtime::ViewValue::Scene(_) | ddonirang_lang::runtime::ViewValue::SpaceScene(_)) =>
                 if !ordered_scene_carrier { return Err("E_SCENE_OPERATION_UNSUPPORTED: 장면 값의 비교·열쇠 사용은 아직 지원하지 않습니다".to_string().into()); },
-            Value::View(view) if matches!(view.without_time(), ddonirang_lang::runtime::ViewValue::Scene(_)) =>
+            Value::View(view) if matches!(view.without_time(), ddonirang_lang::runtime::ViewValue::Scene(_) | ddonirang_lang::runtime::ViewValue::SpaceScene(_)) =>
                 if !ordered_scene_carrier { return Err("E_SCENE_OPERATION_UNSUPPORTED: 장면 값의 비교·열쇠 사용은 아직 지원하지 않습니다".to_string().into()); },
             Value::List(items) => stack.push(Box::new(items.iter())),
             Value::Set(items) | Value::Pack(items) => stack.push(Box::new(items.values())),
@@ -1916,7 +1944,7 @@ fn value_rank(value: &Value) -> u8 {
         Value::View(_) => 15,
         Value::TimePolicy(_) => 20,
         Value::SceneElement(_) => 18,
-        Value::Scene(_) => 19,
+        Value::Scene(_) | Value::SpaceScene(_) => 19,
         Value::BogaeRelation(_) => 16,
         Value::BogaeComposition(_) => 17,
         Value::Pack(_) => {
@@ -2476,7 +2504,7 @@ use formula_values::{
 fn is_truthy(value: &Value) -> Result<bool, EvalError> {
     match value {
         Value::Bool(b) => Ok(*b),
-        _ => Err("E_RUNTIME_CONDITION_TYPE: 조건은 참거짓이어야 합니다".to_string().into()),
+        _ => Err(EvalError::ConditionType),
     }
 }
 

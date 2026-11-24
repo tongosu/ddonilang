@@ -2,6 +2,37 @@
 //! the real Native owner and compare before changing Pending or the world head.
 use super::*;
 use crate::{runtime_surface as runtime,logical_input_tape::LogicalRecordRequest};
+use crate::snapshot_v2_durable_transaction::native::{AuthoringHeadV1, SqliteAdapterV1};
+use crate::project_revision_envelope_supply::VerifiedSavedAuthoredProjectV1;
+use crate::unit_wire::resumable_complete_state::CheckpointedLogicalRunV1;
+
+/// A separate read-only observation. It cannot yield a permit, replay seed,
+/// candidate world, or authority to skip any of the normal storage checks.
+fn reject_observed_read_only_view(
+    owned: VerifiedSavedAuthoredProjectV1, input: &LogicalRecordRequest,
+    recheck: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    let mut run = match CheckpointedLogicalRunV1::fresh(
+        &owned, input.binding.clone(), crate::ddn_runtime::default_age_target(),
+    ) {
+        Ok(run) => run,
+        // An inconclusive preview leaves validation and its diagnostic to
+        // the protected execution, whose final 3D write gate remains in force.
+        Err(_) => return Ok(()),
+    };
+    for snapshot in &input.snapshots {
+        if run.step(snapshot).is_err() {
+            return Ok(());
+        }
+    }
+    if let Err(reason) = run.session().check_durable_view_history() {
+        // Prefer actual stale/authority diagnostics if the protected head
+        // changed while the independent read-only run was executing.
+        recheck()?;
+        return Err(reason.into());
+    }
+    Ok(())
+}
 
 pub(super) fn recover_finish(authored:&str,input:&LogicalRecordRequest,
     retained:&BTreeMap<String,runtime::NativeFirstSourceWorldRetained>)->Result<String,String>{
@@ -39,6 +70,21 @@ pub(super) fn new_run(authored:&str,input:&LogicalRecordRequest,selection:&runti
     let current=runtime::current_authoring_source_native(&path,&identity(project)?,&source.grant_locator)?.ok_or("E_SOURCE_NEW_RUN_NOT_READY")?;
     let payload:serde_json::Value=serde_json::from_str(&current.0.project_payload_utf8).map_err(|_|"E_NATIVE_SOURCE_SOURCE_PAYLOAD")?;
     if payload["authored_project_json_utf8"].as_str()!=Some(authored){return Err("E_NATIVE_SOURCE_SOURCE_CHANGED".into());}
+    if selection.kind != 0 || selection.project != identity(project)? {
+        return Err("E_SOURCE_NEW_RUN_SELECTION".into());
+    }
+    let read_owner = || {
+        let mut adapter = SqliteAdapterV1::open_source_revision(&path)
+            .map_err(|cause| format!("E_SOURCE_NEW_RUN_OPEN: {cause:?}"))?;
+        let head = AuthoringHeadV1 {
+            project: selection.project.clone(), revision: selection.revision.clone(),
+            integrity: selection.integrity, key: selection.key, kind: selection.kind,
+        };
+        let base = adapter.admit_authoring_base(&source.grant_locator, &head, authored)
+            .map_err(|cause| format!("E_SOURCE_NEW_RUN_ADMISSION: {cause:?}"))?;
+        base.source().recorded_execution_owner()
+    };
+    reject_observed_read_only_view(read_owner()?, input, || read_owner().map(drop))?;
     let next=revision_id()?;let parent=hex::encode(&current.0.revision_identity);
     let prepared=runtime::begin_new_authored_source_native(&path,&identity(project)?,&source.grant_locator,authored,selection)?.execute_logical(input)?.prepare(&next)?;
     prepared.stage_restore_cache(|artifact,digest|write_once(&path.join(format!("world-{}.json",hex::encode(digest))),
@@ -112,12 +158,24 @@ pub(super) fn dispatch(authored:&str,input:&LogicalRecordRequest,expected:Option
     }else{
         let expected=expected.ok_or("E_NATIVE_SOURCE_WORLD_REQUIRED: 논리 입력 저장본이 없습니다")?;
         if input.snapshots.is_empty(){return Err("E_NATIVE_SOURCE_LOGICAL_INPUT_RANGE".into());}
-        let actual={let _phase=crate::storage_observation::Span::start("logical.first_save_read_source");
-            runtime::read_authored_source_native(&path,&identity(project)?,&source.grant_locator)?};
-        let payload:serde_json::Value=serde_json::from_str(&actual.project_payload_utf8).map_err(|_|"E_NATIVE_SOURCE_SOURCE_PAYLOAD")?;
+        let project_id = identity(project)?;
+        let read_source = || runtime::read_verified_unused_authored_source(&path, &project_id, &source.grant_locator);
+        let (actual, _) = {
+            let _phase = crate::storage_observation::Span::start("logical.first_save_read_source");
+            read_source()?
+        };
+        let payload_text = std::str::from_utf8(actual.payload()).map_err(|_| "E_SOURCE_REVISION_UTF8")?;
+        let payload:serde_json::Value=serde_json::from_str(payload_text).map_err(|_|"E_NATIVE_SOURCE_SOURCE_PAYLOAD")?;
         if payload["authored_project_json_utf8"].as_str()!=Some(authored){return Err("E_NATIVE_SOURCE_SOURCE_CHANGED".into());}
+        reject_observed_read_only_view(actual.recorded_execution_owner()?, input, || {
+            let (verified, _) = read_source()?;
+            if verified.revision() != actual.revision() || verified.integrity() != actual.integrity() {
+                return Err("E_NATIVE_SOURCE_SOURCE_CHANGED".into());
+            }
+            Ok(())
+        })?;
         let session={let _phase=crate::storage_observation::Span::start("logical.first_save_begin");
-            runtime::begin_first_authored_source_native(&path,&identity(project)?,&source.grant_locator,&actual.revision_identity,&actual.revision_integrity)?};
+            runtime::begin_first_authored_source_native(&path,&project_id,&source.grant_locator,actual.revision(),actual.integrity())?};
         let execution={let _phase=crate::storage_observation::Span::start("logical.first_save_execute");
             session.execute_logical(input)?};
         {let _phase=crate::storage_observation::Span::start("logical.first_save_compare");
@@ -128,12 +186,12 @@ pub(super) fn dispatch(authored:&str,input:&LogicalRecordRequest,expected:Option
             execution.prepare(&next)?};
         {let _phase=crate::storage_observation::Span::start("logical.first_save_stage_cache");
             prepared.stage_restore_cache(|artifact,digest|{
-                let cache=WorldLocator{parent_hex:hex::encode(&actual.revision_identity),revision_hex:hex::encode(&next),saved_artifact_json_utf8:artifact.into()};
+                let cache=WorldLocator{parent_hex:hex::encode(actual.revision()),revision_hex:hex::encode(&next),saved_artifact_json_utf8:artifact.into()};
                 write_once(&path.join(format!("world-{}.json",hex::encode(digest))),&cache)?;write_once(&world_path,&cache)
             })?;}
         let (artifact,summary)={let _phase=crate::storage_observation::Span::start("logical.first_save_commit");
             prepared.commit()?};
-        (artifact,hex::encode(actual.revision_identity),hex::encode(next),summary)
+        (artifact,hex::encode(actual.revision()),hex::encode(next),summary)
     };
     // The response is emitted only after Native readmission/commit. The UI
     // receives an input projection, not a Native permit or durable capsule.
@@ -213,7 +271,7 @@ mod tests {
         assert_eq!(std::env::var("DDN_PRIVATE_STORAGE_TIMING").as_deref(),Ok("1"));
         assert_eq!(std::env::var("LOCALAPPDATA").as_deref(),Ok(local.as_str()));
         assert!(std::fs::metadata(&request_path).unwrap().len()<=1_048_576);
-        let request=std::fs::read_to_string(&request_path).unwrap();
+        let request=std::fs::read_to_string(request_path).unwrap();
         assert_eq!(runtime::sha256_hex(request.as_bytes()),
             "2888a09f0fa9bc5ed27e5e7ad49669abddd70adb694eddef5408b52130d619f4");
         let parsed:serde_json::Value=serde_json::from_str(&request).unwrap();

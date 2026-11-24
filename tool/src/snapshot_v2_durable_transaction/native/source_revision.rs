@@ -50,6 +50,16 @@ impl SqliteAdapterV1 {
         use SourceSaveFailure::{BeforeCommit as Before,AfterCommitUnconfirmed as After};
         if self.schema_profile!=NativeSchemaProfile::SourceRevision||source.parent().is_empty(){return Err(Before(Failure::UnsupportedDurability));}
         let expected_integrity=grant.verify_source_successor(self,source).map_err(Before)?;
+        self.commit_source_successor(source,&expected_integrity)?;
+        grant.verify_saved_source(self,source).map_err(After)?;
+        let chain=self.read_source_chain(source.project()).map_err(After)?;
+        if chain.latest.revision()!=source.revision()||chain.latest.integrity()!=source.integrity(){return Err(After(Failure::RereadMismatch));}
+        Ok(DurablySavedSourceRevision{_lease:self,source:chain.latest})
+    }
+
+    #[cfg(windows)]
+    fn commit_source_successor(&mut self,source:&Source,expected_integrity:&[u8;32])->Result<(),SourceSaveFailure>{
+        use SourceSaveFailure::{BeforeCommit as Before,AfterCommitUnconfirmed as After};
         let db=self.connect().map_err(Before)?;db.execute_batch("BEGIN IMMEDIATE").map_err(|_|Before(Failure::WriteFailed))?;
         let write=(||->Result<(),Failure>{
             let count:i64=db.query_row("SELECT count(*) FROM (SELECT 1 FROM vc04_project_revisions LIMIT 65536)",[],|r|r.get(0)).map_err(database_error)?;
@@ -71,11 +81,84 @@ impl SqliteAdapterV1 {
         drop(successor_commit_observation);
         #[cfg(test)]
         if SAVE_FAULT.with(|f|f.get())==2{return Err(After(Failure::RereadFailed));}
-        grant.verify_saved_source(self,source).map_err(After)?;
-        let chain=self.read_source_chain(source.project()).map_err(After)?;
-        if chain.latest.revision()!=source.revision()||chain.latest.integrity()!=source.integrity(){return Err(After(Failure::RereadMismatch));}
-        Ok(DurablySavedSourceRevision{_lease:self,source:chain.latest})
+        Ok(())
     }
+
+    /// Append the first spelling-only edition to the closed source-only
+    /// store, using its existing parent CAS and protected root lease.
+    #[cfg(windows)]
+    pub(crate) fn save_public_edition_successor(&mut self,previous:&Source,source:&Source)->Result<Source,SourceSaveFailure>{
+        use SourceSaveFailure::{BeforeCommit as Before,AfterCommitUnconfirmed as After};
+        let actual=self.load_current_source_revision(previous.project(),previous.revision(),previous.integrity()).map_err(Before)?;
+        if actual.source().artifact().map_err(|_|Before(Failure::CustodyConflict))?!=previous.artifact().map_err(|_|Before(Failure::CustodyConflict))?
+            ||source.project()!=previous.project()||source.parent()!=previous.revision(){
+            return Err(Before(Failure::CustodyConflict));
+        }
+        let checked=Source::restore_public_edition(actual.source(),source.revision(),source.integrity(),
+            source.profile(),source.pesi(),source.payload(),source.envelope())
+            .map_err(|_|Before(Failure::CustodyConflict))?;
+        self.commit_source_successor(&checked,previous.integrity())?;
+        self.read_public_edition_history(previous,checked.revision(),checked.integrity())
+            .map(|(_,child)|child).map_err(After)
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn read_public_edition_history(&self,previous:&Source,revision:&[u8],integrity:&[u8;32])->Result<(Source,Source),Failure>{
+        if self.schema_profile!=NativeSchemaProfile::SourceRevision||!previous.parent().is_empty()
+            ||revision.is_empty()||revision.len()>4096||revision==previous.revision(){return Err(Failure::CustodyConflict);}
+        self.confirm_container_durable()?;
+        let db=self.connect()?;
+        db.execute_batch("BEGIN").map_err(database_error)?;
+        for (table,expected) in [("vc04_project_heads",1),("vc04_project_revisions",2),("vc04_prepared_payloads",2),("vc04_recovery_custody_v1",0)]{
+            let count:i64=db.query_row(&format!("SELECT count(*) FROM (SELECT 1 FROM {table} LIMIT 3)"),[],|row|row.get(0)).map_err(database_error)?;
+            if count!=expected{return Err(Failure::CustodyConflict);}
+        }
+        let head:i64=db.query_row("SELECT count(*) FROM vc04_project_heads WHERE project_identity=?1 AND history_revision_identity=?2
+            AND revision_integrity_sha256=?3 AND payload_kind=0 AND payload_key=?3",
+            params![previous.project(),revision,integrity.as_slice()],|row|row.get(0)).map_err(database_error)?;
+        if head!=1{return Err(Failure::StaleRevision);}
+        let old=super::source_chain::read(&db,previous.project(),previous.revision())?;
+        if old.integrity()!=previous.integrity()||!old.parent().is_empty(){return Err(Failure::CustodyConflict);}
+        let new=super::source_chain::read_public_edition(&db,&old,revision)?;
+        if new.integrity()!=integrity{return Err(Failure::RereadMismatch);}
+        db.execute_batch("COMMIT").map_err(database_error)?;
+        Ok((old,new))
+    }
+
+    // The workbench locator anchors the original edition. The protected store,
+    // rather than a second receipt file, supplies the successor after restart.
+    #[cfg(windows)]
+    pub(crate) fn read_public_editions_at_anchor(
+        &self, project:&[u8], revision:&[u8], integrity:&[u8;32],
+    )->Result<(Source,Option<Source>),Failure>{
+        if self.schema_profile!=NativeSchemaProfile::SourceRevision||project.len()!=32
+            ||revision.is_empty()||revision.len()>4096{
+            return Err(Failure::UnsupportedDurability);
+        }
+        self.confirm_container_durable()?;
+        let db=self.connect()?;
+        let (head_revision,head_integrity)=db.query_row(
+            "SELECT history_revision_identity,revision_integrity_sha256 FROM vc04_project_heads
+                WHERE project_identity=?1 AND payload_kind=0 AND payload_key=revision_integrity_sha256",
+            [project],|row|Ok((row.get::<_,Vec<u8>>(0)?,row.get::<_,Vec<u8>>(1)?)),
+        ).optional().map_err(database_error)?.ok_or(Failure::RereadMismatch)?;
+        drop(db);
+        if head_revision==revision{
+            if head_integrity!=integrity{return Err(Failure::CustodyConflict);}
+            let initial=self.load_current_source_revision(project,revision,integrity)?;
+            return Ok((initial.source().clone(),None));
+        }
+        // The anchor may name only the initial source and the existing
+        // history reader must independently confirm both rows and the head.
+        let db=self.connect()?;
+        let initial=super::source_chain::read(&db,project,revision)?;
+        if initial.integrity()!=integrity||!initial.parent().is_empty(){return Err(Failure::CustodyConflict);}
+        drop(db);
+        let head_integrity=head_integrity.try_into().map_err(|_|Failure::CustodyConflict)?;
+        let (initial,head)=self.read_public_edition_history(&initial,&head_revision,&head_integrity)?;
+        Ok((initial,Some(head)))
+    }
+
     /// The bounded initial source workflow only. Updating a world parent or
     /// bypassing an unresolved grant/Attempt is not supported by this entry.
     pub(crate) fn save_initial_source_revision<'a>(&'a mut self,source:&Source)->Result<DurablySavedSourceRevision<'a>,SourceSaveFailure> {
@@ -84,6 +167,22 @@ impl SqliteAdapterV1 {
 
     pub(super) fn save_initial_source_revision_bound<'a>(&'a mut self,source:&Source,
         grant:Option<&super::root_grant::AdmittedSourceGrantV2>)->Result<DurablySavedSourceRevision<'a>,SourceSaveFailure> {
+        self.save_initial_source_revision_selected(source,grant,false)
+    }
+    /// Private codec integration; the existing transaction and CAS are shared.
+    pub(crate) fn save_initial_logic_source_revision_private<'a>(&'a mut self,source:&Source)->Result<DurablySavedSourceRevision<'a>,SourceSaveFailure>{
+        self.save_initial_source_revision_selected(source,None,true)
+    }
+    #[cfg(windows)]
+    pub(super) fn save_initial_logic_source_revision_bound_private<'a>(&'a mut self,source:&Source,
+        grant:Option<&super::root_grant::AdmittedSourceGrantV2>)->Result<DurablySavedSourceRevision<'a>,SourceSaveFailure>{
+        self.save_initial_source_revision_selected(source,grant,true)
+    }
+    fn save_initial_source_revision_selected<'a>(&'a mut self,source:&Source,grant:Option<&super::root_grant::AdmittedSourceGrantV2>,logic_private:bool)->Result<DurablySavedSourceRevision<'a>,SourceSaveFailure>{
+        if logic_private {
+            source.owned().registration().ok_or(SourceSaveFailure::BeforeCommit(Failure::CustodyConflict))?
+                .verify_production_logic_dependency(&source.owned().precanon_view()).map_err(|_|SourceSaveFailure::BeforeCommit(Failure::CustodyConflict))?;
+        }else if source.owned().sources().logic_callable_context().is_some(){return Err(SourceSaveFailure::BeforeCommit(Failure::UnsupportedDurability));}
         let _observation = crate::storage_observation::Span::start("sqlite.source_revision.save_initial_total");
         use SourceSaveFailure::{BeforeCommit as Before,AfterCommitUnconfirmed as After};
         if self.schema_profile!=NativeSchemaProfile::SourceRevision||!source.parent().is_empty() {
@@ -126,13 +225,19 @@ impl SqliteAdapterV1 {
         drop(db);
         #[cfg(test)]
         if SAVE_FAULT.with(|f|f.get())==2{return Err(After(Failure::RereadFailed));}
-        self.load_current_source_revision(source.project(),source.revision(),source.integrity()).map_err(After)
+        self.load_current_source_revision_selected(source.project(),source.revision(),source.integrity(),logic_private).map_err(After)
     }
 
     /// Actual new connection + full raw reconstruction under the OS root
     /// lease. This proves source readback only, not cold first-world admission.
     pub(crate) fn load_current_source_revision<'a>(&'a self,project:&[u8],revision:&[u8],integrity:&[u8;32])
         ->Result<DurablySavedSourceRevision<'a>,Failure> {
+        self.load_current_source_revision_selected(project,revision,integrity,false)
+    }
+    pub(crate) fn load_current_logic_source_revision_private<'a>(&'a self,project:&[u8],revision:&[u8],integrity:&[u8;32])->Result<DurablySavedSourceRevision<'a>,Failure>{
+        self.load_current_source_revision_selected(project,revision,integrity,true)
+    }
+    fn load_current_source_revision_selected<'a>(&'a self,project:&[u8],revision:&[u8],integrity:&[u8;32],logic_private:bool)->Result<DurablySavedSourceRevision<'a>,Failure>{
         if self.schema_profile!=NativeSchemaProfile::SourceRevision||project.len()!=32||revision.is_empty()||revision.len()>4096 {
             return Err(Failure::UnsupportedDurability);
         }
@@ -160,7 +265,8 @@ impl SqliteAdapterV1 {
                     return Err(rusqlite::Error::InvalidQuery);
                 }
                 let pesi:[u8;32]=blob(11,32)?.try_into().map_err(|_|rusqlite::Error::InvalidQuery)?;
-                Source::restore(project,&[],revision,integrity,blob(10,4096)?,&pesi,blob(14,2_000_000)?,blob(13,1_000_000)?)
+                let restore=if logic_private{Source::restore_logic_private}else{Source::restore};
+                restore(project,&[],revision,integrity,blob(10,4096)?,&pesi,blob(14,2_000_000)?,blob(13,1_000_000)?)
                     .map_err(|_|rusqlite::Error::InvalidQuery)
             }).optional().map_err(database_error)?.ok_or(Failure::RereadMismatch)?;
         Ok(DurablySavedSourceRevision{_lease:self,source})

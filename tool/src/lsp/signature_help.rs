@@ -449,6 +449,7 @@ fn collect_expr_calls<'a>(expr: &'a Expr, calls: &mut Vec<CallCandidate<'a>>) {
             collect_expr_calls(right, calls);
         }
         ExprKind::Suffix { value, .. } => collect_expr_calls(value, calls),
+        ExprKind::FunctionBlock{statements,result}=>{collect_body_calls(statements,calls);collect_expr_calls(result,calls);},
         ExprKind::Thunk(body) => collect_body_calls(body, calls),
         ExprKind::Pipe { stages } => {
             for stage in stages {

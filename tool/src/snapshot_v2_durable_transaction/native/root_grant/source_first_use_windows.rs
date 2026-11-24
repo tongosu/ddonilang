@@ -106,22 +106,44 @@ impl WindowsRootGrantStoreV1 {
 
 impl AdmittedSourceGrantV2 {
     pub(crate) fn locator(&self)->String{hex::encode(self.record.base.nonce)}
+    /// An actual pinned-owner proof, not absence of a UI frame/cache or a
+    /// caller-supplied Aborted flag. read_source_chain checks every revision,
+    /// payload and the unique source head, with zero world/custody rows.
+    pub(crate) fn failed_first_source(&self,adapter:&super::super::SqliteAdapterV1,project:&[u8])->Result<SourceOnly,Failure>{
+        let FirstUse::Started(anchor)=&self.record.state else{return Err(Failure::RecoveryRequired)};
+        let chain=self.checked_chain(adapter,project)?;
+        if chain.latest.revision()!=anchor.revision||chain.latest.integrity()!=&anchor.integrity{
+            return Err(Failure::RecoveryRequired);
+        }
+        WindowsRootGrantStoreV1::require_no_source_attempt(&self.record)?;
+        if WindowsRootGrantStoreV1::read_transition_record(&self.record)?.is_some(){return Err(Failure::RecoveryRequired);}
+        self.verify_root(adapter,project)?;
+        Ok(chain.latest)
+    }
+    pub(crate) fn failed_first_selection_key(&self)->Result<[u8;32],Failure>{
+        use sha2::{Digest,Sha256};Ok(Sha256::digest(self.record.encode()?).into())
+    }
+    /// Only an explicit successor request consumes this newly proved closed,
+    /// uncommitted attempt. The original Started bytes remain inside Grant3.
+    pub(crate) fn retry_first_source_world(mut self,adapter:&super::super::SqliteAdapterV1,project:&[u8],
+        revision:&[u8],integrity:&[u8;32],selection:&[u8;32])->Result<FirstSourceWorldPermitV2,Failure>{
+        let source=self.failed_first_source(adapter,project)?;
+        if source.revision()!=revision||source.integrity()!=integrity||&self.failed_first_selection_key()?!=selection{return Err(Failure::StaleRevision);}
+        let next=self.record.retry_candidate()?;
+        self.failed_first_source(adapter,project)?;
+        WindowsRootGrantStoreV1::consume_source_grant(&self.record,&next)?;
+        self.record=next;
+        let after=self.failed_first_source(adapter,project)?;
+        if after.artifact().map_err(|_|Failure::CustodyConflict)?!=source.artifact().map_err(|_|Failure::CustodyConflict)?{return Err(Failure::CustodyConflict);}
+        Ok(FirstSourceWorldPermitV2{grant:self,source:after})
+    }
     fn verify_root(&self,adapter:&super::super::SqliteAdapterV1,project:&[u8])->Result<(),Failure>{
         use sha2::{Digest,Sha256};
         if !adapter.root_lease.as_ref().is_some_and(|lease|std::sync::Arc::ptr_eq(lease,&self.lease))
             ||!adapter.pinned_root.as_ref().is_some_and(|pin|std::sync::Arc::ptr_eq(pin,&self.pinned)) {
             return Err(Failure::CustodyConflict);
         }
-        let current=WindowsRootGrantStoreV1::read_source_grant(&self.record.base.nonce)?;
-        let base=&current.base;
-        if current!=self.record||base.lifecycle!=Lifecycle::Active||base.sid_hash!=current_sid_hash()?
-            ||base.project_hash!=<[u8;32]>::from(Sha256::digest(project))
-            ||(base.root_file,base.root_object)!=(self.pinned.root_file,self.pinned.root_object)
-            ||(base.db_file,base.db_object)!=(self.pinned.db_file,self.pinned.db_object)
-            ||WindowsRootGrantStoreV1::read_slot(&root_fingerprint(base))?!=base.nonce {
-            return Err(Failure::CustodyConflict);
-        }
-        self.pinned.verify_connection(&adapter.connect()?)
+        verify_source_observation_root(&self.record,&self.pinned,&adapter.connect()?,project)
     }
     pub(in crate::snapshot_v2_durable_transaction::native) fn verify_initial_source(
         &self,adapter:&super::super::SqliteAdapterV1,source:&SourceOnly)->Result<(),Failure>{
@@ -362,6 +384,20 @@ impl NextSourceWorldAttemptStartV1 {
 }
 
 impl super::super::SqliteAdapterV1 {
+    /// Read-only admission of a closed pre-world attempt. Merely reading this
+    /// does not upgrade Grant2, append a retry, execute or issue a once permit.
+    pub(crate) fn confirm_failed_first_source_grant(&mut self,locator:&str,project:&[u8])->Result<AdmittedSourceGrantV2,Failure>{
+        if locator.len()!=64||!locator.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)){return Err(Failure::InvalidInput);}
+        let nonce:[u8;32]=hex::decode(locator).map_err(|_|Failure::InvalidInput)?.try_into().map_err(|_|Failure::InvalidInput)?;
+        let record=WindowsRootGrantStoreV1::read_source_grant(&nonce)?;
+        if !matches!(record.state,FirstUse::Started(_)){return Err(Failure::RecoveryRequired);}
+        self.pin_objects_for_grant(false)?;
+        let grant=AdmittedSourceGrantV2{record,pinned:self.pinned_root.as_ref().ok_or(Failure::UnsupportedDurability)?.clone(),lease:self.root_lease.as_ref().ok_or(Failure::UnsupportedDurability)?.clone()};
+        grant.failed_first_source(self,project)?;
+        let mut raw=grant.record.encode()?;let result=WindowsRootGrantStoreV1::confirm_current(Namespace::Grant,&nonce,&raw);raw.fill(0);result?;
+        let mut slot=encode_slot(&nonce)?;let result=WindowsRootGrantStoreV1::confirm_current(Namespace::RootSlot,&root_fingerprint(&grant.record.base),&slot);slot.fill(0);result?;
+        grant.failed_first_source(self,project)?;Ok(grant)
+    }
     /// Physical cache locator only. Consumers must still admit the exact
     /// artifact against this protected Witness before restoring any world.
     pub(crate) fn current_source_world_digest(&mut self,locator:&str,project:&[u8])->Result<[u8;32],Failure>{
@@ -475,18 +511,43 @@ impl super::super::SqliteAdapterV1 {
         let base=GrantRecord{nonce,sid_hash:current_sid_hash().map_err(phase)?,project_hash:Sha256::digest(source.project()).into(),
             registration_pesi:*source.pesi(),root_file:pinned.root_file,root_object:pinned.root_object,db_file:pinned.db_file,db_object:pinned.db_object,
             lifecycle:Lifecycle::Active,generation:0};
-        let record=Grant2{base,initial:SourceAnchor{revision:source.revision().to_vec(),integrity:*source.integrity()},state:FirstUse::Unused};
+        let record=Grant2{base,initial:SourceAnchor{revision:source.revision().to_vec(),integrity:*source.integrity()},state:FirstUse::Unused,retry_history:Vec::new()};
         let phase=|cause|source_failure("protected-registration",cause);
         WindowsRootGrantStoreV1::ensure_slot_absent(&root_fingerprint(&record.base)).map_err(phase)?;
         WindowsRootGrantStoreV1::write_source_grant_new(&record).map_err(phase)?;
         WindowsRootGrantStoreV1::write_slot_new(&root_fingerprint(&record.base),&nonce).map_err(phase)?;
         let grant=AdmittedSourceGrantV2{record,pinned,lease};
-        self.save_initial_source_revision_bound(source,Some(&grant)).map_err(|failure|{
+        let saved=if source.owned().sources().logic_callable_context().is_some(){
+            self.save_initial_logic_source_revision_bound_private(source,Some(&grant))
+        }else{self.save_initial_source_revision_bound(source,Some(&grant))};
+        saved.map_err(|failure|{
             use super::super::source_revision::SourceSaveFailure::*;
             match failure{BeforeCommit(cause)=>source_failure("source-save-before-commit",cause),
                 AfterCommitUnconfirmed(cause)=>source_failure("source-save-unconfirmed",cause)}
         })?;
         grant.checked_chain(self,source.project()).map_err(|cause|source_failure("source-readback",cause))?;
+        Ok(grant)
+    }
+    /// Read the existing protected slot from actual pinned objects. This does
+    /// not enroll a root, issue a nonce, or turn Started into Unused.
+    pub(crate) fn confirm_unlocated_initial_source_root_grant(&mut self,project:&[u8])
+        ->Result<AdmittedSourceGrantV2,SourceGrantFailureV2>{
+        use sha2::{Digest,Sha256};
+        let phase=|cause|source_failure("initial-save-reconfirm",cause);
+        if self.schema_profile!=super::super::NativeSchemaProfile::SourceRevision||project.len()!=32 {
+            return Err(phase(Failure::InvalidInput));
+        }
+        self.pin_objects_for_grant(false).map_err(phase)?;
+        let pinned=self.pinned_root.as_ref().ok_or_else(||phase(Failure::UnsupportedDurability))?;
+        let fingerprint=root_fingerprint_fields(&current_sid_hash().map_err(phase)?,
+            &Sha256::digest(project).into(),&pinned.root_file,&pinned.root_object,&pinned.db_file,&pinned.db_object);
+        let nonce=WindowsRootGrantStoreV1::read_slot(&fingerprint).map_err(phase)?;
+        let grant=self.confirm_unused_source_root_grant(&hex::encode(nonce),project)?;
+        let source=grant.current_source(self,project).map_err(phase)?;
+        if !source.parent().is_empty()||source.revision()!=grant.record.initial.revision
+            ||source.integrity()!=&grant.record.initial.integrity {
+            return Err(phase(Failure::RecoveryRequired));
+        }
         Ok(grant)
     }
     pub(crate) fn confirm_unused_source_root_grant(&mut self,locator:&str,project:&[u8])
@@ -574,6 +635,33 @@ mod source_first_use_tests {
         let project=ProjectArtifact::create("v1-core-v25".into(),SourceSnapshot{root_path:Some("root.ddn".into()),entry_path:"main.ddn".into(),
             files:vec![SourceFile{path:"root.ddn".into(),text:root.into()},SourceFile{path:"main.ddn".into(),text:"명찰:이름씨 := { 이름:글. }. 실행:움직씨 := { 색 <- #빨강. }.".into()}]},String::new()).unwrap();
         (directory,project)
+    }
+    #[test]
+    fn vc04_initial_source_reconfirm_keeps_committed_identity_and_refuses_foreign_or_started(){
+        let (directory,project)=fixture();let root=directory.join("root");let artifact=project.save().unwrap();
+        super::super::super::source_revision::inject_save_fault(2);
+        let failure=crate::runtime_surface::save_initial_authored_source_native(&artifact,&[1],&root).err().unwrap();
+        super::super::super::source_revision::inject_save_fault(0);
+        assert!(failure.contains("source-save-unconfirmed"));
+        let project_id=hex::decode(project.authored_identity.logical_dependency_id.as_str()).unwrap();
+        assert!(crate::runtime_surface::reconfirm_initial_authored_source_native(&root,&[9;32],&artifact).is_err());
+        let mut different=project.clone();different.source_snapshot.files.iter_mut().find(|file|file.path=="main.ddn").unwrap().text=
+            "명찰:이름씨 := { 이름:글. }. 실행:움직씨 := { 색 <- #파랑. }.".into();
+        assert!(crate::runtime_surface::reconfirm_initial_authored_source_native(&root,&project_id,&different.save().unwrap())
+            .err().unwrap().contains("E_NATIVE_SOURCE_SOURCE_CHANGED"));
+        let confirmed=crate::runtime_surface::reconfirm_initial_authored_source_native(&root,&project_id,&artifact).unwrap();
+        assert_eq!(confirmed.revision_identity,[1]);assert_eq!(confirmed.project_identity,project_id);
+        let repeated=crate::runtime_surface::reconfirm_initial_authored_source_native(&root,&project_id,&artifact).unwrap();
+        assert_eq!(repeated.revision_identity,confirmed.revision_identity);
+        assert_eq!(repeated.revision_integrity,confirmed.revision_integrity);
+        assert_eq!(repeated.grant_locator,confirmed.grant_locator);
+        let payload:serde_json::Value=serde_json::from_str(&confirmed.project_payload_utf8).unwrap();
+        assert_eq!(payload["authored_project_json_utf8"],artifact);
+        let session=crate::runtime_surface::begin_first_authored_source_native(&root,&project_id,
+            confirmed.grant_locator.as_deref().unwrap(),&confirmed.revision_identity,&confirmed.revision_integrity).unwrap();
+        drop(session);
+        assert!(crate::runtime_surface::reconfirm_initial_authored_source_native(&root,&project_id,&artifact)
+            .err().unwrap().contains("RecoveryRequired"));
     }
     #[test]
     fn vc04_source_grant2_actual_register_cold_consume_and_uncertain_rejection(){
@@ -669,4 +757,19 @@ mod source_first_use_tests {
         assert_eq!(error.cause,Failure::RecoveryRequired);result["cold_started_rejected"]=true.into();
         std::fs::write(directory.join("result.json"),serde_json::to_vec_pretty(&result).unwrap()).unwrap();
     }
+}
+
+// Same protected root/identity verifier for write admission and read-only facts.
+fn verify_source_observation_root(record:&Grant2,pinned:&PinnedNativeRootV1,db:&rusqlite::Connection,project:&[u8])->Result<(),Failure>{
+    use sha2::{Digest,Sha256};
+        let current=WindowsRootGrantStoreV1::read_source_grant(&record.base.nonce)?;
+        let base=&current.base;
+        if current!=*record||base.lifecycle!=Lifecycle::Active||base.sid_hash!=current_sid_hash()?
+            ||base.project_hash!=<[u8;32]>::from(Sha256::digest(project))
+            ||(base.root_file,base.root_object)!=(pinned.root_file,pinned.root_object)
+            ||(base.db_file,base.db_object)!=(pinned.db_file,pinned.db_object)
+            ||WindowsRootGrantStoreV1::read_slot(&root_fingerprint(base))?!=base.nonce {
+            return Err(Failure::CustodyConflict);
+        }
+        pinned.verify_connection(db)
 }

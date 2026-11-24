@@ -8,6 +8,9 @@ function escapeGraphHtml(value) {
 }
 
 function finiteNumber(value) {
+  // Missing coordinates are gaps, not zero. Rendering never fills samples.
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  if (typeof value === "string" && !value.trim()) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
@@ -80,10 +83,10 @@ export function buildGraphPreviewHtml(
     .map((row, index) => {
       const points = Array.isArray(row?.points)
         ? row.points
-            .map((point) => {
+            .map((point, sourceIndex) => {
               const x = finiteNumber(point?.x);
               const y = finiteNumber(point?.y);
-              return x === null || y === null ? null : { x, y };
+              return x === null || y === null ? null : { x, y, sourceIndex };
             })
             .filter(Boolean)
         : [];
@@ -121,7 +124,11 @@ export function buildGraphPreviewHtml(
     .map((row, index) => {
       if (row.points.length < 2) return "";
       const points = row.points
-        .map((point, pointIndex) => `${pointIndex === 0 ? "M" : "L"} ${px(point.x).toFixed(1)} ${py(point.y).toFixed(1)}`)
+        .map((point, pointIndex) => {
+          // A missing supplied sample breaks a line; do not connect its sides.
+          const connected = pointIndex > 0 && point.sourceIndex === row.points[pointIndex - 1].sourceIndex + 1;
+          return `${connected ? "L" : "M"} ${px(point.x).toFixed(1)} ${py(point.y).toFixed(1)}`;
+        })
         .join(" ");
       const variantClass = String(palette[index % palette.length] ?? "").trim();
       const classes = [lineClass, variantClass].filter(Boolean).join(" ");

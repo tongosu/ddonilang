@@ -631,7 +631,7 @@ pub(super) fn make_rational_value(numerator: &Value, denominator: &Value) -> Res
     let n = bigint_from_value(numerator)?;
     let d = bigint_from_value(denominator)?;
     if d.is_zero() {
-        return Err("나눔수의 분모는 0일 수 없습니다".to_string().into());
+        return Err(EvalError::RationalZeroDenominator);
     }
     let ratio = BigRational::new(n, d);
     Ok(make_rational_pack_from_big_rational(&ratio))

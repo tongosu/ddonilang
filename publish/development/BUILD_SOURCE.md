@@ -26,3 +26,12 @@ WASM/작업대 소스는 포함하지만 생성 binding·WASM·빌드 manifest�
 ## 소스와 실행물 계보
 
 V2~V5의 내부 검토는 각각 고정된 소스·입력·실행물에 한정됩니다. 개발 소스의 출처 결속은 SOURCE_SNAPSHOT.json을, 현재 실제 공개 실행물의 출처는 기존 RC1 기록을 따릅니다. 저장소 루트의 PUBLIC_SOURCE_ORIGIN.json·PUBLICATION.json은 RC1 출하 이력이며 이 개발 스냅샷으로 다시 표시하지 않습니다.
+
+
+## 2026-11-24 후속 소스 후보의 확인 범위
+
+Native 소스 기준은 868ddd0d612696b67dd588a7af495723341b62ce이며, 실제 동봉 UI 코드와 별도 공개 사본을 구성했습니다. 이 후보에서 위 생산 cargo check를 offline/locked로 새로 통과했습니다. 새 Native 설치본이나 WASM을 생성한 것은 아닙니다. 이전 내부 제품의 검토를 공개 사본의 독립판정으로 상속하지 않습니다.
+
+사설 fixture를 직접 include하던 검사 2건의 입력은 DDN_MODEL_HEAD_MISSING_FIXTURE, DDN_MODEL_HEAD_CONTROL_FIXTURE, DDN_MODEL_HEAD_EXPECTED_FIXTURE로 명시합니다. 정확한 원본 입력과 기대값을 제공해야 하며, 빈 값·가짜 자료로 대신 통과하지 않습니다. 테스트 assert를 제거하거나 성공으로 바꾸지 않았습니다. Ready 관찰 검사는 기존 공개 사본의 DDN_WO25_READY_FIXTURE/DDN_WO25_READY_LOCALAPPDATA 경계를 유지합니다. 이 자료와 인증·개인 DB는 동봉하지 않습니다. 전체 cargo test --workspace 완료를 주장하지 않습니다.
+
+생성 WASM·binding·asset manifest는 기존 실행물에서 복사하지 않습니다. 새 빌드에서 같은 소스에 맞게 생성·결속해야 하며, 이 후보만으로 완성된 설치 제품을 얻는다고 안내하지 않습니다. 새 교재·그림·예전 권리 보류 fixture는 자동 복구하지 않았습니다.

@@ -1,9 +1,11 @@
 // Existing committed-view canvas presentation; world state, payloads and drawing bodies unchanged.
-export function createCanvasPresentation({ activeFrame, activeRun, authoredCompositionHost, buildCanonicalViewPayloadSet, buildCommittedSemanticViewPayload, buildCommittedSpace2dOverlay, committedLogicalSpace2d, currentLogicalPresentation, currentProject, displayedProjectTitle, els, EXECUTION_STATES, extractCanonicalViewAuthorityInputsFromState, localProjectRunEvidenceFromProject, overlayViewInstances, primaryViewInstance, reconcileViewWorkspace, renderAuthoredBogae, renderCommittedSemanticView, renderSpace2dCanvas2d, selectCommittedOutputView, spatialView, stableCanonicalJson, stableHash, stableSemanticJson, state, updateSpatialView, workbenchHostExecutionState, workbenchSpatialPresentationState }) {
+import {mountSpace3PrimaryView,space3PrimaryProjection} from './bogae/xy/space3_primary_view.mjs';
+
+export function createCanvasPresentation({ activeFrame, activeRun, activeRunSourceChanged, authoredCompositionHost, buildCanonicalViewPayloadSet, buildCommittedSemanticViewPayload, buildCommittedSpace2dOverlay, committedLogicalSpace2d, currentLogicalPresentation, currentProject, displayedProjectTitle, els, EXECUTION_STATES, extractCanonicalViewAuthorityInputsFromState, localProjectRunEvidenceFromProject, overlayViewInstances, primaryViewInstance, reconcileViewWorkspace, renderAuthoredBogae, renderCommittedSemanticView, renderSpace2dCanvas2d, selectCommittedOutputView, spatialView, stableCanonicalJson, stableHash, stableSemanticJson, state, updateSpatialView, workbenchHostExecutionState, workbenchSpatialPresentationState }) {
 function resizeCanvasToDisplaySize(canvas) {
   const rect = canvas.getBoundingClientRect();
-  const width = Math.max(320, Math.floor(rect.width || 640));
-  const height = Math.max(240, Math.floor(rect.height || 360));
+  const width = Math.max(1, Math.floor(rect.width || 640));
+  const height = Math.max(1, Math.floor(rect.height || 360));
   if (canvas.width !== width || canvas.height !== height) {
     canvas.width = width;
     canvas.height = height;
@@ -81,9 +83,62 @@ function buildCommittedCanonicalViewHistory(run, activeFrame, family) {
     });
 }
 
+const retiredSpace3Runs=new WeakSet();
+function canShowSpace3Run(run) {
+  if (!run) return false;
+  if (run===activeRun() && activeRunSourceChanged()) retiredSpace3Runs.add(run);
+  return !retiredSpace3Runs.has(run);
+}
+let space3State=null;
+let space3Display=null;
+let space3Root=null;
+function showSpace3Preview(next) {
+  if (next===space3State) return;
+  space3State=next;
+  if (!next) {
+    space3Display?.dispose();
+    space3Root?.remove();
+    space3Display=null;space3Root=null;
+    els.canvas.style.removeProperty('visibility');
+    return;
+  }
+  if (space3Display) {
+    void space3Display.refresh();
+    return;
+  }
+  space3Root=els.canvas.ownerDocument.createElement('div');
+  space3Root.dataset.testid='committed-space3-view';
+  space3Root.style.cssText='position:absolute;inset:0;background:#f8fbf7';
+  els.canvas.after(space3Root);
+  els.canvas.style.visibility='hidden';
+  space3Display=mountSpace3PrimaryView(space3Root,{readState:()=>space3State});
+}
+els.canvas.ownerDocument.defaultView.addEventListener('pagehide',()=>showSpace3Preview(null),{once:true});
+
 function drawPreview() {
+  els.canvas.dataset.navigationSurface='';
   const logical = currentLogicalPresentation();
+  const pending=workbenchHostExecutionState.pendingBogaeDisplay ?? workbenchHostExecutionState.rejectedBogaeDisplay;
+  const sameProjectFrozen=pending?.projectId===state.projectId ? pending : null;
+  const presentation=logical?.value ?? (sameProjectFrozen ? sameProjectFrozen.frame?.wasm_state : activeFrame()?.wasm_state);
+  const space3=space3PrimaryProjection(presentation);
+  const currentSpace3=space3&&(logical || canShowSpace3Run(sameProjectFrozen?.run ?? activeRun()));
   setPrimaryAspect(logical?.value ?? activeFrame()?.wasm_state);
+  showSpace3Preview(currentSpace3?presentation:null);
+  if (space3&&!currentSpace3) {
+    const canvas=els.canvas,{width,height}=resizeCanvasToDisplaySize(canvas);
+    canvas.getContext('2d').clearRect(0,0,width,height);
+    canvas.dataset.renderSource='';
+    canvas.dataset.committedStateHash='';
+    canvas.dataset.authoredBogaeDigest='';
+    canvas.dataset.authoredBogaeStatus='';
+    state.semanticRenderModel=null;
+    state.semanticViewPayload=null;
+    return;
+  }
+  const space3Model=currentSpace3?{family:'scene',spatial_profile:'space3',role:'primary',
+    data_source:'rust_authored_bogae_projection',status:'ready',authored_digest:space3.authored_digest,
+    identity:space3.artifact.identity,relations:space3.artifact.relations}:null;
   if (logical?.value) {
     // Display the committed Rust response, not a synthetic ordinary run/frame.
     const canvas = els.canvas, ctx = canvas.getContext('2d', { willReadFrequently:true });
@@ -92,7 +147,7 @@ function drawPreview() {
     ctx.fillStyle='#f8fbf7'; ctx.fillRect(0,0,width,height);
     const explicitSpace=committedLogicalSpace2d(logical.value);
     const model = logical.value.bogae_projection
-      ? renderAuthoredBogae(ctx,width,height,logical.value,authoredCompositionHost)
+      ? space3Model ?? renderAuthoredBogae(ctx,width,height,logical.value,authoredCompositionHost)
       : explicitSpace && renderSpace2dCanvas2d({canvas,space2d:explicitSpace,yAxisDown:true,pad:0,showViewMetrics:false})
         ? {data_source:'committed_logical_drawlist',status:'ready',draw_list:explicitSpace.drawlist} : null;
     canvas.dataset.renderSource = model?.data_source ?? '';
@@ -100,7 +155,7 @@ function drawPreview() {
     canvas.dataset.authoredBogaeDigest = model?.authored_digest ?? '';
     canvas.dataset.authoredBogaeStatus = model?.status ?? '';
     state.semanticRenderModel = model;
-    for (const name of ['spatial-fit','spatial-reset','spatial-trail']) document.querySelector(`[data-testid='${name}']`).hidden=true;
+    for (const name of ['spatial-fit','spatial-reset','spatial-trail']) {const control=document.querySelector(`[data-testid='${name}']`);if(control)control.hidden=true;}
     document.querySelector('[data-testid="bogae-text-output"]').hidden=true;
     return;
   }
@@ -163,7 +218,7 @@ function drawPreview() {
   canvas.dataset.viewRange = "";
   canvas.dataset.trailSegments = "0";
   for (const name of ["spatial-fit", "spatial-reset", "spatial-trail"]) {
-    document.querySelector(`[data-testid='${name}']`).disabled = committedOutput?.family !== "space2d";
+    {const control=document.querySelector(`[data-testid='${name}']`);if(control)control.disabled=committedOutput?.family !== "space2d";}
   }
   canvas.dataset.consoleOutput = "";
   const textOutput = document.querySelector("[data-testid='bogae-text-output']");
@@ -171,14 +226,14 @@ function drawPreview() {
   textOutput.hidden = committedOutput?.family !== "space2d" || textLines.length === 0;
   textOutput.querySelector("pre").textContent = textLines.join("\n");
   canvas.dataset.consoleOutput = textLines.join("\n");
-  const authoredRenderModel = renderAuthoredBogae(ctx, width, height, frame?.wasm_state, authoredCompositionHost);
+  const authoredRenderModel = space3Model ?? renderAuthoredBogae(ctx, width, height, frame?.wasm_state, authoredCompositionHost);
   canvas.dataset.authoredBogaeDigest = authoredRenderModel?.authored_digest ?? "";
   canvas.dataset.authoredBogaeStatus = authoredRenderModel?.status ?? "";
   if (authoredRenderModel) {
-    for (const name of ["spatial-fit", "spatial-reset", "spatial-trail"]) document.querySelector(`[data-testid='${name}']`).hidden=true;
+    for (const name of ["spatial-fit", "spatial-reset", "spatial-trail"]) {const control=document.querySelector(`[data-testid='${name}']`);if(control)control.hidden=true;}
     renderModel = authoredRenderModel;
   } else if (committedOutput) {
-    for (const name of ["spatial-fit", "spatial-reset"]) document.querySelector(`[data-testid='${name}']`).hidden=false;
+    for (const name of ["spatial-fit", "spatial-reset"]) {const control=document.querySelector(`[data-testid='${name}']`);if(control)control.hidden=false;}
     renderModel = {
       schema: "seamgrim.workbench.semantic_render_model.v1",
       family: committedOutput.family, status: "ready",
@@ -203,6 +258,7 @@ function drawPreview() {
         ...overlay.drawlist,
       ]};
       canvas.dataset.viewRange = JSON.stringify(display.viewState.range);
+      canvas.dataset.navigationSurface='ordinary-space2d';
       canvas.dataset.trailSegments = String(workbenchSpatialPresentationState.showSpatialTrail && project.primaryView === "projectile" ? display.overlayDrawlist.length : 0);
       renderSpace2dCanvas2d({canvas, space2d: viewSpace, viewState: display.viewState,
         projectPoint: renderModel.current?.physical_bob ?? renderModel.current ?? renderModel.position,
@@ -299,5 +355,5 @@ function drawPreview() {
   globalThis.__SEAMGRIM_WORKBENCH_CANONICAL_VIEW_PAYLOADS__ = canonicalViewPayloads;
 }
 
-  return { resizeCanvasToDisplaySize, setPrimaryAspect, drawProjectRunEvidence, buildCommittedFrameCanonicalViewPayloads, buildCommittedCanonicalViewHistory, drawPreview };
+  return { canShowSpace3Run, resizeCanvasToDisplaySize, setPrimaryAspect, drawProjectRunEvidence, buildCommittedFrameCanonicalViewPayloads, buildCommittedCanonicalViewHistory, drawPreview };
 }

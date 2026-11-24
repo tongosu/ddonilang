@@ -8,6 +8,22 @@ pub enum ModuleDirectiveKind {
     Export,
 }
 
+#[cfg(test)]
+mod r20_korean_header_prefix_tests {
+    use super::*;
+    #[test]
+    fn r20_prefix_preserves_registered_header_and_original_tail_offset() {
+        let source="#!한국어\r\n// 日本語 위치\r\n(합=총액합하다) 드러냄.\r\n(금액:나눔수~에, 세액:나눔수~을~를) 총액합하다:나눔수:셈씨 := { 총액합하다 <- 금액 + 세액. }.\r\n";
+        let context=ModuleDirectiveContext::default().with_public_definitions(["총액합하다"]);
+        let parsed=parse_module_directive_prefix(source,"세금.ddn",&context).unwrap();
+        assert_eq!(parsed.source_header.as_deref(),Some("#!한국어"));
+        assert_eq!(parsed.exports.unwrap().entries[0].target,"총액합하다");
+        let offset=source.len()-parsed.declaration_source.len();
+        assert_eq!(&source[offset..],parsed.declaration_source);assert!(source.is_char_boundary(offset));
+        assert!(source[..offset].contains("日本語"));
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModuleDirectiveEntry {
     /// Existing local binding spelling; this is not a newly-created identity.
@@ -96,11 +112,14 @@ pub fn parse_module_directive_prefix(
     _file_path: &str,
     context: &ModuleDirectiveContext,
 ) -> Result<ModuleDirectiveDocument, ParseError> {
-    let tokens = Lexer::new(source).tokenize().map_err(|error| ParseError {
+    let (mut lexer, header) = Lexer::with_korean_source_header(source).map_err(|error| ParseError {
+        span: Span::new(error.pos,error.pos+1),message:error.message,
+    })?;
+    let tokens = lexer.tokenize().map_err(|error| ParseError {
         span: Span::new(error.pos, error.pos + 1),
         message: error.message,
     })?;
-    parse_directive_tokens(source,&tokens,context,None)
+    parse_directive_tokens(source,&tokens,context,header.map(str::to_owned))
 }
 
 /// Lexical context is explicit and remains compilation-local. A successful
@@ -157,8 +176,54 @@ pub(crate) fn first_callable_module_tokens(
     let document=parse_directive_tokens(source,&tokens,context,source_header.clone())?;
     Ok((document,tokens))
 }
+pub fn parse_module_directive_prefix_with_public_callable_context(source:&str,path:&str,context:&ModuleDirectiveContext,public:&crate::parser::RegisteredPublicCallableContext)->Result<ModuleDirectiveDocument,ParseError>{
+    public_callable_module_tokens(source,path,context,public).map(|(document,_)|document)
+}
+pub(crate) fn public_callable_module_tokens(source:&str,_path:&str,context:&ModuleDirectiveContext,public:&crate::parser::RegisteredPublicCallableContext)->Result<(ModuleDirectiveDocument,Vec<Token>),ParseError>{
+    if let Some(syntax)=public.consumer_j1() {
+        return j1_module_tokens(source,_path,context,syntax);
+    }
+    let source_header=None;
+    let mut lexer=Lexer::with_public_callable_projection(source,public.profile(),false).map_err(|error|prefix_lex_error(source,error))?;
+    let mut tokens=Vec::new();
+    // The existing common lexer supplies only complete module records. Body
+    // lookahead uses a checkpoint; it never consumes/reclassifies body bytes.
+    while lexer.prefix_token_start().1==Some('('){
+        let mut probe=lexer.prefix_checkpoint();
+        let mut record=Vec::new();let mut depth=0usize;
+        loop {
+            let token=match probe.next_common_prefix_token(){Ok(token)=>token,Err(_)=>break};
+            match token.kind {TokenKind::LParen=>depth+=1,TokenKind::RParen=>{depth=match depth.checked_sub(1){Some(d)=>d,None=>break};},TokenKind::Eof=>break,_=>{}}
+            record.push(token);
+            if depth==0{break;}
+        }
+        // A parameter list/call belongs to the registered body, not to a
+        // common-prefix vocabulary expansion. The existing parser decides it.
+        if depth!=0 || !matches!(record.last().map(|t|&t.kind),Some(TokenKind::RParen)){break;}
+        let keyword=match probe.next_common_prefix_token(){Ok(token)=>token,Err(_)=>break};
+        if !matches!(&keyword.kind,TokenKind::Ident(name) if matches!(name.as_str(),"쓰임"|"드러냄"|"공개")){break;}
+        record.push(keyword);
+        record.push(probe.next_common_prefix_token().map_err(|e|prefix_lex_error(source,e))?);
+        let mut checked=tokens.clone();checked.extend(record.iter().cloned());
+        let end=record.last().unwrap().span.end;
+        checked.push(Token{kind:TokenKind::Eof,span:crate::lexer::Span::new(end,end),raw:String::new()});
+        // Exact grammar, target lookup, duplicate and retired-surface errors
+        // remain owned by the existing module-directive parser.
+        parse_directive_tokens(source,&checked,context,source_header.clone())?;
+        tokens.extend(record);lexer=probe;
+    }
+    tokens.extend(lexer.tokenize().map_err(|e|prefix_lex_error(source,e))?);
+    let document=parse_directive_tokens(source,&tokens,context,source_header.clone())?;
+    Ok((document,tokens))
+}
 fn prefix_lex_error(source:&str,e:crate::lexer::LexError)->ParseError{
-    ParseError{span:Span::new(e.pos,e.pos+source.get(e.pos..).and_then(|tail|tail.chars().next()).map_or(0,char::len_utf8)),message:e.message}
+    let tail=source.get(e.pos..).unwrap_or_default();
+    let width=if e.message.starts_with("E_MULTILANG_SUCCESSOR_HEADER_SCOPE:") {
+        tail.lines().next().map_or(0,str::len)
+    } else {
+        tail.chars().next().map_or(0,char::len_utf8)
+    };
+    ParseError{span:Span::new(e.pos,e.pos+width),message:e.message}
 
 }
 fn parse_directive_tokens(source:&str,tokens:&[Token],context:&ModuleDirectiveContext,source_header:Option<String>)->Result<ModuleDirectiveDocument,ParseError>{
@@ -421,8 +486,16 @@ impl<'a> DirectiveCursor<'a> {
             if !matches!(self.current().kind,TokenKind::Comma){break;}self.advance();
         }
         let end=self.expect(|k|matches!(k,TokenKind::RParen),"E_DDL_ACTIVATION_SHAPE","옮김 자료는 ')'로 닫혀야 합니다")?.span.end;
-        Ok(ModuleTranslationRequest{target_language:language.ok_or_else(||self.error("E_DDL_ACTIVATION_FIELD","대상말씨가 없습니다"))?,
-            target_version:version.ok_or_else(||self.error("E_DDL_ACTIVATION_FIELD","대상판본이 없습니다"))?,span:Span::new(start,end)})
+        let span = Span::new(start, end);
+        let missing_field = |detail: &str| ParseError {
+            span,
+            message: format!("E_DDL_ACTIVATION_FIELD: {detail}"),
+        };
+        Ok(ModuleTranslationRequest {
+            target_language: language.ok_or_else(|| missing_field("대상말씨가 없습니다"))?,
+            target_version: version.ok_or_else(|| missing_field("대상판본이 없습니다"))?,
+            span,
+        })
     }
 
     fn parse_directive(
@@ -590,4 +663,73 @@ fn ctx()->ModuleDirectiveContext{ModuleDirectiveContext::default().with_known_im
  let first=first();let body="(金額:有理数~に, 税額:有理数~を) 合計する:有理数:関数 := { 合計する <- 金額 + 税額. }.\n";let raw=format!("#!日本語\n{PREFIX}{body}");
  let doc=parse_module_directive_prefix_with_first_callable_context(&raw,"利用.ddn",&ctx(),&first).unwrap();assert_eq!(doc.declaration_source,body);assert_eq!(doc.imports.unwrap().entries.len(),1);
 }
+}
+
+
+pub fn parse_module_directive_prefix_with_j1_profile(source:&str,path:&str,context:&ModuleDirectiveContext,profile:crate::ddl::CheckedJ1Profile)->Result<ModuleDirectiveDocument,ParseError>{
+    j1_module_tokens(source,path,context,profile).map(|(document,_)|document)
+}
+pub(crate) fn j1_module_tokens(source:&str,_path:&str,context:&ModuleDirectiveContext,profile:crate::ddl::CheckedJ1Profile)->Result<(ModuleDirectiveDocument,Vec<Token>),ParseError>{
+    let mut tokens=crate::parser::j1_role_tokens(source,profile)?;let mut at=0;
+    while matches!(tokens.get(at).map(|t|&t.kind),Some(TokenKind::LParen)){
+        let start=at;let mut depth=0usize;let mut end=None;
+        for (index,token) in tokens.iter().enumerate().skip(start){
+            match token.kind{TokenKind::LParen=>depth+=1,TokenKind::RParen=>{depth-=1;if depth==0{end=Some(index);break;}},_=>{}}
+        }
+        let Some(close)=end else{break};
+        let alias=match tokens.get(close+1).map(|t|&t.kind){Some(TokenKind::Ident(word)) if word=="使用"=>"쓰임",Some(TokenKind::Ident(word)) if word=="公開"=>"드러냄",_=>break};
+        tokens[close+1].kind=TokenKind::Ident(alias.into());
+        if alias=="쓰임"{
+            // Only the translation record owns its field roles. A module alias
+            // with the same spelling remains an ordinary local binding.
+            let mut depth=1usize;let mut translation_depth=None;
+            for index in start+1..close{
+                let field=matches!(tokens.get(index+1).map(|t|&t.kind),Some(TokenKind::Equals));
+                let begins_record=matches!(tokens.get(index+2).map(|t|&t.kind),Some(TokenKind::LParen));
+                let mapped=match &tokens[index].kind{
+                    TokenKind::Ident(word) if field=>match word.as_str(){
+                        "翻訳" if depth==1&&begins_record=>{translation_depth=Some(2);Some("옮김")},
+                        "対象言語" if translation_depth==Some(depth)=>Some("대상말씨"),
+                        "対象版" if translation_depth==Some(depth)=>Some("대상판본"),
+                        _=>None,
+                    },_=>None,
+                };
+                if let Some(mapped)=mapped{tokens[index].kind=TokenKind::Ident(mapped.into());}
+                match tokens[index].kind{
+                    TokenKind::LParen=>depth+=1,
+                    TokenKind::RParen=>{if translation_depth==Some(depth){translation_depth=None;}depth-=1;},
+                    _=>{},
+                }
+            }
+        }
+        at=close+3;
+    }
+    let document=if at==0 && !matches!(tokens.first().map(|token|&token.kind),Some(TokenKind::LParen)){
+        let start=tokens.first().map_or(source.len(),|token|token.span.start);
+        ModuleDirectiveDocument{source_header:Some("#!日本語".into()),imports:None,exports:None,declaration_source:source[start..].into()}
+    }else{parse_directive_tokens(source,&tokens,context,Some("#!日本語".into()))?};Ok((document,tokens))
+}
+
+#[cfg(test)]
+mod r31_j1_module_role_scope_tests {
+    use super::*;
+    fn parse(source:&str)->Result<ModuleDirectiveDocument,ParseError>{
+        parse_module_directive_prefix_with_j1_profile(source,"main.ddn",
+            &ModuleDirectiveContext::default().with_known_imports(["計算"]),
+            crate::ddl::CheckedJ1Profile::resolve(crate::ddl::J1_SOURCE_PROFILE).unwrap())
+    }
+    #[test]fn r31_j1_translation_fields_do_not_rename_module_aliases(){
+        for name in ["翻訳","対象言語","対象版"]{
+            let source=format!("#!日本語\n({name}=計算) 使用.\n");
+            let doc=parse(&source).unwrap();let imports=doc.imports.unwrap();
+            assert_eq!(imports.entries[0].local_name,name);assert!(imports.translation.is_none());
+        }
+        let source="#!日本語\r\n(計算=計算, 翻訳=(対象言語=\"日本語\", 対象版=\"exact1\")) 使用.\r\n";
+        let imports=parse(source).unwrap().imports.unwrap();let request=imports.translation.unwrap();
+        assert_eq!(request.target_language,"日本語");assert_eq!(request.target_version,"exact1");
+        assert_eq!(&source[request.span.start..request.span.end],"(対象言語=\"日本語\", 対象版=\"exact1\")");
+        for bad in [source.replace("対象版=\"exact1\"","対象言語=\"exact1\""),
+            source.replace("対象版=\"exact1\"","対象版=真"),
+            source.replace("対象版=\"exact1\"","名前=\"exact1\"")]{assert!(parse(&bad).is_err(),"{bad}");}
+    }
 }

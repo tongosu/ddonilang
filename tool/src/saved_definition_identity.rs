@@ -13,7 +13,7 @@ impl SavedDefinitionIdentity {
 
 fn type_material(t: &TypeRef) -> Result<Value, String> {
     Ok(match t {
-        TypeRef::AlgebraEquality { .. } => return Err("E_SAVED_DEFINITION_TYPE_UNSUPPORTED: 대수 목표의 저장 정체는 지원하지 않습니다".into()),
+        TypeRef::AlgebraEquality { .. } | TypeRef::CardCallEquality { .. } | TypeRef::AlgebraNonzero { .. } => return Err("E_SAVED_DEFINITION_TYPE_UNSUPPORTED: 대수 목표의 저장 정체는 지원하지 않습니다".into()),
         TypeRef::StructureLaw { .. } => return Err("E_SAVED_DEFINITION_TYPE_UNSUPPORTED: 구조 법칙 목표의 저장 정체는 지원하지 않습니다".into()),
         // Preserve the material of every previously supported type exactly.
         TypeRef::PropositionConjunction(items) => json!(["proposition_conjunction", items.iter().map(type_material).collect::<Result<Vec<_>,_>>()?]),
@@ -78,7 +78,14 @@ pub(crate) fn issue_saved_start(
     project: &crate::authored_project::ProjectArtifact,
     entry_module_index: usize,
 ) -> Result<SavedDefinitionIdentity, String> {
-    issue_saved_start_impl(sources,project,entry_module_index,None)
+    issue_saved_start_diagnostic(sources,project,entry_module_index,None)
+}
+pub(crate) fn issue_saved_start_diagnostic(
+    sources:&crate::project_revision_envelope_supply::VerifiedSavedV25Sources,
+    project:&crate::authored_project::ProjectArtifact,entry_module_index:usize,
+    diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
+)->Result<SavedDefinitionIdentity,String>{
+    issue_saved_start_impl(sources,project,entry_module_index,None,false,diagnostic_out)
 }
 pub(crate) fn issue_registered_saved_start(
     source:&crate::project_revision_envelope_supply::PreCanonAuthoredSourceV1,
@@ -86,12 +93,20 @@ pub(crate) fn issue_registered_saved_start(
     entry_module_index:usize,
 )->Result<SavedDefinitionIdentity,String> {
     let binding=draft.resolved_start_material(source)?;
-    issue_saved_start_impl(source.sources(),source.project(),entry_module_index,binding.as_ref())
+    issue_saved_start_impl(source.sources(),source.project(),entry_module_index,binding.as_ref(),false,None)
 }
+pub(crate) fn derive_legacy_ddl_consumer_start(
+    sources:&crate::project_revision_envelope_supply::VerifiedSavedV25Sources,
+    project:&crate::authored_project::ProjectArtifact,entry_module_index:usize,
+)->Result<SavedDefinitionIdentity,String>{
+    issue_saved_start_impl(sources,project,entry_module_index,None,true,None)
+}
+
 fn issue_saved_start_impl(
     sources:&crate::project_revision_envelope_supply::VerifiedSavedV25Sources,
     project:&crate::authored_project::ProjectArtifact,entry_module_index:usize,
-    binding:Option<&(String,Vec<u8>,Vec<u8>)>,
+    binding:Option<&(String,Vec<u8>,Vec<u8>)>,legacy_ddl_consumer:bool,
+    diagnostic_out:Option<&mut Option<crate::preprocess::ExecutionDiagnostic>>,
 )->Result<SavedDefinitionIdentity,String> {
     let preparation = sources.preparation();
     // All source admission and current owner material are still checked by
@@ -103,6 +118,30 @@ fn issue_saved_start_impl(
         let TopLevelItem::SeedDef(imported)=&original.items[0];
         program.items.retain(|TopLevelItem::SeedDef(seed)|seed.canonical_name!=imported.canonical_name);
         program
+    }else if let Some(public)=sources.public_callable_context(){
+        let mut failure=None;
+        let checked=crate::ddn_runtime::DdnProgram::from_public_callable_authored_source_diagnostic(
+            &preparation.source,&preparation.target_path,public.clone(),
+            diagnostic_out.is_some().then_some(&mut failure),
+        ).map_err(|message| {
+            if let (Some(out),Some(diagnostic))=(diagnostic_out,failure) {
+                if let Some((start,end))=diagnostic.span {
+                    if let Ok((path,span))=preparation.original_span(ddonirang_lang::Span::new(start,end)) {
+                        *out=Some(diagnostic.remap_source(path,(span.start,span.end)));
+                    }
+                }
+            }
+            message
+        })?;
+        let mut program=checked.canonical_program().clone();
+        // Compilation-local node provenance comes from the actual checked
+        // Definition/Pin bindings; a same-spelled consumer symbol is not removed.
+        let imported=public.compiler_context().bindings().iter().map(|row|row.original.id).collect::<std::collections::BTreeSet<_>>();
+        program.items.retain(|TopLevelItem::SeedDef(seed)|!imported.contains(&seed.id));
+        program
+    }else if sources.saved().j1_profile().is_some(){
+        let mut program=sources.parse_prepared_program()?;
+        ddonirang_lang::canonicalize(&mut program).map_err(|e|format!("E_SAVED_DEFINITION_PARSE: {e}"))?;program
     }else{crate::ddn_runtime::canonical_definition_program(&preparation.source,&preparation.target_path)?};
     require_supported_mathematical_bodies(&program,&preparation.source,&preparation.target_path)?;
     let source_types=proof_source::SourceTypes::for_program(&program,&preparation.source,&preparation.target_path)?;
@@ -160,7 +199,13 @@ fn issue_saved_start_impl(
         "source_epoch": "v25", "compiler_profile": "v1-core-v25",
         "entry_module": entry_module.id.as_str(), "entry_definition": name,
         "declarations": heads,
-        "resolved_program": binding.map(|value|value.0.clone()).unwrap_or_else(||ddonirang_lang::normalize(&program, ddonirang_lang::NormalizationLevel::N1)),
+        "resolved_program": binding.map(|value|value.0.clone()).unwrap_or_else(||{
+            if legacy_ddl_consumer {
+                ddonirang_lang::normalizer::normalize_legacy_saved_ddl_start(&program)
+            } else {
+                ddonirang_lang::normalize(&program, ddonirang_lang::NormalizationLevel::N1)
+            }
+        }),
     });
     if let Some((_,catalog,manifest))=binding {
         context["compiler_source_admission"]=json!("resolved-supply-catalog.r3.3");
@@ -171,6 +216,9 @@ fn issue_saved_start_impl(
         // Keep external original ownership distinct from the consumer's heads.
         // Existing v1/v2 material and family/domain bytes remain unchanged.
         context["first_callable_dependency"]=first.saved_dependency_material()?;
+    }
+    if let Some(artifact)=sources.public_callable_artifact(){
+        context["public_callable_dependency"]=artifact.dependency_material()?;
     }
     let material = serde_json::to_vec(&context).map_err(|_| "E_SAVED_DEFINITION_ENCODING: 정의 정체를 직렬화할 수 없습니다")?;
     if material.len() > 32_000_000 {

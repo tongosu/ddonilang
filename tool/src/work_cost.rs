@@ -605,6 +605,7 @@ pub fn expr_registry_key(expr: &ExprKind) -> &'static str {
         ExprKind::SelectionPlace { .. } => "expr.selection_place",
         ExprKind::Infix { .. } => "expr.infix",
         ExprKind::Suffix { .. } => "expr.suffix",
+        ExprKind::FunctionBlock{..} => "expr.function_block",
         ExprKind::Thunk(_) => "expr.thunk",
         ExprKind::Eval { .. } => "expr.eval",
         ExprKind::Pipe { .. } => "expr.pipe",
@@ -738,6 +739,12 @@ pub const STDLIB_SIGNATURE_ROW_COUNT_ALPHA2: usize = 268;
 pub const STDLIB_SIGNATURE_ROW_COUNT_ALPHA3: usize = 272;
 // RD-656: exactly two reviewed UTF-8 callables, without rewriting Alpha seals.
 pub const STDLIB_SIGNATURE_ROW_COUNT_BETA1: usize = 275;
+// Approved XY2 append-only signature seal; historical seals unchanged.
+pub const STDLIB_SIGNATURE_ROW_COUNT_XY_R1: usize = STDLIB_SIGNATURE_ROW_COUNT_BETA1 + 2;
+pub const VIEW_SIGNATURE_LEDGER_SHA256_XY_R1: &str = "de7646bf4f7fb539a626ad52d207f24d1224f9dc6a0fe8ab4b2d4cc43916e30d";
+// Adopted static image role appends one row; prior seals remain exact.
+pub const STDLIB_SIGNATURE_ROW_COUNT_STATIC_PNG_R1: usize = STDLIB_SIGNATURE_ROW_COUNT_XY_R1 + 1;
+pub const VIEW_SIGNATURE_LEDGER_SHA256_STATIC_PNG_R1: &str = "e18cde5efda5c78df6713b477877546866f3278717b6fbe0340b625488ce8838";
 pub const STDLIB_BASE_ROW_COUNT_BETA1: usize = 258;
 pub const STDLIB_BASE_LEDGER_SHA256_BETA1: &str =
     "233e69e2dcbe0843bda12edb08db87186770ea108df37722a61763ebad8d986c";
@@ -887,6 +894,9 @@ pub fn verify_stdlib_registry_totality() -> Result<(), WorkCostFailure> {
     VERIFIED.get_or_init(verify_stdlib_registry_totality_uncached).clone()
 }
 
+pub const STDLIB_SIGNATURE_ROW_COUNT_SPACE3_R1:usize=STDLIB_SIGNATURE_ROW_COUNT_STATIC_PNG_R1+3;
+pub const VIEW_SIGNATURE_LEDGER_SHA256_SPACE3_R1:&str="189429fc7bd64266e15503dd6473bee8b69ea3322750649a8bca06e9f959e565";
+
 fn verify_stdlib_registry_totality_uncached() -> Result<(), WorkCostFailure> {
     let signatures = ddonirang_lang::stdlib::minimal_stdlib_sigs();
     let (logical_rows, other_rows): (Vec<_>, Vec<_>) = stdlib_signature_rows()
@@ -897,13 +907,30 @@ fn verify_stdlib_registry_totality_uncached() -> Result<(), WorkCostFailure> {
         .into_iter().partition(|(group, _)| *group == "view_function_sigs");
     let base_count = base_rows.len();
     let view_count = view_rows.len();
+    let space3_rows=view_rows.iter().filter(|(_,sig)|matches!(sig.name,"표준장면.면"|"표준장면.카메라"|"표준장면.입체")).cloned().collect::<Vec<_>>();
+    let space3_count=space3_rows.len();
+    let space3_hash=hex::encode(Sha256::digest(signature_ledger_rows(view_rows.clone()).as_bytes()));
+    let view_rows=view_rows.into_iter().filter(|(_,sig)|!matches!(sig.name,"표준장면.면"|"표준장면.카메라"|"표준장면.입체")).collect::<Vec<_>>();
+    let legacy_view_count=view_rows.len();
+    let xy_rows=view_rows.iter().filter(|(_,sig)|sig.name!="표준장면.그림").cloned().collect::<Vec<_>>();
+    let xy_count=xy_rows.len();
+    let xy_hash=hex::encode(Sha256::digest(signature_ledger_rows(xy_rows).as_bytes()));
+    let old_view_rows=view_rows.iter().filter(|(_,sig)|!matches!(sig.name,"표준보기.흩어진점"|"표준보기.좌표선"|"표준장면.그림")).cloned().collect::<Vec<_>>();
+    let old_view_count=old_view_rows.len();
+    let old_view_hash=hex::encode(Sha256::digest(signature_ledger_rows(old_view_rows).as_bytes()));
     let actual_hash = hex::encode(Sha256::digest(signature_ledger_rows(base_rows).as_bytes()));
     let view_hash = hex::encode(Sha256::digest(signature_ledger_rows(view_rows).as_bytes()));
-    if signatures.len() != STDLIB_SIGNATURE_ROW_COUNT_BETA1
+    if signatures.len() != STDLIB_SIGNATURE_ROW_COUNT_SPACE3_R1
+        || space3_count != 3 || space3_hash != VIEW_SIGNATURE_LEDGER_SHA256_SPACE3_R1
+        || legacy_view_count != 17
         || base_count != STDLIB_BASE_ROW_COUNT_BETA1
-        || view_count != 14
+        || view_count != 20
+        || xy_count != 16
+        || xy_hash != VIEW_SIGNATURE_LEDGER_SHA256_XY_R1
+        || old_view_count != 14
+        || old_view_hash != VIEW_SIGNATURE_LEDGER_SHA256_ALPHA3
         || actual_hash != STDLIB_BASE_LEDGER_SHA256_BETA1
-        || view_hash != VIEW_SIGNATURE_LEDGER_SHA256_ALPHA3
+        || view_hash != VIEW_SIGNATURE_LEDGER_SHA256_STATIC_PNG_R1
         || logical_count != 3
         || logical_hash != LOGICAL_INPUT_SIGNATURE_LEDGER_SHA256_BETA1
     {
@@ -916,7 +943,7 @@ fn verify_stdlib_registry_totality_uncached() -> Result<(), WorkCostFailure> {
                 view_hash
             ),
             signatures.len() as u64,
-            Some(STDLIB_SIGNATURE_ROW_COUNT_BETA1 as u64),
+            Some(STDLIB_SIGNATURE_ROW_COUNT_STATIC_PNG_R1 as u64),
         ));
     }
     Ok(())
@@ -1314,7 +1341,7 @@ mod tests {
         verify_stdlib_registry_totality().unwrap();
         assert_eq!(
             ddonirang_lang::stdlib::minimal_stdlib_sigs().len(),
-            STDLIB_SIGNATURE_ROW_COUNT_BETA1
+            STDLIB_SIGNATURE_ROW_COUNT_SPACE3_R1
         );
         assert_eq!(
             hex::encode(Sha256::digest(signature_ledger_rows(stdlib_signature_rows()
@@ -1324,7 +1351,7 @@ mod tests {
         // RD-520 composition and Owner-approved Alpha2 event query; V1 unchanged.
         // RD-520 adds 겹 and 곁 to the existing registry; the V1 base seal stays fixed.
         // Approved B1 조작단계 adds one distinct callable; base/Alpha seals stay fixed.
-        assert_eq!(registered_stdlib_names().unwrap().len(), 270);
+        assert_eq!(registered_stdlib_names().unwrap().len(), 275);
         for sig in ddonirang_lang::stdlib::minimal_stdlib_sigs() {
             let canonical = ddonirang_lang::stdlib::canonicalize_stdlib_alias(sig.name);
             assert!(
@@ -1374,7 +1401,7 @@ mod tests {
     #[test]
     fn every_stdlib_overload_row_has_an_exact_cost_ledger_entry() {
         let ledger = builtin_work_cost_ledger().expect("sealed stdlib ledger");
-        assert_eq!(ledger.len(), STDLIB_SIGNATURE_ROW_COUNT_BETA1);
+        assert_eq!(ledger.len(), STDLIB_SIGNATURE_ROW_COUNT_STATIC_PNG_R1);
         assert!(ledger.iter().all(|row| !row.group.is_empty()));
         assert!(ledger.iter().all(|row| !row.name.is_empty()));
         assert!(ledger.iter().all(|row| !row.canonical_name.is_empty()));
@@ -1390,7 +1417,7 @@ mod tests {
                 )
             })
             .collect::<BTreeSet<_>>();
-        assert_eq!(identities.len(), STDLIB_SIGNATURE_ROW_COUNT_BETA1);
+        assert_eq!(identities.len(), STDLIB_SIGNATURE_ROW_COUNT_STATIC_PNG_R1);
     }
 
     #[test]

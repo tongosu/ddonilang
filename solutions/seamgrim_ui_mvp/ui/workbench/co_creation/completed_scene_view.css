@@ -1,0 +1,7 @@
+.completed-scene-view { min-width: 0; }
+.completed-scene-view [data-completed-pair-view] { display: flex; flex-wrap: wrap; gap: 12px; }
+.completed-scene-view [data-completed-experiment] { flex: 1 1 280px; min-width: 0; border: 1px solid currentColor; border-radius: 8px; padding: 12px; }
+.completed-scene-view p, .completed-scene-view pre { overflow-wrap: anywhere; white-space: pre-wrap; }
+.completed-scene-view canvas { max-width: 100%; height: auto; }
+.completed-scene-view button, .completed-scene-view summary { min-height: 32px; }
+.completed-scene-view button:focus-visible, .completed-scene-view summary:focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }

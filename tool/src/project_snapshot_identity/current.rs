@@ -93,7 +93,18 @@ fn issue_saved_project_resources(
     // Current D9 linker rejects unbound execution contracts/views/exports.
     // Its local module closure is source-owned, not an external dependency
     // registry. Never turn an unverified package/resource supply into zero.
-    let graph=crate::local_project::build_project_graph(saved.saved().source().clone())
+    if saved.logic_callable_context().is_some(){
+        // Same actual source/profile/registration owner, not header detection
+        // or an exemption from external dependency/permission checks below.
+        owned.registration().ok_or("E_LOGIC_STORAGE_CONTEXT_REQUIRED")?
+            .verify_production_logic_dependency(&owned.precanon_view())?;
+    }
+    let graph=if let Some(syntax)=saved.saved().j1_profile(){
+        if syntax.identity()!=owned.project().source_profile {
+            return Err("E_SAVED_PROJECT_TARGET_PROFILE: 저장 원문의 profile이 다릅니다".into());
+        }
+        crate::local_project::build_project_graph_with_j1_profile(saved.saved().source().clone(),syntax)
+    }else{crate::local_project::build_project_graph(saved.saved().source().clone())}
         .map_err(|e|format!("{}: {}",e.code,e.message))?;
     if !graph.gaji_aliases.is_empty() || saved.saved().manifest().lock_sha256.is_some()
         || saved.saved().source().files.iter().any(|file|!matches!(file.role.as_str(),"root"|"ddn_source")) {
@@ -114,6 +125,10 @@ fn issue_saved_project_resources(
     let target:&[u8]=match owned.project().source_profile.as_str() {
         "v1-core-v25" => b"ExecutionProfileIdentity:v1-core-v25",
         "v1-core-v25-logical-alpha2" => b"ExecutionProfileIdentity:v1-core-v25-logical-alpha2",
+        // Adopted J1 is a source syntax pack on the existing v25 backend.
+        // Exact J1/profile/builtin data remain in the validated source slot
+        // and dependency resource closure; no new execution identity family.
+        ddonirang_lang::ddl::J1_SOURCE_PROFILE if saved.saved().j1_profile().is_some()=>b"ExecutionProfileIdentity:v1-core-v25",
         _ => return Err("E_SAVED_PROJECT_TARGET_PROFILE: 지원 실행 프로필이 아닙니다".into()),
     };
     let resource_paths:Vec<_>=artifacts.iter().map(|blob|blob.path()).collect();

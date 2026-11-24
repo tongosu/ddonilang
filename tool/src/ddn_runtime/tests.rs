@@ -168,9 +168,10 @@
         let mut ctx=EvalContext::new(&program,&world,&defaults,None,InputState::new(0,0),0,0,None);
         let mut nested=Value::FrozenSubjectViewV1(view.clone());
         for _ in 0..20_000{nested=Value::List(vec![nested]);}
-        let captured=Value::Lambda(LambdaValue{id:0,param:"값".into(),body:Expr::new(0,ddonirang_lang::Span{start:0,end:0},ExprKind::Literal(Literal::Bool(true))),
-            captured:HashMap::from([("보관".into(),Value::FrozenSubjectViewV1(view))])});
-        for value in [nested,captured] {
+        let captured=Value::Lambda(LambdaValue{ captured_sources:Default::default(), anonymous_target:None,named_target:None,id:0,param:"값".into(),body:Expr::new(0,ddonirang_lang::Span{start:0,end:0},ExprKind::Literal(Literal::Bool(true))),
+            captured:HashMap::from([("보관".into(),Value::FrozenSubjectViewV1(view.clone()))])});
+        let source_captured=Value::Lambda(LambdaValue{captured_sources:Arc::new(BTreeMap::from([(0,Value::FrozenSubjectViewV1(view))])),anonymous_target:None,named_target:None,id:1,param:"값".into(),body:Expr::new(0,ddonirang_lang::Span{start:0,end:0},ExprKind::Literal(Literal::Bool(true))),captured:HashMap::new()});
+        for value in [nested,captured,source_captured] {
             assert!(value.contains_transient_subject_view());
             let error=ctx.set_source_resource("보관",value,0).unwrap_err();
             assert!(error.message().contains("E_VC04_READ_SNAPSHOT_ESCAPE"));
@@ -2020,12 +2021,18 @@
 
     #[test]
     fn wo03_text_lookup_never_substitutes_codepoints_or_legacy_substring() {
-        for expression in ["(\"가\", 0) 찾기", "(\"é\", 0) 찾기", "(\"가나\", \"나\") 찾기"] {
-            let source = format!("결과 <- {expression}. 결과 보여주기.");
+        let source = "글값 <- \"앞e\u{301}👍🏽\". ((글값, 1) 찾기) 보여주기. ((글값, 2) 찾기) 보여주기. (((글값, 3) 찾기) 없는가) 보여주기. (((글값, -1) 찾기) 없는가) 보여주기.";
+        let summary = crate::runtime_surface::run_summary_from_supported_source_profile(
+            source, "wo03.ddn", Some(1), Some("v1-core-v25"),
+        ).expect("exact grapheme or absence");
+        assert_eq!(summary["output_log_texts"], serde_json::json!(["e\u{301}", "👍🏽", "참", "참"]));
+
+        for (index, cause) in [("\"나\"", "E_RUNTIME_TEXT_LOOKUP_UNSUPPORTED"), ("0.5", "정수 값이 필요합니다")] {
+            let source = format!("((\"가나\", {index}) 찾기) 보여주기.");
             let program = DdnProgram::from_v25_source(&source, "wo03.ddn").expect("parse");
             let error = DdnRunner::new(program, "매마디")
-                .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).err().expect("no silent substitution");
-            assert!(error.contains("E_RUNTIME_TEXT_LOOKUP_UNSUPPORTED"), "{error}");
+                .run_update(&NuriWorld::new(), &empty_input(), &HashMap::new()).err().expect("invalid index");
+            assert!(error.contains(cause), "{error}");
         }
     }
 
@@ -13409,3 +13416,7 @@
         assert!(world.get_resource_value("첫째").is_none());
         assert!(world.get_resource_value("둘째").is_none());
     }
+
+include!("../../tests/bogae_xy/static_png_runtime_context.rs");
+
+include!("../../tests/bogae_xy/static_image_call.rs");

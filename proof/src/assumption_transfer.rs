@@ -12,6 +12,7 @@ pub struct CheckedInitialIdentity { definition: ResolvedTransfer }
 pub struct CheckedIdentityConsumption {
     law: CheckedInitialIdentity,
     definition: ResolvedTransfer,
+    argument: Option<ddonirang_lang::proof_authoring::ResolvedIdentityArgument>,
 }
 
 fn direct_result(seed: &ddonirang_lang::ast::SeedDef) -> Option<&ddonirang_lang::ast::Expr> {
@@ -86,18 +87,55 @@ impl CheckedInitialIdentity {
         let ExprKind::Call{args,..}=&consumption.call().kind else {return Err(reject())};
         if args.len()!=1 || args[0].resolved_pin.as_deref()!=Some(law.operation().params[0].pin_name.as_str())
             || !matches!(&args[0].expr.kind,ExprKind::Var(name) if name==&consumption.input().pin_name) {return Err(reject())}
-        Ok(CheckedIdentityConsumption {law:self.clone(),definition:definition.clone()})
+        Ok(CheckedIdentityConsumption {law:self.clone(),definition:definition.clone(),argument:None})
     }
 }
 
 impl CheckedIdentityConsumption {
+    /// Discharge the actual source-resolved argument only after checking each
+    /// conditional return definition and the same independently checked law.
+    pub fn with_argument(mut self,argument:&ddonirang_lang::proof_authoring::ResolvedIdentityArgument)
+        ->Result<Self,ParseError> {
+        self.check_argument(argument,0,&mut 4096)?;
+        self.argument=Some(argument.clone());
+        Ok(self)
+    }
+    fn check_argument(&self,argument:&ddonirang_lang::proof_authoring::ResolvedIdentityArgument,
+        depth:usize,budget:&mut usize)->Result<(),ParseError> {
+        let reject=|code,message|ParseError{span:argument.expression().span,message:format!("{code}: {message}")};
+        if depth>64 || *budget==0 {return Err(reject("E_PROOF_BUDGET","법칙 반환 검사 예산을 넘었습니다"))}
+        *budget-=1;
+        let law=self.law.definition.goal().structure_law().ok_or_else(||reject("E_PROOF_STRUCTURE_CONSUMPTION","최초 법칙이 없습니다"))?;
+        if !argument.bindings_match() || !law.same_structure(argument.law()) {
+            return Err(reject("E_PROOF_CONTEXT_MISMATCH","반환 근거의 실제 법칙·핀·소유 결속이 다릅니다"));
+        }
+        if let Some(application)=argument.application() {
+            let definition=application.definition();
+            if !law.belongs_to(definition.scope()) || definition.assumptions().len()!=1
+                || definition.returned()!=definition.assumptions().first() {
+                return Err(reject("E_PROOF_ASSUMPTION","반환된 근거가 실제 필수 가정과 다릅니다"));
+            }
+            // Replay existing conditional application checks inside the return
+            // definition. This verdict alone is never a closed law receipt.
+            check_assumption_transfer(definition)?;
+            self.check_argument(application.argument(),depth+1,budget)?;
+        }
+        Ok(())
+    }
     pub fn definition(&self) -> &ResolvedTransfer { &self.definition }
     pub fn validate_source(&self, source: &str, path: &str) -> Result<(), ParseError> {
         self.law.validate_source(source,path)?;
         if !self.definition.source_matches(source,path) {
             return Err(application_error(&self.definition,"E_PROOF_STALE_SOURCE","정적 항등 소비의 원문과 현재 원문이 다릅니다"));
         }
-        self.law.admit_direct_calculation(&self.definition).map(|_| ())
+        self.law.admit_direct_calculation(&self.definition)?;
+        if let Some(argument)=&self.argument {
+            if !argument.source_matches(source,path) {
+                return Err(application_error(&self.definition,"E_PROOF_STALE_SOURCE","반환 법칙의 원문·의존 판본이 다릅니다"));
+            }
+            self.check_argument(argument,0,&mut 4096)?;
+        }
+        Ok(())
     }
 }
 

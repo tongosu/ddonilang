@@ -7,12 +7,16 @@ export function installProofSourceInspection({root = document, runtimeBridge, re
   if (!button || !panel || !status || !detail) throw new Error('보임 검사 표시 영역이 없습니다.');
   let generation = 0;
   let observed = null;
+  let presenceSource = null;
   const same = (a, b) => a !== null && b !== null && a.projectId === b.projectId
-    && a.path === b.path && a.sourceText === b.sourceText;
+    && a.path === b.path && a.sourceText === b.sourceText && a.profile === b.profile;
 
   function invalidate() {
     generation += 1;
     observed = null;
+    presenceSource = null;
+    button.hidden = true;
+    button.dataset.presence = 'unknown';
     button.disabled = false;
     panel.hidden = true;
     panel.dataset.proofStatus = 'not-checked';
@@ -20,11 +24,34 @@ export function installProofSourceInspection({root = document, runtimeBridge, re
     detail.textContent = '';
   }
 
-  function observe() {
-    if (observed && !same(observed, readSource())) invalidate();
+  async function observe() {
+    const snapshot = {...readSource()};
+    if (observed && !same(observed, snapshot)) invalidate();
+    if (same(presenceSource, snapshot)) return;
+    invalidate();
+    presenceSource = snapshot;
+    const ticket = generation;
+    // Ordinary shared parsing only: never auto-run the mathematical checker.
+    try {
+      const result = await runtimeBridge.sourceAnalysis({source_text:snapshot.sourceText,
+        path:snapshot.path, source_profile_identity:snapshot.profile, analysis_generation:ticket});
+      if (ticket !== generation || !same(snapshot, readSource())) return;
+      const valid = result?.schema === 'ddn.source_analysis_snapshot.candidate.v1'
+        && result.analysis_generation === ticket && result.source_profile_identity === snapshot.profile
+        && typeof result.source_revision_identity === 'string' && result.source_revision_identity.length > 0
+        && typeof result.proof_source_present === 'boolean';
+      button.hidden = !valid || !result.proof_source_present;
+      button.dataset.presence = valid ? (result.proof_source_present ? 'present' : 'absent') : 'unknown';
+    } catch {
+      if (ticket !== generation || !same(snapshot, readSource())) return;
+      button.hidden = true;
+      button.dataset.presence = 'unknown';
+      // Existing source analysis owns diagnostics; failed parsing is not proof absence.
+    }
   }
 
   async function check() {
+    if (button.hidden) return;
     const snapshot = {...readSource()};
     const ticket = ++generation;
     observed = snapshot;

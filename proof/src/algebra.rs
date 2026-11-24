@@ -51,7 +51,7 @@ pub struct AlgebraInspection {
 }
 pub fn inspect_algebra_definition(context:&ResolvedAlgebraDefinition)->AlgebraInspection {
     let mut view=AlgebraInspection{checked_steps:Vec::new(),reciprocals:Vec::new(),failed_step:None,error:None};
-    if let Err(e)=replay(context,&mut view){view.error=Some(e);}
+    if let Err(e)=replay(context,&mut view,&mut 65536,0){view.error=Some(e);}
     view
 }
 pub fn check_algebra_definition(context:&ResolvedAlgebraDefinition)->Result<CheckedAlgebraDefinition,ParseError> {
@@ -59,7 +59,35 @@ pub fn check_algebra_definition(context:&ResolvedAlgebraDefinition)->Result<Chec
     if let Some(e)=view.error{return Err(e);}
     Ok(CheckedAlgebraDefinition{context:context.clone()})
 }
-fn replay(context:&ResolvedAlgebraDefinition,view:&mut AlgebraInspection)->Result<(),ParseError> {
+// Clone an actual argument without substituting its caller-owned parameter IDs.
+// Every copied node shares the replay budget, including repeated formal uses.
+fn copy_actual(term:&QTerm,span:Span,budget:&mut usize,depth:usize)->Result<QTerm,ParseError> {
+    if *budget==0||depth>128{return Err(error(span,"E_PROOF_BUDGET","보임 치환 검사 한도를 넘었습니다"));}*budget-=1;
+    Ok(match term {
+        QTerm::Integer(n)=>QTerm::Integer(*n),
+        QTerm::Parameter(i)=>QTerm::Parameter(*i),
+        QTerm::Add(a,b)=>QTerm::Add(Box::new(copy_actual(a,span,budget,depth+1)?),Box::new(copy_actual(b,span,budget,depth+1)?)),
+        QTerm::Subtract(a,b)=>QTerm::Subtract(Box::new(copy_actual(a,span,budget,depth+1)?),Box::new(copy_actual(b,span,budget,depth+1)?)),
+        QTerm::Multiply(a,b)=>QTerm::Multiply(Box::new(copy_actual(a,span,budget,depth+1)?),Box::new(copy_actual(b,span,budget,depth+1)?)),
+        QTerm::DivideByInteger(a,n)=>QTerm::DivideByInteger(Box::new(copy_actual(a,span,budget,depth+1)?),*n),
+    })
+}
+fn substitute(term:&QTerm,values:&[QTerm],span:Span,budget:&mut usize,depth:usize)->Result<QTerm,ParseError> {
+    if *budget==0||depth>128{return Err(error(span,"E_PROOF_BUDGET","보임 치환 검사 한도를 넘었습니다"));}*budget-=1;
+    Ok(match term {
+        QTerm::Integer(n)=>QTerm::Integer(*n),
+        QTerm::Parameter(i)=>copy_actual(values.get(*i).ok_or_else(||error(span,"E_PROOF_ALGEBRA_BINDER","호출 값의 변수 결속이 없습니다"))?,span,budget,depth+1)?,
+        QTerm::Add(a,b)=>QTerm::Add(Box::new(substitute(a,values,span,budget,depth+1)?),Box::new(substitute(b,values,span,budget,depth+1)?)),
+        QTerm::Subtract(a,b)=>QTerm::Subtract(Box::new(substitute(a,values,span,budget,depth+1)?),Box::new(substitute(b,values,span,budget,depth+1)?)),
+        QTerm::Multiply(a,b)=>QTerm::Multiply(Box::new(substitute(a,values,span,budget,depth+1)?),Box::new(substitute(b,values,span,budget,depth+1)?)),
+        QTerm::DivideByInteger(a,n)=>QTerm::DivideByInteger(Box::new(substitute(a,values,span,budget,depth+1)?),*n),
+    })
+}
+fn substituted(eq:&AlgebraEquality,values:&[QTerm],span:Span,budget:&mut usize)->Result<AlgebraEquality,ParseError>{
+    Ok(AlgebraEquality{left:substitute(&eq.left,values,span,budget,0)?,right:substitute(&eq.right,values,span,budget,0)?,left_span:span,right_span:span})
+}
+fn replay(context:&ResolvedAlgebraDefinition,view:&mut AlgebraInspection,budget:&mut usize,depth:usize)->Result<(),ParseError> {
+    if *budget==0||depth>64{return Err(error(context.declaration().span,"E_PROOF_BUDGET","보임 호출 검사 한도를 넘었습니다"));}*budget-=1;
     let span=context.declaration().span;
     if context.assumptions().is_empty(){return Err(error(span,"E_PROOF_ASSUMPTION","명시된 등식 가정이 필요합니다"));}
     if context.parameters().iter().any(|p|p.type_ref!=TypeRef::Named("나눔수".into())||p.optional||p.default_value.is_some()) {
@@ -74,8 +102,22 @@ fn replay(context:&ResolvedAlgebraDefinition,view:&mut AlgebraInspection)->Resul
     // form must not hide an earlier invalid inference.
     for (index,step) in context.steps().iter().enumerate() {
         view.failed_step=Some(index);
+        if *budget==0{return Err(error(step.span,"E_PROOF_BUDGET","보임 단계 검사 한도를 넘었습니다"));}*budget-=1;
         let mut reciprocal=None;
         let next=match &step.rule {
+            AlgebraRule::ApplyDefinition{definition,values,evidence}=>{
+                if !context.same_source_owner(definition){return Err(error(step.span,"E_PROOF_STALE_SOURCE","다른 분석 원문에 속한 보임 정의입니다"));}
+                if values.len()!=definition.parameters().len()||evidence.len()!=definition.assumptions().len(){return Err(error(step.span,"E_PROOF_ARGUMENT_COUNT","호출 값과 증거 수가 실제 정의와 다릅니다"));}
+                for value in values {normal(value,count,step.span)?;}
+                let mut callee=AlgebraInspection{checked_steps:Vec::new(),reciprocals:Vec::new(),failed_step:None,error:None};
+                replay(definition,&mut callee,budget,depth+1)?;
+                for (formal,reference) in definition.assumptions().iter().zip(evidence) {
+                    let expected=substituted(formal,values,step.span,budget)?;
+                    let actual=lookup(*reference,context,&checked,step.span)?;
+                    same_sides(actual,&expected,count,"E_PROOF_ALGEBRA_ARGUMENT")?;
+                }
+                substituted(definition.goal(),values,step.span,budget)?
+            }
             AlgebraRule::SubtractSame{prior,term}=>{
                 let prior=lookup(*prior,context,&checked,step.span)?;
                 normal(term,count,step.span)?;

@@ -145,9 +145,14 @@ fn decode_slot(bytes: &[u8]) -> Result<[u8; 32], Failure> {
 }
 
 fn root_fingerprint(record: &GrantRecord) -> [u8; 32] {
+    root_fingerprint_fields(&record.sid_hash,&record.project_hash,&record.root_file,
+        &record.root_object,&record.db_file,&record.db_object)
+}
+fn root_fingerprint_fields(sid:&[u8;32],project:&[u8;32],root_file:&[u8;24],
+    root_object:&[u8;16],db_file:&[u8;24],db_object:&[u8;16])->[u8;32] {
     use sha2::{Digest, Sha256};
-    let fields: [(u8, &[u8]); 6] = [(2,&record.sid_hash),(3,&record.project_hash),(5,&record.root_file),
-        (6,&record.root_object),(7,&record.db_file),(8,&record.db_object)];
+    let fields: [(u8, &[u8]); 6] = [(2,sid),(3,project),(5,root_file),
+        (6,root_object),(7,db_file),(8,db_object)];
     let mut hash = Sha256::new();
     for (tag, value) in fields { hash.update([tag]); hash.update((value.len() as u32).to_be_bytes()); hash.update(value); }
     hash.finalize().into()
@@ -456,13 +461,17 @@ mod windows {
     use std::ffi::c_void;
     use std::ptr::{null, null_mut};
     include!("root_grant/source_first_use_windows.rs");
+    include!("root_grant/model_source_windows.rs");
+    include!("root_grant/code_source_windows.rs");
+    include!("root_grant/nominal_source_windows.rs");
     include!("root_grant/source_authoring_windows.rs");
+    include!("root_grant/readonly_observation_windows.rs");
     include!("root_grant/replay_windows.rs");
     include!("root_grant/finish_recovery_windows.rs");
     include!("root_grant/finish_recovery_cold_windows.rs");
 
     #[derive(Clone, Copy, PartialEq, Eq)]
-    enum Namespace { Grant, RootSlot, Attempt, SourceTransition }
+    enum Namespace { Grant, RootSlot, Attempt, SourceTransition, ModelSource, CodeSource, NominalSource }
     #[cfg(test)]
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum IoStep { Set, Flush, FreshRead }
@@ -482,6 +491,9 @@ mod windows {
         fn prefix(&self) -> &'static str { match self {
             Self::Grant | Self::Attempt | Self::SourceTransition => "Software\\DDonilang\\NativeRecoveryGrantV1\\",
             Self::RootSlot => "Software\\DDonilang\\NativeRecoveryRootSlotV1\\",
+            Self::ModelSource => "Software\\DDonilang\\NativeModelSourceGrantV1\\",
+            Self::CodeSource => "Software\\DDonilang\\NativeCodeSourceGrantV1\\",
+            Self::NominalSource => "Software\\DDonilang\\NativeNominalSourceGrantV1\\",
         } }
         fn value_name(self) -> &'static str { match self {Self::Attempt=>"Attempt",Self::SourceTransition=>"SourceTransition",_=>"Record"} }
     }

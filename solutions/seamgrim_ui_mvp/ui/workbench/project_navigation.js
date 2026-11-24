@@ -139,6 +139,13 @@ function renderMyWork() {
     const origin = row.origin_kind==='native_source'?'Native 저장':row.native_saved_as?'Native에 저장됨 · 임시 복구 자료':row.origin_kind === "local_only" ? "로컬 전용" : "서버 저장";
     const access = row.access_role === "view" || (!row.edit_capability && row.view_capability) ? "보기 전용" : "편집 가능";
     link.innerHTML = `<strong>${escapeHtml(row.title || row.project_id)}</strong><span>${origin} · ${access} · ${escapeHtml(row.verify_status || (origin === "로컬 전용" ? "이 기기" : "server 확인 전"))} · head ${escapeHtml(row.head_revision_id || "-")}</span>`;
+    if(row.origin_kind==='native_source') {
+      const identity=document.createElement('small');
+      identity.dataset.testid='native-work-identity';
+      identity.title=String(row.project_id);
+      identity.textContent=`작품 ${String(row.project_id).slice(0,12)}${String(row.project_id).length>12?'…':''}`;
+      link.append(identity);
+    }
     appendMyWorkRow(link, row, "index");
   });
   portableRows.forEach((row) => {

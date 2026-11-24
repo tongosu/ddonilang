@@ -270,7 +270,8 @@ a:focus-visible {
 }
 
 .workbench-toolbar {
-  align-items: flex-end;
+  align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 .project-actions {
@@ -345,7 +346,8 @@ a:focus-visible {
 }
 
 .project-title-block {
-  min-width: 0;
+  min-width: min(100%, 18rem);
+  flex: 1 1 18rem;
 }
 
 .eyebrow {
@@ -1003,7 +1005,7 @@ p {
 .exploration-presets details p { margin:6px 0; }
 .canvas-wrap { position:relative; }
 .authored-magnifier-popover { position:absolute; z-index:4; width:230px; max-width:calc(100% - 8px); max-height:calc(100% - 8px); overflow:auto; pointer-events:none; padding:8px; border:2px solid #e6a600; border-radius:8px; background:#fffef5; box-shadow:0 3px 12px #0003; box-sizing:border-box; }
-.authored-magnifier-popover canvas { display:block; width:100%; height:70px; }
+.authored-magnifier-popover canvas { display:block; width:100%; height:auto; aspect-ratio:11 / 6; }
 .authored-magnifier-popover button, .authored-magnifier-popover details { pointer-events:auto; }
 .authored-magnifier-popover p { margin:4px 0; font-size:12px; }
 .authored-magnifier-popover button { float:right; }
@@ -1611,6 +1613,27 @@ p {
 .workbench-layout { flex:1; min-height:0; overflow:hidden; }
 .workbench-layout .source-panel { min-height:0; overflow:hidden; }
 .workbench-layout .source-panel textarea { min-height:0; height:100%; resize:none; }
+/* 모바일 원문과 비교 진입부에 실제 행 높이를 배정한다. */
+@media (max-width: 720px) {
+  .workbench-layout .source-panel {
+    grid-template-rows: max-content minmax(160px, 1fr) minmax(62px, max-content);
+    grid-auto-rows: max-content;
+    overflow: auto;
+  }
+  .workbench-layout .source-panel > .source-editor-shell {
+    min-height: 160px;
+  }
+  .workbench-layout .source-panel > .source-editor-shell > textarea {
+    min-height: 160px;
+    height: 100%;
+  }
+  .workbench-layout .source-panel > [data-testid="co-creation"]:not([open]) {
+    min-height: 62px;
+  }
+  .workbench-layout .source-panel > [data-testid="co-creation"]:not([open]) > summary {
+    min-height: 44px;
+  }
+}
 .workbench-layout[data-mode] .bogae-panel { min-height:0; overflow:auto; }
 .workbench-layout[data-mode] .bogae-stage > .canvas-wrap { max-width:calc((100dvh - 360px) * var(--primary-aspect,1.3333333333333333)); justify-self:center; }
 .app-frame[data-experiment-mode="true"] .project-rail { display:none; }
@@ -1646,3 +1669,14 @@ p {
 .multilang-consumer textarea { width: 100%; box-sizing: border-box; min-height: 120px; font: inherit; }
 .multilang-consumer pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .multilang-consumer button { margin: 4px; }
+
+/* claude1 R1: 관찰값 빈 안내는 편집판 결과가 보일 때 그 사실을 말한다. 표시만 바꾼다. */
+[data-awaiting-text="temporary"] { display: none; }
+[data-temporary-shown="true"] [data-awaiting-text="committed"] { display: none; }
+[data-temporary-shown="true"] [data-awaiting-text="temporary"] { display: inline; }
+
+/* claude1 R1(R2.2 교정): 다국어 서랍만 고정 머리가 위쪽 여백(14px)까지 덮어 내용이 머리 위로 비치지 않게 한다. */
+.multilang-dialog[open] > .drawer-header { top: -14px; }
+/* 다국어 패널은 안쪽 제목(표시 언어를 따름)이 있으므로 머리의 같은 제목은 화면·접근성 트리 모두에서 뺀다(index.html aria-hidden). */
+.multilang-dialog > .drawer-header { justify-content: flex-end; }
+.multilang-dialog > .drawer-header > strong { display: none; }

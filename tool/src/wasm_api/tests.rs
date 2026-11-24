@@ -126,7 +126,7 @@
     fn d9_wasm_vm_binds_named_project_entry_after_profile_update() {
         let source = "중력:수 := 9.8. 실행:움직씨 := { 중력 보여주기. }";
         let mut vm = DdnWasmVm::new("1 보여주기.").unwrap();
-        vm.update_logic_with_source_profile(source, "v1-core-v25").unwrap();
+        vm.update_logic_with_source_profile(source, "v1-core-v25", None).unwrap();
         vm.configure_project_entry("실행").unwrap();
         let input = InputSnapshot {
             tick_id: 0, dt: Fixed64::from_i64(1), keys_pressed: 0,
@@ -143,7 +143,7 @@
     fn wasm_vm_profile_update_replaces_inert_bootstrap_with_v25_source() {
         let source = "매마디:움직씨 := {\n    값:수 := 1.\n    값 <- 2.\n    값 보여주기.\n}\n";
         let mut vm = DdnWasmVm::new("1 보여주기.").expect("inert bootstrap VM");
-        vm.update_logic_with_source_profile(source, "v1-core-v25")
+        vm.update_logic_with_source_profile(source, "v1-core-v25", None)
             .expect("V25 profile update");
         assert_eq!(vm.get_configured_madi(), 0);
         assert_eq!(vm.source_bytes_sha256, runtime_surface::sha256_hex(source.as_bytes()));
@@ -161,7 +161,7 @@
         assert_eq!(vm.source_bytes_sha256, before);
         assert!(vm.update_logic_with_mode(invalid, "strict").is_err());
         assert_eq!(vm.source_bytes_sha256, before);
-        assert!(vm.update_logic_with_source_profile(invalid, "v1-core-v25").is_err());
+        assert!(vm.update_logic_with_source_profile(invalid, "v1-core-v25", None).is_err());
         assert_eq!(vm.source_bytes_sha256, before);
     }
 

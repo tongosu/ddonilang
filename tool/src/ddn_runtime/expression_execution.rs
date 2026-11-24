@@ -73,6 +73,125 @@ where
 }
 
 impl<'a> EvalContext<'a> {
+    fn freeze_function_sources(&mut self,graph:&crate::function_call_graph::CheckedGraph)->Result<Arc<BTreeMap<ddonirang_lang::NodeId,Value>>,EvalError>{
+        let mut captured=BTreeMap::new();
+        for binding in graph.globals(){
+            self.work_cost.borrow_mut().charge_element_visits(1)?;
+            let value=self.source_root_values.borrow().get(&binding.declaration).cloned()
+                .ok_or_else(||EvalError::from("E_FUNCTION_CALLEE_CAPTURE_SOURCE_REQUIRED: 실제 원문 선언이 아직 값을 공급하지 않았습니다".to_string()))?;
+            ddonirang_lang::runtime::check_value_type(&value,&binding.kind).map_err(|_|EvalError::from("E_FUNCTION_CALLEE_CAPTURE_SOURCE_REQUIRED: 실제 선언 씨와 갈무리 값이 다릅니다".to_string()))?;
+            if value.contains_transient_subject_view()||!anonymous_capture_data_allowed(&value){return Err("E_FUNCTION_CAPTURE_AUTHORITY_REQUIRED: 바깥 원문의 자원·권한·읽기 문맥을 암묵 복사할 수 없습니다".to_string().into());}
+            captured.insert(binding.declaration,value);
+        }
+        Ok(Arc::new(captured))
+    }
+
+    // Shared argument evaluation only. This is not DDL/source admission.
+    // Public B1 dispatch stays disabled until reviewed material and a real
+    // source-owned Bool/Definition/Pin binding supply this private consumer.
+    fn eval_logic_arguments(
+        &mut self,locals:&mut HashMap<String,Value>,args:&[&Expr],
+        policy:ddonirang_lang::stdlib::logic_callable_registration_r1::LogicEvaluationPolicy,
+        slots:&[usize], locate_operand: bool,
+    )->Result<Result<Vec<Value>,bool>,EvalError>{
+        use ddonirang_lang::stdlib::logic_callable_registration_r1::LogicEvaluationPolicy as P;
+        let count=if policy==P::UnaryEager{1}else{2};
+        if args.len()!=count||slots.len()!=count||slots.iter().any(|&i|i>=args.len())
+            ||slots.iter().copied().collect::<std::collections::BTreeSet<_>>().len()!=count {
+            return Err("E_LOGIC_ARGUMENT_BINDING: 받는자리 결속이 다릅니다".to_string().into());
+        }
+        let left_expr = args[slots[0]];
+        let left = self.eval_expr(locals, left_expr)?;
+        let truth = is_truthy(&left).map_err(|error| {
+            if locate_operand { self.locate_logic_operand(error, left_expr) } else { error }
+        })?;
+        if (policy==P::AndShortCircuit&&!truth)||(policy==P::OrShortCircuit&&truth){return Ok(Err(truth));}
+        let mut values=vec![left];
+        if count==2{values.push(self.eval_expr(locals,args[slots[1]])?);}
+        Ok(Ok(values))
+    }
+
+    fn locate_logic_operand(&self, error: EvalError, operand: &Expr) -> EvalError {
+        if matches!(error, EvalError::ConditionType) {
+            if let Some(location) = self.source_span_for_expr(operand) {
+                return EvalError::SourceLocated {
+                    error: Box::new(error),
+                    span: (operand.span.start, operand.span.end),
+                    line: location.start_line,
+                    column: location.start_col.unwrap_or(1),
+                };
+            }
+        }
+        error
+    }
+
+    fn eval_registered_logic_operands(
+        &mut self,locals:&mut HashMap<String,Value>,expr:&Expr,args:&[&Expr],
+        source_scope:&crate::authored_project::registration::CheckedLogicSourceScope,
+        definition:&[u8;32],pins:&[[u8;32]],
+    )->Result<Value,EvalError>{
+        // Actual retained source/Bool context must agree before evaluating input.
+        // This still does not supply DDL activation or resolve a source target.
+        source_scope.verify_program(self.program,expr).map_err(EvalError::from)?;
+        let descriptor=source_scope.definition(definition).map_err(EvalError::from)?;
+        let slots=descriptor.argument_slots(definition,pins).map_err(EvalError::from)?;
+        // The qualified call already carries an exact builtin Definition/Pin
+        // binding. An unrelated local or user definition with the canonical
+        // selector's spelling cannot shadow that owner. eval_call's fixed Bool
+        // intrinsic arm runs before user-function fallback; lexical alias
+        // collisions remain checked by the common source resolver above.
+        match self.eval_logic_arguments(locals,args,descriptor.evaluation_policy(),&slots,true)?{
+            Err(truth)=>{self.work_cost.borrow_mut().charge_dispatch()?;Ok(Value::Bool(truth))},
+            // Reuse the real existing Bool intrinsic, limits and work meter.
+            // The canonical name is a dispatch selector after checked identity,
+            // never Japanese spelling/string substitution as authority.
+            Ok(values) => self.eval_call(locals, descriptor.name(), values, self.source_span_for_expr(expr))
+                .map_err(|error| match slots.get(1) {
+                    // The left operand was already checked. Intrinsic dispatch
+                    // preserves its metering and only checks a reached RHS.
+                    Some(&index) => self.locate_logic_operand(error, args[index]),
+                    None => error,
+                }),
+        }
+    }
+
+    /// Consumer of a checked source call bound to the reviewed fixed registration.
+    /// In particular, columns are references: never evaluate them as values.
+    pub(super) fn eval_checked_result_table(
+        &mut self,
+        locals: &mut HashMap<String, Value>,
+        expr: &Expr,
+        admitted: crate::numeric_constraint_plan::ResolvedResultTableCall,
+    ) -> Result<Value, EvalError> {
+        use ddonirang_lang::runtime::ViewValue;
+        let (time, selection)=admitted.into_parts(&self.program.program,expr)
+            .map_err(EvalError::from)?;
+        let ExprKind::Call {args,..}=&expr.kind else {
+            return Err("E_AUTHORED_BOGAE: 검사한 결과표 호출이 아닙니다".to_string().into());
+        };
+        let policy=if let Some(index)=time {
+            let arg=args.get(index).ok_or_else(||EvalError::from(
+                "E_AUTHORED_BOGAE: 검사한 시간 받는자리가 없습니다".to_string()))?;
+            match self.eval_expr(locals,&arg.expr)? {
+                Value::TimePolicy(policy)=>Some(policy),
+                _=>return Err("E_BOGAE_TIME_POLICY_INVALID: 시간은 보개시간값이어야 합니다".to_string().into()),
+            }
+        }else{None};
+        self.work_cost.borrow_mut().charge_dispatch()?;
+        builtin_work_cost_rule("표준보기.결과표")?;
+        if let Some(selected)=selection.as_ref() {
+            self.work_cost.borrow_mut().charge_element_visits(selected.columns().len())?;
+        }
+        let view=match selection {
+            Some(selected)=>ViewValue::SelectedResultTable(selected),
+            None=>ViewValue::ResultTable,
+        };
+        Ok(Value::View(match policy {
+            Some(policy)=>ViewValue::Timed {view:Box::new(view),policy},
+            None=>view,
+        }))
+    }
+
     fn eval_admitted_exact_formula_call(&mut self,locals:&HashMap<String,Value>,expr:&Expr,args:&[Value])->Result<Value,EvalError> {
         let integer_inputs=self.program.numeric_constraint_plan.as_ref()
             .and_then(|plan|plan.exact_formula_calls.get(&expr.id))
@@ -84,6 +203,33 @@ impl<'a> EvalContext<'a> {
     pub(super) fn eval_expr_expected(
         &mut self, locals: &mut HashMap<String, Value>, expr: &Expr, expected: &TypeRef,
     ) -> Result<Value, EvalError> {
+        if let (TypeRef::Function{..},ExprKind::SeedLiteral{..})=(expected,&expr.kind) {
+            if self.program.program.source_epoch!=ddonirang_lang::SourceEpoch::V25{return self.eval_expr(locals,expr);}
+            let mut value=self.eval_expr(locals,expr)?;
+            if let Value::Lambda(lambda)=&mut value {
+                lambda.anonymous_target=Some(std::sync::Arc::new(ddonirang_lang::runtime::AnonymousFunctionTarget::from_expected(&self.program.source_identity,expr,expected)?));
+            }
+            return Ok(value);
+        }
+        if let (TypeRef::Function{..},ExprKind::Var(name))=(expected,&expr.kind) {
+            if !locals.contains_key(name) && self.get_resource(name).is_none() {
+                // Seal from the actual authored canonical definition once.
+                // No ordinary callable name lookup takes place at application.
+                for _ in &self.program.program.items {self.work_cost.borrow_mut().charge_dispatch()?;}
+                let target=ddonirang_lang::runtime::NamedFunctionTarget::from_expected(
+                    &self.program.program,&self.program.source_identity,name,expected)?;
+                if target.definition().body.is_some() && self.program.numeric_constraint_plan.as_ref()
+                    .and_then(|plan|plan.function_graphs.get(target.definition().id)).is_none(){
+                    return Err("E_FUNCTION_CALL_SOURCE: 실제 이름 있는 함수의 원문·효과 그래프가 필요합니다".to_string().into());
+                }
+                self.work_cost.borrow_mut().note_created_identity()?;
+                let graph=self.program.numeric_constraint_plan.as_ref().and_then(|plan|plan.function_graphs.get(target.definition().id));
+                let captured_sources=graph.as_ref().map(|graph|self.freeze_function_sources(graph)).transpose()?.unwrap_or_default();
+                return Ok(Value::Lambda(LambdaValue { captured_sources,anonymous_target:None,id:next_lambda_id(),
+                    param:target.definition().params.iter().map(|pin|pin.pin_name.as_str()).collect::<Vec<_>>().join(","),
+                    body:expr.clone(),captured:HashMap::new(),named_target:Some(std::sync::Arc::new(target))}));
+            }
+        }
         if self.program.numeric_constraint_plan.is_some() {
             // The admitted compilation already issued literal goals. A
             // consumer must not build a competing plan from runtime values.
@@ -491,6 +637,62 @@ impl<'a> EvalContext<'a> {
         args: &Vec<ddonirang_lang::ast::ArgBinding>,
         func: &String,
     ) -> Result<Value, EvalError> {
+        if let Some(graph)=&self.active_function_graph {
+            let target=graph.call(expr.id).ok_or_else(||EvalError::from("E_FUNCTION_CALL_GRAPH_UNSUPPORTED: 봉인된 실제 원문 호출이 아닙니다".to_string()))?;
+            target.verify(expr).map_err(EvalError::from)?;
+            let types=target.authored_types().map_err(EvalError::from)?;
+            let mut actuals:Vec<Option<Value>>=(0..args.len()).map(|_|None).collect();
+            // Evaluate once in parser-retained source order, then move values
+            // into the actual sealed ParamPin order without reevaluation.
+            for index in target.evaluation_order(){actuals[*index]=Some(self.eval_expr_expected(locals,&args[*index].expr,types[*index])?);}
+            let ordered=target.parameter_order().iter().map(|index|actuals[*index].take()
+                .ok_or_else(||EvalError::from("E_FUNCTION_CALL_SOURCE: 실제 평가한 인자가 없습니다".to_string())))
+                .collect::<Result<Vec<_>,_>>()?;
+            self.work_cost.borrow_mut().charge_dispatch()?;
+            self.work_cost.borrow_mut().enter_call()?;
+            let result=self.eval_seed_after_dispatch(target.definition(),ordered);
+            self.work_cost.borrow_mut().exit_call();
+            return result;
+        }
+        if matches!(func.as_str(),"표준보기.흩어진점"|"표준보기.좌표선") {
+            if locals.contains_key("관찰") {return Err("E_AUTHORED_BOGAE: 가려진 관찰 참조입니다".to_string().into());}
+            let shadowed=[func.as_str(),"표준보기"].iter().any(|name|locals.contains_key(*name)||self.get_resource(name).is_some());
+            if let Some(selection)=crate::authored_bogae::xy::resolve_call(&self.program.program,expr,shadowed).map_err(EvalError::from)? {
+                self.work_cost.borrow_mut().charge_dispatch()?;
+                builtin_work_cost_rule(func)?;
+                self.work_cost.borrow_mut().charge_element_visits(2)?;
+                return Ok(Value::View(ddonirang_lang::runtime::ViewValue::SelectedXy(selection)));
+            }
+        }
+        let actual_program=self.program;
+        if let Some(binding)=actual_program.program.resolved_logic_call(expr).map_err(|e|EvalError::from(e.to_string()))?{
+            let scope=actual_program.logic_source_scopes.as_ref().and_then(|scopes|scopes.get(&expr.id))
+                .ok_or_else(||EvalError::from("E_LOGIC_CALL_ADMISSION_REQUIRED: 실제 원문·Bool 공급의 입학 검사가 필요합니다".to_string()))?;
+            let operands=args.iter().map(|arg|&arg.expr).collect::<Vec<_>>();
+            return self.eval_registered_logic_operands(locals,expr,&operands,scope,binding.descriptor().definition(),binding.pin_identities());
+        }
+        // D1 SOURCE28336fed / manifest0168cdc4 physical review accepted.
+        // The immutable descriptor supplies identity; spelling only selects
+        // this resolver. Columns are admitted before ordinary value evaluation.
+        if func=="표준보기.결과표" && args.iter().any(|arg|arg.resolved_pin.as_deref()==Some("열들")) {
+            let (raw,digest)=ddonirang_lang::stdlib::result_table_registration_material(1)
+                .ok_or_else(||EvalError::from("E_AUTHORED_BOGAE: 고정 등록 판본이 없습니다".to_string()))?;
+            let material:serde_json::Value=serde_json::from_str(raw)
+                .map_err(|_|EvalError::from("E_AUTHORED_BOGAE: 등록 자료가 손상됐습니다".to_string()))?;
+            let identity=|key:&str|->Result<[u8;32],EvalError> {
+                let text=material[key].as_str().ok_or_else(||EvalError::from("E_AUTHORED_BOGAE: 등록 정체가 없습니다".to_string()))?;
+                hex::decode(text).ok().and_then(|bytes|bytes.try_into().ok())
+                    .ok_or_else(||EvalError::from("E_AUTHORED_BOGAE: 등록 정체 크기가 다릅니다".to_string()))
+            };
+            let registration=ddonirang_lang::stdlib::lookup_result_table_registration(
+                &identity("owner")?,&identity("definition")?,1,digest,&[]).map_err(EvalError::from)?;
+            let shadowed=[func.as_str(),"표준보기"].iter().any(|name|
+                locals.contains_key(*name)||self.get_resource(name).is_some());
+            if let Some(admitted)=crate::numeric_constraint_plan::resolve_registered_result_table_call(
+                &self.program.program,expr,&registration,shadowed).map_err(EvalError::from)? {
+                return self.eval_checked_result_table(locals,expr,admitted);
+            }
+        }
         if let Some(binding)=self.program.program.origin.manipulation_phase_calls.get(&expr.id){
             if binding.definition!="B1.DEF.INPUT_PHASE.R1"||binding.ordinal_pin!="B1.PIN.INPUT_PHASE.ORDINAL.R1"
                 ||args.len()!=1||args[0].resolved_pin.as_deref()!=Some("순서")||locals.contains_key(func){
@@ -588,14 +790,12 @@ impl<'a> EvalContext<'a> {
             if args.len() != 2 {
                 return Err(format!("{func}는 인자 2개를 받습니다").into());
             }
-            let left = self.eval_expr(locals, &args[0].expr)?;
-            let truth = is_truthy(&left)?;
-            if (func == "그리고" && !truth) || (func == "또는" && truth) {
-                self.work_cost.borrow_mut().charge_dispatch()?;
-                return Ok(Value::Bool(truth));
-            }
-            let right = self.eval_expr(locals, &args[1].expr)?;
-            return self.eval_call(locals, func, vec![left, right], self.source_span_for_expr(expr));
+            use ddonirang_lang::stdlib::logic_callable_registration_r1::LogicEvaluationPolicy as P;
+            let policy=if func=="그리고"{P::AndShortCircuit}else{P::OrShortCircuit};
+            return match self.eval_logic_arguments(locals,&args.iter().map(|arg|&arg.expr).collect::<Vec<_>>(),policy,&[0,1],false)?{
+                Err(truth)=>{self.work_cost.borrow_mut().charge_dispatch()?;Ok(Value::Bool(truth))},
+                Ok(values)=>self.eval_call(locals,func,values,self.source_span_for_expr(expr)),
+            };
         }
         if let Some(admission)=self.program.identity_calculations.call(expr.id)? {
             if locals.contains_key(func) || self.resources.contains_key(func)
@@ -605,17 +805,29 @@ impl<'a> EvalContext<'a> {
             let value=self.eval_expr_expected(locals,&admission.value,&TypeRef::Named("바른수".into()))?;
             return self.eval_seed(&admission.seed,vec![value]);
         }
+        let pinned_function_call=self.program.numeric_constraint_plan.as_ref().and_then(|plan|plan.source_calls.get(&expr.id))
+            .filter(|binding|binding.definition().params.iter().any(|pin|matches!(pin.type_ref,TypeRef::Function{..}))).cloned();
+        if let Some(binding)=&pinned_function_call{
+            binding.verify(expr).map_err(EvalError::from)?;
+            if self.program.numeric_constraint_plan.as_ref().is_some_and(|plan|plan.source_call_rejections.contains_key(&expr.id))
+                ||locals.contains_key(func)||self.resource_exists(func){return Err("E_FUNCTION_CALL_OWNER: 기대 함수씨를 공급한 실제 정의 문맥이 다릅니다".to_string().into());}
+        }
         let mut values = Vec::with_capacity(args.len());
         let generic_application = self.program.numeric_constraint_plan.as_ref()
             .and_then(|plan|plan.generic_calls.get(&expr.id)).cloned();
         let math_is_declared=matches!(ddonirang_lang::ordinary_callable::resolve_scalar_math_callable(&self.program.program,func),
             Some(ddonirang_lang::ordinary_callable::ScalarMathCallableOwner::Declared(_)));
-        let declared_pins = if !locals.contains_key(func)
+        let declared_pins = if let Some(binding)=&pinned_function_call{Some(binding.definition().params.clone())}else if !locals.contains_key(func)
             && (math_is_declared || crate::work_cost::builtin_work_cost_rule(
                 ddonirang_lang::stdlib::canonicalize_stdlib_alias(func)).is_ok_and(|rule| rule.is_none())) {
             generic_application.as_ref().or_else(||self.program.functions.get(func)).map(|seed| seed.params.clone())
         } else { None };
-        for (index, arg) in args.iter().enumerate() {
+        let evaluation_order=if self.program.program.source_epoch==ddonirang_lang::SourceEpoch::V25 {
+            self.program.program.origin.argument_evaluation_order(expr.id,args).map_err(EvalError::from)?
+        }else{(0..args.len()).collect()};
+        let mut evaluated:Vec<Option<Value>>=(0..args.len()).map(|_|None).collect();
+        for index in evaluation_order {
+            let arg=&args[index];
             // Reuse the already resolved ordinary callable and pin.
             // Sealed builtin/lambda dispatch cannot borrow its name.
             let expected = declared_pins.as_ref().and_then(|pins| {
@@ -623,7 +835,60 @@ impl<'a> EvalContext<'a> {
                     pins.iter().find(|p| p.pin_name == pin)
                 } else if args.len() == pins.len() { pins.get(index) } else { None }
             }).map(|pin| &pin.type_ref).unwrap_or(&TypeRef::Infer);
-            values.push(self.eval_expr_expected(locals, &arg.expr, expected)?);
+            evaluated[index]=Some(self.eval_expr_expected(locals, &arg.expr, expected)?);
+        }
+        for value in evaluated{values.push(value.ok_or_else(||EvalError::from("E_CALL_ARGUMENT_SOURCE: 실제 평가한 인자가 없습니다".to_string()))?);}
+        // A source declaration already selected by the common resolver owns
+        // this call, even when a builtin has the same displayed name. Reuse
+        // ordinary overload/type admission; the name only limits this repair.
+        if matches!(func.as_str(),"숫자로"|"제거"|"추가")
+            && !locals.contains_key(func) && !self.resource_exists(func) {
+            if let Some(candidates)=self.program.program.origin.authored_call_candidates.get(&expr.id) {
+                if !candidates.is_empty() {
+                    let candidates=candidates.clone();
+                    let seed=self.resolve_ordinary_callable_overload(func,&values)?
+                        .or_else(||self.program.functions.get(func).cloned())
+                        .ok_or_else(||EvalError::from("E_ORDINARY_CALLABLE_NO_MATCH: 해소된 원문 정의를 실행할 수 없습니다".to_string()))?;
+                    if !candidates.contains(&seed.id) {
+                        return Err("E_ORDINARY_CALLABLE_NO_MATCH: 실제 호출 정의의 소유 문맥이 다릅니다".to_string().into());
+                    }
+                    return self.eval_seed(&seed,values);
+                }
+            }
+        }
+        if let Some(definition) = self.program.program.origin.vc17_named_calls.get(&expr.id).copied() {
+            use ddonirang_lang::stdlib::vc17;
+            let reject = |error:vc17::AdmissionError| EvalError::FieldAccess {
+                code:"E_VC17_ADMISSION",message:error.to_string(),
+                span:(expr.span.start,expr.span.end),
+            };
+            let export = vc17::EXPORTS.iter().find(|export| export.definition == definition)
+                .ok_or_else(|| reject(vc17::AdmissionError::Definition))?;
+            let finite_phrase=definition==vc17::Definition::Sujaro
+                && func==vc17::SUJARO_CALL_TAIL;
+            if (!finite_phrase && func != export.surface)
+                || locals.contains_key(func) || self.resource_exists(func)
+                || (finite_phrase && (locals.contains_key(export.surface)||self.resource_exists(export.surface))) {
+                return Err(reject(vc17::AdmissionError::Ambiguous));
+            }
+            let bound = args.iter().zip(values.into_iter()).map(|(arg, value)|
+                (arg.resolved_pin.as_deref(), value)).collect::<Vec<_>>();
+            let invocation = vc17::resolve(export.surface, &bound, expr.id)
+                .map_err(reject)?;
+            if invocation.definition() != definition {
+                return Err(reject(vc17::AdmissionError::Ambiguous));
+            }
+            // Reuse the existing charged implementation only after typed owner
+            // admission. No typo registry row, zero-cost bypass, or name alias.
+            return self.eval_call(locals, export.surface, invocation.arguments().to_vec(),
+                self.source_span_for_expr(expr));
+        }
+        if let Some(binding)=pinned_function_call{
+            let mut supplied=values.into_iter().map(Some).collect::<Vec<_>>();
+            let ordered=binding.parameter_order().iter().map(|index|supplied.get_mut(*index).and_then(Option::take)
+                .ok_or_else(||EvalError::from("E_FUNCTION_CALL_PIN_OWNER: 이미 평가한 실제 인자 결속이 다릅니다".to_string())))
+                .collect::<Result<Vec<_>,_>>()?;
+            return self.eval_seed(binding.definition(),ordered);
         }
         if let Some(operation) = self.program.program.origin.bytes_calls.get(&expr.id).copied() {
             use ddonirang_lang::bytes::BytesConversion;
@@ -658,7 +923,7 @@ impl<'a> EvalContext<'a> {
         }
         // A3-TIME-P1: evaluate in authored order, then bind optional
         // named time arguments using the single public signature table.
-        if let Some(owner)=crate::numeric_constraint_plan::resolve_source_builtin_roles(&self.program.program,func,args,locals.contains_key(func)).map_err(EvalError::from)? {
+        if let Some(owner)=crate::numeric_constraint_plan::resolve_source_builtin_roles(&self.program.program,expr.id,func,args,locals.contains_key(func)).map_err(EvalError::from)? {
             let mut source_values=values.into_iter().map(Some).collect::<Vec<_>>();
             values=owner.canonical_order.into_iter().map(|index|source_values[index].take().expect("unique admitted source role")).collect();
         }
@@ -710,8 +975,20 @@ impl<'a> EvalContext<'a> {
             }
             return self.eval_admitted_exact_formula_call(locals,expr,&values);
         }
-        let value =
-            self.eval_call(locals, func, values, self.source_span_for_expr(expr))?;
+        let location = self.source_span_for_expr(expr);
+        let value = self.eval_call(locals, func, values, location.clone()).map_err(|error| {
+            if self.program.public_callable_authored_owner().is_some()
+                && matches!(error, EvalError::RationalZeroDenominator)
+            {
+                if let Some(location) = location {
+                    return EvalError::SourceLocated {
+                        error: Box::new(error), span: (expr.span.start, expr.span.end),
+                        line: location.start_line, column: location.start_col.unwrap_or(1),
+                    };
+                }
+            }
+            error
+        })?;
         self.refresh_caller_resource_bindings(locals, &resource_backed_names);
         Ok(value)
     }
@@ -754,6 +1031,9 @@ impl<'a> EvalContext<'a> {
         }
         let mut r = if let Some(expected)=right_expected { self.eval_expr_expected(locals,right,&expected)? }
             else { self.eval_expr(locals, right)? };
+        if comparison && [&l,&r].iter().any(|value|matches!(value,Value::Lambda(lambda) if self.program.program.source_epoch==ddonirang_lang::SourceEpoch::V25 || lambda.named_target.is_some())) {
+            return Err("봉인된 함수값은 일반 비교·정렬 대상이 아닙니다".to_string().into());
+        }
         if l.contains_transient_subject_view()||r.contains_transient_subject_view(){return Err("E_VC04_READ_SNAPSHOT_OPERATION_UNSUPPORTED: 읽기값 자체의 연산 대신 붙이를 조회하세요".to_string().into());}
         if comparison {
             self.check_numeric_comparison_owners(locals, left, right, op, Some((&l, &r)))?;
@@ -774,7 +1054,22 @@ impl<'a> EvalContext<'a> {
         }
         let negated_rational = expr.source_negated_operand().is_some()
             && numeric_pack_kind(&r) == Some(NUMERIC_KIND_RATIONAL);
-        let result = self.eval_infix(op, l, r)?;
+        let result = self.eval_infix(op, l, r).map_err(|error| {
+            if op == "/"
+                && (self.program.logic_source_scopes.is_some()
+                    || self.program.public_callable_authored_owner().is_some())
+                && matches!(error, EvalError::DivisionByZero
+                    | EvalError::ArithmeticFault(ddonirang_core::ArithmeticFaultKind::DivByZero))
+            {
+                if let Some(location) = self.source_span_for_expr(expr) {
+                    return EvalError::SourceLocated {
+                        error: Box::new(error), span: (expr.span.start, expr.span.end),
+                        line: location.start_line, column: location.start_col.unwrap_or(1),
+                    };
+                }
+            }
+            error
+        })?;
         if negated_rational {
             // The old generic 0-rhs path can choose an integer carrier
             // for n/1. Negating an issued rational must not erase its
@@ -936,6 +1231,11 @@ impl<'a> EvalContext<'a> {
                         self.work_cost.borrow_mut().charge_canonical_utf8_bytes(side.authored_name())?;
                         return Ok(Value::String(side.authored_name().into()));
                     }
+                    if matches!(occurrence.role,ddonirang_lang::ast::AtomValueRole::StandardSpaceProjectionR1) {
+                        if occurrence.label!="원근" {return Err(EvalError::from("E_ATOM_POLICY_OWNER_REQUIRED: 원근 policy 결속이 다릅니다".to_owned()));}
+                        self.work_cost.borrow_mut().charge_canonical_utf8_bytes("원근")?;
+                        return Ok(Value::String("원근".into()));
+                    }
                     let atom=self.program.registered_atom_literals.get(&expr.id)
                         .ok_or_else(||EvalError::from("E_VC04_ATOM_SOURCE_CONTEXT_REQUIRED: 원자 값의 기록된 원문 등록이 필요합니다".to_owned()))?;
                     self.work_cost.borrow_mut().charge_canonical_utf8_bytes(&occurrence.label)?;
@@ -1092,13 +1392,30 @@ impl<'a> EvalContext<'a> {
             }),
             ExprKind::SelectionPlace { .. } => in_expression_frame(|| Err("E_SELECTION_PLACE_VALUE_CONTEXT: 선택 위치는 `<-` 대입 대상에서만 사용할 수 있습니다".to_string().into())),
             ExprKind::SeedLiteral { param, body } => in_expression_frame(|| {
-                if locals.values().any(Value::contains_transient_subject_view){return Err("E_VC04_READ_SNAPSHOT_ESCAPE: 임자 읽기값을 함수 캡처에 보존할 수 없습니다".to_string().into());}
+                let captured=if self.program.program.source_epoch==ddonirang_lang::SourceEpoch::V25 {
+                // Every v25 function with calls requires the typed compile-time
+                // graph before a value can escape, including untyped paths.
+                let inventory_bound=param.split(',').map(str::trim).filter(|n|!n.is_empty()).map(str::to_owned).collect();
+                let (_,calls)=crate::source_analysis::function_expression_inventory(body,&inventory_bound).map_err(EvalError::from)?;
+                if !calls.is_empty() && self.program.numeric_constraint_plan.as_ref().and_then(|plan|plan.function_graphs.get(body.id)).is_none(){
+                    return Err("E_FUNCTION_CALL_SOURCE: 기대 함수씨와 실제 원문 호출 그래프가 필요합니다".to_string().into());
+                }
+                let bound=param.split(',').map(str::trim).filter(|n|!n.is_empty()).map(str::to_owned).collect();
+                let mut names=std::collections::HashSet::new();anonymous_free_names(body,&bound,&mut names,locals)?;
+                let captured:HashMap<_,_>=names.into_iter().map(|name|locals.get(&name).cloned().map(|value|(name,value)).ok_or_else(||EvalError::from("E_FUNCTION_CAPTURE_SOURCE_REQUIRED: 자유변수의 생성 시점 값이 없습니다".to_string()))).collect::<Result<_,_>>()?;
+                captured
+                }else{locals.clone()};
+                if captured.values().any(Value::contains_transient_subject_view){return Err("E_VC04_READ_SNAPSHOT_ESCAPE: 임자 읽기값을 함수 캡처에 보존할 수 없습니다".to_string().into());}
+                if self.program.program.source_epoch==ddonirang_lang::SourceEpoch::V25 && !captured.values().all(anonymous_capture_data_allowed){return Err("E_FUNCTION_CAPTURE_AUTHORITY_REQUIRED: 자원·권한·실행 문맥을 암묵적으로 갈무리할 수 없습니다".to_string().into());}
                 self.work_cost.borrow_mut().note_created_identity()?;
-                Ok(Value::Lambda(LambdaValue {
+                let graph=self.program.numeric_constraint_plan.as_ref().and_then(|plan|plan.function_graphs.get(body.id));
+                let captured_sources=graph.as_ref().map(|graph|self.freeze_function_sources(graph)).transpose()?.unwrap_or_default();
+                Ok(Value::Lambda(LambdaValue { captured_sources,anonymous_target:None,
+                    named_target: None,
                     id: next_lambda_id(),
                     param: param.clone(),
                     body: (*body.clone()),
-                    captured: locals.clone(),
+                    captured,
                 }))
             }),
             ExprKind::Infix { left, op, right } => self.eval_infix_expression(locals, expr, left, op, right),
@@ -1112,6 +1429,7 @@ impl<'a> EvalContext<'a> {
                     AtSuffix::Unit(_) => apply_suffix_value(base, at),
                 }
             }),
+            ExprKind::FunctionBlock{statements,result}=>in_expression_frame(||self.eval_anonymous_block(locals,statements,result)),
             ExprKind::Thunk(_) => in_expression_frame(|| Err("Thunk는 즉시 평가 표지가 필요합니다".to_string().into())),
             ExprKind::Eval { thunk, mode } => in_expression_frame(|| {
                 let ExprKind::Thunk(body) = &thunk.kind else {
@@ -1204,4 +1522,137 @@ impl<'a> EvalContext<'a> {
         }
     }
 
+}
+
+#[cfg(test)]
+mod checked_table_consumer_tests {
+    use super::*;
+    use crate::ddn_runtime::{DdnProgram,InputState};
+    use ddonirang_lang::Stmt;
+    use ddonirang_core::platform::NuriWorld;
+    fn descriptor()->ddonirang_lang::stdlib::CheckedResultTableDescriptor {
+        use ddonirang_lang::stdlib::*;
+        let (raw,digest)=result_table_registration_material(1).unwrap();
+        let value:serde_json::Value=serde_json::from_str(raw).unwrap();
+        let id=|key:&str| {let s=value[key].as_str().unwrap();
+            std::array::from_fn(|i|u8::from_str_radix(&s[2*i..2*i+2],16).unwrap())};
+        lookup_result_table_registration(&id("owner"),&id("definition"),1,digest,&[]).unwrap()
+    }
+    // Invoke the real evaluator consumer under its checked private admission.
+    // No public dispatch, source rewriting, or observation-value fabrication.
+    fn execute(arguments:&str)->Result<Value,String> {
+        let source=format!("(거리: 2@m, 완료: 참) 내보임. 보기 := {arguments} 표준보기.결과표.");
+        let program=DdnProgram::from_v25_source(&source,"checked-table.ddn")?;
+        let call=program.program.root_stmts.iter().find_map(|s|match s {
+            Stmt::Definition{name,value,..} if name=="보기"=>Some(value.clone()),_=>None,
+        }).unwrap();
+        let admitted=crate::numeric_constraint_plan::resolve_registered_result_table_call(
+            &program.program,&call,&descriptor(),false)?.unwrap();
+        let world=NuriWorld::default();let defaults=HashMap::new();
+        let mut context=EvalContext::new(&program,&world,&defaults,None,InputState::new(0,0),0,0,None);
+        // The public observation statement has not executed. Reading its
+        // fields as ordinary values cannot stand in for source references.
+        assert!(context.public_observations.is_empty());
+        let result=context.eval_checked_result_table(&mut HashMap::new(),&call,admitted)
+            .map_err(|error|error.to_string());
+        assert!(context.public_observations.is_empty());
+        result
+    }
+    #[test]
+    fn checked_table_consumer_evaluates_only_time_and_preserves_selection() {
+        use ddonirang_lang::runtime::{ViewValue,BogaeTimePolicy};
+        let Value::View(ref view)=execute("(열들=차림[관찰.완료, 관찰.거리], 시간=((0) 표준시간.고정마디))").unwrap() else {panic!("view")};
+        assert_eq!(view.time_policy(),BogaeTimePolicy::Fixed(0));
+        assert_eq!(view.table_selection().unwrap().columns().iter().map(|c|c.name.as_str()).collect::<Vec<_>>(),vec!["완료","거리"]);
+        assert_eq!(execute("()").unwrap(),Value::View(ViewValue::ResultTable));
+    }
+    #[test]
+    fn checked_table_consumer_rejects_non_time_value() {
+        assert!(execute("(열들=차림[관찰.거리], 시간=3)").unwrap_err().contains("E_BOGAE_TIME_POLICY_INVALID"));
+    }
+}
+
+#[cfg(test)]
+mod r31_logic_execution_consumer_tests {
+    use super::*;
+    use crate::ddn_runtime::{DdnProgram,InputState};
+    use ddonirang_core::platform::NuriWorld;
+    use ddonirang_lang::stdlib::logic_callable_registration_r1 as logic;
+    fn descriptor(index:usize)->logic::CheckedLogicDefinition{
+        let (raw,digest)=logic::material(1).unwrap();let v:serde_json::Value=serde_json::from_str(raw).unwrap();
+        let id=|s:&str|-> [u8;32]{hex::decode(s).unwrap().try_into().unwrap()};
+        logic::lookup(&id(v["owner"].as_str().unwrap()),&id(v["definitions"][index]["definition"].as_str().unwrap()),1,digest,&[]).unwrap()
+    }
+    // Real product AST operands; no synthetic AST or replacement source.
+    // Reordering the private binding list tests pin identity, not admission
+    // of a Japanese/named source surface. That public gate is still closed.
+    fn execute(index:usize,expression:&str,reorder:bool,tamper:bool,ordinary:bool)->Result<Value,String>{
+        use ddonirang_lang::{Stmt,TopLevelItem};
+        let d=descriptor(index);let source=format!("위험하다:참거짓:셈씨 := {{ 위험하다 <- 1 / 0 > 0. }}. 실행:움직씨 := {{ {expression} 보여주기. }}.");
+        use crate::authored_project::{ProjectArtifact,SourceSnapshot,SourceFile};
+        let project=ProjectArtifact::create("v1-core-v25".into(),SourceSnapshot{root_path:Some("root.ddn".into()),entry_path:"main.ddn".into(),files:vec![
+            SourceFile{path:"root.ddn".into(),text:"(글판=\"v25\", 모듬=차림[(이름=앱,머리=\"main.ddn\",원문=\"main.ddn\")], 시작=(모듈=앱,정의=실행)) 얽음.".into()},
+            SourceFile{path:"main.ddn".into(),text:source}
+        ]},String::new())?;
+        let owned=crate::project_revision_envelope_supply::admit_fresh_precanon_authored_source(project.save()?.as_bytes())?;
+        let program=DdnProgram::from_saved_v25_project_with_mode(owned.sources().clone(),ddonirang_lang::ParseMode::Strict,crate::ddn_runtime::default_age_target())?;
+        let seed=program.program.items.iter().map(|TopLevelItem::SeedDef(seed)|seed).find(|seed|seed.canonical_name=="실행").unwrap();
+        let Stmt::Show{expr,..}=&seed.body.as_ref().unwrap().stmts[0] else{panic!("show")};
+        let mut operands=match &expr.kind {
+            ExprKind::Infix{left,right,..}=>vec![left.as_ref(),right.as_ref()],
+            ExprKind::Call{args,..}=>args.iter().map(|arg|&arg.expr).collect(),
+            _=>panic!("actual Boolean product expression required"),
+        };
+        let roles=if index<2{vec![logic::LogicPinRole::Left,logic::LogicPinRole::Right]}else{vec![logic::LogicPinRole::Value]};
+        let mut pins=roles.iter().map(|role|*d.pin(*role).unwrap()).collect::<Vec<_>>();
+        if reorder{operands.reverse();pins.reverse();}
+        if tamper{pins[0]=[0;32];}
+        let world=NuriWorld::default();let defaults=HashMap::new();
+        let mut ctx=EvalContext::new(&program,&world,&defaults,None,InputState::new(0,0),0,0,None);
+        if ordinary{ctx.eval_expr(&mut HashMap::new(),expr)}else{
+            let scope=crate::authored_project::registration::prepare_logic_source_scope_for_test(&owned,expr.span)?;
+            assert!(!scope.bool_type().is_empty());
+            let actual_module:[u8;32]=hex::decode(owned.entry_module().id.as_str()).unwrap().try_into().unwrap();
+            assert_eq!(scope.module(),&actual_module);
+            ctx.eval_registered_logic_operands(&mut HashMap::new(),expr,&operands,&scope,d.definition(),&pins)
+        }.map_err(|e|e.to_string())
+    }
+    #[test]fn r31_logic_consumer_short_circuits_by_owned_pin_even_reordered(){
+        assert_eq!(execute(0,"거짓 그리고 (() 위험하다)",true,false,false).unwrap(),Value::Bool(false));
+        assert_eq!(execute(1,"참 또는 (() 위험하다)",true,false,false).unwrap(),Value::Bool(true));
+    }
+    #[test]fn r31_logic_consumer_evaluates_needed_rhs_and_both_negations(){
+        for (index,expression) in [(0,"참 그리고 (() 위험하다)"),(1,"거짓 또는 (() 위험하다)")] {
+            let error=execute(index,expression,false,false,false).unwrap_err();
+            assert!(error.contains("0으로 나눌 수 없습니다"),"actual runtime division required: {error}");
+        }
+        assert_eq!(execute(2,"((값=거짓) 아님)",false,false,false).unwrap(),Value::Bool(true));
+        assert_eq!(execute(3,"((값=참) 아니다)",false,false,false).unwrap(),Value::Bool(false));
+    }
+    #[test]fn r31_logic_consumer_rejects_foreign_pin_before_any_argument_evaluation(){
+        let error=execute(0,"(() 위험하다) 그리고 참",false,true,false).unwrap_err();
+        assert!(error.contains("E_LOGIC_PIN_OWNER"),"{error}");
+    }
+    #[test]fn r31_logic_consumer_existing_ordinary_product_path_keeps_short_circuit(){
+        assert_eq!(execute(0,"거짓 그리고 (() 위험하다)",false,false,true).unwrap(),Value::Bool(false));
+        assert_eq!(execute(1,"참 또는 (() 위험하다)",false,false,true).unwrap(),Value::Bool(true));
+        let error=execute(0,"참 그리고 (() 위험하다)",false,false,true).unwrap_err();
+        assert!(error.contains("0으로 나눌 수 없습니다"),"{error}");
+    }
+}
+
+fn anonymous_free_names(expr:&Expr,bound:&std::collections::HashSet<String>,out:&mut std::collections::HashSet<String>,_available:&HashMap<String,Value>)->Result<(),String>{
+    crate::source_analysis::anonymous_capture_free_names(expr,bound,out)
+}
+
+fn anonymous_capture_data_allowed(value:&Value)->bool{
+ let mut seen_sources=std::collections::HashSet::new();
+ let mut pending=vec![value];while let Some(v)=pending.pop(){match v{
+  Value::None|Value::Bool(_)|Value::Fixed64(_)|Value::Unit(_)|Value::String(_)|Value::Bytes(_)|Value::Rational(_)|Value::RegisteredAtom(_)|Value::NominalValueV1(_)|Value::Tensor(_)=>{},
+  Value::List(items)|Value::Tuple(items)=>pending.extend(items),
+  Value::SumBranch{payload,..}|Value::Record{fields:payload,..}|Value::Pack(payload)|Value::Set(payload)=>pending.extend(payload.values()),
+  Value::Map(items)=>for item in items.values(){pending.push(&item.key);pending.push(&item.value);},
+  Value::Lambda(lambda)=>{pending.extend(lambda.captured.values());if seen_sources.insert(Arc::as_ptr(&lambda.captured_sources)){pending.extend(lambda.captured_sources.values());}},
+  _=>return false,
+ }}true
 }
