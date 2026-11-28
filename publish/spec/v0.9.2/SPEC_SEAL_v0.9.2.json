@@ -1,0 +1,18 @@
+{
+  "version": "v0.9.2",
+  "internal_source": "v25.157.0 structure / v25.156.0 semantics",
+  "rd_scope": [
+    715,
+    716,
+    717,
+    718,
+    719
+  ],
+  "base_version": "v0.9.1",
+  "base_seal_sha256": "528b046aee8cd0a6caeb186f1097b35c1aa63b37cd4c7d32e400159c8c568a47",
+  "manifest_sha256": "8e2b08fd80d09dbeb7c9e36d57bff0572643e7b4aa4c8608295d1f81a1d78aa1",
+  "inventory_sha256": "0d074e0163a8bc5df3408e45a8e5b9c4667349bff59402d43fde4f840e59c649",
+  "current_sha256": "caa2f13d33cb428cf77eb02191162c4127a9794e6f44d2748514c2b1dd9f294b",
+  "product_tests": "NOT_RUN",
+  "authority": "Only public CURRENT and exact Owner publication approval activate this edition"
+}
